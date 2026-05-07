@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>فاتورة مبيعات - شركة الزيادي</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { 
+            --accent: #0b5e3d; 
+            --header-bg: #0b5e3d;
+            --bg-light: #f4f7f6;
+            --text-primary: #1b2e26;
+            --border: #dce3de;
+            --white: #ffffff;
+            --danger: #d90429;
+            --success: #2d6a4f;
+            --warning: #f2cc60;
+        }
+        
+        body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 50px; }
+        .header-nav { background: var(--header-bg); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 10px rgba(0,0,0,0.1); color: white; position: sticky; top: 0; z-index: 1000; }
+        .invoice-card { background: var(--white); border: 1px solid var(--border); border-radius: 25px; padding: 20px; margin-top: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); }
+        
+        .form-control, .form-select { 
+            border: 1px solid var(--border) !important; 
+            border-radius: 12px; 
+            font-size: 0.9rem; 
+            font-weight: 600; 
+            padding: 10px; 
+            background-color: var(--white) !important;
+            color: var(--text-primary) !important;
+        }
+        .form-control:focus { border-color: var(--accent) !important; box-shadow: 0 0 8px rgba(11, 94, 61, 0.2); }
+        input[type="number"] { color: var(--accent) !important; font-weight: bold; }
+
+        .product-row { background: #f8faf9; border-radius: 18px; padding: 15px; margin-bottom: 15px; border: 1px solid var(--border); position: relative; }
+        .btn-remove { position: absolute; left: -10px; top: -10px; color: var(--danger); background: white; border-radius: 50%; font-size: 1.4rem; cursor: pointer; z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        
+        .search-results {
+            position: absolute; width: 100%; background: white; border: 1px solid var(--border);
+            border-radius: 10px; z-index: 100; max-height: 200px; overflow-y: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: none; margin-top: 5px;
+        }
+        .search-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; font-size: 0.85rem; color: var(--text-primary); }
+        .search-item:hover { background: #f0f7f4; color: var(--accent); }
+
+        #customerBalanceInfo {
+            display: none;
+            background: #eef7f3;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 5px 12px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            margin-top: 8px;
+            font-weight: 700;
+        }
+
+        .total-box { background: var(--accent); color: white; border-radius: 20px; padding: 18px; text-align: center; margin-top: 20px; }
+        .payment-box { background: #edf2ef; border-radius: 18px; padding: 15px; margin-top: 15px; border: 1px dashed var(--accent); }
+        
+        .btn-save { background: var(--accent); border: none; border-radius: 15px; padding: 15px; width: 100%; font-weight: 800; color: white; margin-top: 20px; }
+        .sub-lbl { font-size: 0.75rem; color: var(--accent); margin-bottom: 5px; display: block; font-weight: 700; }
+        .unit-info-area { font-size: 0.75rem; margin-top: 8px; color: var(--success); font-weight: 700; }
+    </style>
+</head>
+<body>
+
+<div class="header-nav">
+    <a href="javascript:void(0)" onclick="confirmBack()" class="text-white text-decoration-none"><i class="fas fa-arrow-right"></i></a>
+    <h6 class="m-0 fw-bold">فاتورة مبيعات <span id="modeText" class="badge bg-light text-success" style="color:var(--accent)!important">جديدة</span></h6>
+    <i class="fas fa-file-invoice text-white"></i>
+</div>
+
+<div class="container">
+    <div class="invoice-card">
+        <div class="row g-2 mb-4">
+            <div class="col-7 position-relative">
+                <label class="sub-lbl">العميل</label>
+                <input type="text" id="customerSearch" class="form-control" placeholder="ابحث عن عميل..." oninput="searchCustomer(this)" autocomplete="off">
+                <input type="hidden" id="customerSelect" value="">
+                <div id="customerResults" class="search-results"></div>
+                <div id="customerBalanceInfo">
+                    <i class="fas fa-wallet me-1"></i> الرصيد الفعلي الحالي: <span id="curBalanceVal">0.00</span>
+                </div>
+            </div>
+            <div class="col-5">
+                <label class="sub-lbl">التاريخ</label>
+                <input type="text" id="invTime" class="form-control" style="font-size: 0.75rem" readonly>
+            </div>
+        </div>
+
+        <div id="itemsContainer"></div>
+
+        <button class="btn btn-outline-primary w-100 rounded-pill mb-4 fw-bold" onclick="addNewRow()">
+            <i class="fas fa-plus-circle me-1"></i> إضافة صنف للفاتورة
+        </button>
+
+        <div class="payment-box">
+            <div class="row g-2">
+                <div class="col-6">
+                    <label class="sub-lbl">طريقة الدفع</label>
+                    <select id="payMethod" class="form-select" onchange="togglePayLogic()">
+                        <option value="cash">نقدي (كاش)</option>
+                        <option value="credit">آجل (على الحساب)</option>
+                    </select>
+                </div>
+                <div class="col-6">
+                    <label class="sub-lbl">المدفوع</label>
+                    <input type="number" id="paidAmount" class="form-control" value="0" oninput="handleInput()">
+                </div>
+            </div>
+        </div>
+
+        <div class="total-box">
+            <div class="row align-items-center">
+                <div class="col-4 border-end border-white border-opacity-25">
+                    <small class="d-block opacity-75" style="font-size: 0.65rem;">الإجمالي</small>
+                    <span id="displayTotal" class="fw-bold text-white fs-5">0.00</span>
+                </div>
+                <div class="col-4 border-end border-white border-opacity-25">
+                    <small class="d-block" style="font-size: 0.65rem; color: var(--warning);">المدفوع</small>
+                    <span id="displayPaid" class="fw-bold fs-5" style="color: var(--warning);">0.00</span>
+                </div>
+                <div class="col-4">
+                    <small class="d-block opacity-75" style="font-size: 0.65rem;">المتبقي</small>
+                    <span id="displayRemaining" class="fw-bold text-white fs-5">0.00</span>
+                </div>
+            </div>
+        </div>
+
+        <button class="btn-save" onclick="saveInvoice()" id="saveBtn">حفظ وتحديث البيانات</button>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyB3jpSs_LiIZwoaPIgRAiALVX5F1OkBYOI",
+        authDomain: "elzyady-da509.firebaseapp.com",
+        projectId: "elzyady-da509",
+        storageBucket: "elzyady-da509.firebasestorage.app",
+        messagingSenderId: "242117738897",
+        appId: "1:242117738897:web:d658d6ca335b316f7f9a30"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    let inventory = [];
+    let customers = [];
+    let editId = new URLSearchParams(window.location.search).get('edit');
+    let isChanged = false;
+
+    // دالة حساب الرصيد الفعلي (مأخوذة من منطق قائمة العملاء)
+    async function getRealBalance(customerId, initialBalance = 0) {
+        try {
+            const qInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
+            const snapInvoices = await getDocs(qInvoices);
+            let invoiceDebt = 0;
+            snapInvoices.forEach(doc => { invoiceDebt += (Number(doc.data().remaining) || 0); });
+
+            const qTrans = query(collection(db, "transactions"), where("partyId", "==", customerId));
+            const snapTrans = await getDocs(qTrans);
+            let transEffect = 0;
+            snapTrans.forEach(doc => {
+                const tr = doc.data();
+                if(tr.type === 'قبض') transEffect -= (Number(tr.amount) || 0);
+                else if(tr.type === 'صرف') transEffect += (Number(tr.amount) || 0);
+            });
+            return Number(initialBalance) + invoiceDebt + transEffect;
+        } catch (e) { return Number(initialBalance); }
+    }
+
+    window.addEventListener('beforeunload', (e) => {
+        if (isChanged) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+    window.confirmBack = () => {
+        if (isChanged && !confirm("لديك بيانات غير محفوظة، هل تريد الخروج والرجوع للسجل؟")) return;
+        window.location.href = "sales-history.html";
+    };
+
+    window.handleInput = () => { isChanged = true; calc(); };
+
+    async function init() {
+        document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
+        try {
+            const [cSnap, iSnap] = await Promise.all([
+                getDocs(collection(db, "customers")),
+                getDocs(collection(db, "inventory"))
+            ]);
+            inventory = iSnap.docs.map(d => ({id: d.id, ...d.data()}));
+            customers = cSnap.docs.map(d => ({id: d.id, ...d.data()}));
+            
+            if(editId) {
+                document.getElementById('modeText').innerText = "تعديل";
+                const invDoc = await getDoc(doc(db, "invoices", editId));
+                if(invDoc.exists()) {
+                    const data = invDoc.data();
+                    document.getElementById('customerSelect').value = data.customerId;
+                    document.getElementById('customerSearch').value = data.customerName;
+                    document.getElementById('invTime').value = data.time;
+                    document.getElementById('payMethod').value = data.paymentMethod;
+                    document.getElementById('paidAmount').value = data.paid;
+                    
+                    const cust = customers.find(c => c.id === data.customerId);
+                    if(cust) {
+                        const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
+                        showBalance(realB);
+                    }
+                    Object.keys(data).forEach(k => { if(!isNaN(k)) addNewRow(data[k]); });
+                }
+                isChanged = false;
+            } else { addNewRow(); }
+            calc();
+        } catch (e) { console.error(e); }
+    }
+
+    window.searchCustomer = (input) => {
+        const term = input.value.toLowerCase().trim();
+        const resultsDiv = document.getElementById('customerResults');
+        const balanceDiv = document.getElementById('customerBalanceInfo');
+        
+        if (term.length < 1) { 
+            resultsDiv.style.display = 'none'; 
+            balanceDiv.style.display = 'none';
+            return; 
+        }
+
+        const filtered = customers.filter(c => c.name.toLowerCase().startsWith(term));
+        
+        resultsDiv.innerHTML = filtered.map(c => `
+            <div class="search-item" onclick="selectCustomer('${c.id}', '${c.name}', ${c.initialBalance || 0})">
+                <b>${c.name}</b>
+                <span style="font-size:0.7rem; color:#666;">رصيد أول المدة: ${c.initialBalance || 0}</span>
+            </div>
+        `).join('');
+        resultsDiv.style.display = filtered.length > 0 ? 'block' : 'none';
+    };
+
+    window.selectCustomer = async (id, name, initialBalance) => {
+        document.getElementById('customerSearch').value = name;
+        document.getElementById('customerSelect').value = id;
+        document.getElementById('customerResults').style.display = 'none';
+        
+        const balanceDiv = document.getElementById('customerBalanceInfo');
+        const balanceSpan = document.getElementById('curBalanceVal');
+        balanceDiv.style.display = 'block';
+        balanceSpan.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
+
+        const realDebt = await getRealBalance(id, initialBalance);
+        showBalance(realDebt);
+        isChanged = true;
+    };
+
+    function showBalance(balance) {
+        const balanceDiv = document.getElementById('customerBalanceInfo');
+        document.getElementById('curBalanceVal').innerText = parseFloat(balance).toFixed(2);
+        balanceDiv.style.display = 'block';
+    }
+
+    window.searchProduct = (input) => {
+        const term = input.value.toLowerCase().trim();
+        const resultsDiv = input.parentElement.querySelector('.search-results');
+        if (term.length < 1) { resultsDiv.style.display = 'none'; return; }
+        const filtered = inventory.filter(i => i.name.toLowerCase().startsWith(term)).slice(0, 10);
+        resultsDiv.innerHTML = filtered.map(p => `
+            <div class="search-item" onclick="selectProduct('${input.closest('.product-row').id}', '${p.id}', '${p.name}')">
+                <b>${p.name}</b> <span style="font-size:0.7rem;">المخزن: ${p.totalPcs} قطعة</span>
+            </div>`).join('');
+        resultsDiv.style.display = filtered.length > 0 ? 'block' : 'none';
+    };
+
+    window.selectProduct = (rowId, pid, pname) => {
+        const row = document.getElementById(rowId);
+        row.querySelector('.p-search').value = pname;
+        row.querySelector('.p-select').value = pid;
+        row.querySelector('.search-results').style.display = 'none';
+        const p = inventory.find(i => i.id === pid);
+        if(p) {
+            row.querySelector('.unit-info-area').innerHTML = `<i class="fas fa-warehouse me-1"></i> رصيد المخزن: ${p.totalPcs} ق`;
+            updateRowPrice(row.querySelector('.p-unit'));
+        }
+        isChanged = true;
+    };
+
+    window.addNewRow = (oldData = null) => {
+        const id = 'row_' + Math.random().toString(36).substr(2, 5);
+        const html = `
+            <div class="product-row" id="${id}">
+                <i class="fas fa-times-circle btn-remove" onclick="document.getElementById('${id}').remove(); handleInput();"></i>
+                <div class="row g-2 mb-2">
+                    <div class="col-7 position-relative">
+                        <span class="sub-lbl">ابحث عن الصنف</span>
+                        <input type="text" class="form-control p-search" placeholder="اكتب أول اسم..." oninput="searchProduct(this)" value="${oldData ? oldData.name : ''}" autocomplete="off">
+                        <input type="hidden" class="p-select" value="${oldData ? oldData.stockId : ''}">
+                        <div class="search-results"></div>
+                    </div>
+                    <div class="col-5">
+                        <span class="sub-lbl">الوحدة</span>
+                        <select class="form-select p-unit" onchange="updateRowPrice(this); handleInput();">
+                            <option value="box" ${oldData?.unit === 'box' ? 'selected' : ''}>كرتونة</option>
+                            <option value="pcs" ${oldData?.unit === 'pcs' ? 'selected' : ''}>قطعة</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-2">
+                    <div class="col-4"><span class="sub-lbl">الكمية</span><input type="number" class="form-control p-qty" value="${oldData ? oldData.qty : 1}" oninput="handleInput()"></div>
+                    <div class="col-4"><span class="sub-lbl">السعر</span><input type="number" class="form-control p-price" value="${oldData ? oldData.price : ''}" oninput="handleInput()"></div>
+                    <div class="col-4"><span class="sub-lbl">الإجمالي</span><input type="text" class="form-control p-subtotal" readonly value="0.00" style="background:#e9ecef!important;"></div>
+                </div>
+                <div class="unit-info-area"></div>
+            </div>`;
+        document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', html);
+        if(!oldData) isChanged = true;
+        return id;
+    };
+
+    window.updateRowPrice = (unitSel) => {
+        const row = unitSel.closest('.product-row');
+        const p = inventory.find(i => i.id === row.querySelector('.p-select').value);
+        if(p) {
+            const price = (unitSel.value === 'box') ? (p.sell || 0) : ((p.sell || 0) / (p.unitFactor || 1));
+            row.querySelector('.p-price').value = Number(price).toFixed(2);
+            calc();
+        }
+    };
+
+    window.calc = () => {
+        let total = 0;
+        document.querySelectorAll('.product-row').forEach(r => {
+            const qty = parseFloat(r.querySelector('.p-qty').value) || 0;
+            const price = parseFloat(r.querySelector('.p-price').value) || 0;
+            const sub = qty * price;
+            r.querySelector('.p-subtotal').value = sub.toFixed(2);
+            total += sub;
+        });
+        const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
+        document.getElementById('displayTotal').innerText = total.toLocaleString('en-US', {minimumFractionDigits: 2});
+        document.getElementById('displayPaid').innerText = paid.toLocaleString('en-US', {minimumFractionDigits: 2});
+        document.getElementById('displayRemaining').innerText = (total - paid).toLocaleString('en-US', {minimumFractionDigits: 2});
+        return { total, paid, remaining: total - paid };
+    };
+
+    window.togglePayLogic = () => {
+        const method = document.getElementById('payMethod').value;
+        const total = parseFloat(document.getElementById('displayTotal').innerText.replace(/,/g, '')) || 0;
+        document.getElementById('paidAmount').value = (method === 'cash') ? total : 0;
+        handleInput();
+    };
+
+    window.saveInvoice = async () => {
+        const { total, paid, remaining } = calc();
+        const customerId = document.getElementById('customerSelect').value;
+        const customerName = document.getElementById('customerSearch').value;
+
+        if(!customerId || !customerName) return alert("الرجاء اختيار العميل");
+        const items = {}; let idx = 0;
+        document.querySelectorAll('.product-row').forEach(r => {
+            const pid = r.querySelector('.p-select').value;
+            if(pid) {
+                items[idx++] = { stockId: pid, name: r.querySelector('.p-search').value, unit: r.querySelector('.p-unit').value, qty: Number(r.querySelector('.p-qty').value), price: Number(r.querySelector('.p-price').value) };
+            }
+        });
+
+        if(idx === 0) return alert("الرجاء إضافة أصناف للفاتورة");
+        const saveBtn = document.getElementById('saveBtn');
+        saveBtn.disabled = true; saveBtn.innerText = "جاري الحفظ...";
+
+        try {
+            const invoiceData = { customerId, customerName, total, paid, remaining, paymentMethod: document.getElementById('payMethod').value, time: document.getElementById('invTime').value, timestamp: serverTimestamp(), ...items };
+            if(editId) {
+                await updateDoc(doc(db, "invoices", editId), invoiceData);
+            } else {
+                for(let key in items) {
+                    const item = items[key];
+                    const p = inventory.find(i => i.id === item.stockId);
+                    const qtyPcs = item.unit === 'box' ? (item.qty * (p.unitFactor || 1)) : item.qty;
+                    await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
+                }
+                await addDoc(collection(db, "invoices"), invoiceData);
+            }
+            isChanged = false; alert("تم حفظ الفاتورة بنجاح"); window.location.href = "sales-history.html";
+        } catch(e) { alert("خطأ: " + e.message); saveBtn.disabled = false; }
+    };
+
+    init();
+</script>
+</body>
+</html>

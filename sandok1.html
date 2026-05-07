@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدارة الصندوق - شركة الزيادي</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { --accent: #0b5e3d; --bg: #f8fafc; --success: #28a745; --danger: #dc3545; }
+        body { background: var(--bg); font-family: 'Cairo', sans-serif; padding-bottom: 30px; }
+        .header-nav { background: var(--accent); color: white; padding: 15px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1000; }
+        
+        .balance-card { background: white; border-radius: 25px; margin: 20px 15px; padding: 30px 20px; text-align: center; box-shadow: 0 10px 25px rgba(11, 94, 61, 0.1); border: 1px solid rgba(11, 94, 61, 0.1); }
+        .balance-amount { 
+            color: var(--accent); 
+            font-size: 2.5rem; 
+            font-weight: 800; 
+            font-family: 'Cairo', sans-serif;
+            direction: ltr; 
+            margin-top: 5px;
+        }
+
+        .action-card { background: white; border-radius: 25px; margin: 0 15px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .btn-group-toggle { display: flex; gap: 10px; margin-bottom: 20px; }
+        .type-btn { flex: 1; border-radius: 12px; padding: 12px; border: none; font-weight: 700; background: #f1f5f9; color: #64748b; }
+        .type-btn.active-plus { background: var(--accent); color: white; }
+        .input-box { background: #f8fafc; border-radius: 15px; padding: 15px; margin-bottom: 15px; border: 1px solid #e2e8f0; }
+        .input-field { border: none; background: transparent; width: 100%; font-size: 1.1rem; font-weight: 700; text-align: center; outline: none; font-family: 'Cairo'; }
+        .btn-confirm { background: var(--success); color: white; width: 100%; border: none; padding: 15px; border-radius: 15px; font-weight: 700; box-shadow: 0 10px 20px rgba(40, 167, 69, 0.2); }
+        
+        .history-title { margin: 25px 20px 15px; font-weight: 700; color: #1e293b; }
+        .log-item { background: white; border-radius: 18px; margin: 0 15px 10px; padding: 15px; display: flex; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .log-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: 15px; }
+        .icon-in { background: #e8f5e9; color: var(--success); }
+        .icon-out { background: #ffebee; color: var(--danger); }
+        .log-info { flex-grow: 1; }
+        .log-name { font-weight: 700; font-size: 0.85rem; color: #1e293b; margin: 0; line-height: 1.6; }
+        .log-time { font-size: 0.65rem; color: #94a3b8; }
+        .log-val { text-align: left; font-weight: 800; font-size: 0.95rem; min-width: 80px; font-family: 'Cairo'; }
+        
+        .badge-sale { display: inline-block; font-size: 0.65rem; background: #e0f2f1; color: #00796b; padding: 2px 8px; border-radius: 6px; margin-left: 8px; font-weight: 800; vertical-align: middle; }
+    </style>
+</head>
+<body>
+
+<div class="header-nav">
+    <div style="width: 20px;"></div>
+    <h6 class="m-0 fw-bold">إدارة الصندوق النقدي</h6>
+    <a href="index1.html" class="text-white"><i class="fas fa-chevron-left"></i></a>
+</div>
+
+<div class="container p-0">
+    <div class="balance-card">
+        <p class="text-muted small mb-1">صافي النقدية المتوفرة</p>
+        <div class="balance-amount" id="currentBalance">0</div>
+        <p class="today-date small text-muted mt-2" id="todayDate"></p>
+    </div>
+
+    <div class="action-card">
+        <div class="btn-group-toggle">
+            <button class="type-btn active-plus" id="btnIn" onclick="setType('in')">إيداع (+)</button>
+            <button class="type-btn" id="btnOut" onclick="setType('out')">سحب (-)</button>
+        </div>
+        <div class="input-box text-center">
+            <span class="small text-muted d-block mb-1">المبلغ</span>
+            <input type="number" id="amount" class="input-field" placeholder="0">
+        </div>
+        <div class="input-box">
+            <span class="small text-muted d-block mb-1">البيان / ملاحظات</span>
+            <input type="text" id="note" class="input-field" placeholder="مثلاً: مصروفات نثرية..">
+        </div>
+        <button class="btn-confirm" id="btnConfirm" onclick="saveTransaction()">تأكيد العملية</button>
+    </div>
+
+    <h6 class="history-title">آخر 20 عملية مسجلة</h6>
+    <div id="logsList">
+        <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs, query, limit, serverTimestamp, doc, getDoc, updateDoc, orderBy, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = { apiKey: "AIzaSyB3jpSs_LiIZwoaPIgRAiALVX5F1OkBYOI", authDomain: "elzyady-da509.firebaseapp.com", projectId: "elzyady-da509", storageBucket: "elzyady-da509.firebasestorage.app", messagingSenderId: "242117738897", appId: "1:242117738897:web:d658d6ca335b316f7f9a30" };
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let currentType = 'in';
+    document.getElementById('todayDate').innerText = 'بتاريخ: ' + new Date().toLocaleDateString('ar-EG');
+
+    window.setType = (t) => {
+        currentType = t;
+        document.getElementById('btnIn').classList.toggle('active-plus', t==='in');
+        document.getElementById('btnOut').classList.toggle('active-plus', t==='out');
+        document.getElementById('btnConfirm').style.background = t==='in' ? '#28a745' : '#dc3545';
+        document.getElementById('btnConfirm').innerText = t==='in' ? 'تأكيد عملية الإيداع' : 'تأكيد عملية السحب';
+    };
+
+    async function loadData() {
+        try {
+            // 1. جلب الرصيد المحفوظ مباشرة (سرعة فائقة)
+            const metaDoc = await getDoc(doc(db, "settings", "cash_meta"));
+            let currentBalance = 0;
+            if(metaDoc.exists()) {
+                currentBalance = metaDoc.data().balance || 0;
+            }
+            document.getElementById('currentBalance').innerText = Math.round(currentBalance).toLocaleString('ar-EG') + ' ج.م';
+
+            // 2. جلب آخر 20 عملية فقط (15 يدوي + 5 مبيعات)
+            const logsQuery = query(collection(db, "cash_logs"), orderBy("timestamp", "desc"), limit(20));
+            const logsSnap = await getDocs(logsQuery);
+            
+            const invQuery = query(collection(db, "invoices"), orderBy("timestamp", "desc"), limit(10));
+            const invSnap = await getDocs(invQuery);
+
+            let combinedLogs = [];
+
+            invSnap.forEach(d => {
+                const data = d.data();
+                const paid = Math.round(Number(data.total || 0) - Number(data.remaining || 0));
+                if(paid > 0) {
+                    combinedLogs.push({
+                        name: data.customerName || 'عميل نقدي',
+                        amount: paid,
+                        type: 'in',
+                        time: data.time || '',
+                        isSale: true,
+                        ts: data.timestamp?.seconds || 0
+                    });
+                }
+            });
+
+            logsSnap.forEach(d => {
+                const data = d.data();
+                combinedLogs.push({
+                    name: data.note || (data.type === 'in' ? 'إيداع نقدي' : 'سحب مصروفات'),
+                    amount: data.amount,
+                    type: data.type,
+                    time: data.date || '',
+                    isSale: false,
+                    ts: data.timestamp?.seconds || 0
+                });
+            });
+
+            combinedLogs.sort((a, b) => b.ts - a.ts);
+
+            const logsList = document.getElementById('logsList');
+            if(combinedLogs.length === 0) {
+                logsList.innerHTML = '<div class="text-center py-5 text-muted small">لا توجد عمليات مسجلة</div>';
+            } else {
+                // عرض أول 20 عملية فقط بعد الدمج
+                logsList.innerHTML = combinedLogs.slice(0, 20).map(log => `
+                    <div class="log-item">
+                        <div class="log-icon ${log.type === 'in' ? 'icon-in' : 'icon-out'}">
+                            <i class="fas fa-${log.type === 'in' ? 'plus' : 'minus'}"></i>
+                        </div>
+                        <div class="log-info">
+                            <p class="log-name">
+                                ${log.isSale ? '<span class="badge-sale">مبيعات</span>' : ''}
+                                ${log.name}
+                            </p>
+                            <span class="log-time">${log.time}</span>
+                        </div>
+                        <div class="log-val" style="color: ${log.type === 'in' ? '#28a745' : '#dc3545'}">
+                            ${log.type === 'in' ? '+' : '-'}${Math.round(log.amount).toLocaleString('ar-EG')}
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } catch (e) {
+            console.error(e);
+            document.getElementById('logsList').innerHTML = '<div class="alert alert-danger mx-3 small">خطأ في التحميل</div>';
+        }
+    }
+
+    window.saveTransaction = async () => {
+        const amtInput = document.getElementById('amount');
+        const amt = Math.round(Number(amtInput.value));
+        const nt = document.getElementById('note').value;
+        
+        if(!amt || amt <= 0) return alert('برجاء إدخال مبلغ صحيح');
+
+        const btn = document.getElementById('btnConfirm');
+        btn.disabled = true; btn.innerText = 'جاري الحفظ...';
+
+        try {
+            // تسجيل العملية
+            await addDoc(collection(db, "cash_logs"), {
+                amount: amt,
+                note: nt,
+                type: currentType,
+                timestamp: serverTimestamp(),
+                date: new Date().toLocaleString('ar-EG')
+            });
+
+            // تحديث الرصيد التراكمي فوراً
+            const change = currentType === 'in' ? amt : -amt;
+            const metaRef = doc(db, "settings", "cash_meta");
+            await updateDoc(metaRef, { balance: increment(change) });
+
+            amtInput.value = '';
+            document.getElementById('note').value = '';
+            loadData();
+        } catch (e) { 
+            console.error(e);
+            alert("خطأ في الحفظ"); 
+        }
+        btn.disabled = false;
+        setType(currentType);
+    };
+
+    loadData();
+</script>
+</body>
+</html>
