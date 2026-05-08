@@ -1,6 +1,87 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>العملاء</title>
+
+<style>
+
+body{
+font-family: Arial;
+background:#f5f5f5;
+padding:20px;
+}
+
+h1{
+text-align:center;
+margin-bottom:20px;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+background:#fff;
+}
+
+th,td{
+padding:12px;
+border:1px solid #ddd;
+text-align:center;
+}
+
+th{
+background:#0d6efd;
+color:#fff;
+}
+
+button{
+padding:10px 15px;
+border:none;
+border-radius:5px;
+cursor:pointer;
+}
+
+.delete-all{
+background:red;
+color:#fff;
+margin-bottom:15px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>قائمة العملاء</h1>
+
+<button class="delete-all" onclick="deleteAllCustomers()">
+حذف كل العملاء
+</button>
+
+<table>
+
+<thead>
+<tr>
+<th>الاسم</th>
+<th>الموبايل</th>
+<th>العنوان</th>
+</tr>
+</thead>
+
+<tbody id="customersBody">
+
+</tbody>
+
+</table>
+
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+
 import {
 getFirestore,
 collection,
@@ -10,46 +91,116 @@ doc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a"
+
+apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+
+authDomain: "ahmedelzaiady.firebaseapp.com",
+
+projectId: "ahmedelzaiady",
+
+storageBucket: "ahmedelzaiady.firebasestorage.app",
+
+messagingSenderId: "300306825071",
+
+appId: "1:300306825071:web:0426ddde56280fa090329a"
+
 };
 
 const app = initializeApp(firebaseConfig);
+
 const db = getFirestore(app);
 
-// ✔️ حذف كل العملاء
+// تحميل العملاء
+async function loadCustomers(){
+
+const tableBody = document.getElementById("customersBody");
+
+tableBody.innerHTML = "";
+
+try{
+
+const querySnapshot = await getDocs(collection(db,"customers"));
+
+if(querySnapshot.empty){
+
+tableBody.innerHTML = `
+<tr>
+<td colspan="3">لا يوجد عملاء</td>
+</tr>
+`;
+
+return;
+}
+
+querySnapshot.forEach((docSnap)=>{
+
+const data = docSnap.data();
+
+tableBody.innerHTML += `
+
+<tr>
+<td>${data.name || ""}</td>
+<td>${data.phone || ""}</td>
+<td>${data.address || ""}</td>
+</tr>
+
+`;
+
+});
+
+}catch(error){
+
+console.log(error);
+
+alert("حدث خطأ أثناء تحميل العملاء");
+
+}
+
+}
+
+loadCustomers();
+
+// حذف كل العملاء
 window.deleteAllCustomers = async function(){
 
 const ok = confirm("⚠️ هل تريد حذف كل العملاء نهائياً؟");
+
 if(!ok) return;
 
 const pass = prompt("اكتب كلمة السر:");
 
 if(pass !== "1234"){
-    alert("❌ كلمة السر غلط");
-    return;
+
+alert("❌ كلمة السر غلط");
+
+return;
 }
 
 try{
 
 const snap = await getDocs(collection(db,"customers"));
 
-// ✔️ الطريقة الصحيحة
 for(const d of snap.docs){
-    await deleteDoc(doc(db,"customers",d.id));
+
+await deleteDoc(doc(db,"customers",d.id));
+
 }
 
 alert("تم حذف كل العملاء بنجاح ✅");
 
+loadCustomers();
+
 }catch(err){
+
 console.log(err);
+
 alert("حدث خطأ أثناء الحذف");
+
 }
 
 }
 
 </script>
+
+</body>
+</html>
