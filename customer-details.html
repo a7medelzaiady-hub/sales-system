@@ -162,134 +162,165 @@ onclick="deleteCustomer()"></i>
 </div>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, deleteDoc, updateDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { 
+    getFirestore, 
+    doc, 
+    getDoc, 
+    deleteDoc, 
+    updateDoc, 
+    collection, 
+    getDocs, 
+    query, 
+    where 
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyB3jpSs_LiIZwoaPIgRAiALVX5F1OkBYOI",
-        authDomain: "elzyady-da509.firebaseapp.com",
-        projectId: "elzyady-da509",
-        storageBucket: "elzyady-da509.firebasestorage.app",
-        messagingSenderId: "242117738897",
-        appId: "1:242117738897:web:d658d6ca335b316f7f9a30"
-    };
-    
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+const firebaseConfig = {
+    apiKey: "AIzaSyB3jpSs_LiIZwoaPIgRAiALVX5F1OkBYOI",
+    authDomain: "elzyady-da509.firebaseapp.com",
+    projectId: "elzyady-da509",
+    storageBucket: "elzyady-da509.firebasestorage.app",
+    messagingSenderId: "242117738897",
+    appId: "1:242117738897:web:d658d6ca335b316f7f9a30"
+};
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const custId = urlParams.get('id');
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
-    async function calculateDetailedBalance(customerId, initialBalance) {
-        try {
-            const qInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
-            const snapInvoices = await getDocs(qInvoices);
-            let totalInvoicesRemaining = 0;
-            snapInvoices.forEach(doc => {
-                totalInvoicesRemaining += (Number(doc.data().remaining) || 0);
-            });
+const urlParams = new URLSearchParams(window.location.search);
+const custId = urlParams.get('id');
 
-            const qTrans = query(collection(db, "transactions"), where("partyId", "==", customerId));
-            const snapTrans = await getDocs(qTrans);
-            let transEffect = 0;
-            snapTrans.forEach(doc => {
-                const tr = doc.data();
-                if(tr.type === 'قبض') transEffect -= (Number(tr.amount) || 0);
-                else if(tr.type === 'صرف') transEffect += (Number(tr.amount) || 0);
-            });
+console.log("Customer ID:", custId);
 
-            return Number(initialBalance) + totalInvoicesRemaining + transEffect;
-        } catch (e) {
-            return Number(initialBalance);
+/* ===== حساب الرصيد ===== */
+async function calculateDetailedBalance(customerId, initialBalance) {
+    try {
+        const qInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
+        const snapInvoices = await getDocs(qInvoices);
+
+        let totalInvoicesRemaining = 0;
+        snapInvoices.forEach(d => {
+            totalInvoicesRemaining += Number(d.data().remaining || 0);
+        });
+
+        const qTrans = query(collection(db, "transactions"), where("partyId", "==", customerId));
+        const snapTrans = await getDocs(qTrans);
+
+        let transEffect = 0;
+        snapTrans.forEach(d => {
+            const tr = d.data();
+            if (tr.type === 'قبض') transEffect -= Number(tr.amount || 0);
+            else if (tr.type === 'صرف') transEffect += Number(tr.amount || 0);
+        });
+
+        return Number(initialBalance) + totalInvoicesRemaining + transEffect;
+
+    } catch (e) {
+        console.error(e);
+        return Number(initialBalance);
+    }
+}
+
+/* ===== تحميل البيانات ===== */
+async function getDetails() {
+    if (!custId) return;
+
+    document.getElementById('editLink').href = `edit-customer.html?id=${custId}`;
+    document.getElementById('payBtn').href = `customer-payment.html?id=${custId}`;
+    document.getElementById('statementBtn').href = `customer-statement.html?id=${custId}`;
+    document.getElementById('historyBtn').href = `customer-transactions-log.html?id=${custId}`;
+    document.getElementById('installmentsBtn').href = `customer-installments.html?id=${custId}`;
+
+    try {
+        const ref = doc(db, "customers", custId);
+        const snap = await getDoc(ref);
+
+        if (!snap.exists()) {
+            alert("العميل غير موجود");
+            return;
         }
+
+        const data = snap.data();
+        const startBalance = Number(data.initialBalance || 0);
+        const realBalance = await calculateDetailedBalance(custId, startBalance);
+
+        document.getElementById('displayName').innerText = data.name || '';
+        document.getElementById('displayBalance').innerText = Math.abs(realBalance).toLocaleString(undefined, { minimumFractionDigits: 2 });
+        document.getElementById('displayOpening').innerText = startBalance.toLocaleString();
+        document.getElementById('displayPhone').innerText = data.phone || 'غير مسجل';
+        document.getElementById('displayAddress').innerText = data.address || 'غير مسجل';
+
+        const status = document.getElementById('balanceStatus');
+        if (Math.abs(realBalance) < 0.01) {
+            status.innerText = "الحساب خالص";
+            status.style.color = "var(--neon-green)";
+        } else if (realBalance > 0) {
+            status.innerText = "عليه مديونية";
+            status.style.color = "var(--neon-red)";
+        } else {
+            status.innerText = "له رصيد دائن";
+            status.style.color = "var(--neon-blue)";
+        }
+
+        if (data.phone) {
+            document.getElementById('callBtn').href = `tel:${data.phone}`;
+
+            document.getElementById('remindBtn').onclick = () => {
+                const state = realBalance > 0 ? "مديونية" : "رصيد دائن";
+                const msg = encodeURIComponent(
+                    `عميلنا ${data.name}، ${state} حسابكم: ${Math.abs(realBalance).toLocaleString()} ج.م`
+                );
+                window.open(`https://wa.me/2${data.phone}?text=${msg}`, '_blank');
+            };
+        }
+
+        if (data.createdAt) {
+            const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
+            document.getElementById('displayDate').innerText = date.toLocaleDateString('ar-EG');
+        }
+
+    } catch (err) {
+        console.error(err);
+    }
+}
+
+/* ===== حذف العميل (مُصحح 100%) ===== */
+window.deleteCustomer = async function () {
+    if (!custId) {
+        alert("لا يوجد عميل");
+        return;
     }
 
-    async function getDetails() {
-        if(!custId) return;
-
-        document.getElementById('editLink').href = `edit-customer.html?id=${custId}`;
-        document.getElementById('payBtn').href = `customer-payment.html?id=${custId}`;
-        document.getElementById('statementBtn').href = `customer-statement.html?id=${custId}`;
-        document.getElementById('historyBtn').href = `customer-transactions-log.html?id=${custId}`;
-        document.getElementById('installmentsBtn').href = `customer-installments.html?id=${custId}`;
-
-        try {
-            const docRef = doc(db, "customers", custId);
-            const docSnap = await getDoc(docRef);
-
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                const startBalance = Number(data.initialBalance || 0);
-                const realBalance = await calculateDetailedBalance(custId, startBalance);
-                
-                document.getElementById('displayName').innerText = data.name;
-                document.getElementById('displayBalance').innerText = Math.abs(realBalance).toLocaleString(undefined, {minimumFractionDigits: 2});
-                document.getElementById('displayOpening').innerText = startBalance.toLocaleString();
-                document.getElementById('displayPhone').innerText = data.phone || 'غير مسجل';
-                document.getElementById('displayAddress').innerText = data.address || 'غير مسجل';
-                
-                const status = document.getElementById('balanceStatus');
-                if(Math.abs(realBalance) < 0.01) {
-                    status.innerText = "الحساب خالص";
-                    status.style.color = "var(--neon-green)";
-                } else if (realBalance > 0) {
-                    status.innerText = "عليه مديونية";
-                    status.style.color = "var(--neon-red)";
-                } else {
-                    status.innerText = "له رصيد دائن";
-                    status.style.color = "var(--neon-blue)";
-                }
-
-                if(data.phone) {
-                    document.getElementById('callBtn').href = `tel:${data.phone}`;
-                    document.getElementById('remindBtn').onclick = () => {
-                        const state = realBalance > 0 ? "مديونية" : "رصيد دائن";
-                        const msg = encodeURIComponent(`عميلنا العزيز ${data.name}، نود تذكيركم بأن ${state} حسابكم الحالي لدى شركة الزيادي هو: ${Math.abs(realBalance).toLocaleString()} ج.م. شكراً لتعاملكم معنا.`);
-                        window.open(`https://wa.me/2${data.phone}?text=${msg}`, '_blank');
-                    };
-                }
-
-                if(data.createdAt) {
-                    const date = data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt);
-                    document.getElementById('displayDate').innerText = date.toLocaleDateString('ar-EG');
-                }
-            }
-        } catch (error) {
-            console.error("Error:", error);
-        }
-    }
-
-    window.resetAccount = async () => {
-        if(confirm("تنبيه: هل تريد تصفير الرصيد الافتتاحي للعميل؟ (هذا لن يحذف الفواتير المسجلة)")) {
-            await updateDoc(doc(db, "customers", custId), { initialBalance: 0 });
-            location.reload();
-        }
-    };
-
-  window.deleteCustomer = async () => {
-
-    if (!confirm("هل أنت متأكد من حذف العميل نهائياً؟")) return;
+    if (!confirm("هل تريد حذف العميل نهائياً؟")) return;
 
     try {
         await deleteDoc(doc(db, "customers", custId));
 
         alert("تم حذف العميل بنجاح ✅");
+        window.location.href = "customer-list.html";
 
-        window.location.href = "https://a7medelzaiady-hub.github.io/sales-system/customer-list.html";
-
-    } catch (error) {
-        console.error(error);
-        alert("حصل خطأ أثناء الحذف ❌");
+    } catch (err) {
+        console.error("Delete Error:", err);
+        alert("حدث خطأ أثناء الحذف ❌");
     }
 };
 
+/* ===== تصفير ===== */
+window.resetAccount = async function () {
+    if (confirm("هل تريد تصفير الرصيد؟")) {
+        await updateDoc(doc(db, "customers", custId), { initialBalance: 0 });
+        location.reload();
+    }
+};
+
+/* ===== تشغيل ===== */
 if (!custId) {
     alert("لا يوجد عميل محدد");
-    window.location.href =
-    "https://a7medelzaiady-hub.github.io/sales-system/customer-list.html";
+    window.location.href = "customer-list.html";
 } else {
     getDetails();
 }
+
 </script>
 </body>
 </html>
