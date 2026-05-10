@@ -186,30 +186,39 @@
             });
             return Number(initialBalance) + invoiceDebt + transEffect;
         } catch (e) { return Number(initialBalance); }
-    }
+  window.exportToExcel = () => {
+    if (allInvoices.length === 0) return alert("لا توجد بيانات للتصدير");
 
-    // وظيفة تصدير البيانات إلى Excel
-    window.exportToExcel = () => {
-        if (allInvoices.length === 0) return alert("لا توجد بيانات للتصدير");
+    let excelData = [];
 
-        const excelData = allInvoices.map(inv => ({
-            "التاريخ": inv.time,
-            "اسم العميل": inv.customerName || "عميل نقدي",
-            "إجمالي الفاتورة": Math.round(inv.total),
-            "المدفوع": Math.round(inv.total - (inv.remaining || 0)),
-            "المتبقي (الآجل)": Math.round(inv.remaining || 0),
-            "حالة الفاتورة": inv.remaining > 0 ? "آجل" : "خالص"
-        }));
+    allInvoices.forEach(inv => {
+        Object.keys(inv).forEach(k => {
+            if (!isNaN(k)) {
+                const item = inv[k];
 
-        const worksheet = XLSX.utils.json_to_sheet(excelData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "سجل المبيعات");
-        
-        // ضبط اتجاه الورقة RTL
-        worksheet['!dir'] = "rtl";
-        
-        XLSX.writeFile(workbook, `مبيعات_الزيادي_${new Date().toLocaleDateString('en-GB')}.xlsx`);
-    };
+                excelData.push({
+                    "اسم العميل": inv.customerName || "عميل نقدي",
+                    "التاريخ": inv.time,
+                    "اسم الصنف": item.name,
+                    "العدد": item.qty,
+                    "السعر": Math.round(item.price),
+                    "الإجمالي": Math.round(item.qty * item.price)
+                });
+            }
+        });
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "تفاصيل المبيعات");
+
+    worksheet['!dir'] = "rtl";
+
+    XLSX.writeFile(
+        workbook,
+        `تفاصيل_المبيعات_${new Date().toLocaleDateString('en-GB')}.xlsx`
+    );
+};
 
     window.loadInvoices = async () => {
         try {
