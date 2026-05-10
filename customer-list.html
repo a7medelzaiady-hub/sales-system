@@ -10,99 +10,27 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        :root { 
-            --accent: #0b5e3d; 
-            --header-bg: #0b5e3d;
-            --bg-light: #f4f7f6;
-            --text-primary: #1b2e26;
-            --text-gray: #707b7c;
-            --border: #dce3de;
-            --white: #ffffff;
-            --neon-blue: #007bff; 
-            --neon-green: #28a745; 
-            --neon-red: #dc3545; 
+        body {
+            background: #f4f7f6;
+            font-family: 'Cairo', sans-serif;
         }
 
-        body { 
-            background: var(--bg-light); 
-            font-family: 'Cairo', sans-serif; 
-            color: var(--text-primary); 
-        }
-        
-        .header-section { 
-            padding: 15px 0; 
-            background: var(--header-bg); 
-            color: white; 
-            position: sticky; 
-            top: 0; 
+        .header {
+            background: #0b5e3d;
+            color: white;
+            padding: 12px 15px;
+            position: sticky;
+            top: 0;
             z-index: 1000;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
-        .search-box { 
-            background: rgba(255, 255, 255, 0.15); 
-            border: 1px solid rgba(255, 255, 255, 0.2); 
-            border-radius: 12px; 
-            padding: 8px 15px; 
-            display: flex; 
-            align-items: center; 
-            margin: 10px 15px 0; 
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
 
-        .search-box input { 
-            background: transparent; 
-            border: none; 
-            color: #fff; 
-            width: 100%; 
-            outline: none; 
-            font-size: 0.9rem; 
-        }
-
-        .search-box input::placeholder { 
-            color: rgba(255,255,255,0.7); 
-        }
-
-        .customer-card { 
-            background: var(--white); 
-            border: 1px solid var(--border); 
-            border-radius: 20px; 
-            padding: 18px; 
-            margin-bottom: 12px; 
-            transition: 0.3s; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            border-right: 5px solid transparent;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-        }
-
-        .customer-card.has-debt { border-right-color: var(--neon-red); }
-        .customer-card.is-clear { border-right-color: var(--neon-green); }
-
-        .customer-name { font-weight: 700; font-size: 1rem; margin: 0; }
-        .phone-sub { font-size: 0.75rem; color: #707b7c; margin-top: 2px; }
-
-        .balance-value { font-weight: 800; font-size: 1rem; }
-
-        .text-debt { color: var(--neon-red); }
-        .text-clear { color: var(--neon-green); }
-
-        .action-container { display: flex; gap: 10px; }
-
-        .action-btn { 
-            width: 42px; 
-            height: 42px; 
-            border-radius: 12px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            text-decoration: none; 
-        }
-
-        .btn-pay { background: rgba(40,167,69,0.1); color: var(--neon-green); }
-        .btn-info { background: rgba(0,123,255,0.1); color: var(--neon-blue); }
-
-        /* ===== زر البيت ===== */
         .home-btn {
             width: 38px;
             height: 38px;
@@ -113,45 +41,111 @@
             justify-content: center;
             color: white;
             text-decoration: none;
-            transition: 0.3s;
         }
 
-        .home-btn:hover {
-            background: rgba(255,255,255,0.25);
-            transform: scale(1.05);
-            color: #fff;
+        .back-btn {
+            color: white;
+            text-decoration: none;
+        }
+
+        .danger-btn {
+            margin-top: 10px;
+            width: 100%;
         }
     </style>
 </head>
 
 <body>
 
-<div class="header-section">
+<div class="header">
 
-    <div class="container d-flex justify-content-between align-items-center px-3">
+    <div class="header-content">
 
-        <!-- زر البيت -->
         <a href="index.html" class="home-btn">
             <i class="fas fa-home"></i>
         </a>
 
-        <h5 class="m-0 fw-bold">قائمة العملاء</h5>
+        <h6 class="m-0 fw-bold">قائمة العملاء</h6>
 
-        <!-- رجوع -->
-        <a href="client_menu.html" class="text-white">
+        <a href="client_menu.html" class="back-btn">
             <i class="fas fa-chevron-right"></i>
         </a>
 
     </div>
 
-    <div class="search-box">
-        <i class="fas fa-search me-2"></i>
-        <input type="text" id="searchInput" placeholder="ابحث بالإسم أو رقم الهاتف..." oninput="filterCustomers()">
-    </div>
+    <!-- زر حذف كل العملاء -->
+    <button class="btn btn-danger btn-sm danger-btn" onclick="deleteAllCustomers()">
+        <i class="fas fa-trash"></i> حذف كل العملاء
+    </button>
 
 </div>
 
-<div class="container py-3" id="customersContainer"></div>
+<div class="container py-3">
+
+    <div id="customersContainer"></div>
+
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { 
+    getFirestore,
+    collection,
+    getDocs,
+    writeBatch,
+    doc,
+    serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+    authDomain: "ahmedelzaiady.firebaseapp.com",
+    projectId: "ahmedelzaiady",
+    storageBucket: "ahmedelzaiady.firebasestorage.app",
+    messagingSenderId: "300306825071",
+    appId: "1:300306825071:web:0426ddde56280fa090329a"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+/* =========================
+   حذف كل العملاء (Soft Delete)
+========================= */
+
+window.deleteAllCustomers = async function () {
+
+    const c1 = confirm("⚠️ هل تريد حذف جميع العملاء؟");
+    if (!c1) return;
+
+    const c2 = confirm("آخر تأكيد: سيتم نقل كل العملاء للسلة!");
+    if (!c2) return;
+
+    try {
+
+        const snap = await getDocs(collection(db, "customers"));
+
+        const batch = writeBatch(db);
+
+        snap.forEach((d) => {
+            batch.update(doc(db, "customers", d.id), {
+                isDeleted: true,
+                deletedAt: serverTimestamp()
+            });
+        });
+
+        await batch.commit();
+
+        alert("تم حذف جميع العملاء بنجاح");
+
+    } catch (e) {
+        console.error(e);
+        alert("حدث خطأ أثناء الحذف");
+    }
+};
+
+</script>
 
 </body>
 </html>
