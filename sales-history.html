@@ -187,29 +187,80 @@
             return Number(initialBalance) + invoiceDebt + transEffect;
         } catch (e) { return Number(initialBalance); }
     }
+window.exportToExcel = () => {
+    if (allInvoices.length === 0) {
+        return alert("لا توجد بيانات للتصدير");
+    }
 
-    // وظيفة تصدير البيانات إلى Excel
-    window.exportToExcel = () => {
-        if (allInvoices.length === 0) return alert("لا توجد بيانات للتصدير");
+    let excelData = [];
 
-        const excelData = allInvoices.map(inv => ({
-            "التاريخ": inv.time,
-            "اسم العميل": inv.customerName || "عميل نقدي",
-            "إجمالي الفاتورة": Math.round(inv.total),
-            "المدفوع": Math.round(inv.total - (inv.remaining || 0)),
-            "المتبقي (الآجل)": Math.round(inv.remaining || 0),
-            "حالة الفاتورة": inv.remaining > 0 ? "آجل" : "خالص"
-        }));
+    allInvoices.forEach(inv => {
 
-        const worksheet = XLSX.utils.json_to_sheet(excelData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "سجل المبيعات");
-        
-        // ضبط اتجاه الورقة RTL
-        worksheet['!dir'] = "rtl";
-        
-        XLSX.writeFile(workbook, `مبيعات_الزيادي_${new Date().toLocaleDateString('en-GB')}.xlsx`);
-    };
+        // استخراج الأصناف من الفاتورة
+        Object.keys(inv).forEach(k => {
+
+            if (!isNaN(k) && inv[k]) {
+
+                const item = inv[k];
+
+                excelData.push({
+                    "التاريخ": inv.time || "",
+                    "رقم الفاتورة": inv.id || "",
+                    "اسم العميل": inv.customerName || "عميل نقدي",
+
+                    "الصنف": item.name || "",
+                    "الكمية": item.qty || 0,
+                    "سعر الوحدة": Math.round(item.price || 0),
+                    "إجمالي الصنف": Math.round((item.qty || 0) * (item.price || 0)),
+
+                    "إجمالي الفاتورة": Math.round(inv.total || 0),
+                    "المدفوع": Math.round((inv.total || 0) - (inv.remaining || 0)),
+                    "المتبقي": Math.round(inv.remaining || 0),
+
+                    "حالة الفاتورة": inv.remaining > 0 ? "آجل" : "خالص"
+                });
+
+            }
+
+        });
+
+    });
+
+    // إنشاء الشيت
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+
+    // ضبط عرض الأعمدة
+    worksheet['!cols'] = [
+        { wch: 15 },
+        { wch: 28 },
+        { wch: 25 },
+        { wch: 30 },
+        { wch: 10 },
+        { wch: 15 },
+        { wch: 18 },
+        { wch: 18 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 15 }
+    ];
+
+    // اتجاه RTL
+    worksheet['!dir'] = "rtl";
+
+    // إنشاء ملف Excel
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "تفاصيل المبيعات"
+    );
+
+    XLSX.writeFile(
+        workbook,
+        `تفاصيل_المبيعات_${new Date().toLocaleDateString('en-GB')}.xlsx`
+    );
+};
 
     window.loadInvoices = async () => {
         try {
