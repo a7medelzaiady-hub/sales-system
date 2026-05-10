@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>حذف العملاء</title>
+<title>سلة العملاء</title>
 
 <link rel="stylesheet"
 href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
@@ -13,89 +13,51 @@ href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.cs
 href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
 <style>
-.search-box{
-    border-radius:12px;
-    padding:12px;
-    border:1px solid #dce3de;
-}
-
-.card{
-    box-shadow:0 2px 10px rgba(0,0,0,0.05);
-}
-:root{
-    --main:#0b5e3d;
-    --light:#f4f7f6;
-    --border:#dce3de;
-}
 
 body{
-    background:var(--light);
+    background:#f4f7f6;
     font-family:'Cairo',sans-serif;
 }
 
 .header{
-    background:var(--main);
+    background:#0b5e3d;
     color:#fff;
-    padding:15px 20px;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    position:sticky;
-    top:0;
-    z-index:1000;
+    padding:15px;
+    text-align:center;
+    font-weight:bold;
 }
 
-.customer-card{
+.card-box{
     background:#fff;
-    border:1px solid var(--border);
     border-radius:18px;
     padding:15px;
     margin-bottom:12px;
     display:flex;
     justify-content:space-between;
     align-items:center;
-    box-shadow:0 2px 8px rgba(0,0,0,0.03);
+    border:1px solid #ddd;
 }
 
-.customer-name{
-    font-weight:bold;
-    margin-bottom:5px;
-}
-
-.customer-balance{
-    font-size:13px;
-    color:#777;
-}
-
-.delete-btn{
-    width:45px;
-    height:45px;
+.btn-action{
     border:none;
-    border-radius:12px;
-    background:#dc3545;
+    padding:8px 12px;
+    border-radius:10px;
     color:#fff;
-    transition:0.2s;
+    margin-left:5px;
 }
 
-.delete-btn:hover{
-    background:#bb2d3b;
+.restore{
+    background:#28a745;
+}
+
+.delete{
+    background:#dc3545;
 }
 
 .search-box{
-    border-radius:14px;
+    border-radius:12px;
     padding:12px;
-}
-
-.empty{
-    text-align:center;
-    color:#777;
-    margin-top:50px;
-}
-
-.loader{
-    text-align:center;
-    margin-top:40px;
-    color:#666;
+    margin-bottom:15px;
 }
 
 </style>
@@ -103,285 +65,150 @@ body{
 <body>
 
 <div class="header">
-
-    <i class="fas fa-chevron-right"
-       onclick="history.back()"
-       style="cursor:pointer"></i>
-
-    <h5 class="m-0 fw-bold">
-        حذف العملاء
-    </h5>
-
-    <div style="width:20px"></div>
-
+    سلة العملاء
 </div>
+
 <div class="container py-4">
 
-    <!-- أدوات التحكم -->
-    <div class="card p-3 mb-4" style="border-radius:16px; border:1px solid #dce3de;">
+    <input type="text"
+           id="search"
+           class="form-control search-box"
+           placeholder="بحث باسم العميل">
 
-        <!-- البحث -->
-        <input type="text"
-               id="search"
-               class="form-control search-box mb-3"
-               placeholder="بحث باسم العميل">
-
-        <!-- زر حذف الكل -->
-        <button id="deleteAllBtn"
-                class="btn btn-danger w-100">
-
-            <i class="fas fa-trash"></i>
-            حذف جميع العملاء
-
-        </button>
-
-    </div>
-
-    <!-- قائمة العملاء -->
-    <div id="customersContainer"></div>
-
-</div>
-        <div class="loader">
-            جاري تحميل العملاء...
-        </div>
-
-    </div>
+    <div id="container"></div>
 
 </div>
 
 
 <script type="module">
 
-/* Firebase */
-
-import { initializeApp }
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {
-
     getFirestore,
     collection,
     getDocs,
+    doc,
+    setDoc,
     deleteDoc,
-    doc
-
-}
-from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+    getDoc
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 
-/* إعدادات Firebase */
-
+/* Firebase Config */
 const firebaseConfig = {
-
   apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-
   authDomain: "ahmedelzaiady.firebaseapp.com",
-
   projectId: "ahmedelzaiady",
-
   storageBucket: "ahmedelzaiady.firebasestorage.app",
-
   messagingSenderId: "300306825071",
-
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-
-  measurementId: "G-WE04GK5XZZ"
-
+  appId: "1:300306825071:web:0426ddde56280fa090329a"
 };
 
 
-/* تشغيل Firebase */
-
 const app = initializeApp(firebaseConfig);
-
 const db = getFirestore(app);
 
-
-/* العناصر */
-
-const container =
-document.getElementById("customersContainer");
-
-const searchInput =
-document.getElementById("search");
-
-
-/* العملاء */
+const container = document.getElementById("container");
+const search = document.getElementById("search");
 
 let customers = [];
 
 
-/* تحميل العملاء */
+/* تحميل السلة */
+async function loadTrash(){
 
-async function loadCustomers(){
+    const snap = await getDocs(collection(db,"deleted_customers"));
 
     customers = [];
 
-    try{
+    snap.forEach(d=>{
+        customers.push({id:d.id,...d.data()});
+    });
 
-        const querySnapshot =
-        await getDocs(collection(db, "customers"));
-
-        querySnapshot.forEach((docItem)=>{
-
-            customers.push({
-
-                id: docItem.id,
-
-                ...docItem.data()
-
-            });
-
-        });
-
-        renderCustomers(customers);
-
-    }catch(error){
-
-        console.error(error);
-
-        container.innerHTML = `
-            <div class="empty">
-                فشل تحميل البيانات
-            </div>
-        `;
-    }
-
+    render(customers);
 }
 
 
-/* عرض العملاء */
-
-function renderCustomers(data){
+/* عرض */
+function render(data){
 
     container.innerHTML = "";
 
     if(data.length === 0){
-
-        container.innerHTML = `
-            <div class="empty">
-                لا يوجد عملاء
-            </div>
-        `;
-
+        container.innerHTML = "<p class='text-center mt-5'>لا يوجد بيانات</p>";
         return;
     }
 
-    data.forEach(customer=>{
+    data.forEach(c=>{
 
         container.innerHTML += `
+        <div class="card-box">
 
-        <div class="customer-card">
+            <div>
+                <div class="fw-bold">${c.name}</div>
+                <small>رصيد: ${c.balance || 0}</small>
+            </div>
 
             <div>
 
-                <div class="customer-name">
+                <button class="btn-action restore"
+                onclick="restore('${c.id}')">
+                    ♻️
+                </button>
 
-                    ${customer.name || "بدون اسم"}
-
-                </div>
-
-                <div class="customer-balance">
-
-                    الرصيد :
-                    ${customer.balance || 0}
-                    جنيه
-
-                </div>
+                <button class="btn-action delete"
+                onclick="deleteFinal('${c.id}')">
+                    🗑️
+                </button>
 
             </div>
 
-            <button class="delete-btn"
-
-                onclick="deleteCustomer('${customer.id}')">
-
-                <i class="fas fa-trash"></i>
-
-            </button>
-
         </div>
-
         `;
-
     });
-
 }
 
 
-/* حذف العميل */
+/* استرجاع */
+window.restore = async function(id){
 
-window.deleteCustomer = async function(id){
+    const snap = await getDoc(doc(db,"deleted_customers",id));
 
-    const customer =
-    customers.find(c => c.id === id);
+    await setDoc(doc(db,"customers",id), snap.data());
 
-    if(!customer) return;
+    await deleteDoc(doc(db,"deleted_customers",id));
 
+    alert("تم الاسترجاع");
 
-    /* منع حذف العميل لو عليه رصيد */
-
-    if(Number(customer.balance || 0) > 0){
-
-        alert("لا يمكن حذف العميل لأنه يمتلك رصيد");
-
-        return;
-
-    }
-
-
-    const confirmDelete = confirm(
-        `هل تريد حذف ${customer.name} ؟`
-    );
-
-    if(!confirmDelete) return;
-
-
-    try{
-
-        await deleteDoc(doc(db, "customers", id));
-
-        customers =
-        customers.filter(c => c.id !== id);
-
-        renderCustomers(customers);
-
-        alert("تم حذف العميل بنجاح");
-
-    }catch(error){
-
-        console.error(error);
-
-        alert("حدث خطأ أثناء حذف العميل");
-
-    }
-
+    loadTrash();
 }
 
 
-/* البحث */
+/* حذف نهائي */
+window.deleteFinal = async function(id){
 
-searchInput.addEventListener("keyup", function(){
+    if(!confirm("حذف نهائي؟")) return;
 
-    const value =
-    this.value.toLowerCase();
+    await deleteDoc(doc(db,"deleted_customers",id));
 
-    const filtered =
-    customers.filter(c =>
+    loadTrash();
+}
 
-        (c.name || "")
-        .toLowerCase()
-        .includes(value)
 
+/* بحث */
+search.addEventListener("input",function(){
+
+    const val = this.value.toLowerCase();
+
+    const filtered = customers.filter(c=>
+        (c.name||"").toLowerCase().includes(val)
     );
 
-    renderCustomers(filtered);
-
+    render(filtered);
 });
 
 
-/* تشغيل */
-
-loadCustomers();
+loadTrash();
 
 </script>
 
