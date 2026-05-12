@@ -4,11 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>قائمة العملاء - شركة الزيادي</title>
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
     <style>
         :root { 
             --accent: #0b5e3d; 
@@ -49,6 +47,7 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.02);
         }
         
+        /* تأثيرات الألوان عند انتهاء الحساب */
         .customer-card.has-debt { border-right-color: var(--neon-red); }
         .customer-card.is-clear { border-right-color: var(--neon-green); }
         
@@ -70,55 +69,20 @@
         .btn-info { background: rgba(0, 123, 255, 0.1); color: var(--neon-blue); border: 1px solid rgba(0, 123, 255, 0.2); }
         
         .loading-shimmer { color: #ccc; font-style: italic; font-size: 0.8rem; }
-
-        /* زر الهوم */
-        .home-btn {
-            width: 38px;
-            height: 38px;
-            border-radius: 10px;
-            background: rgba(255,255,255,0.15);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            text-decoration: none;
-            transition: 0.3s;
-        }
-
-        .home-btn:hover {
-            background: rgba(255,255,255,0.25);
-            transform: scale(1.05);
-            color: #fff;
-        }
     </style>
 </head>
-
 <body>
 
 <div class="header-section">
-
     <div class="container d-flex justify-content-between align-items-center px-3">
-
-        <!-- رجوع -->
-        <a href="client_menu.html" class="text-white">
-            <i class="fas fa-chevron-right"></i>
-        </a>
-
-        <!-- العنوان -->
+        <a href="client_menu.html" class="text-white"><i class="fas fa-chevron-right"></i></a>
         <h5 class="m-0 fw-bold">قائمة العملاء</h5>
-
-        <!-- زر الصفحة الرئيسية -->
-        <a href="index.html" class="home-btn">
-            <i class="fas fa-home"></i>
-        </a>
-
+        <div style="width: 24px;"></div>
     </div>
-
     <div class="search-box">
         <i class="fas fa-search me-2" style="font-size: 0.8rem; opacity: 0.8;"></i>
         <input type="text" id="searchInput" placeholder="ابحث بالإسم أو رقم الهاتف..." oninput="filterCustomers()">
     </div>
-
 </div>
 
 <div class="container py-3" id="customersContainer">
@@ -132,7 +96,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, getDocs, orderBy, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
- const firebaseConfig = {
+    const firebaseConfig = {
   apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
   authDomain: "ahmedelzaiady.firebaseapp.com",
   projectId: "ahmedelzaiady",
@@ -144,9 +108,9 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-
     let allCustomers = [];
 
+    // دالة الحساب الأصلية (بدون تعديل في المنطق لضمان الدقة)
     async function getRealDebt(customerId, initialBalance = 0) {
         try {
             const qInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
@@ -173,40 +137,46 @@
 
     async function loadCustomers() {
         const container = document.getElementById('customersContainer');
-
         try {
             const q = query(collection(db, "customers"), orderBy("name"));
             const snap = await getDocs(q);
-
+            
+            // 1. استخراج البيانات الأساسية فوراً لسرعة العرض
             allCustomers = snap.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
-                realBalance: null
+                realBalance: null // القيمة الافتراضية أثناء التحميل
             }));
 
+            // 2. عرض القائمة فوراً بالأسماء فقط
             renderCustomers(allCustomers);
 
+            // 3. حساب المديونية لكل عميل "في الخلفية" وتحديثه في الواجهة فور انتهائه
             allCustomers.forEach(async (cust) => {
                 const debt = await getRealDebt(cust.id, cust.initialBalance || 0);
-                cust.realBalance = debt;
+                cust.realBalance = debt; // تحديث المصفوفة للبحث لاحقاً
                 updateIndividualUI(cust.id, debt);
             });
 
         } catch (e) {
-            container.innerHTML = `<div class="alert alert-danger mx-3 text-center">${e.message}</div>`;
+            container.innerHTML = `<div class="alert alert-danger mx-3 text-center">خطأ: ${e.message}</div>`;
         }
     }
 
+    // دالة لتحديث كارت عميل معين بعد انتهاء حساب ديونه
     function updateIndividualUI(id, balance) {
         const balanceSpan = document.getElementById(`balance-${id}`);
         const cardDiv = document.getElementById(`card-${id}`);
-
+        
         if (balanceSpan) {
             const isDebt = balance > 0;
             balanceSpan.className = `balance-value ${isDebt ? 'text-debt' : 'text-clear'}`;
-            balanceSpan.innerHTML = `${Math.abs(balance).toLocaleString()} ج.م`;
+            balanceSpan.innerHTML = `
+                ${Math.abs(balance).toLocaleString(undefined, {minimumFractionDigits: 2})} 
+                <small style="font-size: 0.6rem; font-weight: 700;">ج.م (${isDebt ? 'عليه' : balance < 0 ? 'له' : 'خالص'})</small>
+            `;
         }
-
+        
         if (cardDiv) {
             cardDiv.classList.add(balance > 0 ? 'has-debt' : 'is-clear');
         }
@@ -214,37 +184,51 @@
 
     window.renderCustomers = (list) => {
         const container = document.getElementById('customersContainer');
+        if(list.length === 0) {
+            container.innerHTML = `<div class="text-center py-5 opacity-50 fw-bold">لا توجد نتائج بحث</div>`;
+            return;
+        }
 
-        container.innerHTML = list.map(cust => `
-            <div id="card-${cust.id}" class="customer-card">
-                <div>
-                    <h6 class="customer-name">${cust.name}</h6>
-                    <small class="phone-sub">${cust.phone || ''}</small>
-                    <span id="balance-${cust.id}" class="balance-value">جاري الحساب...</span>
-                </div>
+        container.innerHTML = list.map(cust => {
+            const balance = cust.realBalance;
+            const isCalculated = balance !== null;
 
-                <div class="action-container">
-                    <a href="customer-details.html?id=${cust.id}" class="action-btn btn-info">
-                        <i class="fas fa-user"></i>
-                    </a>
+            return `
+                <div id="card-${cust.id}" class="customer-card ${isCalculated ? (balance > 0 ? 'has-debt' : 'is-clear') : ''}">
+                    <div>
+                        <h6 class="customer-name">${cust.name}</h6>
+                        <small class="phone-sub"><i class="fas fa-phone-alt me-1"></i> ${cust.phone || 'بدون هاتف'}</small>
+                        <span class="balance-label">صافي الرصيد الحالي</span>
+                        <span id="balance-${cust.id}" class="balance-value ${!isCalculated ? 'loading-shimmer' : (balance > 0 ? 'text-debt' : 'text-clear')}">
+                            ${isCalculated ? 
+                                `${Math.abs(balance).toLocaleString(undefined, {minimumFractionDigits: 2})} <small style="font-size: 0.6rem; font-weight: 700;">ج.م (${balance > 0 ? 'عليه' : balance < 0 ? 'له' : 'خالص'})</small>` 
+                                : '<i class="fas fa-sync fa-spin me-1"></i> جاري الحساب...'}
+                        </span>
+                    </div>
+                    <div class="action-container">
+                        <a href="customer-details.html?id=${cust.id}" class="action-btn btn-info">
+                            <i class="fas fa-user-tag"></i>
+                        </a>
+                        <a href="customer-payment.html?id=${cust.id}" class="action-btn btn-pay">
+                            <i class="fas fa-hand-holding-dollar"></i>
+                        </a>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     window.filterCustomers = () => {
         const term = document.getElementById('searchInput').value.toLowerCase();
-
-        const filtered = allCustomers.filter(c =>
-            (c.name || '').toLowerCase().includes(term) ||
-            (c.phone || '').includes(term)
+        // الفلتر هنا لحظي لأنه شغال على المصفوفة المحملة في الذاكرة
+        const filtered = allCustomers.filter(c => 
+            (c.name && c.name.toLowerCase().includes(term)) || 
+            (c.phone && c.phone.includes(term))
         );
-
         renderCustomers(filtered);
     }
 
     loadCustomers();
 </script>
-
 </body>
 </html>
