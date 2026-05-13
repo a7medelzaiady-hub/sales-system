@@ -222,10 +222,11 @@ window.exportToExcel = () => {
     // الهيدر
     excelData.push([
         "اسم العميل",
-        "الصنف",
-        "الكمية",
-        "النوع",
-        "سعر الوحدة"
+        "اسم الصنف",
+        "عدد جركن",
+        "عدد كرتونة",
+        "سعر جركن",
+        "سعر كرتونة"
     ]);
 
     allInvoices.forEach(inv => {
@@ -235,29 +236,27 @@ window.exportToExcel = () => {
             if (!isNaN(k) && inv[k]) {
 
                 const item = inv[k];
+
                 const isBox = item.unit === "box";
+
+                const jerryQty = !isBox ? (item.qty || 0) : 0;
+                const boxQty = isBox ? (item.qty || 0) : 0;
+
+                // الأسعار (لو عندك نفس السعر للجميع هنحطه في الجركن فقط)
+                const jerryPrice = !isBox ? (item.price || 0) : 0;
+                const boxPrice = isBox ? (item.price || 0) : 0;
 
                 excelData.push([
                     inv.customerName || "النقدى",
                     item.name || "",
-                    item.qty || 0,
-                    isBox ? "كرتونة" : "جركن",
-                    item.price || 0
+                    jerryQty,
+                    boxQty,
+                    jerryPrice,
+                    boxPrice
                 ]);
             }
 
         });
-
-        // سطر السداد
-        const paid = (inv.total || 0) - (inv.remaining || 0);
-
-        excelData.push([
-            inv.customerName || "النقدى",
-            "سداد نقدى",
-            1,
-            "",
-            paid
-        ]);
 
     });
 
