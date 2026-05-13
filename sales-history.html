@@ -195,76 +195,95 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
+    // الهيدر الرئيسي
+    excelData.push([
+        "اسم العميل",
+        "الصنــــــــــــــــــــف",
+        "الكميه",
+        "",
+        "سعر البيع",
+        ""
+    ]);
+
+    // الهيدر الفرعي
+    excelData.push([
+        "",
+        "",
+        "قطعه",
+        "كرتونه",
+        "قطعه",
+        "كرتونه"
+    ]);
+
+    // البيانات
     allInvoices.forEach(inv => {
 
-        // الأصناف
         Object.keys(inv).forEach(k => {
 
             if (!isNaN(k) && inv[k]) {
 
                 const item = inv[k];
 
-                excelData.push({
+                const isBox = item.unit === "box";
 
-                    "اسم العميل": inv.customerName || "النقدى",
+                excelData.push([
 
-                    "الصنف": item.name || "",
+                    inv.customerName || "النقدى",
 
-                    "الفئة": item.unit === "box"
-                        ? "كرتونة"
-                        : "قطعة",
+                    item.name || "",
 
-                    "الكمية": item.qty || 0,
+                    !isBox ? item.qty || 0 : "",
+                    isBox ? item.qty || 0 : "",
 
-                    "سعر الوحدة": Math.round(item.price || 0),
+                    !isBox ? Math.round(item.price || 0) : "",
+                    isBox ? Math.round(item.price || 0) : ""
 
-                    "إجمالي الصنف": Math.round(
-                        (item.qty || 0) * (item.price || 0)
-                    )
-
-                });
+                ]);
 
             }
 
         });
 
         // صف المدفوع
-        excelData.push({
-
-            "اسم العميل": "المدفوع",
-
-            "الصنف": "سداد نقدى",
-
-            "الفئة": "",
-
-            "الكمية": 1,
-
-            "سعر الوحدة": Math.round(
-                (inv.total || 0) - (inv.remaining || 0)
-            ),
-
-            "إجمالي الصنف": Math.round(
-                (inv.total || 0) - (inv.remaining || 0)
-            )
-
-        });
-
-        // سطر فارغ
-        excelData.push({});
+        excelData.push([
+            "المدفوع",
+            "سداد نقدى",
+            "",
+            "",
+            "",
+            ""
+        ]);
 
     });
 
     // إنشاء الشيت
-    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+    // دمج الخلايا
+    worksheet['!merges'] = [
+
+        // الكمية
+        {
+            s: { r: 0, c: 2 },
+            e: { r: 0, c: 3 }
+        },
+
+        // سعر البيع
+        {
+            s: { r: 0, c: 4 },
+            e: { r: 0, c: 5 }
+        }
+
+    ];
 
     // عرض الأعمدة
     worksheet['!cols'] = [
-        { wch: 25 }, // العميل
-        { wch: 30 }, // الصنف
-        { wch: 12 }, // الفئة
-        { wch: 10 }, // الكمية
-        { wch: 15 }, // سعر الوحدة
-        { wch: 18 }  // إجمالي الصنف
+        { wch: 20 },
+        { wch: 35 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 14 }
     ];
 
     worksheet['!dir'] = "rtl";
@@ -275,12 +294,12 @@ window.exportToExcel = () => {
     XLSX.utils.book_append_sheet(
         workbook,
         worksheet,
-        "تفاصيل المبيعات"
+        "المبيعات"
     );
 
     XLSX.writeFile(
         workbook,
-        `تفاصيل_المبيعات_${new Date().toLocaleDateString('en-GB')}.xlsx`
+        `المبيعات_${new Date().toLocaleDateString('en-GB')}.xlsx`
     );
 
 };
