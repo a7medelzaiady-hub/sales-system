@@ -195,50 +195,69 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
-    // الهيدر
+    // الهيدر الأول
     excelData.push([
         "اسم العميل",
-        "الصنف",
-        "الفئة",
-        "الكمية قطعه",
-        "الكمية كرتونه",
-        "سعر البيع قطعه",
-        "سعر البيع كرتونه"
+        "الصنــــــــــــــــــــف",
+        "العدد",
+        "",
+        "سعر البيع",
+        ""
+    ]);
+
+    // الهيدر الثاني
+    excelData.push([
+        "",
+        "",
+        "جركن",
+        "كرتونه",
+        "جركن",
+        "كرتونه"
     ]);
 
     allInvoices.forEach(inv => {
 
-        let hasItems = false;
-
         Object.keys(inv).forEach(k => {
+
             if (!isNaN(k) && inv[k]) {
 
                 const item = inv[k];
+
                 const isBox = item.unit === "box";
 
-                hasItems = true;
+                const qtyJarkan = !isBox ? item.qty || 0 : "";
+                const qtyBox = isBox ? item.qty || 0 : "";
+
+                const product = inventory.find(p => p.id === item.stockId);
+
+                const priceBox = product ? Math.round(product.sell || 0) : "";
+                const priceJarkan = product
+                    ? Math.round((product.sell || 0) / (product.unitFactor || 1))
+                    : "";
 
                 excelData.push([
                     inv.customerName || "النقدى",
                     item.name || "",
-                    item.unit || "",
-                    !isBox ? item.qty || 0 : "",
-                    isBox ? item.qty || 0 : "",
-                    !isBox ? Math.round(item.price || 0) : "",
-                    isBox ? Math.round(item.price || 0) : ""
+                    qtyJarkan,
+                    qtyBox,
+                    priceJarkan,
+                    priceBox
                 ]);
+
             }
+
         });
 
-        // 👇 صف المدفوع (تحت نفس العميل مباشرة)
+        // صف المدفوع (سطر مستقل)
+        const paid = (inv.total || 0) - (inv.remaining || 0);
+
         excelData.push([
             inv.customerName || "النقدى",
-            "المدفوع",
             "سداد نقدى",
             "",
             "",
-            inv.paid || 0,
-            ""
+            "",
+            paid
         ]);
 
     });
@@ -247,18 +266,20 @@ window.exportToExcel = () => {
 
     worksheet['!cols'] = [
         { wch: 20 },
-        { wch: 30 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 }
+        { wch: 35 },
+        { wch: 10 },
+        { wch: 10 },
+        { wch: 12 },
+        { wch: 12 }
     ];
 
-    worksheet['!dir'] = "rtl";
-
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
+
+    XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "المبيعات"
+    );
 
     XLSX.writeFile(
         workbook,
