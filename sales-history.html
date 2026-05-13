@@ -195,24 +195,13 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
-    // الهيدر الأول
     excelData.push([
         "اسم العميل",
-        "الصنــــــــــــــــــــف",
-        "العدد",
-        "",
-        "سعر البيع",
-        ""
-    ]);
-
-    // الهيدر الثاني
-    excelData.push([
-        "",
-        "",
+        "الصنف",
         "جركن",
-        "كرتونه",
-        "جركن",
-        "كرتونه"
+        "كرتونة",
+        "سعر جركن",
+        "سعر كرتونة"
     ]);
 
     allInvoices.forEach(inv => {
@@ -222,67 +211,42 @@ window.exportToExcel = () => {
             if (!isNaN(k) && inv[k]) {
 
                 const item = inv[k];
-
                 const isBox = item.unit === "box";
 
                 const qtyJarkan = !isBox ? item.qty || 0 : "";
                 const qtyBox = isBox ? item.qty || 0 : "";
-
-                const product = inventory.find(p => p.id === item.stockId);
-
-                const priceBox = product ? Math.round(product.sell || 0) : "";
-                const priceJarkan = product
-                    ? Math.round((product.sell || 0) / (product.unitFactor || 1))
-                    : "";
 
                 excelData.push([
                     inv.customerName || "النقدى",
                     item.name || "",
                     qtyJarkan,
                     qtyBox,
-                    priceJarkan,
-                    priceBox
+                    "",
+                    ""
                 ]);
-
             }
-
         });
 
-    // صف المدفوع
-const paid = (inv.total || 0) - (inv.remaining || 0);
+        // المدفوع (صف واحد)
+        const paid = (inv.total || 0) - (inv.remaining || 0);
 
-excelData.push([
-    inv.customerName || "النقدى",
-    "سداد نقدى",
-    "",      // جركن
-    1,       // 👈 عدد الكرتونة = 1
-    "",      // سعر الجركن
-    paid     // 👈 سعر الكرتونة = المبلغ المدفوع
-]);
+        excelData.push([
+            inv.customerName || "النقدى",
+            "سداد نقدى",
+            "",
+            1,       // عدد كرتونة = 1
+            "",
+            paid     // سعر الكرتونة = المدفوع
+        ]);
+
+    });
 
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
-    worksheet['!cols'] = [
-        { wch: 20 },
-        { wch: 35 },
-        { wch: 10 },
-        { wch: 10 },
-        { wch: 12 },
-        { wch: 12 }
-    ];
-
     const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
 
-    XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        "المبيعات"
-    );
-
-    XLSX.writeFile(
-        workbook,
-        `المبيعات_${new Date().toLocaleDateString('en-GB')}.xlsx`
-    );
+    XLSX.writeFile(workbook, "المبيعات.xlsx");
 };
     window.loadInvoices = async () => {
         try {
