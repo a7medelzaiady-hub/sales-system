@@ -7,9 +7,9 @@ const urlsToCache = [
   "/sales-history.html"
 ];
 
-// تثبيت الكاش
-self.addEventListener("install", (event) => {
-  console.log("Service Worker Installed");
+// تثبيت
+self.addEventListener('install', (event) => {
+  console.log('Service Worker Installed');
 
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
@@ -19,20 +19,20 @@ self.addEventListener("install", (event) => {
 });
 
 // تشغيل أوفلاين
-self.addEventListener("fetch", (event) => {
+self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((response) => {
       if (response) return response;
 
       return fetch(event.request).catch(() => {
-        return caches.match("/login.html");
+        return caches.match('/login.html');
       });
     })
   );
 });
 
-// تحديث الكاش
-self.addEventListener("activate", (event) => {
+// تنظيف النسخ القديمة
+self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
