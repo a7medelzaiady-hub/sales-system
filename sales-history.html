@@ -188,6 +188,7 @@
         } catch (e) { return Number(initialBalance); }
     }
 window.exportToExcel = () => {
+
     if (allInvoices.length === 0) {
         return alert("لا توجد بيانات للتصدير");
     }
@@ -196,7 +197,26 @@ window.exportToExcel = () => {
 
     allInvoices.forEach(inv => {
 
-        // استخراج الأصناف من الفاتورة
+        // صف بيانات العميل والفاتورة
+        excelData.push({
+            "التاريخ": inv.time || "",
+            "اسم العميل": inv.customerName || "عميل نقدي",
+
+            "الصنف": "",
+            "الفئة": "",
+            "الكمية": "",
+            "سعر الوحدة": "",
+            "إجمالي الصنف": "",
+
+            "إجمالي الفاتورة": Math.round(inv.total || 0),
+
+            "المدفوع": "",
+            "المتبقي": Math.round(inv.remaining || 0),
+
+            "حالة الفاتورة": inv.remaining > 0 ? "آجل" : "خالص"
+        });
+
+        // الأصناف
         Object.keys(inv).forEach(k => {
 
             if (!isNaN(k) && inv[k]) {
@@ -204,49 +224,80 @@ window.exportToExcel = () => {
                 const item = inv[k];
 
                 excelData.push({
-                    "التاريخ": inv.time || "",
-                    
-                    "اسم العميل": inv.customerName || "عميل نقدي",
+
+                    "التاريخ": "",
+                    "اسم العميل": "",
 
                     "الصنف": item.name || "",
+
+                    "الفئة": item.unit === "box"
+                        ? "كرتونة"
+                        : "قطعة",
+
                     "الكمية": item.qty || 0,
+
                     "سعر الوحدة": Math.round(item.price || 0),
-                    
-    "الفئة": item.unit === "box" ? "كرتونة" : "قطعة",
 
-                    "إجمالي الصنف": Math.round((item.qty || 0) * (item.price || 0)),
+                    "إجمالي الصنف": Math.round(
+                        (item.qty || 0) * (item.price || 0)
+                    ),
 
-                    "إجمالي الفاتورة": Math.round(inv.total || 0),
-                    "المدفوع": Math.round((inv.total || 0) - (inv.remaining || 0)),
-                    "المتبقي": Math.round(inv.remaining || 0),
-
-                    "حالة الفاتورة": inv.remaining > 0 ? "آجل" : "خالص"
+                    "إجمالي الفاتورة": "",
+                    "المدفوع": "",
+                    "المتبقي": "",
+                    "حالة الفاتورة": ""
                 });
 
             }
 
         });
 
+        // صف المدفوع
+        excelData.push({
+
+            "التاريخ": "",
+            "اسم العميل": "المدفوع",
+
+            "الصنف": "",
+            "الفئة": "",
+            "الكمية": "",
+            "سعر الوحدة": "",
+            "إجمالي الصنف": "",
+
+            "إجمالي الفاتورة": "",
+
+            "المدفوع": Math.round(
+                (inv.total || 0) - (inv.remaining || 0)
+            ),
+
+            "المتبقي": "",
+            "حالة الفاتورة": ""
+        });
+
+        // سطر فارغ بين الفواتير
+        excelData.push({});
+
     });
 
     // إنشاء الشيت
     const worksheet = XLSX.utils.json_to_sheet(excelData);
 
+    // عرض الأعمدة
     worksheet['!cols'] = [
-    { wch: 15 }, // التاريخ
-    { wch: 28 }, // اسم العميل
-    { wch: 25 }, // الصنف
-    { wch: 12 }, // الفئة
-    { wch: 10 }, // الكمية
-    { wch: 15 }, // سعر الوحدة
-    { wch: 18 }, // إجمالي الصنف
-    { wch: 18 }, // إجمالي الفاتورة
-    { wch: 15 }, // المدفوع
-    { wch: 15 }, // المتبقي
-    { wch: 15 }  // الحالة
-];
+        { wch: 18 }, // التاريخ
+        { wch: 28 }, // اسم العميل
+        { wch: 25 }, // الصنف
+        { wch: 12 }, // الفئة
+        { wch: 10 }, // الكمية
+        { wch: 15 }, // سعر الوحدة
+        { wch: 18 }, // إجمالي الصنف
+        { wch: 18 }, // إجمالي الفاتورة
+        { wch: 15 }, // المدفوع
+        { wch: 15 }, // المتبقي
+        { wch: 15 }  // الحالة
+    ];
 
-    // اتجاه RTL
+    // اتجاه عربي
     worksheet['!dir'] = "rtl";
 
     // إنشاء ملف Excel
@@ -262,6 +313,7 @@ window.exportToExcel = () => {
         workbook,
         `تفاصيل_المبيعات_${new Date().toLocaleDateString('en-GB')}.xlsx`
     );
+
 };
     window.loadInvoices = async () => {
         try {
