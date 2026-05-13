@@ -195,27 +195,26 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
-    // الهيدر الرئيسي
+    // الهيدر الأول
     excelData.push([
         "اسم العميل",
         "الصنــــــــــــــــــــف",
-        "الكميه",
+        "العدد",
         "",
         "سعر البيع",
         ""
     ]);
 
-    // الهيدر الفرعي
+    // الهيدر الثاني
     excelData.push([
         "",
         "",
-        "قطعه",
+        "جركن",
         "كرتونه",
-        "قطعه",
+        "جركن",
         "كرتونه"
     ]);
 
-    // البيانات
     allInvoices.forEach(inv => {
 
         Object.keys(inv).forEach(k => {
@@ -226,69 +225,54 @@ window.exportToExcel = () => {
 
                 const isBox = item.unit === "box";
 
+                const qtyJarkan = !isBox ? item.qty || 0 : "";
+                const qtyBox = isBox ? item.qty || 0 : "";
+
+                const product = inventory.find(p => p.id === item.stockId);
+
+                const priceBox = product ? Math.round(product.sell || 0) : "";
+                const priceJarkan = product
+                    ? Math.round((product.sell || 0) / (product.unitFactor || 1))
+                    : "";
+
                 excelData.push([
-
                     inv.customerName || "النقدى",
-
                     item.name || "",
-
-                    !isBox ? item.qty || 0 : "",
-                    isBox ? item.qty || 0 : "",
-
-                    !isBox ? Math.round(item.price || 0) : "",
-                    isBox ? Math.round(item.price || 0) : ""
-
+                    qtyJarkan,
+                    qtyBox,
+                    priceJarkan,
+                    priceBox
                 ]);
 
             }
 
         });
 
-        // صف المدفوع
+        // صف المدفوع (سطر مستقل)
+        const paid = (inv.total || 0) - (inv.remaining || 0);
+
         excelData.push([
-            "المدفوع",
+            inv.customerName || "النقدى",
             "سداد نقدى",
             "",
             "",
             "",
-            ""
+            paid
         ]);
 
     });
 
-    // إنشاء الشيت
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
-    // دمج الخلايا
-    worksheet['!merges'] = [
-
-        // الكمية
-        {
-            s: { r: 0, c: 2 },
-            e: { r: 0, c: 3 }
-        },
-
-        // سعر البيع
-        {
-            s: { r: 0, c: 4 },
-            e: { r: 0, c: 5 }
-        }
-
-    ];
-
-    // عرض الأعمدة
     worksheet['!cols'] = [
         { wch: 20 },
         { wch: 35 },
+        { wch: 10 },
+        { wch: 10 },
         { wch: 12 },
-        { wch: 12 },
-        { wch: 14 },
-        { wch: 14 }
+        { wch: 12 }
     ];
 
-    worksheet['!dir'] = "rtl";
-
-    // إنشاء الملف
     const workbook = XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(
@@ -301,7 +285,6 @@ window.exportToExcel = () => {
         workbook,
         `المبيعات_${new Date().toLocaleDateString('en-GB')}.xlsx`
     );
-
 };
     window.loadInvoices = async () => {
         try {
