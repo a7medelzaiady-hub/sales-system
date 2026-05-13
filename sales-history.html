@@ -211,7 +211,8 @@
             return Number(initialBalance) + invoiceDebt + transEffect;
         } catch (e) { return Number(initialBalance); }
     }
-window.exportToExcel = () => {
+
+    window.exportToExcel = () => {
 
     if (allInvoices.length === 0) {
         return alert("لا توجد بيانات للتصدير");
@@ -231,23 +232,25 @@ window.exportToExcel = () => {
 
     allInvoices.forEach(inv => {
 
+        const customerName = inv.customerName || "النقدى";
+
+        let paid = (Number(inv.total) || 0) - (Number(inv.remaining) || 0);
+
         Object.keys(inv).forEach(k => {
 
             if (!isNaN(k) && inv[k]) {
 
                 const item = inv[k];
-
                 const isBox = item.unit === "box";
 
                 const jerryQty = !isBox ? (item.qty || 0) : 0;
                 const boxQty = isBox ? (item.qty || 0) : 0;
 
-                // الأسعار (لو عندك نفس السعر للجميع هنحطه في الجركن فقط)
                 const jerryPrice = !isBox ? (item.price || 0) : 0;
                 const boxPrice = isBox ? (item.price || 0) : 0;
 
                 excelData.push([
-                    inv.customerName || "النقدى",
+                    customerName,
                     item.name || "",
                     jerryQty,
                     boxQty,
@@ -258,6 +261,18 @@ window.exportToExcel = () => {
 
         });
 
+        // سطر السداد النقدي
+        if (paid > 0) {
+            excelData.push([
+                customerName,
+                "سداد نقدى",
+                "",
+                1,
+                "",
+                paid
+            ]);
+        }
+
     });
 
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
@@ -267,12 +282,6 @@ window.exportToExcel = () => {
 
     XLSX.writeFile(workbook, "المبيعات.xlsx");
 };
-    window.loadInvoices = async () => {
-        try {
-            const [invSnap, transSnap] = await Promise.all([
-                getDocs(query(collection(db, "invoices"), orderBy("timestamp", "desc"))),
-                getDocs(query(collection(db, "transactions"), where("type", "==", "قبض")))
-            ]);
 
             allInvoices = invSnap.docs.map(d => ({id: d.id, ...d.data()}));
             
