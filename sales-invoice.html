@@ -316,31 +316,51 @@
         balanceDiv.style.display = 'block';
     }
 
-    window.searchProduct = (input) => {
-        const term = input.value.toLowerCase().trim();
-        const resultsDiv = input.parentElement.querySelector('.search-results');
-        if (term.length < 1) { resultsDiv.style.display = 'none'; return; }
-        const filtered = inventory.filter(i => i.name.toLowerCase().startsWith(term)).slice(0, 10);
-        resultsDiv.innerHTML = filtered.map(p => `
-            <div class="search-item" onclick="selectProduct('${input.closest('.product-row').id}', '${p.id}', '${p.name}')">
-                <b>${p.name}</b> <span style="font-size:0.7rem;">المخزن: ${p.totalPcs} قطعة</span>
-            </div>`).join('');
-        resultsDiv.style.display = filtered.length > 0 ? 'block' : 'none';
-    };
+   window.searchProduct = (input) => {
+    const term = (input.value || '').toLowerCase().trim();
+    const resultsDiv = input.parentElement.querySelector('.search-results');
 
-    window.selectProduct = (rowId, pid, pname) => {
-        const row = document.getElementById(rowId);
-        row.querySelector('.p-search').value = pname;
-        row.querySelector('.p-select').value = pid;
-        row.querySelector('.search-results').style.display = 'none';
-        const p = inventory.find(i => i.id === pid);
-        if(p) {
-            row.querySelector('.unit-info-area').innerHTML = `<i class="fas fa-warehouse me-1"></i> رصيد المخزن: ${p.totalPcs} ق`;
-            updateRowPrice(row.querySelector('.p-unit'));
-        }
-        isChanged = true;
-    };
+    if (!inventory || inventory.length === 0) {
+        resultsDiv.innerHTML = `<div class="search-item">جاري تحميل الأصناف...</div>`;
+        resultsDiv.style.display = 'block';
+        return;
+    }
 
+    if (!term) {
+        resultsDiv.style.display = 'none';
+        return;
+    }
+
+    const filtered = inventory.filter(p =>
+        (p.name || '').toLowerCase().includes(term)
+    ).slice(0, 10);
+
+    resultsDiv.innerHTML = filtered.length
+        ? filtered.map(p => `
+            <div class="search-item"
+                onclick="selectProduct('${input.closest('.product-row').id}', '${p.id}', '${p.name}')">
+                <b>${p.name}</b>
+                <span style="font-size:0.7rem;">
+                    المخزن: ${p.totalPcs || 0}
+                </span>
+            </div>
+        `).join('')
+        : `<div class="search-item">لا توجد نتائج</div>`;
+
+    resultsDiv.style.display = 'block';
+};
+    resultsDiv.innerHTML = filtered.map(p => `
+        <div class="search-item"
+             onclick="selectProduct('${input.closest('.product-row').id}', '${p.id}', '${p.name}')">
+            <b>${p.name}</b>
+            <span style="font-size:0.7rem; color:#666;">
+                المخزن: ${p.totalPcs || 0} قطعة
+            </span>
+        </div>
+    `).join('');
+
+    resultsDiv.style.display = 'block';
+};
     window.addNewRow = (oldData = null) => {
         const id = 'row_' + Math.random().toString(36).substr(2, 5);
         const html = `
