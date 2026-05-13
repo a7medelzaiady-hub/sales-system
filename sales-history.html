@@ -283,26 +283,45 @@
     XLSX.writeFile(workbook, "المبيعات.xlsx");
 };
 
-            allInvoices = invSnap.docs.map(d => ({id: d.id, ...d.data()}));
-            
-            let totalSales = 0;
-            let totalPaidAtInvoiceTime = 0;
-            allInvoices.forEach(inv => {
-                totalSales += Number(inv.total || 0);
-                totalPaidAtInvoiceTime += (Number(inv.total) - Number(inv.remaining || 0));
-            });
+            window.loadInvoices = async () => {
+    try {
+        const [invSnap, transSnap] = await Promise.all([
+            getDocs(query(collection(db, "invoices"), orderBy("timestamp", "desc"))),
+            getDocs(query(collection(db, "transactions"), where("type", "==", "قبض")))
+        ]);
 
-            let totalFromReceipts = 0;
-            transSnap.forEach(t => { totalFromReceipts += Number(t.data().amount || 0); });
+        allInvoices = invSnap.docs.map(d => ({id: d.id, ...d.data()}));
 
-            const actualPaid = totalPaidAtInvoiceTime + totalFromReceipts;
-            document.getElementById('totalAll').innerText = Math.round(totalSales).toLocaleString('ar-EG');
-            document.getElementById('remAll').innerText = Math.round(totalSales - actualPaid).toLocaleString('ar-EG');
-            document.getElementById('paidAll').innerText = Math.round(actualPaid).toLocaleString('ar-EG');
-            
-            render();
-        } catch (e) { console.error(e); }
-    };
+        let totalSales = 0;
+        let totalPaidAtInvoiceTime = 0;
+
+        allInvoices.forEach(inv => {
+            totalSales += Number(inv.total || 0);
+            totalPaidAtInvoiceTime += (Number(inv.total) - Number(inv.remaining || 0));
+        });
+
+        let totalFromReceipts = 0;
+        transSnap.forEach(t => {
+            totalFromReceipts += Number(t.data().amount || 0);
+        });
+
+        const actualPaid = totalPaidAtInvoiceTime + totalFromReceipts;
+
+        document.getElementById('totalAll').innerText =
+            Math.round(totalSales).toLocaleString('ar-EG');
+
+        document.getElementById('remAll').innerText =
+            Math.round(totalSales - actualPaid).toLocaleString('ar-EG');
+
+        document.getElementById('paidAll').innerText =
+            Math.round(actualPaid).toLocaleString('ar-EG');
+
+        render();
+
+    } catch (e) {
+        console.error(e);
+    }
+};
 
     function render() {
         const container = document.getElementById('listContainer');
