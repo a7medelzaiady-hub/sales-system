@@ -219,13 +219,13 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
+    // الهيدر
     excelData.push([
         "اسم العميل",
         "الصنف",
-        "جركن",
-        "كرتونة",
-        "سعر جركن",
-        "سعر كرتونة"
+        "الكمية",
+        "النوع",
+        "سعر الوحدة"
     ]);
 
     allInvoices.forEach(inv => {
@@ -237,28 +237,23 @@ window.exportToExcel = () => {
                 const item = inv[k];
                 const isBox = item.unit === "box";
 
-                const qtyJarkan = !isBox ? item.qty || 0 : "";
-                const qtyBox = isBox ? item.qty || 0 : "";
-
                 excelData.push([
                     inv.customerName || "النقدى",
                     item.name || "",
-                    qtyJarkan ? "جركن" : "",
-                    qtyBox ? "كرتونة" : "",
-                    !isBox ? (item.price || 0) : "",
-                    isBox ? (item.price || 0) : ""
+                    item.qty || 0,
+                    isBox ? "كرتونة" : "جركن",
+                    item.price || 0
                 ]);
             }
 
         });
 
-        // المدفوع
+        // سطر السداد
         const paid = (inv.total || 0) - (inv.remaining || 0);
 
         excelData.push([
             inv.customerName || "النقدى",
             "سداد نقدى",
-            "",
             1,
             "",
             paid
@@ -267,14 +262,9 @@ window.exportToExcel = () => {
     });
 
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-
     const workbook = XLSX.utils.book_new();
 
-    XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        "المبيعات"
-    );
+    XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
 
     XLSX.writeFile(workbook, "المبيعات.xlsx");
 };
@@ -483,17 +473,84 @@ window.exportToExcel = () => {
     window.editInv = (id) => window.location.href = `sales-invoice.html?edit=${id}`;
 
     window.deleteInv = async (id) => {
-        if(!confirm("⚠️ حذف الفاتورة؟ سيتم تعديل المديونية تلقائياً.")) return;
-        const inv = allInvoices.find(i => i.id === id);
-        try {
-            await deleteDoc(doc(db, "invoices", id));
-            if (inv.customerId && inv.remaining > 0) {
-                await updateDoc(doc(db, "customers", inv.customerId), { currentBalance: increment(-inv.remaining) });
-            }
-            loadInvoices();
-        } catch(e) { alert("خطأ: " + e.message); }
-    };
 
+    if (!confirm("⚠️ حذف الفاتورة؟ سيتم تعديل المخزون والمديونية تلقائياً.")) return;
+
+    const inv = allInvoices.find(i => i.id === id);
+
+    try {
+
+        // 🔹 رجوع الكمية للمخزون
+        for (const k of Object.keys(inv)) {
+
+            if (!isNaN(k)) {
+
+                const item = inv[k];
+
+                const qtyPcs =
+                    item.unit === "box"
+                    ? item.qty * (item.unitFactor || 1)
+                    : item.qty;
+
+                // تحديث المخزون لو موجود stockId
+                if (item.stockId) {
+
+                    try {
+
+                        await updateDoc(
+                            doc(db, "inventory", item.stockId),
+                            {
+                                totalPcs: increment(qtyPcs)
+                            }
+                        );
+
+                    } catch(err) {
+
+                        console.log("الصنف غير موجود بالمخزون");
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        // 🔹 حذف الفاتورة
+        await deleteDoc(doc(db, "invoices", id));
+
+        // 🔹 تعديل مديونية العميل
+        if (inv.customerId && inv.remaining > 0) {
+
+            try {
+
+                await updateDoc(
+                    doc(db, "customers", inv.customerId),
+                    {
+                        currentBalance: increment(-inv.remaining)
+                    }
+                );
+
+            } catch(err) {
+
+                console.log("تعذر تعديل مديونية العميل");
+
+            }
+
+        }
+
+        alert("تم حذف الفاتورة وتعديل المخزون بنجاح ✅");
+
+        loadInvoices();
+
+    } catch (e) {
+
+        console.error(e);
+        alert("خطأ: " + e.message);
+
+    }
+
+};
     document.getElementById('searchInput').oninput = (e) => {
         const val = e.target.value.toLowerCase();
         document.querySelectorAll('.inv-card').forEach(card => {
