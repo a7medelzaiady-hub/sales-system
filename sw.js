@@ -24,16 +24,9 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request).then((response) => {
       if (response) return response;
 
-      return fetch(event.request)
-        .then((networkResponse) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, networkResponse.clone());
-            return networkResponse;
-          });
-        })
-        .catch(() => {
-          return caches.match("/login.html");
-        });
+      return fetch(event.request).catch(() => {
+        return caches.match("/login.html");
+      });
     })
   );
 });
