@@ -87,8 +87,9 @@
     </div>
 </div>
 
-<button class="btn save-all-btn" id="saveAllBtn">
-    <i class="fas fa-save me-2"></i> حفظ جميع الأرصدة الافتتاحية
+<button class="btn save-all-btn" id="deleteAllBtn" 
+style="bottom:90px; background:#dc3545;">
+    <i class="fas fa-trash-alt me-2"></i> حذف كل العملاء
 </button>
 
 <script type="module">
@@ -181,7 +182,50 @@
             btn.innerHTML = 'حفظ جميع الأرصدة الافتتاحية';
         }
     });
+document.getElementById('deleteAllBtn').addEventListener('click', async () => {
 
+    const confirmDelete = prompt(
+        "⚠️ سيتم حذف جميع العملاء نهائياً\n\nاكتب كلمة DELETE للتأكيد"
+    );
+
+    if (confirmDelete !== "DELETE") {
+        alert("تم إلغاء الحذف");
+        return;
+    }
+
+    const btn = document.getElementById('deleteAllBtn');
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الحذف...';
+
+    try {
+
+        const snapshot = await getDocs(collection(db, "customers"));
+
+        const batch = writeBatch(db);
+
+        snapshot.forEach((customerDoc) => {
+            batch.delete(doc(db, "customers", customerDoc.id));
+        });
+
+        await batch.commit();
+
+        alert("تم حذف جميع العملاء بنجاح ✅");
+
+        window.location.reload();
+
+    } catch (error) {
+
+        console.error(error);
+
+        alert("حدث خطأ أثناء حذف العملاء");
+
+        btn.disabled = false;
+
+        btn.innerHTML = '<i class="fas fa-trash-alt me-2"></i> حذف كل العملاء';
+    }
+
+});
     loadCustomers();
 </script>
 </body>
