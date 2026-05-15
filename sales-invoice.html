@@ -214,40 +214,72 @@
     };
 
     window.handleInput = () => { isChanged = true; calc(); };
-
-    async function init() {
+const CACHE_KEYS = {
+    customers: "cache_customers",
+    inventory: "cache_inventory"
+};
+  async function init() {
+    try {
         document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
-        try {
+
+        const cachedCustomers = localStorage.getItem(CACHE_KEYS.customers);
+        const cachedInventory = localStorage.getItem(CACHE_KEYS.inventory);
+
+        if (cachedCustomers && cachedInventory) {
+            customers = JSON.parse(cachedCustomers);
+            inventory = JSON.parse(cachedInventory);
+            console.log("📦 Loaded from CACHE سريع");
+        } else {
+            console.log("🔥 Loading from Firebase");
+
             const [cSnap, iSnap] = await Promise.all([
                 getDocs(collection(db, "customers")),
                 getDocs(collection(db, "inventory"))
             ]);
-            inventory = iSnap.docs.map(d => ({id: d.id, ...d.data()}));
-            customers = cSnap.docs.map(d => ({id: d.id, ...d.data()}));
-            
-            if(editId) {
-                document.getElementById('modeText').innerText = "تعديل";
-                const invDoc = await getDoc(doc(db, "invoices", editId));
-                if(invDoc.exists()) {
-                    const data = invDoc.data();
-                    document.getElementById('customerSelect').value = data.customerId;
-                    document.getElementById('customerSearch').value = data.customerName;
-                    document.getElementById('invTime').value = data.time;
-                    document.getElementById('payMethod').value = data.paymentMethod;
-                    document.getElementById('paidAmount').value = data.paid;
-                    
-                    const cust = customers.find(c => c.id === data.customerId);
-                    if(cust) {
-                        const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
-                        showBalance(realB);
-                    }
-                    Object.keys(data).forEach(k => { if(!isNaN(k)) addNewRow(data[k]); });
+
+            customers = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            inventory = iSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            localStorage.setItem(CACHE_KEYS.customers, JSON.stringify(customers));
+            localStorage.setItem(CACHE_KEYS.inventory, JSON.stringify(inventory));
+        }
+
+        // تعديل فاتورة
+        if (editId) {
+            document.getElementById('modeText').innerText = "تعديل";
+
+            const invDoc = await getDoc(doc(db, "invoices", editId));
+            if (invDoc.exists()) {
+                const data = invDoc.data();
+
+                document.getElementById('customerSelect').value = data.customerId;
+                document.getElementById('customerSearch').value = data.customerName;
+                document.getElementById('invTime').value = data.time;
+                document.getElementById('payMethod').value = data.paymentMethod;
+                document.getElementById('paidAmount').value = data.paid;
+
+                const cust = customers.find(c => c.id === data.customerId);
+                if (cust) {
+                    const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
+                    showBalance(realB);
                 }
-                isChanged = false;
-            } else { addNewRow(); }
-            calc();
-        } catch (e) { console.error(e); }
+
+                document.getElementById("itemsContainer").innerHTML = "";
+                data.items?.forEach(item => addNewRow(item));
+            }
+
+            isChanged = false;
+        } 
+        else {
+            addNewRow();
+        }
+
+        calc();
+
+    } catch (e) {
+        console.error("Init error:", e);
     }
+}
 
     window.searchCustomer = (input) => {
         const term = input.value.toLowerCase().trim();
