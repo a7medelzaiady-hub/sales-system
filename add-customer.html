@@ -1,4 +1,6 @@
+
 <!DOCTYPE html>
+
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
@@ -85,7 +87,82 @@
     </style>
 </head>
 <body>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<script src="supabase-config.js"></script>
 
+<script>
+let balanceType = 'debit';
+window.isChanged = false;
+
+window.onbeforeunload = function () {
+    if (window.isChanged) return "هل أنت متأكد؟ لديك بيانات غير محفوظة.";
+};
+
+window.confirmBack = () => {
+    if (window.isChanged) {
+        if (confirm("لم يتم حفظ البيانات، هل تريد الرجوع فعلاً؟")) {
+            window.location.href = "customer-list.html";
+        }
+    } else {
+        window.location.href = "customer-list.html";
+    }
+};
+
+window.setBalanceType = (type) => {
+    balanceType = type;
+
+    document.getElementById('btnDebit').className =
+        type === 'debit' ? 'toggle-btn active-red' : 'toggle-btn';
+
+    document.getElementById('btnCredit').className =
+        type === 'credit' ? 'toggle-btn active-blue' : 'toggle-btn';
+};
+
+window.saveCustomerData = async function () {
+
+    const name = document.getElementById('custName').value.trim();
+    const phone = document.getElementById('custPhone').value.trim();
+    const address = document.getElementById('custAddress').value.trim();
+    const initialBalanceRaw = Number(document.getElementById('custInitialBalance').value) || 0;
+    const limit = Number(document.getElementById('creditLimit').value) || 0;
+
+    if (!name || !phone) {
+        alert("الإسم ورقم التليفون مطلوبين");
+        return;
+    }
+
+    const calculatedBalance =
+        balanceType === 'debit'
+            ? Math.abs(initialBalanceRaw)
+            : -Math.abs(initialBalanceRaw);
+
+    const { error } = await supabaseClient
+        .from('customers')
+        .insert([
+            {
+                name,
+                phone,
+                address,
+                initialbalance: calculatedBalance,
+                balancetype: balanceType,
+                creditlimit: limit,
+                issupplier: document.getElementById('isSupplier').checked,
+                currentbalance: calculatedBalance,
+                createdat: new Date()
+            }
+        ]);
+
+    if (error) {
+        console.log(error);
+        alert("حصل خطأ أثناء الحفظ");
+        return;
+    }
+
+    window.isChanged = false;
+    alert("تم حفظ بيانات العميل بنجاح!");
+    window.location.href = "customer-list.html";
+};
+</script>
 <div class="header">
     <i class="fas fa-chevron-right" onclick="confirmBack()" style="cursor: pointer;"></i>
     <h5 class="m-0 fw-bold">إضافة عميل جديد</h5>
@@ -150,88 +227,92 @@
 <div class="bottom-bar">
     <button class="btn-submit" onclick="saveCustomerData()">حفظ بيانات العميل</button>
 </div>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<script src="supabase-config.js"></script>
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<script src="supabase-config.js"></script>
 
-  const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-  measurementId: "G-WE04GK5XZZ"
+
+<script>
+let balanceType = 'debit';
+window.isChanged = false;
+
+window.onbeforeunload = function () {
+    if (window.isChanged) return "هل أنت متأكد؟ لديك بيانات غير محفوظة.";
 };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    let balanceType = 'debit'; 
-    window.isChanged = false;
-
-    window.onbeforeunload = function() {
-        if (window.isChanged) return "هل أنت متأكد؟ لديك بيانات غير محفوظة.";
-    };
-
-    window.confirmBack = () => {
-        if (window.isChanged) {
-            if (confirm("لم يتم حفظ البيانات، هل تريد الرجوع فعلاً؟")) {
-                window.location.href = "customer-list.html";
-            }
-        } else {
+window.confirmBack = () => {
+    if (window.isChanged) {
+        if (confirm("لم يتم حفظ البيانات، هل تريد الرجوع فعلاً؟")) {
             window.location.href = "customer-list.html";
         }
-    };
+    } else {
+        window.location.href = "customer-list.html";
+    }
+};
 
-    window.setBalanceType = (type) => {
-        balanceType = type;
-        const btnDebit = document.getElementById('btnDebit');
-        const btnCredit = document.getElementById('btnCredit');
-        
-        if(type === 'debit') {
-            btnDebit.className = 'toggle-btn active-red';
-            btnCredit.className = 'toggle-btn';
-        } else {
-            btnDebit.className = 'toggle-btn';
-            btnCredit.className = 'toggle-btn active-blue';
-        }
+window.setBalanceType = (type) => {
+    balanceType = type;
+
+    document.getElementById('btnDebit').className =
+        type === 'debit' ? 'toggle-btn active-red' : 'toggle-btn';
+
+    document.getElementById('btnCredit').className =
+        type === 'credit' ? 'toggle-btn active-blue' : 'toggle-btn';
+};
+
+window.saveCustomerData = async function () {
+
+    const name = document.getElementById('custName').value.trim();
+    const phone = document.getElementById('custPhone').value.trim();
+    const address = document.getElementById('custAddress').value.trim();
+    const initialBalanceRaw = Number(document.getElementById('custInitialBalance').value) || 0;
+    const limit = Number(document.getElementById('creditLimit').value) || 0;
+
+    if (!name || !phone) {
+        alert("الإسم ورقم التليفون مطلوبين");
+        return;
     }
 
-    window.saveCustomerData = async function() {
-        const name = document.getElementById('custName').value.trim();
-        const phone = document.getElementById('custPhone').value.trim();
-        const address = document.getElementById('custAddress').value.trim();
-        const initialBalanceRaw = Number(document.getElementById('custInitialBalance').value) || 0;
-        const limit = Number(document.getElementById('creditLimit').value) || 0;
+    const calculatedBalance =
+        balanceType === 'debit'
+            ? Math.abs(initialBalanceRaw)
+            : -Math.abs(initialBalanceRaw);
 
-        if(!name || !phone) {
-            alert("يا هندسة، الإسم ورقم التليفون بيانات أساسية!");
+    try {
+        const { error } = await supabaseClient
+            .from('customers')
+            .insert([
+                {
+                    name: name,
+                    phone: phone,
+                    address: address,
+                    initialbalance: calculatedBalance,
+                    balancetype: balanceType,
+                    creditlimit: limit,
+                    issupplier: document.getElementById('isSupplier').checked,
+                    currentbalance: calculatedBalance,
+                    createdat: new Date()
+                }
+            ]);
+
+        if (error) {
+            console.log(error);
+            alert("حصل خطأ أثناء الحفظ");
             return;
         }
 
-        const calculatedBalance = (balanceType === 'debit') ? Math.abs(initialBalanceRaw) : -Math.abs(initialBalanceRaw);
+        window.isChanged = false;
+        alert("تم حفظ بيانات العميل بنجاح!");
+        window.location.href = "customer-list.html";
 
-        try {
-            await addDoc(collection(db, "customers"), {
-                name: name,
-                phone: phone,
-                address: address,
-                initialBalance: calculatedBalance,
-                balanceType: balanceType,
-                creditLimit: limit,
-                isSupplier: document.getElementById('isSupplier').checked,
-                currentBalance: calculatedBalance,
-                createdAt: serverTimestamp()
-            });
-
-            window.isChanged = false;
-            alert("تم حفظ بيانات العميل بنجاح!");
-            window.location.href = "customer-list.html"; 
-        } catch (e) {
-            console.error("Error adding document: ", e);
-            alert("حدث خطأ أثناء الحفظ، جرب تاني يا هندسة.");
+    } catch (err) {
+        console.error(err);
+        alert("حدث خطأ غير متوقع");
+    }
+};
+</script>
         }
     }
 </script>
