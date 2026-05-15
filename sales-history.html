@@ -219,46 +219,55 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
-    // الهيدر
+ excelData.push([
+    "التاريخ",
+    "اسم العميل",
+    "اسم الصنف",
+    "عدد جركن",
+    "عدد كرتونة",
+    "سعر جركن",
+    "سعر كرتونة"
+]);
+
+  allInvoices.forEach(inv => {
+
+    const total = inv.total || 0;
+    const remaining = inv.remaining || 0;
+    const paid = total - remaining;
+
+    const date = inv.time || "";
+
+    Object.keys(inv).forEach(k => {
+
+        if (!isNaN(k) && inv[k]) {
+
+            const item = inv[k];
+            const isBox = item.unit === "box";
+
+            excelData.push([
+                date,
+                inv.customerName || "النقدي",
+                item.name || "",
+                !isBox ? (item.qty || 0) : 0,
+                isBox ? (item.qty || 0) : 0,
+                !isBox ? (item.price || 0) : 0,
+                isBox ? (item.price || 0) : 0
+            ]);
+        }
+    });
+
+    // 🔥 صف المسدد (زي ما طلبت بالظبط)
     excelData.push([
-        "اسم العميل",
-        "اسم الصنف",
-        "عدد جركن",
-        "عدد كرتونة",
-        "سعر جركن",
-        "سعر كرتونة"
+        date,
+        inv.customerName || "النقدي",
+        "سداد نقدي",
+        1,
+        "",
+        "",
+        paid
     ]);
 
-    allInvoices.forEach(inv => {
-
-        Object.keys(inv).forEach(k => {
-
-            if (!isNaN(k) && inv[k]) {
-
-                const item = inv[k];
-
-                const isBox = item.unit === "box";
-
-                const jerryQty = !isBox ? (item.qty || 0) : 0;
-                const boxQty = isBox ? (item.qty || 0) : 0;
-
-                // الأسعار (لو عندك نفس السعر للجميع هنحطه في الجركن فقط)
-                const jerryPrice = !isBox ? (item.price || 0) : 0;
-                const boxPrice = isBox ? (item.price || 0) : 0;
-
-                excelData.push([
-                    inv.customerName || "النقدى",
-                    item.name || "",
-                    jerryQty,
-                    boxQty,
-                    jerryPrice,
-                    boxPrice
-                ]);
-            }
-
-        });
-
-    });
+});
 
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
