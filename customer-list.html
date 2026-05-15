@@ -74,6 +74,10 @@
 <body>
 
 <div class="header-section">
+    <button onclick="deleteAllCustomers()" class="btn btn-danger btn-sm">
+    <i class="fas fa-trash me-1"></i>
+    حذف الكل
+</button>
     <div class="container d-flex justify-content-between align-items-center px-3">
         <a href="client_menu.html" class="text-white"><i class="fas fa-chevron-right"></i></a>
         <h5 class="m-0 fw-bold">قائمة العملاء</h5>
@@ -93,6 +97,7 @@
 </div>
 
 <script type="module">
+    import { deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, getDocs, orderBy, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -182,7 +187,30 @@ const firebaseConfig = {
             cardDiv.classList.add(balance > 0 ? 'has-debt' : 'is-clear');
         }
     }
+window.deleteAllCustomers = async function () {
+    const confirmDelete = confirm("⚠️ هل أنت متأكد من حذف جميع العملاء؟ لا يمكن التراجع عن هذا القرار!");
+    
+    if (!confirmDelete) return;
 
+    try {
+        const snap = await getDocs(collection(db, "customers"));
+
+        const deletePromises = snap.docs.map(d => 
+            deleteDoc(doc(db, "customers", d.id))
+        );
+
+        await Promise.all(deletePromises);
+
+        alert("تم حذف جميع العملاء بنجاح ✅");
+
+        // إعادة تحميل القائمة
+        allCustomers = [];
+        renderCustomers([]);
+
+    } catch (e) {
+        alert("حدث خطأ أثناء الحذف: " + e.message);
+    }
+};
     window.renderCustomers = (list) => {
         const container = document.getElementById('customersContainer');
         if(list.length === 0) {
