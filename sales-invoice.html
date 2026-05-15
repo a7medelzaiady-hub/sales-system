@@ -382,101 +382,123 @@
         handleInput();
     };
 
-    window.saveInvoice = async () => {
+window.saveInvoice = async () => {
+    const saveBtn = document.getElementById('saveBtn');
+
+    try {
         const { total, paid, remaining } = calc();
+
         const customerId = document.getElementById('customerSelect').value;
         const customerName = document.getElementById('customerSearch').value;
 
-        if(!customerId || !customerName) return alert("الرجاء اختيار العميل");
-        const items = {}; let idx = 0;
+        if (!customerId || !customerName) {
+            return alert("الرجاء اختيار العميل");
+        }
+
+        const items = [];
+
         document.querySelectorAll('.product-row').forEach(r => {
-            const pid = r.querySelector('.p-select').value;
-            if(pid) {
-                items[idx++] = { stockId: pid, name: r.querySelector('.p-search').value, unit: r.querySelector('.p-unit').value, qty: Number(r.querySelector('.p-qty').value), price: Number(r.querySelector('.p-price').value) };
-            }
+            const pid = r.querySelector('.p-select')?.value;
+            const name = r.querySelector('.p-search')?.value;
+            const unit = r.querySelector('.p-unit')?.value;
+            const qty = Number(r.querySelector('.p-qty')?.value || 0);
+            const price = Number(r.querySelector('.p-price')?.value || 0);
+
+            if (!pid || qty <= 0) return;
+
+            items.push({
+                stockId: pid,
+                name,
+                unit,
+                qty,
+                price
+            });
         });
 
-        if(idx === 0) return alert("الرجاء إضافة أصناف للفاتورة");
-        const saveBtn = document.getElementById('saveBtn');
-        saveBtn.disabled = true; saveBtn.innerText = "جاري الحفظ...";
-
-        try {
-            const invoiceData = { customerId, customerName, total, paid, remaining, paymentMethod: document.getElementById('payMethod').value, time: document.getElementById('invTime').value, timestamp: serverTimestamp(), ...items };
-           if(editId) {
-
-    // جلب الفاتورة القديمة
-    const oldInvoiceRef = doc(db, "invoices", editId);
-    const oldInvoiceSnap = await getDoc(oldInvoiceRef);
-
-    if(oldInvoiceSnap.exists()) {
-
-        const oldData = oldInvoiceSnap.data();
-
-        // 1- ترجيع الكميات القديمة للمخزن
-        for(let key in oldData) {
-
-            if(!isNaN(key)) {
-
-                const item = oldData[key];
-
-                const oldProduct = inventory.find(p => p.id === item.stockId);
-
-                if(oldProduct) {
-
-                    const qtyBack =
-                        item.unit === 'box'
-                        ? item.qty * (oldProduct.unitFactor || 1)
-                        : item.qty;
-
-                    await updateDoc(
-                        doc(db, "inventory", item.stockId),
-                        {
-                            totalPcs: increment(qtyBack)
-                        }
-                    );
-                }
-            }
+        if (items.length === 0) {
+            return alert("الرجاء إضافة أصناف للفاتورة");
         }
 
-        // 2- خصم الكميات الجديدة
-        for(let key in items) {
+        saveBtn.disabled = true;
+        saveBtn.innerText = "جاري الحفظ...";
 
-            const item = items[key];
+        const invoiceData = {
+            customerId,
+            customerName,
+            total,
+            paid,
+            remaining,
+            paymentMethod: document.getElementById('payMethod').value,
+            time: document.getElementById('invTime').value,
+            timestamp: serverTimestamp(),
+            items
+        };
 
-            const newProduct = inventory.find(p => p.id === item.stockId);
+        // 🟢 حفظ جديد
+        if (!editId) {
 
-            if(newProduct) {
-
-                const qtyMinus =
-                    item.unit === 'box'
-                    ? item.qty * (newProduct.unitFactor || 1)
+            for (const item of items) {
+                const p = inventory.find(i => i.id === item.stockId);
+                const qtyPcs = item.unit === 'box'
+                    ? item.qty * (p.unitFactor || 1)
                     : item.qty;
 
-                await updateDoc(
-                    doc(db, "inventory", item.stockId),
-                    {
-                        totalPcs: increment(-qtyMinus)
-                    }
-                );
+                await updateDoc(doc(db, "inventory", item.stockId), {
+                    totalPcs: increment(-qtyPcs)
+                });
             }
+
+            await addDoc(collection(db, "invoices"), invoiceData);
         }
-    }
 
-    // 3- تحديث الفاتورة
-    await updateDoc(oldInvoiceRef, invoiceData);
+        // 🟡 تعديل
+        else {
+            const oldRef = doc(db, "invoices", editId);
+            const oldSnap = await getDoc(oldRef);
 
-} else {
-                for(let key in items) {
-                    const item = items[key];
-                    const p = inventory.find(i => i.id === item.stockId);
-                    const qtyPcs = item.unit === 'box' ? (item.qty * (p.unitFactor || 1)) : item.qty;
-                    await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
+            if (oldSnap.exists()) {
+                const oldData = oldSnap.data();
+
+                // رجّع القديم
+                if (oldData.items) {
+                    for (const item of oldData.items) {
+                        const p = inventory.find(i => i.id === item.stockId);
+                        const qtyBack = item.unit === 'box'
+                            ? item.qty * (p.unitFactor || 1)
+                            : item.qty;
+
+                        await updateDoc(doc(db, "inventory", item.stockId), {
+                            totalPcs: increment(qtyBack)
+                        });
+                    }
                 }
-                await addDoc(collection(db, "invoices"), invoiceData);
+
+                // خصم الجديد
+                for (const item of items) {
+                    const p = inventory.find(i => i.id === item.stockId);
+                    const qtyMinus = item.unit === 'box'
+                        ? item.qty * (p.unitFactor || 1)
+                        : item.qty;
+
+                    await updateDoc(doc(db, "inventory", item.stockId), {
+                        totalPcs: increment(-qtyMinus)
+                    });
+                }
             }
-            isChanged = false; alert("تم حفظ الفاتورة بنجاح"); window.location.href = "sales-history.html";
-        } catch(e) { alert("خطأ: " + e.message); saveBtn.disabled = false; }
-    };
+
+            await updateDoc(oldRef, invoiceData);
+        }
+
+        isChanged = false;
+        alert("تم حفظ الفاتورة بنجاح");
+        window.location.href = "sales-history.html";
+
+    } catch (e) {
+        alert("خطأ: " + e.message);
+        saveBtn.disabled = false;
+        saveBtn.innerText = "حفظ وتحديث البيانات";
+    }
+};
 
     init();
 </script>
