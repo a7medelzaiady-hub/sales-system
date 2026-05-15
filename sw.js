@@ -83,13 +83,40 @@ self.addEventListener("activate", event => {
 
 
 /* ===========================
-   FETCH
+   CSS / JS / IMAGES
 =========================== */
 
-self.addEventListener("fetch", event => {
+event.respondWith(
 
-  const request = event.request;
+  caches.match(request)
+    .then(cachedResponse => {
 
+      const fetchPromise = fetch(request)
+        .then(networkResponse => {
+
+          // حفظ نسخة جديدة بالكاش
+          if (networkResponse && networkResponse.status === 200) {
+
+            const responseClone = networkResponse.clone();
+
+            caches.open(CACHE_NAME)
+              .then(cache => {
+                cache.put(request, responseClone);
+              });
+
+          }
+
+          return networkResponse;
+
+        })
+        .catch(() => cachedResponse);
+
+      // لو فيه كاش رجعه فوراً
+      return cachedResponse || fetchPromise;
+
+    })
+
+);
 
 
   /* ===========================
