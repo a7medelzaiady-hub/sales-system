@@ -124,10 +124,10 @@
     </div>
 </div>
 
-<script type="module">
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 <script src="supabase-config.js"></script>
-
+<script>
   
     let importedData = [];
 
@@ -164,67 +164,87 @@
 
     // 3. تنفيذ عملية الاستيراد لـ Firebase
     window.processImport = async () => {
-        const btn = document.getElementById('btnStartImport');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> جاري الحفظ...';
+    const btn = document.getElementById('btnStartImport');
+    btn.disabled = true;
+    btn.innerHTML = "جاري الحفظ...";
 
-        let count = 0;
-        try {
-            for (const item of importedData) {
-                const name = item["الاسم بالكامل"] || item["name"];
-                const phone = item["رقم الهاتف"] || item["phone"];
-                const bal = Number(item["الرصيد الافتتاحي"]) || 0;
-                const type = (item["النوع (مدين/دائن)"] === "دائن") ? "credit" : "debit";
-                
-                const finalBalance = (type === 'debit') ? Math.abs(bal) : -Math.abs(bal);
+    let count = 0;
 
-                await addDoc(collection(db, "customers"), {
-                    name: String(name),
-                    phone: String(phone),
-                    address: item["العنوان"] || "",
-                    initialBalance: finalBalance,
-                    balanceType: type,
-                    creditLimit: Number(item["الحد الائتماني"]) || 0,
-                    currentBalance: finalBalance,
-                    createdAt: serverTimestamp()
-                });
-                count++;
+    try {
+        for (const item of importedData) {
+
+            const name = item["الاسم بالكامل"] || item["name"];
+            const phone = item["رقم الهاتف"] || item["phone"];
+            const address = item["العنوان"] || "";
+            const bal = Number(item["الرصيد الافتتاحي"]) || 0;
+
+            const type = (item["النوع (مدين/دائن)"] === "دائن") ? "credit" : "debit";
+
+            const finalBalance = type === "debit"
+                ? Math.abs(bal)
+                : -Math.abs(bal);
+
+            const { error } = await supabaseClient
+                .from("customers")
+                .insert([{
+                    name,
+                    phone,
+                    address,
+                    balance: finalBalance,
+                    balancetype: type,
+                    creditlimit: Number(item["الحد الائتماني"]) || 0,
+                    currentbalance: finalBalance,
+                    createdat: new Date().toISOString()
+                }]);
+
+            if (error) {
+                console.log(error);
+                continue;
             }
-            alert(`تم استيراد ${count} عميل بنجاح يا هندسة!`);
-            window.location.href = "customer-list.html";
-        } catch (e) {
-            console.error(e);
-            showStatus("حدث خطأ أثناء الاستيراد، تأكد من اتصال الإنترنت.", 'danger');
-            btn.disabled = false;
-            btn.innerText = "بدء عملية الاستيراد الآن";
-        }
-    };
 
-    // 4. تصدير البيانات من Firebase
+            count++;
+        }
+
+        alert(`تم استيراد ${count} عميل بنجاح`);
+        window.location.href = "customer-list.html";
+
+    } catch (e) {
+        console.log(e);
+        alert("حدث خطأ أثناء الاستيراد");
+        btn.disabled = false;
+        btn.innerHTML = "بدء عملية الاستيراد الآن";
+    }
+};
     window.exportData = async () => {
-        try {
-            const querySnapshot = await getDocs(collection(db, "customers"));
-            const data = [];
-            querySnapshot.forEach((doc) => {
-                const d = doc.data();
-                data.push({
-                    "الاسم بالكامل": d.name,
-                    "رقم الهاتف": d.phone,
-                    "العنوان": d.address,
-                    "الرصيد الحالي": d.currentBalance,
-                    "نوع الحساب": d.balanceType === 'debit' ? 'مدين' : 'دائن',
-                    "الحد الائتماني": d.creditLimit
-                });
-            });
+    try {
+        const { data, error } = await supabaseClient
+            .from("customers")
+            .select("*");
 
-            const ws = XLSX.utils.json_to_sheet(data);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "العملاء المسجلين");
-            XLSX.writeFile(wb, "عملاء_شركة_الزيادي.xlsx");
-        } catch (e) {
-            alert("خطأ في التصدير!");
+        if (error) {
+            alert("خطأ في جلب البيانات");
+            return;
         }
-    };
+
+        const exportData = (data || []).map(d => ({
+            "الاسم بالكامل": d.name,
+            "رقم الهاتف": d.phone,
+            "العنوان": d.address,
+            "الرصيد الحالي": d.balance,
+            "نوع الحساب": d.balancetype === 'debit' ? 'مدين' : 'دائن',
+            "الحد الائتماني": d.creditlimit
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "customers");
+        XLSX.writeFile(wb, "customers.xlsx");
+
+    } catch (e) {
+        alert("خطأ في التصدير");
+        console.log(e);
+    }
+};
 
     function showStatus(msg, type) {
         const box = document.getElementById('importStatus');
