@@ -1,47 +1,184 @@
-const CACHE_NAME = "elzaiady-v1";
+const CACHE_NAME = "elzaiady-cache-v5";
 
-const urlsToCache = [
+const STATIC_FILES = [
+
   "/",
-  "/login.html",
+  "/index.html",
   "/index1.html",
-  "/sales-history.html"
+  "/login.html",
+
+  "/customer-list.html",
+  "/customer-info.html",
+  "/customers-trash.html",
+
+  "/invoice.html",
+  "/invoice-list.html",
+
+  "/manifest.json",
+
+  "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css",
+  "https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap",
+  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+
 ];
 
-// تثبيت
-self.addEventListener('install', (event) => {
-  console.log('Service Worker Installed');
+
+
+/* ===========================
+   INSTALL
+=========================== */
+
+self.addEventListener("install", event => {
 
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache);
-    })
+
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        return cache.addAll(STATIC_FILES);
+      })
+
   );
+
+  self.skipWaiting();
+
 });
 
-// تشغيل أوفلاين
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      if (response) return response;
 
-      return fetch(event.request).catch(() => {
-        return caches.match('/login.html');
-      });
-    })
-  );
-});
 
-// تنظيف النسخ القديمة
-self.addEventListener('activate', (event) => {
+/* ===========================
+   ACTIVATE
+=========================== */
+
+self.addEventListener("activate", event => {
+
   event.waitUntil(
-    caches.keys().then((keys) => {
+
+    caches.keys().then(keys => {
+
       return Promise.all(
-        keys.map((key) => {
+
+        keys.map(key => {
+
           if (key !== CACHE_NAME) {
             return caches.delete(key);
           }
+
         })
+
       );
+
     })
+
   );
+
+  self.clients.claim();
+
+});
+
+
+
+/* ===========================
+   FETCH
+=========================== */
+
+self.addEventListener("fetch", event => {
+
+  const request = event.request;
+
+
+
+  /* ===========================
+     FIREBASE REQUESTS
+  =========================== */
+
+  if (
+    request.url.includes("firestore.googleapis.com") ||
+    request.url.includes("firebase")
+  ) {
+
+    event.respondWith(
+
+      fetch(request)
+        .then(response => {
+
+          const responseClone = response.clone();
+
+          caches.open(CACHE_NAME)
+            .then(cache => {
+              cache.put(request, responseClone);
+            });
+
+          return response;
+
+        })
+        .catch(() => {
+          return caches.match(request);
+        })
+
+    );
+
+    return;
+  }
+
+
+
+  /* ===========================
+     HTML PAGES
+  =========================== */
+
+  if (request.headers.get("accept")?.includes("text/html")) {
+
+    event.respondWith(
+
+      fetch(request)
+        .then(response => {
+
+          const responseClone = response.clone();
+
+          caches.open(CACHE_NAME)
+            .then(cache => {
+              cache.put(request, responseClone);
+            });
+
+          return response;
+
+        })
+        .catch(() => {
+          return caches.match(request);
+        })
+
+    );
+
+    return;
+  }
+
+
+
+  /* ===========================
+     CSS / JS / IMAGES
+  =========================== */
+
+  event.respondWith(
+
+    caches.match(request)
+      .then(cachedResponse => {
+
+        return cachedResponse || fetch(request)
+          .then(networkResponse => {
+
+            const responseClone = networkResponse.clone();
+
+            caches.open(CACHE_NAME)
+              .then(cache => {
+                cache.put(request, responseClone);
+              });
+
+            return networkResponse;
+
+          });
+
+      })
+
+  );
+
 });
