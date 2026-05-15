@@ -176,20 +176,8 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { 
-  getFirestore,
-  enableIndexedDbPersistence,
-  collection,
-  getDocs,
-  getDoc,
-  query,
-  orderBy,
-  doc,
-  deleteDoc,
-  updateDoc,
-  increment,
-  where
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, getDoc, query, orderBy, doc, deleteDoc, updateDoc, increment, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
     const firebaseConfig = {
   apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
   authDomain: "ahmedelzaiady.firebaseapp.com",
@@ -199,14 +187,9 @@
   appId: "1:300306825071:web:0426ddde56280fa090329a",
   measurementId: "G-WE04GK5XZZ"
 };
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
 
-enableIndexedDbPersistence(db)
-  .catch((err) => {
-    console.log("Offline persistence error:", err);
-  });
-
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
     let allInvoices = [];
 
     // دالة الحساب الدقيق
@@ -228,8 +211,7 @@ enableIndexedDbPersistence(db)
             return Number(initialBalance) + invoiceDebt + transEffect;
         } catch (e) { return Number(initialBalance); }
     }
-
-    window.exportToExcel = () => {
+window.exportToExcel = () => {
 
     if (allInvoices.length === 0) {
         return alert("لا توجد بيانات للتصدير");
@@ -249,25 +231,23 @@ enableIndexedDbPersistence(db)
 
     allInvoices.forEach(inv => {
 
-        const customerName = inv.customerName || "النقدى";
-
-        let paid = (Number(inv.total) || 0) - (Number(inv.remaining) || 0);
-
         Object.keys(inv).forEach(k => {
 
             if (!isNaN(k) && inv[k]) {
 
                 const item = inv[k];
+
                 const isBox = item.unit === "box";
 
                 const jerryQty = !isBox ? (item.qty || 0) : 0;
                 const boxQty = isBox ? (item.qty || 0) : 0;
 
+                // الأسعار (لو عندك نفس السعر للجميع هنحطه في الجركن فقط)
                 const jerryPrice = !isBox ? (item.price || 0) : 0;
                 const boxPrice = isBox ? (item.price || 0) : 0;
 
                 excelData.push([
-                    customerName,
+                    inv.customerName || "النقدى",
                     item.name || "",
                     jerryQty,
                     boxQty,
@@ -278,18 +258,6 @@ enableIndexedDbPersistence(db)
 
         });
 
-        // سطر السداد النقدي
-        if (paid > 0) {
-            excelData.push([
-                customerName,
-                "سداد نقدى",
-                "",
-                1,
-                "",
-                paid
-            ]);
-        }
-
     });
 
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
@@ -299,46 +267,33 @@ enableIndexedDbPersistence(db)
 
     XLSX.writeFile(workbook, "المبيعات.xlsx");
 };
+    window.loadInvoices = async () => {
+        try {
+            const [invSnap, transSnap] = await Promise.all([
+                getDocs(query(collection(db, "invoices"), orderBy("timestamp", "desc"))),
+                getDocs(query(collection(db, "transactions"), where("type", "==", "قبض")))
+            ]);
 
-            window.loadInvoices = async () => {
-    try {
-        const [invSnap, transSnap] = await Promise.all([
-            getDocs(query(collection(db, "invoices"), orderBy("timestamp", "desc"))),
-            getDocs(query(collection(db, "transactions"), where("type", "==", "قبض")))
-        ]);
+            allInvoices = invSnap.docs.map(d => ({id: d.id, ...d.data()}));
+            
+            let totalSales = 0;
+            let totalPaidAtInvoiceTime = 0;
+            allInvoices.forEach(inv => {
+                totalSales += Number(inv.total || 0);
+                totalPaidAtInvoiceTime += (Number(inv.total) - Number(inv.remaining || 0));
+            });
 
-        allInvoices = invSnap.docs.map(d => ({id: d.id, ...d.data()}));
+            let totalFromReceipts = 0;
+            transSnap.forEach(t => { totalFromReceipts += Number(t.data().amount || 0); });
 
-        let totalSales = 0;
-        let totalPaidAtInvoiceTime = 0;
-
-        allInvoices.forEach(inv => {
-            totalSales += Number(inv.total || 0);
-            totalPaidAtInvoiceTime += (Number(inv.total) - Number(inv.remaining || 0));
-        });
-
-        let totalFromReceipts = 0;
-        transSnap.forEach(t => {
-            totalFromReceipts += Number(t.data().amount || 0);
-        });
-
-        const actualPaid = totalPaidAtInvoiceTime + totalFromReceipts;
-
-        document.getElementById('totalAll').innerText =
-            Math.round(totalSales).toLocaleString('ar-EG');
-
-        document.getElementById('remAll').innerText =
-            Math.round(totalSales - actualPaid).toLocaleString('ar-EG');
-
-        document.getElementById('paidAll').innerText =
-            Math.round(actualPaid).toLocaleString('ar-EG');
-
-        render();
-
-    } catch (e) {
-        console.error(e);
-    }
-};
+            const actualPaid = totalPaidAtInvoiceTime + totalFromReceipts;
+            document.getElementById('totalAll').innerText = Math.round(totalSales).toLocaleString('ar-EG');
+            document.getElementById('remAll').innerText = Math.round(totalSales - actualPaid).toLocaleString('ar-EG');
+            document.getElementById('paidAll').innerText = Math.round(actualPaid).toLocaleString('ar-EG');
+            
+            render();
+        } catch (e) { console.error(e); }
+    };
 
     function render() {
         const container = document.getElementById('listContainer');
