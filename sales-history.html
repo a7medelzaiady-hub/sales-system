@@ -132,7 +132,12 @@
         <i class="fas fa-file-pdf"></i> طباعة PDF
     </button>
 </div>
-
+<button class="btn-export"
+style="background:#dc3545"
+onclick="deleteAllInvoices()">
+<i class="fas fa-trash"></i>
+حذف جميع الفواتير
+</button>
 <div class="search-container">
     <i class="fas fa-search search-icon"></i>
     <input type="text" id="searchInput" class="search-input" placeholder="بحث باسم العميل...">
@@ -407,7 +412,43 @@ if (paid > 0) {
         } catch (err) { console.error(err); shareContainer.style.display = 'none'; }
         btn.innerHTML = icon;
     };
+window.deleteAllInvoices = async () => {
 
+    if (!confirm("⚠️ هل تريد حذف جميع الفواتير نهائياً؟")) return;
+
+    try {
+
+        const snap = await getDocs(collection(db, "invoices"));
+
+        if (snap.empty) {
+            alert("لا توجد فواتير");
+            return;
+        }
+
+        let deleted = 0;
+
+        for (const docSnap of snap.docs) {
+
+            await deleteDoc(doc(db, "invoices", docSnap.id));
+
+            deleted++;
+
+            console.log(`تم حذف ${deleted} / ${snap.docs.length}`);
+
+        }
+
+        alert(`تم حذف ${deleted} فاتورة بنجاح ✅`);
+
+        loadInvoices();
+
+    } catch (e) {
+
+        console.error(e);
+        alert("خطأ: " + e.message);
+
+    }
+
+};
     window.printInv = async (id) => {
         const inv = allInvoices.find(i => i.id === id);
         let realDebt = 0;
