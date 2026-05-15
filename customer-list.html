@@ -189,109 +189,116 @@
             <p class="mt-2 small fw-bold">جاري تحميل القائمة...</p>
         </div>
     </div>
-<div class="container mt-4">
-    </div>
-        
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-<script src="supabase-config.js"></script>
 
-<script>
-       let allCustomers = [];
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, orderBy, query, doc, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-async function loadCustomers() {
-    const container = document.getElementById('customersContainer');
+        const firebaseConfig = {
+            apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+            authDomain: "ahmedelzaiady.firebaseapp.com",
+            projectId: "ahmedelzaiady",
+            storageBucket: "ahmedelzaiady.firebasestorage.app",
+            messagingSenderId: "300306825071",
+            appId: "1:300306825071:web:0426ddde56280fa090329a",
+            measurementId: "G-WE04GK5XZZ"
+        };
 
-    const { data, error } = await supabaseClient
-        .from('customers')
-        .select('*')
-        .order('name');
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        let allCustomers = [];
 
-    if (error) {
-        container.innerHTML = "خطأ في تحميل البيانات";
-        console.log(error);
-        return;
-    }
+        async function loadCustomers() {
+            const container = document.getElementById('customersContainer');
+            try {
+                const q = query(collection(db, "customers"), orderBy("name"));
+                const snap = await getDocs(q);
+                
+                allCustomers = snap.docs
+                    .map(d => ({ id: d.id, ...d.data() }))
+                    .filter(c => c.isDeleted !== true);
+                
+                renderCustomers(allCustomers);
+            } catch (e) {
+                container.innerHTML = `<div class="alert alert-danger mx-3 text-center">خطأ: ${e.message}</div>`;
+            }
+        }
 
-    allCustomers = (data || []).filter(c => !c.isdeleted);
+        window.renderCustomers = (list) => {
+            const container = document.getElementById('customersContainer');
+            if(list.length === 0) {
+                container.innerHTML = `<div class="text-center py-5 opacity-50 fw-bold">لا توجد نتائج</div>`;
+                return;
+            }
+            container.innerHTML = list.map(cust => {
+                const balance = Number(cust.balance ?? 0);
+                const isDebt = balance > 0;
+                const statusText = balance > 0 ? 'عليه' : (balance < 0 ? 'له' : 'خالص');
+                const cardClass = balance > 0 ? 'has-debt' : 'is-clear';
+                const textClass = balance > 0 ? 'text-debt' : 'text-clear';
 
-    renderCustomers(allCustomers);
-}
+                return `
+                <div id="card-${cust.id}" class="customer-card ${cardClass}">
+                    <div>
+                        <h6 class="customer-name">${cust.name}</h6>
+                        <small class="phone-sub"><i class="fas fa-phone-alt me-1"></i> ${cust.phone || 'بدون هاتف'}</small>
+                        <span id="balance-${cust.id}" class="balance-value ${textClass}">
+                            ${Math.abs(balance).toLocaleString()} ج.م <small>(${statusText})</small>
+                        </span>
+                    </div>
+                    <div class="action-container">
+                        <a href="customer-details.html?id=${cust.id}" class="action-btn btn-info"><i class="fas fa-user-tag"></i></a>
+                        <a href="customer-payment.html?id=${cust.id}" class="action-btn btn-pay"><i class="fas fa-hand-holding-dollar"></i></a>
+                        <button onclick="moveToTrash('${cust.id}', '${cust.name}')" class="action-btn btn-trash-item"><i class="fas fa-trash-alt"></i></button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
 
-window.renderCustomers = (list) => {
-    const container = document.getElementById('customersContainer');
+        window.moveToTrash = async (id, name) => {
+            if (!confirm(`نقل العميل (${name}) للسلة؟`)) return;
+            try {
+                await updateDoc(doc(db, "customers", id), {
+                    isDeleted: true,
+                    deletedAt: new Date().toISOString()
+                });
+                await loadCustomers();
+            } catch (e) {
+                alert("خطأ: " + e.message);
+            }
+        };
 
-    if (list.length === 0) {
-        container.innerHTML = `<div class="text-center py-5">لا توجد نتائج</div>`;
-        return;
-    }
+        window.deleteAllCustomersPermanently = async () => {
+            if (!confirm("⚠️ هل تريد حذف جميع العملاء نهائياً؟")) return;
+            try {
+                const snap = await getDocs(collection(db, "customers"));
+                if (snap.empty) {
+                    alert("لا يوجد عملاء للحذف");
+                    return;
+                }
+                const batch = writeBatch(db);
+                snap.forEach((docSnap) => {
+                    batch.delete(doc(db, "customers", docSnap.id));
+                });
+                await batch.commit();
+                alert("تم حذف جميع العملاء بنجاح");
+                await loadCustomers();
+            } catch (e) {
+                alert("خطأ: " + e.message);
+            }
+        };
 
-    container.innerHTML = list.map(cust => {
-        const balance = Number(cust.balance || 0);
+        window.filterCustomers = () => {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const filtered = allCustomers.filter(c => 
+                (c.name?.toLowerCase().includes(term)) || 
+                (c.phone?.includes(term))
+            );
+            renderCustomers(filtered);
+        }
 
-        const statusText =
-            balance > 0 ? "عليه" :
-            balance < 0 ? "له" : "خالص";
-
-        const cardClass = balance > 0 ? "has-debt" : "is-clear";
-        const textClass = balance > 0 ? "text-debt" : "text-clear";
-
-        return `
-        <div class="customer-card ${cardClass}">
-            <div>
-                <h6 class="customer-name">${cust.name}</h6>
-                <small class="phone-sub">${cust.phone || "بدون هاتف"}</small>
-                <span class="balance-value ${textClass}">
-                    ${Math.abs(balance)} ج.م (${statusText})
-                </span>
-            </div>
-
-            <div class="action-container">
-                <a class="action-btn btn-info" href="customer-details.html?id=${cust.id}">
-                    <i class="fas fa-user-tag"></i>
-                </a>
-
-                <a class="action-btn btn-pay" href="customer-payment.html?id=${cust.id}">
-                    <i class="fas fa-hand-holding-dollar"></i>
-                </a>
-
-                <button class="action-btn btn-trash-item"
-                    onclick="moveToTrash('${cust.id}', '${cust.name}')">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>
-        </div>`;
-    }).join('');
-};
-
-window.moveToTrash = async (id) => {
-    const { error } = await supabaseClient
-        .from('customers')
-        .update({
-            isdeleted: true,
-            deletedat: new Date()
-        })
-        .eq('id', id);
-
-    if (error) {
-        alert("خطأ في الحذف");
-        return;
-    }
-
-    loadCustomers();
-};
-
-window.filterCustomers = () => {
-    const term = document.getElementById('searchInput').value.toLowerCase();
-
-    const filtered = allCustomers.filter(c =>
-        (c.name || "").toLowerCase().includes(term) ||
-        (c.phone || "").includes(term)
-    );
-
-    renderCustomers(filtered);
-};
-
-loadCustomers();
+        // تشغيل التحميل الأولي عند تحميل الصفحة
+        loadCustomers();
     </script>
 </body>
 </html>
