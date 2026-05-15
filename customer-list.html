@@ -82,22 +82,8 @@
     const db = getFirestore(app);
     let allCustomers = [];
 
-    async function getRealDebt(customerId, initialBalance = 0) {
-        try {
-            const [snapInv, snapTrans] = await Promise.all([
-                getDocs(query(collection(db, "invoices"), where("customerId", "==", customerId))),
-                getDocs(query(collection(db, "transactions"), where("partyId", "==", customerId)))
-            ]);
-            let debt = Number(initialBalance);
-            snapInv.forEach(d => debt += (Number(d.data().remaining) || 0));
-            snapTrans.forEach(d => {
-                const tr = d.data();
-                if(tr.type === 'قبض') debt -= (Number(tr.amount) || 0);
-                else if(tr.type === 'صرف') debt += (Number(tr.amount) || 0);
-            });
-            return debt;
-        } catch (e) { return Number(initialBalance); }
-    }
+     
+       
 
     async function loadCustomers() {
         const container = document.getElementById('customersContainer');
@@ -112,17 +98,7 @@
 
             renderCustomers(allCustomers);
 
-          for (const cust of allCustomers) {
-
-    const debt = await getRealDebt(
-        cust.id,
-        cust.initialBalance || 0
-    );
-
-    cust.realBalance = debt;
-
-    updateIndividualUI(cust.id, debt);
-}
+    
         } catch (e) { container.innerHTML = `<div class="alert alert-danger mx-3 text-center">خطأ: ${e.message}</div>`; }
     }
 
@@ -145,7 +121,10 @@
                 <div>
                     <h6 class="customer-name">${cust.name}</h6>
                     <small class="phone-sub"><i class="fas fa-phone-alt me-1"></i> ${cust.phone || 'بدون هاتف'}</small>
-                    <span id="balance-${cust.id}" class="balance-value">جاري الحساب...</span>
+                   <span class="balance-value">
+    ${Math.abs(Number(cust.balance ?? 0)).toLocaleString()} ج.م
+    (${cust.balance > 0 ? 'عليه' : cust.balance < 0 ? 'له' : 'خالص'})
+</span>
                 </div>
                 <div class="action-container">
                     <a href="customer-details.html?id=${cust.id}" class="action-btn btn-info"><i class="fas fa-user-tag"></i></a>
