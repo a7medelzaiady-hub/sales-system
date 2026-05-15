@@ -1,199 +1,174 @@
-const CACHE_NAME = "elzaiady-cache-v6";
+const CACHE_NAME = "elzaiady-cache-v5";
 
 const STATIC_FILES = [
 
-  "/",
-  "/index.html",
-  "/index1.html",
-  "/login.html",
+"/",
+"/index.html",
+"/index1.html",
+"/login.html",
 
-  "/customer-list.html",
-  "/customer-info.html",
-  "/customers-trash.html",
+"/customer-list.html",
+"/customer-info.html",
+"/customers-trash.html",
 
-  "/invoice.html",
-  "/invoice-list.html",
+"/invoice.html",
+"/invoice-list.html",
 
-  "/sales-record.html",
-  "/sales-invoice.html",
+"/manifest.json",
 
-  "/transactions.html",
-  "/suppliers.html",
-  "/inventory.html",
-
-  "/offline.html",
-
-  "/manifest.json",
-
-  "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css",
-  "https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap",
-  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+"https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css",
+"https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap",
+"https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
 
 ];
 
-
 /* ===========================
-   INSTALL
+INSTALL
 =========================== */
 
 self.addEventListener("install", event => {
 
-  event.waitUntil(
+event.waitUntil(
 
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        return cache.addAll(STATIC_FILES);
-      })
+caches.open(CACHE_NAME)  
+  .then(cache => {  
+    return cache.addAll(STATIC_FILES);  
+  })
 
-  );
+);
 
-  self.skipWaiting();
+self.skipWaiting();
 
 });
 
-
 /* ===========================
-   ACTIVATE
+ACTIVATE
 =========================== */
 
 self.addEventListener("activate", event => {
 
-  event.waitUntil(
+event.waitUntil(
 
-    caches.keys().then(keys => {
+caches.keys().then(keys => {  
 
-      return Promise.all(
+  return Promise.all(  
 
-        keys.map(key => {
+    keys.map(key => {  
 
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
+      if (key !== CACHE_NAME) {  
+        return caches.delete(key);  
+      }  
 
-        })
+    })  
 
-      );
+  );  
 
-    })
+})
 
-  );
+);
 
-  self.clients.claim();
+self.clients.claim();
 
 });
 
-
 /* ===========================
-   FETCH
+FETCH
 =========================== */
 
 self.addEventListener("fetch", event => {
 
-  const request = event.request;
+const request = event.request;
 
+/* ===========================
+FIREBASE REQUESTS
+=========================== */
 
-  /* ===========================
-     FIREBASE REQUESTS
-  =========================== */
+if (
+request.url.includes("firestore.googleapis.com") ||
+request.url.includes("firebase")
+) {
 
-  if (
-    request.url.includes("firestore.googleapis.com") ||
-    request.url.includes("firebase")
-  ) {
+event.respondWith(  
 
-    event.respondWith(
+  fetch(request)  
+    .then(response => {  
 
-      fetch(request)
-        .then(response => {
+      const responseClone = response.clone();  
 
-          const responseClone = response.clone();
+      caches.open(CACHE_NAME)  
+        .then(cache => {  
+          cache.put(request, responseClone);  
+        });  
 
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(request, responseClone);
-            });
+      return response;  
 
-          return response;
+    })  
+    .catch(() => {  
+      return caches.match(request);  
+    })  
 
-        })
-        .catch(() => {
-          return caches.match(request);
-        })
+);  
 
-    );
+return;
 
-    return;
-  }
+}
 
+/* ===========================
+HTML PAGES
+=========================== */
 
-  /* ===========================
-     HTML PAGES
-  =========================== */
+if (request.headers.get("accept")?.includes("text/html")) {
 
-  if (request.headers.get("accept")?.includes("text/html")) {
+event.respondWith(  
 
-    event.respondWith(
+  fetch(request)  
+    .then(response => {  
 
-      fetch(request)
-        .then(response => {
+      const responseClone = response.clone();  
 
-          const responseClone = response.clone();
+      caches.open(CACHE_NAME)  
+        .then(cache => {  
+          cache.put(request, responseClone);  
+        });  
 
-          caches.open(CACHE_NAME)
-            .then(cache => {
-              cache.put(request, responseClone);
-            });
+      return response;  
 
-          return response;
+    })  
+    .catch(() => {  
+      return caches.match(request);  
+    })  
 
-        })
-        .catch(() => {
+);  
 
-          return caches.match(request)
-            .then(res => {
-              return res || caches.match("/offline.html");
-            });
+return;
 
-        })
+}
 
-    );
+/* ===========================
+CSS / JS / IMAGES
+=========================== */
 
-    return;
-  }
+event.respondWith(
 
+caches.match(request)  
+  .then(cachedResponse => {  
 
-  /* ===========================
-     CSS / JS / IMAGES
-  =========================== */
+    return cachedResponse || fetch(request)  
+      .then(networkResponse => {  
 
-  event.respondWith(
+        const responseClone = networkResponse.clone();  
 
-    caches.match(request)
-      .then(cachedResponse => {
+        caches.open(CACHE_NAME)  
+          .then(cache => {  
+            cache.put(request, responseClone);  
+          });  
 
-        const fetchPromise = fetch(request)
-          .then(networkResponse => {
+        return networkResponse;  
 
-            if (networkResponse && networkResponse.status === 200) {
+      });  
 
-              const responseClone = networkResponse.clone();
+  })
 
-              caches.open(CACHE_NAME)
-                .then(cache => {
-                  cache.put(request, responseClone);
-                });
-
-            }
-
-            return networkResponse;
-
-          })
-          .catch(() => cachedResponse);
-
-        return cachedResponse || fetchPromise;
-
-      })
-
-  );
+);
 
 });
