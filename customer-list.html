@@ -44,7 +44,9 @@
 </div>
         <h5 class="m-0 fw-bold">قائمة العملاء</h5>
         <div class="d-flex align-items-center gap-2">
-            <button class="btn-delete-all" onclick="moveAllToTrash()">حذف الكل</button>
+            <button class="btn-delete-all" onclick="deleteAllCustomersPermanently()">
+    حذف الكل نهائياً
+</button>
             <a href="trashl.html" class="text-white"><i class="fas fa-trash-alt"></i></a>
         </div>
     </div>
@@ -64,8 +66,8 @@
 </div>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, getDocs, orderBy, query, where, doc, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
   apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -151,7 +153,27 @@
             loadCustomers();
         } catch (e) { alert("خطأ: " + e.message); }
     };
+window.deleteAllCustomersPermanently = async () => {
+    if (!confirm("⚠️ هل تريد حذف جميع العملاء نهائياً؟")) return;
 
+    try {
+        const snap = await getDocs(collection(db, "customers"));
+
+        const batch = writeBatch(db);
+
+        snap.forEach((docSnap) => {
+            batch.delete(doc(db, "customers", docSnap.id));
+        });
+
+        await batch.commit();
+
+        alert("تم حذف جميع العملاء نهائياً");
+        loadCustomers();
+
+    } catch (e) {
+        alert("خطأ: " + e.message);
+    }
+};
     window.filterCustomers = () => {
         const term = document.getElementById('searchInput').value.toLowerCase();
         const filtered = allCustomers.filter(c => (c.name?.toLowerCase().includes(term)) || (c.phone?.includes(term)));
