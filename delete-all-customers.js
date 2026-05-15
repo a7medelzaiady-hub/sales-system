@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAS0NNcZ1o-TL2nWCB7p0941jR0bo-MNls",
@@ -14,16 +14,27 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 window.deleteAllCustomers = async () => {
-    console.log("بدأ الحذف...");
-
+    console.log("بدأ جلب البيانات للحذف...");
+    
+    // جلب مستندات العملاء
     const snap = await getDocs(collection(db, "customers"));
+    console.log("إجمالي عدد العملاء المراد حذفهم:", snap.size);
 
-    console.log("عدد العملاء:", snap.size);
-
-    for (const d of snap.docs) {
-        await deleteDoc(doc(db, "customers", d.id));
-        console.log("Deleted:", d.id);
+    if (snap.empty) {
+        console.log("لا يوجد عملاء لحذفهم.");
+        return;
     }
 
-    console.log("تم حذف كل العملاء");
+    // إنشاء Batch جديد
+    const batch = writeBatch(db);
+
+    // إضافة عمليات الحذف إلى الـ Batch
+    snap.docs.forEach((d) => {
+        batch.delete(doc(db, "customers", d.id));
+    });
+
+    // تنفيذ الحذف دفعة واحدة
+    await batch.commit();
+
+    console.log("تم حذف كل العملاء بنجاح وبسرعة.");
 };
