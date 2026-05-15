@@ -1,4 +1,3 @@
-ه
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -97,10 +96,12 @@ body{
 }
 </style>
 </head>
+
 <body>
 
 <div class="header">
     <div class="container d-flex justify-content-between align-items-center">
+
         <a href="customer-list.html" class="text-white">
             <i class="fas fa-arrow-right"></i>
         </a>
@@ -110,31 +111,23 @@ body{
             سلة العملاء
         </h5>
 
-        <div class="d-flex gap-2">
+        <a href="index.html" class="text-white">
+            <i class="fas fa-home"></i>
+        </a>
 
-    <a href="index.html" class="text-white">
-        <i class="fas fa-home"></i>
-    </a>
-
-</div>
     </div>
 </div>
 
 <div class="container py-3" id="trashContainer">
-
     <div class="text-center py-5">
         <div class="spinner-border text-success"></div>
-        <p class="mt-3 small fw-bold">
-            جاري تحميل العملاء المحذوفين...
-        </p>
+        <p class="mt-3 small fw-bold">جاري تحميل العملاء المحذوفين...</p>
     </div>
-
 </div>
 
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-
 import {
     getFirestore,
     collection,
@@ -147,9 +140,7 @@ import {
     deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-
 const firebaseConfig = {
-
   apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
   authDomain: "ahmedelzaiady.firebaseapp.com",
   projectId: "ahmedelzaiady",
@@ -157,7 +148,6 @@ const firebaseConfig = {
   messagingSenderId: "300306825071",
   appId: "1:300306825071:web:0426ddde56280fa090329a",
   measurementId: "G-WE04GK5XZZ"
-
 };
 
 const app = initializeApp(firebaseConfig);
@@ -170,41 +160,34 @@ async function loadDeletedCustomers(){
     const container = document.getElementById("trashContainer");
 
     try{
-const q = query(
-    collection(db,"customers"),
-    where("isDeleted","==",true),
-    orderBy("deletedAt","desc")
-);
- 
-        
+
+        const q = query(
+            collection(db,"customers"),
+            where("isDeleted","==",true),
+            orderBy("deletedAt","desc")
+        );
 
         const snap = await getDocs(q);
 
-        deletedCustomers = snap.docs.map(docu => ({
-            id: docu.id,
-            ...docu.data()
+        deletedCustomers = snap.docs.map(d => ({
+            id: d.id,
+            ...d.data()
         }));
 
-
         if(deletedCustomers.length === 0){
-
             container.innerHTML = `
                 <div class="empty-box">
                     <i class="fas fa-trash-alt mb-3" style="font-size:40px"></i>
                     <div>لا يوجد عملاء داخل السلة</div>
                 </div>
             `;
-
             return;
         }
 
         container.innerHTML = deletedCustomers.map(cust => `
-
             <div class="customer-card">
 
-                <h6 class="customer-name">
-                    ${cust.name || 'بدون اسم'}
-                </h6>
+                <h6 class="customer-name">${cust.name || 'بدون اسم'}</h6>
 
                 <div class="customer-phone">
                     <i class="fas fa-phone-alt me-1"></i>
@@ -220,30 +203,21 @@ const q = query(
 
                     <button class="btn-action btn-restore"
                         onclick="restoreCustomer('${cust.id}')">
-
-                        <i class="fas fa-rotate-left me-1"></i>
                         استرجاع
-
                     </button>
 
                     <button class="btn-action btn-delete"
                         onclick="permanentDelete('${cust.id}')">
-
-                        <i class="fas fa-trash me-1"></i>
                         حذف نهائي
-
                     </button>
 
                 </div>
 
             </div>
-
         `).join("");
 
     }catch(e){
-
         console.error(e);
-
         container.innerHTML = `
             <div class="alert alert-danger text-center">
                 حدث خطأ أثناء تحميل السلة
@@ -252,76 +226,33 @@ const q = query(
     }
 }
 
-
-
 window.restoreCustomer = async(id)=>{
 
-    if(!confirm("استرجاع العميل مرة أخرى؟")) return;
+    if(!confirm("استرجاع العميل؟")) return;
 
-    try{
+    const customer = deletedCustomers.find(c => c.id === id);
+    if(!customer) return;
 
-        const customer = deletedCustomers.find(c=>c.id===id);
+    await setDoc(doc(db,"customers",id), {
+        ...customer,
+        isDeleted:false
+    });
 
-        if(!customer) return;
+    await deleteDoc(doc(db,"customers",id));
 
-        const restoredData = {...customer};
-
-        delete restoredData.deletedAt;
-        delete restoredData.originalId;
-
-        await setDoc(
-            doc(db,"customers",id),
-            restoredData
-        );
-
-        await deleteDoc(
-            doc(db,"deleted_customers",id)
-        );
-
-        alert("تم استرجاع العميل بنجاح");
-
-        loadDeletedCustomers();
-
-    }catch(e){
-
-        console.error(e);
-
-        alert("حدث خطأ أثناء الاسترجاع");
-
-    }
-
+    alert("تم الاسترجاع");
+    loadDeletedCustomers();
 };
-
-
 
 window.permanentDelete = async(id)=>{
 
-    const confirmDelete = confirm(
-        "⚠️ سيتم حذف العميل نهائياً ولا يمكن استرجاعه بعد ذلك"
-    );
+    if(!confirm("حذف نهائي؟")) return;
 
-    if(!confirmDelete) return;
+    await deleteDoc(doc(db,"customers",id));
 
-    try{
-
-        await deleteDoc(
-            doc(db,"deleted_customers",id)
-        );
-
-        alert("تم حذف العميل نهائياً");
-
-        loadDeletedCustomers();
-
-    }catch(e){
-
-        console.error(e);
-
-        alert("حدث خطأ أثناء الحذف");
-
-    }
-
+    alert("تم الحذف نهائيًا");
+    loadDeletedCustomers();
 };
-
 
 loadDeletedCustomers();
 
