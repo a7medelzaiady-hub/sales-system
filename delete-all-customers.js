@@ -1,7 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, getDocs, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyAS0NNcZ1o-TL2nWCB7p0941jR0bo-MNls",
   authDomain: "ahmedelzaiady.firebaseapp.com",
@@ -14,24 +13,17 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-async function deleteAllCustomers() {
-  try {
+window.deleteAllCustomers = async () => {
+    console.log("بدأ الحذف...");
+
     const snap = await getDocs(collection(db, "customers"));
 
-    if (snap.empty) {
-      console.log("لا يوجد عملاء للحذف");
-      return;
-    }
+    console.log("عدد العملاء:", snap.size);
 
     for (const d of snap.docs) {
-      await deleteDoc(doc(db, "customers", d.id));
-      console.log("Deleted:", d.id);
+        await deleteDoc(doc(db, "customers", d.id));
+        console.log("Deleted:", d.id);
     }
 
-    console.log("تم حذف جميع العملاء نهائياً");
-  } catch (e) {
-    console.error("Error:", e.message);
-  }
-}
-
-deleteAllCustomers();
+    console.log("تم حذف كل العملاء");
+};
