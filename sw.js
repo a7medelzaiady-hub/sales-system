@@ -1,4 +1,4 @@
-const CACHE_NAME = "elzaiady-cache-v5";
+const CACHE_NAME = "elzaiady-cache-v6";
 
 const STATIC_FILES = [
 
@@ -13,12 +13,16 @@ const STATIC_FILES = [
 
   "/invoice.html",
   "/invoice-list.html",
-"/sales-record.html",
-"/sales-invoice.html",
-"/transactions.html",
-"/suppliers.html",
-"/inventory.html",
-"/offline.html",
+
+  "/sales-record.html",
+  "/sales-invoice.html",
+
+  "/transactions.html",
+  "/suppliers.html",
+  "/inventory.html",
+
+  "/offline.html",
+
   "/manifest.json",
 
   "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css",
@@ -26,7 +30,6 @@ const STATIC_FILES = [
   "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
 
 ];
-
 
 
 /* ===========================
@@ -47,7 +50,6 @@ self.addEventListener("install", event => {
   self.skipWaiting();
 
 });
-
 
 
 /* ===========================
@@ -81,42 +83,13 @@ self.addEventListener("activate", event => {
 });
 
 
-
 /* ===========================
-   CSS / JS / IMAGES
+   FETCH
 =========================== */
 
-event.respondWith(
+self.addEventListener("fetch", event => {
 
-  caches.match(request)
-    .then(cachedResponse => {
-
-      const fetchPromise = fetch(request)
-        .then(networkResponse => {
-
-          // حفظ نسخة جديدة بالكاش
-          if (networkResponse && networkResponse.status === 200) {
-
-            const responseClone = networkResponse.clone();
-
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(request, responseClone);
-              });
-
-          }
-
-          return networkResponse;
-
-        })
-        .catch(() => cachedResponse);
-
-      // لو فيه كاش رجعه فوراً
-      return cachedResponse || fetchPromise;
-
-    })
-
-);
+  const request = event.request;
 
 
   /* ===========================
@@ -153,7 +126,6 @@ event.respondWith(
   }
 
 
-
   /* ===========================
      HTML PAGES
   =========================== */
@@ -176,14 +148,18 @@ event.respondWith(
 
         })
         .catch(() => {
-          return caches.match(request);
+
+          return caches.match(request)
+            .then(res => {
+              return res || caches.match("/offline.html");
+            });
+
         })
 
     );
 
     return;
   }
-
 
 
   /* ===========================
@@ -195,19 +171,26 @@ event.respondWith(
     caches.match(request)
       .then(cachedResponse => {
 
-        return cachedResponse || fetch(request)
+        const fetchPromise = fetch(request)
           .then(networkResponse => {
 
-            const responseClone = networkResponse.clone();
+            if (networkResponse && networkResponse.status === 200) {
 
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(request, responseClone);
-              });
+              const responseClone = networkResponse.clone();
+
+              caches.open(CACHE_NAME)
+                .then(cache => {
+                  cache.put(request, responseClone);
+                });
+
+            }
 
             return networkResponse;
 
-          });
+          })
+          .catch(() => cachedResponse);
+
+        return cachedResponse || fetchPromise;
 
       })
 
