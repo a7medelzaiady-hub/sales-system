@@ -402,9 +402,70 @@
 
         try {
             const invoiceData = { customerId, customerName, total, paid, remaining, paymentMethod: document.getElementById('payMethod').value, time: document.getElementById('invTime').value, timestamp: serverTimestamp(), ...items };
-            if(editId) {
-                await updateDoc(doc(db, "invoices", editId), invoiceData);
-            } else {
+           if(editId) {
+
+    // جلب الفاتورة القديمة
+    const oldInvoiceRef = doc(db, "invoices", editId);
+    const oldInvoiceSnap = await getDoc(oldInvoiceRef);
+
+    if(oldInvoiceSnap.exists()) {
+
+        const oldData = oldInvoiceSnap.data();
+
+        // 1- ترجيع الكميات القديمة للمخزن
+        for(let key in oldData) {
+
+            if(!isNaN(key)) {
+
+                const item = oldData[key];
+
+                const oldProduct = inventory.find(p => p.id === item.stockId);
+
+                if(oldProduct) {
+
+                    const qtyBack =
+                        item.unit === 'box'
+                        ? item.qty * (oldProduct.unitFactor || 1)
+                        : item.qty;
+
+                    await updateDoc(
+                        doc(db, "inventory", item.stockId),
+                        {
+                            totalPcs: increment(qtyBack)
+                        }
+                    );
+                }
+            }
+        }
+
+        // 2- خصم الكميات الجديدة
+        for(let key in items) {
+
+            const item = items[key];
+
+            const newProduct = inventory.find(p => p.id === item.stockId);
+
+            if(newProduct) {
+
+                const qtyMinus =
+                    item.unit === 'box'
+                    ? item.qty * (newProduct.unitFactor || 1)
+                    : item.qty;
+
+                await updateDoc(
+                    doc(db, "inventory", item.stockId),
+                    {
+                        totalPcs: increment(-qtyMinus)
+                    }
+                );
+            }
+        }
+    }
+
+    // 3- تحديث الفاتورة
+    await updateDoc(oldInvoiceRef, invoiceData);
+
+} else {
                 for(let key in items) {
                     const item = items[key];
                     const p = inventory.find(i => i.id === item.stockId);
