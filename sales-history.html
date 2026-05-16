@@ -228,174 +228,37 @@ onclick="deleteAllInvoices()">
     const month = months[d.getMonth()];
 
     return `${day}-${month}`;
-    }
-    window.exportToExcel = async () => {
+}
+window.exportToExcel = () => {
 
-    try {
-
-        let excelData = [];
-
-        // العناوين
-        excelData.push([
-            "التاريخ",
-            "الحركة",
-            "اسم العميل",
-            "اسم الصنف",
-            "عدد جركن",
-            "عدد كرتونة",
-            "سعر جركن",
-            "سعر كرتونة"
-        ]);
-
-        // =========================
-        // الفواتير
-        // =========================
-
-        allInvoices.forEach(inv => {
-
-            const total = Number(inv.total || 0);
-            const remaining = Number(inv.remaining || 0);
-            const paid = total - remaining;
-
-            let dateObj;
-
-            if (inv.timestamp?.toDate) {
-                dateObj = inv.timestamp.toDate();
-            } else if (inv.time) {
-                dateObj = new Date(inv.time);
-            } else {
-                dateObj = new Date();
-            }
-
-            // الأصناف
-            Object.keys(inv).forEach(k => {
-
-                if (!isNaN(k) && inv[k]) {
-
-                    const item = inv[k];
-                    const isBox = item.unit === "box";
-
-                    excelData.push([
-                        formatDateArabic(dateObj),
-                        "بيع",
-                        inv.customerName || "النقدي",
-                        item.name || "",
-                        !isBox ? Number(item.qty || 0) : 0,
-                        isBox ? Number(item.qty || 0) : 0,
-                        !isBox ? Math.round(item.price || 0) : 0,
-                        isBox ? Math.round(item.price || 0) : 0
-                    ]);
-
-                }
-
-            });
-
-            // السداد داخل الفاتورة
-            if (paid > 0) {
-
-                excelData.push([
-                    formatDateArabic(dateObj),
-                    "سداد فاتورة",
-                    inv.customerName || "النقدي",
-                    "دفعة مع الفاتورة",
-                    0,
-                    0,
-                    0,
-                    Math.round(paid)
-                ]);
-
-            }
-
-        });
-
-        // =========================
-        // حركات القبض
-        // =========================
-
-        const transSnap = await getDocs(collection(db, "transactions"));
-
-        transSnap.forEach(docu => {
-
-            const tr = docu.data();
-
-            if (tr.type === "قبض") {
-
-                let dateObj;
-
-                if (tr.timestamp?.toDate) {
-                    dateObj = tr.timestamp.toDate();
-                } else if (tr.time) {
-                    dateObj = new Date(tr.time);
-                } else {
-                    dateObj = new Date();
-                }
-
-                excelData.push([
-                    formatDateArabic(dateObj),
-                    "تحصيل",
-                    tr.partyName || "",
-                    tr.note || "دفعة نقدية",
-                    0,
-                    0,
-                    0,
-                    Math.round(tr.amount || 0)
-                ]);
-
-            }
-
-        });
-
-        // =========================
-        // إنشاء ملف Excel
-        // =========================
-
-        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-
-        worksheet['!cols'] = [
-            { wch: 14 },
-            { wch: 18 },
-            { wch: 28 },
-            { wch: 35 },
-            { wch: 12 },
-            { wch: 12 },
-            { wch: 14 },
-            { wch: 14 }
-        ];
-
-        const workbook = XLSX.utils.book_new();
-
-        XLSX.utils.book_append_sheet(
-            workbook,
-            worksheet,
-            "المبيعات"
-        );
-
-        XLSX.writeFile(workbook, "المبيعات.xlsx");
-
-    } catch (e) {
-
-        console.error(e);
-        alert("خطأ أثناء التصدير");
-
+    if (allInvoices.length === 0) {
+        return alert("لا توجد بيانات للتصدير");
     }
 
-};
+    let excelData = [];
+
+    // العناوين
+    excelData.push([
+        "التاريخ",
+        "الحركة",
+        "اسم العميل",
+        "اسم الصنف",
+        "عدد جركن",
+        "عدد كرتونة",
+        "سعر جركن",
+        "سعر كرتونة"
+    ]);
+
     allInvoices.forEach(inv => {
 
         const total = Number(inv.total || 0);
         const remaining = Number(inv.remaining || 0);
         const paid = total - remaining;
 
-        // التاريخ
-        let dateObj;
-
-        if (inv.timestamp?.toDate) {
-            dateObj = inv.timestamp.toDate();
-        } else if (inv.time) {
-            dateObj = new Date(inv.time);
-        } else {
-            dateObj = new Date();
-        }
+        const dateObj =
+            inv.timestamp?.toDate?.()
+            || inv.time
+            || new Date();
 
         // أصناف الفاتورة
         Object.keys(inv).forEach(k => {
@@ -405,13 +268,14 @@ onclick="deleteAllInvoices()">
                 const item = inv[k];
                 const isBox = item.unit === "box";
 
+                // صف البيع
                 excelData.push([
                     formatDateArabic(dateObj),
                     "بيع",
                     inv.customerName || "النقدي",
                     item.name || "",
-                    !isBox ? Number(item.qty || 0) : 0,
-                    isBox ? Number(item.qty || 0) : 0,
+                    !isBox ? (item.qty || 0) : 0,
+                    isBox ? (item.qty || 0) : 0,
                     !isBox ? Math.round(item.price || 0) : 0,
                     isBox ? Math.round(item.price || 0) : 0
                 ]);
@@ -420,147 +284,32 @@ onclick="deleteAllInvoices()">
 
         });
 
-        // إضافة السداد النقدي فقط لو فيه مبلغ مدفوع
-        if (paid > 0) {
+        // صف السداد النقدي
+        excelData.push([
+            formatDateArabic(dateObj),
+            "سداد منه نقدى",
+            inv.customerName || "النقدي",
+            "سداد نقدي",
+            0,
+            1,
+            0,
+            Math.round(paid)
+        ]);
 
-            excelData.push([
-                formatDateArabic(dateObj),
-                "سداد منه نقدى",
-                inv.customerName || "النقدي",
-                "سداد نقدي",
-                0,
-                1,
-                0,
-                Math.round(paid)
-            ]);
+    });
 
-        allInvoices.forEach(inv => {
+    // إنشاء ملف Excel
+    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
-            const total = Number(inv.total || 0);
-            const remaining = Number(inv.remaining || 0);
-            const paid = total - remaining;
+    const workbook = XLSX.utils.book_new();
 
-            let dateObj;
+    XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "المبيعات"
+    );
 
-            if (inv.timestamp?.toDate) {
-                dateObj = inv.timestamp.toDate();
-            } else if (inv.time) {
-                dateObj = new Date(inv.time);
-            } else {
-                dateObj = new Date();
-            }
-
-            // الأصناف
-            Object.keys(inv).forEach(k => {
-
-                if (!isNaN(k) && inv[k]) {
-
-                    const item = inv[k];
-                    const isBox = item.unit === "box";
-
-                    excelData.push([
-                        formatDateArabic(dateObj),
-                        "بيع",
-                        inv.customerName || "النقدي",
-                        item.name || "",
-                        !isBox ? Number(item.qty || 0) : 0,
-                        isBox ? Number(item.qty || 0) : 0,
-                        !isBox ? Math.round(item.price || 0) : 0,
-                        isBox ? Math.round(item.price || 0) : 0
-                    ]);
-
-                }
-
-            });
-
-            // السداد داخل الفاتورة
-            if (paid > 0) {
-
-                excelData.push([
-                    formatDateArabic(dateObj),
-                    "سداد فاتورة",
-                    inv.customerName || "النقدي",
-                    "",
-                    0,
-                    0,
-                    0,
-                    Math.round(paid)
-                ]);
-
-            }
-
-        });
-
-        // =========================
-        // حركات القبض
-        // =========================
-
-        const transSnap = await getDocs(collection(db, "transactions"));
-
-        transSnap.forEach(docu => {
-
-            const tr = docu.data();
-
-            if (tr.type === "قبض") {
-
-                let dateObj;
-
-                if (tr.timestamp?.toDate) {
-                    dateObj = tr.timestamp.toDate();
-                } else if (tr.time) {
-                    dateObj = new Date(tr.time);
-                } else {
-                    dateObj = new Date();
-                }
-
-                excelData.push([
-                    formatDateArabic(dateObj),
-                    "تحصيل",
-                    tr.partyName || "",
-                    tr.note || "دفعة نقدية",
-                    0,
-                    0,
-                    0,
-                    Math.round(tr.amount || 0)
-                ]);
-
-            }
-
-        });
-
-        // =========================
-        // إنشاء ملف Excel
-        // =========================
-
-        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-
-        worksheet['!cols'] = [
-            { wch: 14 },
-            { wch: 18 },
-            { wch: 28 },
-            { wch: 35 },
-            { wch: 12 },
-            { wch: 12 },
-            { wch: 14 },
-            { wch: 14 }
-        ];
-
-        const workbook = XLSX.utils.book_new();
-
-        XLSX.utils.book_append_sheet(
-            workbook,
-            worksheet,
-            "المبيعات"
-        );
-
-        XLSX.writeFile(workbook, "المبيعات.xlsx");
-
-    } catch (e) {
-
-        console.error(e);
-        alert("خطأ أثناء التصدير");
-
-    }
+    XLSX.writeFile(workbook, "المبيعات.xlsx");
 
 };
     window.loadInvoices = async () => {
@@ -692,64 +441,6 @@ window.deleteAllInvoices = async () => {
 
         for (const docSnap of snap.docs) {
 
-            const inv = docSnap.data();
-
-            // 🔹 رجوع الكميات للمخزون
-            for (const k of Object.keys(inv)) {
-
-                if (!isNaN(k)) {
-
-                    const item = inv[k];
-
-                    const qtyPcs =
-                        item.unit === "box"
-                        ? item.qty * (item.unitFactor || 1)
-                        : item.qty;
-
-                    if (item.stockId) {
-
-                        try {
-
-                            await updateDoc(
-                                doc(db, "inventory", item.stockId),
-                                {
-                                    totalPcs: increment(qtyPcs)
-                                }
-                            );
-
-                        } catch(err) {
-
-                            console.log("الصنف غير موجود بالمخزون");
-
-                        }
-
-                    }
-
-                }
-
-            }
-
-            // 🔹 تعديل مديونية العميل
-            if (inv.customerId && inv.remaining > 0) {
-
-                try {
-
-                    await updateDoc(
-                        doc(db, "customers", inv.customerId),
-                        {
-                            currentBalance: increment(-inv.remaining)
-                        }
-                    );
-
-                } catch(err) {
-
-                    console.log("تعذر تعديل مديونية العميل");
-
-                }
-
-            }
-
-            // 🔹 حذف الفاتورة
             await deleteDoc(doc(db, "invoices", docSnap.id));
 
             deleted++;
@@ -758,7 +449,7 @@ window.deleteAllInvoices = async () => {
 
         }
 
-        alert(`تم حذف ${deleted} فاتورة وتعديل المخزون بنجاح ✅`);
+        alert(`تم حذف ${deleted} فاتورة بنجاح ✅`);
 
         loadInvoices();
 
