@@ -464,6 +464,64 @@ window.deleteAllInvoices = async () => {
 
         for (const docSnap of snap.docs) {
 
+            const inv = docSnap.data();
+
+            // 🔹 رجوع الكميات للمخزون
+            for (const k of Object.keys(inv)) {
+
+                if (!isNaN(k)) {
+
+                    const item = inv[k];
+
+                    const qtyPcs =
+                        item.unit === "box"
+                        ? item.qty * (item.unitFactor || 1)
+                        : item.qty;
+
+                    if (item.stockId) {
+
+                        try {
+
+                            await updateDoc(
+                                doc(db, "inventory", item.stockId),
+                                {
+                                    totalPcs: increment(qtyPcs)
+                                }
+                            );
+
+                        } catch(err) {
+
+                            console.log("الصنف غير موجود بالمخزون");
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+            // 🔹 تعديل مديونية العميل
+            if (inv.customerId && inv.remaining > 0) {
+
+                try {
+
+                    await updateDoc(
+                        doc(db, "customers", inv.customerId),
+                        {
+                            currentBalance: increment(-inv.remaining)
+                        }
+                    );
+
+                } catch(err) {
+
+                    console.log("تعذر تعديل مديونية العميل");
+
+                }
+
+            }
+
+            // 🔹 حذف الفاتورة
             await deleteDoc(doc(db, "invoices", docSnap.id));
 
             deleted++;
@@ -472,7 +530,7 @@ window.deleteAllInvoices = async () => {
 
         }
 
-        alert(`تم حذف ${deleted} فاتورة بنجاح ✅`);
+        alert(`تم حذف ${deleted} فاتورة وتعديل المخزون بنجاح ✅`);
 
         loadInvoices();
 
