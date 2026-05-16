@@ -393,16 +393,38 @@ allInvoices.forEach(inv => {
         `;
 
         let rows = "";
-        Object.keys(inv).forEach(k => {
-            if(!isNaN(k)) {
-                rows += `<tr>
-                    <td style="text-align:right;">${inv[k].name}</td>
-                    <td style="text-align:center;">${inv[k].qty}</td>
-                    <td style="text-align:center;">${Math.round(inv[k].price).toLocaleString()}</td>
-                    <td style="text-align:left;">${Math.round(inv[k].qty * inv[k].price).toLocaleString()}</td>
-                </tr>`;
-            }
-        });
+
+// ✅ النظام الجديد (الأصح)
+if (Array.isArray(inv.items) && inv.items.length > 0) {
+
+    inv.items.forEach(item => {
+        rows += `<tr>
+            <td style="text-align:right;">${item.name || ''}</td>
+            <td style="text-align:center;">${item.qty || 0}</td>
+            <td style="text-align:center;">${Math.round(item.price || 0)}</td>
+            <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0))}</td>
+        </tr>`;
+    });
+
+}
+
+// ❌ النظام القديم (اختياري احتياطي)
+else {
+
+    Object.keys(inv).forEach(k => {
+        if (!isNaN(k) && inv[k]) {
+
+            const item = inv[k];
+
+            rows += `<tr>
+                <td style="text-align:right;">${item.name || ''}</td>
+                <td style="text-align:center;">${item.qty || 0}</td>
+                <td style="text-align:center;">${Math.round(item.price || 0)}</td>
+                <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0))}</td>
+            </tr>`;
+        }
+    });
+}
         document.getElementById('s-body').innerHTML = rows;
 
         try {
