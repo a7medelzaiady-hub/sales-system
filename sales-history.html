@@ -229,7 +229,11 @@ onclick="deleteAllInvoices()">
 
     return `${day}-${month}`;
 }
-window.exportToExcel = () => {
+
+            const item = inv[k];
+            const isBox = item.unit === "box";
+
+          window.exportToExcel = () => {
 
     if (allInvoices.length === 0) {
         return alert("لا توجد بيانات للتصدير");
@@ -237,69 +241,92 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
-excelData.push([
-    "التاريخ",
-    "الحركة",
-    "اسم العميل",
-    "اسم الصنف",
-    "عدد جركن",
-    "عدد كرتونة",
-    "سعر جركن",
-    "سعر كرتونة"
-]);
+    excelData.push([
+        "التاريخ",
+        "الحركة",
+        "اسم العميل",
+        "اسم الصنف",
+        "عدد جركن",
+        "عدد كرتونة",
+        "سعر جركن",
+        "سعر كرتونة"
+    ]);
 
-  allInvoices.forEach(inv => {
+    allInvoices.forEach(inv => {
 
-    const total = inv.total || 0;
-    const remaining = inv.remaining || 0;
-    const paid = total - remaining;
+        const total = Number(inv.total || 0);
+        const remaining = Number(inv.remaining || 0);
+        const paid = total - remaining;
 
-   const dateObj = inv.timestamp?.toDate?.()
-    || inv.time
-    || new Date();
+        const dateObj =
+            inv.timestamp?.toDate?.()
+            || inv.time
+            || new Date();
 
-    Object.keys(inv).forEach(k => {
+        // ✅ استخراج الأصناف بشكل صحيح
+        const items = Object.values(inv).filter(v =>
+            typeof v === "object" &&
+            v !== null &&
+            v.name &&
+            v.qty !== undefined
+        );
 
-        if (!isNaN(k) && inv[k]) {
+        items.forEach(item => {
 
-            const item = inv[k];
             const isBox = item.unit === "box";
 
-          excelData.push([
-    dateObj,
-    "بيع",
-    inv.customerName || "النقدي",
-    item.name || "",
-    !isBox ? (item.qty || 0) : 0,
-    isBox ? (item.qty || 0) : 0,
-    !isBox ? (item.price || 0) : 0,
-    isBox ? (item.price || 0) : 0
-]);
+            excelData.push([
+                dateObj,
+                "بيع",
+                inv.customerName || "النقدي",
+                item.name || "",
+                !isBox ? (item.qty || 0) : 0,
+                isBox ? (item.qty || 0) : 0,
+                !isBox ? (item.price || 0) : 0,
+                isBox ? (item.price || 0) : 0
+            ]);
+
+        });
+
+        // ✅ إضافة السداد
+        if (paid > 0) {
+
+            excelData.push([
+                dateObj,
+                "سداد منه نقدى",
+                inv.customerName || "النقدي",
+                "سداد نقدي",
+                0,
+                1,
+                0,
+                paid
+            ]);
+
         }
+
     });
 
-    // 🔥 صف المسدد (زي ما طلبت بالظبط)
-if (paid > 0) {
-    excelData.push([
-        dateObj,
-        "سداد منه نقدى",
-        inv.customerName || "النقدي",
-        "سداد نقدي",
-        0,
-        1,
-        0,
-        paid
-    ]);
-}
-
-});
-
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+    // ✅ تنسيق التاريخ
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+
+    for (let R = 1; R <= range.e.r; ++R) {
+
+        const cellAddress = XLSX.utils.encode_cell({ c: 0, r: R });
+
+        if (worksheet[cellAddress]) {
+            worksheet[cellAddress].z = 'dd/mm/yyyy';
+        }
+
+    }
+
     const workbook = XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
 
     XLSX.writeFile(workbook, "المبيعات.xlsx");
+
 };
     window.loadInvoices = async () => {
         try {
