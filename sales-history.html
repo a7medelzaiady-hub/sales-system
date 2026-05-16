@@ -465,16 +465,35 @@ window.deleteAllInvoices = async () => {
         let previousBalance = realDebt - (Number(inv.remaining) || 0);
 
         let rows = "";
-        Object.keys(inv).forEach(k => {
-            if(!isNaN(k)) {
-                rows += `<tr>
-                    <td style="text-align:right; padding:5px 0; border-bottom:1px dashed #eee;">${inv[k].name}</td>
-                    <td style="text-align:center;">${inv[k].qty}</td>
-                    <td style="text-align:center;">${Math.round(inv[k].price || 0).toLocaleString()}</td>
-                    <td style="text-align:left;">${Math.round(inv[k].qty * (inv[k].price || 0)).toLocaleString()}</td>
-                </tr>`;
-            }
-        });
+
+// 🔹 الحالة 1: لو عندك items (نظام جديد)
+if (inv.items && Array.isArray(inv.items)) {
+
+    inv.items.forEach(item => {
+        rows += `<tr>
+            <td style="text-align:right;">${item.name || ''}</td>
+            <td style="text-align:center;">${item.qty || 0}</td>
+            <td style="text-align:center;">${Math.round(item.price || 0).toLocaleString()}</td>
+            <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0)).toLocaleString()}</td>
+        </tr>`;
+    });
+
+// 🔹 الحالة 2: النظام القديم (0,1,2)
+} else {
+
+    Object.keys(inv).forEach(k => {
+
+        if (!isNaN(k) && inv[k]) {
+
+            rows += `<tr>
+                <td style="text-align:right;">${inv[k].name || ''}</td>
+                <td style="text-align:center;">${inv[k].qty || 0}</td>
+                <td style="text-align:center;">${Math.round(inv[k].price || 0).toLocaleString()}</td>
+                <td style="text-align:left;">${Math.round((inv[k].qty || 0) * (inv[k].price || 0)).toLocaleString()}</td>
+            </tr>`;
+        }
+    });
+}
 
         const total = Number(inv.total || 0);
         const remaining = Number(inv.remaining || 0);
