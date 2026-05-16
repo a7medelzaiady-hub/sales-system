@@ -223,47 +223,23 @@ const CACHE_KEYS = {
         document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
 
         const cachedCustomers = localStorage.getItem(CACHE_KEYS.customers);
-const cachedInventory = localStorage.getItem(CACHE_KEYS.inventory);
+        const cachedInventory = localStorage.getItem(CACHE_KEYS.inventory);
 
-// تحميل سريع من الكاش
-if (cachedCustomers) {
-    customers = JSON.parse(cachedCustomers);
-}
+        if (cachedCustomers && cachedInventory) {
+            customers = JSON.parse(cachedCustomers);
+            inventory = JSON.parse(cachedInventory);
+            console.log("📦 Loaded from CACHE سريع");
+        } else {
+            console.log("🔥 Loading from Firebase");
 
-if (cachedInventory) {
-    inventory = JSON.parse(cachedInventory);
-}
+            const [cSnap, iSnap] = await Promise.all([
+                getDocs(collection(db, "customers")),
+                getDocs(collection(db, "inventory"))
+            ]);
 
-console.log("📦 تم تحميل الكاش");
+            customers = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            inventory = iSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-// تحديث أحدث البيانات من Firebase
-const [cSnap, iSnap] = await Promise.all([
-    getDocs(collection(db, "customers")),
-    getDocs(collection(db, "inventory"))
-]);
-
-customers = cSnap.docs.map(d => ({
-    id: d.id,
-    ...d.data()
-}));
-
-inventory = iSnap.docs.map(d => ({
-    id: d.id,
-    ...d.data()
-}));
-
-// تحديث الكاش
-localStorage.setItem(
-    CACHE_KEYS.customers,
-    JSON.stringify(customers)
-);
-
-localStorage.setItem(
-    CACHE_KEYS.inventory,
-    JSON.stringify(inventory)
-);
-
-console.log("🔥 تم تحديث البيانات");
             localStorage.setItem(CACHE_KEYS.customers, JSON.stringify(customers));
             localStorage.setItem(CACHE_KEYS.inventory, JSON.stringify(inventory));
         }
