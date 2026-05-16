@@ -315,27 +315,83 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
+    // العناوين
     excelData.push([
         "التاريخ",
-        "المورد",
-        "النوع",
-        "المبلغ",
-        "طريقة الدفع"
+        "الحركة",
+        "اسم العميل",
+        "اسم الصنف",
+        "عدد جركن",
+        "عدد كرتونة",
+        "سعر جركن",
+        "سعر كرتونة"
     ]);
 
     allInvoices.forEach(inv => {
 
-        excelData.push([
-            inv.date || "",
-            suppliersNames[inv.supplierId] || "",
-            inv.isReturn ? "مرتجع شراء" : "فاتورة شراء",
-            Number(inv.displayAmount || 0),
-            inv.paymentType === "cash" ? "نقدي" : "آجل"
-        ]);
+        const supplierName =
+            suppliersNames[inv.supplierId] || "";
+
+        // ===== حالة السداد النقدي =====
+        if (inv.paymentType === "cash") {
+
+            excelData.push([
+                inv.date || "",
+                "شراء",
+                supplierName,
+                "سداد نقدي",
+                1,
+                "",
+                "",
+                Number(inv.displayAmount || 0)
+            ]);
+
+        }
+
+        // ===== الأصناف =====
+        if (Array.isArray(inv.items)) {
+
+            inv.items.forEach(item => {
+
+                excelData.push([
+                    inv.date || "",
+                    inv.isReturn ? "مرتجع شراء" : "شراء",
+                    supplierName,
+                    item.name || "",
+
+                    // عدد جركن
+                    item.qtyGallons || item.gallons || item.qty || "",
+
+                    // عدد كرتونة
+                    item.qtyCartons || item.cartons || "",
+
+                    // سعر جركن
+                    item.gallonPrice || item.price || "",
+
+                    // سعر كرتونة
+                    item.cartonPrice || ""
+                ]);
+
+            });
+
+        }
 
     });
 
+    // إنشاء الشيت
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+    // عرض الأعمدة
+    worksheet['!cols'] = [
+        { wch: 15 },
+        { wch: 18 },
+        { wch: 25 },
+        { wch: 30 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 15 },
+        { wch: 15 }
+    ];
 
     const workbook = XLSX.utils.book_new();
 
@@ -345,7 +401,7 @@ window.exportToExcel = () => {
         "المشتريات"
     );
 
-    XLSX.writeFile(workbook, "فواتير_المشتريات.xlsx");
+    XLSX.writeFile(workbook, "تقرير_المشتريات.xlsx");
 
 };
     init();
