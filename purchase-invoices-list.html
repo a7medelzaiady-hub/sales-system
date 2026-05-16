@@ -101,6 +101,34 @@
             <span class="stat-label">المتبقي</span>
             <span class="stat-val" style="color: var(--danger)" id="totalPending">0</span>
         </div>
+        <!-- أزرار التحكم -->
+<div class="d-flex gap-2 px-3 mb-3">
+
+    <!-- الرئيسية -->
+    <a href="index1.html"
+       class="btn flex-fill text-white fw-bold"
+       style="background:#0b5e3d; border-radius:12px;">
+        <i class="fas fa-home me-1"></i>
+        الرئيسية
+    </a>
+
+    <!-- حذف الكل -->
+    <button onclick="deleteAllInvoices()"
+            class="btn flex-fill fw-bold text-white"
+            style="background:#dc3545; border-radius:12px;">
+        <i class="fas fa-trash me-1"></i>
+        حذف الكل
+    </button>
+
+    <!-- Excel -->
+    <button onclick="exportToExcel()"
+            class="btn flex-fill fw-bold text-white"
+            style="background:#198754; border-radius:12px;">
+        <i class="fas fa-file-excel me-1"></i>
+        Excel
+    </button>
+
+</div>
     </div>
 
     <div class="search-box">
@@ -112,11 +140,24 @@
         <div class="text-center mt-5"><div class="spinner-border text-success" role="status"></div></div>
     </div>
 </div>
+<!-- مكتبة Excel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, query, orderBy, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+
+import {
+    getFirestore,
+    collection,
+    getDocs,
+    query,
+    orderBy,
+    where,
+    deleteDoc,
+    doc
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, query, orderBy, where, deleteDoc, doc }
     const firebaseConfig = {
   apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
   authDomain: "ahmedelzaiady.firebaseapp.com",
@@ -231,7 +272,77 @@
         });
         renderInvoices(filtered);
     };
+window.deleteAllInvoices = async () => {
 
+    if (!confirm("⚠️ هل تريد حذف جميع فواتير المشتريات؟")) return;
+
+    try {
+
+        const snap = await getDocs(collection(db, "supplier_transactions"));
+
+        if (snap.empty) {
+            return alert("لا توجد فواتير");
+        }
+
+        for (const d of snap.docs) {
+
+            await deleteDoc(doc(db, "supplier_transactions", d.id));
+
+        }
+
+        alert("تم حذف جميع الفواتير بنجاح ✅");
+
+        init();
+
+    } catch (e) {
+
+        alert("خطأ: " + e.message);
+
+    }
+
+};
+
+window.exportToExcel = () => {
+
+    if (allInvoices.length === 0) {
+        return alert("لا توجد بيانات");
+    }
+
+    let excelData = [];
+
+    excelData.push([
+        "التاريخ",
+        "المورد",
+        "النوع",
+        "المبلغ",
+        "طريقة الدفع"
+    ]);
+
+    allInvoices.forEach(inv => {
+
+        excelData.push([
+            inv.date || "",
+            suppliersNames[inv.supplierId] || "",
+            inv.isReturn ? "مرتجع شراء" : "فاتورة شراء",
+            Number(inv.displayAmount || 0),
+            inv.paymentType === "cash" ? "نقدي" : "آجل"
+        ]);
+
+    });
+
+    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "المشتريات"
+    );
+
+    XLSX.writeFile(workbook, "فواتير_المشتريات.xlsx");
+
+};
     init();
 </script>
 </body>
