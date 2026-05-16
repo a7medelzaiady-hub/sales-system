@@ -248,52 +248,49 @@ window.exportToExcel = () => {
         "سعر جركن",
         "سعر كرتونة"
     ]);
+allInvoices.forEach(inv => {
 
-    allInvoices.forEach(inv => {
+    const total = Number(inv.total || 0);
+    const remaining = Number(inv.remaining || 0);
+    const paid = total - remaining;
 
-        const total = Number(inv.total || 0);
-        const remaining = Number(inv.remaining || 0);
-        const paid = total - remaining;
+    const dateObj =
+        inv.timestamp?.toDate?.()
+        || inv.time
+        || new Date();
 
-        const dateObj =
-            inv.timestamp?.toDate?.()
-            || inv.time
-            || new Date();
+    // أصناف الفاتورة
+    (inv.items || []).forEach(item => {
 
-        // أصناف الفاتورة
-        (inv.items || []).forEach(item => {
+        const isBox = item.unit === "box";
 
-    const isBox = item.unit === "box";
-
-    excelData.push([
-        formatDateArabic(dateObj),
-        "بيع",
-        inv.customerName || "النقدي",
-        item.name || "",
-        !isBox ? (item.qty || 0) : 0,
-        isBox ? (item.qty || 0) : 0,
-        !isBox ? Math.round(item.price || 0) : 0,
-        isBox ? Math.round(item.price || 0) : 0
-    ]);
-
-});
-
-            
-});
-        // صف السداد النقدي
         excelData.push([
             formatDateArabic(dateObj),
-            "سداد منه نقدى",
+            "بيع",
             inv.customerName || "النقدي",
-            "سداد نقدي",
-            0,
-            1,
-            0,
-            Math.round(paid)
+            item.name || "",
+            !isBox ? (item.qty || 0) : 0,
+            isBox ? (item.qty || 0) : 0,
+            !isBox ? Math.round(item.price || 0) : 0,
+            isBox ? Math.round(item.price || 0) : 0
         ]);
 
     });
 
+    // صف السداد النقدي
+    excelData.push([
+        formatDateArabic(dateObj),
+        "سداد منه نقدى",
+        inv.customerName || "النقدي",
+        "سداد نقدي",
+        0,
+        1,
+        0,
+        Math.round(paid)
+    ]);
+
+});
+    
     // إنشاء ملف Excel
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
