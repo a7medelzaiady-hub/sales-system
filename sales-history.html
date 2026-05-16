@@ -237,80 +237,69 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
-    // العناوين
-    excelData.push([
-        "التاريخ",
-        "الحركة",
-        "اسم العميل",
-        "اسم الصنف",
-        "عدد جركن",
-        "عدد كرتونة",
-        "سعر جركن",
-        "سعر كرتونة"
-    ]);
+excelData.push([
+    "التاريخ",
+    "الحركة",
+    "اسم العميل",
+    "اسم الصنف",
+    "عدد جركن",
+    "عدد كرتونة",
+    "سعر جركن",
+    "سعر كرتونة"
+]);
 
-    allInvoices.forEach(inv => {
+  allInvoices.forEach(inv => {
 
-        const total = Number(inv.total || 0);
-        const remaining = Number(inv.remaining || 0);
-        const paid = total - remaining;
+    const total = inv.total || 0;
+    const remaining = inv.remaining || 0;
+    const paid = total - remaining;
 
-        const dateObj =
-            inv.timestamp?.toDate?.()
-            || inv.time
-            || new Date();
+   const dateObj = inv.timestamp?.toDate?.()
+    || inv.time
+    || new Date();
 
-        // أصناف الفاتورة
-        Object.keys(inv).forEach(k => {
+    Object.keys(inv).forEach(k => {
 
-            if (!isNaN(k) && inv[k]) {
+        if (!isNaN(k) && inv[k]) {
 
-                const item = inv[k];
-                const isBox = item.unit === "box";
+            const item = inv[k];
+            const isBox = item.unit === "box";
 
-                // صف البيع
-                excelData.push([
-                    formatDateArabic(dateObj),
-                    "بيع",
-                    inv.customerName || "النقدي",
-                    item.name || "",
-                    !isBox ? (item.qty || 0) : 0,
-                    isBox ? (item.qty || 0) : 0,
-                    !isBox ? Math.round(item.price || 0) : 0,
-                    isBox ? Math.round(item.price || 0) : 0
-                ]);
-
-            }
-
-        });
-
-        // صف السداد النقدي
-        excelData.push([
-            formatDateArabic(dateObj),
-            "سداد منه نقدى",
-            inv.customerName || "النقدي",
-            "سداد نقدي",
-            0,
-            1,
-            0,
-            Math.round(paid)
-        ]);
-
+          excelData.push([
+    dateObj,
+    "بيع",
+    inv.customerName || "النقدي",
+    item.name || "",
+    !isBox ? (item.qty || 0) : 0,
+    isBox ? (item.qty || 0) : 0,
+    !isBox ? (item.price || 0) : 0,
+    isBox ? (item.price || 0) : 0
+]);
+        }
     });
 
-    // إنشاء ملف Excel
-    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+    // 🔥 صف المسدد (زي ما طلبت بالظبط)
+if (paid > 0) {
+    excelData.push([
+        dateObj,
+        "سداد منه نقدى",
+        inv.customerName || "النقدي",
+        "سداد نقدي",
+        0,
+        1,
+        0,
+        paid
+    ]);
+}
 
+});
+
+    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();
 
-    XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        "المبيعات"
-    );
+    XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
 
     XLSX.writeFile(workbook, "المبيعات.xlsx");
-
 };
     window.loadInvoices = async () => {
         try {
