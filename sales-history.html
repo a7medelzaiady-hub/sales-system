@@ -228,27 +228,158 @@ onclick="deleteAllInvoices()">
     const month = months[d.getMonth()];
 
     return `${day}-${month}`;
-}
-window.exportToExcel = () => {
+    }
+    window.exportToExcel = async () => {
 
-    if (allInvoices.length === 0) {
-        return alert("لا توجد بيانات للتصدير");
+    try {
+
+        let excelData = [];
+
+        // العناوين
+        excelData.push([
+            "التاريخ",
+            "الحركة",
+            "اسم العميل",
+            "اسم الصنف",
+            "عدد جركن",
+            "عدد كرتونة",
+            "سعر جركن",
+            "سعر كرتونة"
+        ]);
+
+        // =========================
+        // الفواتير
+        // =========================
+
+        allInvoices.forEach(inv => {
+
+            const total = Number(inv.total || 0);
+            const remaining = Number(inv.remaining || 0);
+            const paid = total - remaining;
+
+            let dateObj;
+
+            if (inv.timestamp?.toDate) {
+                dateObj = inv.timestamp.toDate();
+            } else if (inv.time) {
+                dateObj = new Date(inv.time);
+            } else {
+                dateObj = new Date();
+            }
+
+            // الأصناف
+            Object.keys(inv).forEach(k => {
+
+                if (!isNaN(k) && inv[k]) {
+
+                    const item = inv[k];
+                    const isBox = item.unit === "box";
+
+                    excelData.push([
+                        formatDateArabic(dateObj),
+                        "بيع",
+                        inv.customerName || "النقدي",
+                        item.name || "",
+                        !isBox ? Number(item.qty || 0) : 0,
+                        isBox ? Number(item.qty || 0) : 0,
+                        !isBox ? Math.round(item.price || 0) : 0,
+                        isBox ? Math.round(item.price || 0) : 0
+                    ]);
+
+                }
+
+            });
+
+            // السداد داخل الفاتورة
+            if (paid > 0) {
+
+                excelData.push([
+                    formatDateArabic(dateObj),
+                    "سداد فاتورة",
+                    inv.customerName || "النقدي",
+                    "دفعة مع الفاتورة",
+                    0,
+                    0,
+                    0,
+                    Math.round(paid)
+                ]);
+
+            }
+
+        });
+
+        // =========================
+        // حركات القبض
+        // =========================
+
+        const transSnap = await getDocs(collection(db, "transactions"));
+
+        transSnap.forEach(docu => {
+
+            const tr = docu.data();
+
+            if (tr.type === "قبض") {
+
+                let dateObj;
+
+                if (tr.timestamp?.toDate) {
+                    dateObj = tr.timestamp.toDate();
+                } else if (tr.time) {
+                    dateObj = new Date(tr.time);
+                } else {
+                    dateObj = new Date();
+                }
+
+                excelData.push([
+                    formatDateArabic(dateObj),
+                    "تحصيل",
+                    tr.partyName || "",
+                    tr.note || "دفعة نقدية",
+                    0,
+                    0,
+                    0,
+                    Math.round(tr.amount || 0)
+                ]);
+
+            }
+
+        });
+
+        // =========================
+        // إنشاء ملف Excel
+        // =========================
+
+        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+        worksheet['!cols'] = [
+            { wch: 14 },
+            { wch: 18 },
+            { wch: 28 },
+            { wch: 35 },
+            { wch: 12 },
+            { wch: 12 },
+            { wch: 14 },
+            { wch: 14 }
+        ];
+
+        const workbook = XLSX.utils.book_new();
+
+        XLSX.utils.book_append_sheet(
+            workbook,
+            worksheet,
+            "المبيعات"
+        );
+
+        XLSX.writeFile(workbook, "المبيعات.xlsx");
+
+    } catch (e) {
+
+        console.error(e);
+        alert("خطأ أثناء التصدير");
+
     }
 
-    let excelData = [];
-
-    // عناوين الأعمدة
-    excelData.push([
-        "التاريخ",
-        "الحركة",
-        "اسم العميل",
-        "اسم الصنف",
-        "عدد جركن",
-        "عدد كرتونة",
-        "سعر جركن",
-        "سعر كرتونة"
-    ]);
-
+};
     allInvoices.forEach(inv => {
 
         const total = Number(inv.total || 0);
@@ -302,28 +433,6 @@ window.exportToExcel = () => {
                 0,
                 Math.round(paid)
             ]);
-
-window.exportToExcel = async () => {
-
-    try {
-
-        let excelData = [];
-
-        // العناوين
-        excelData.push([
-            "التاريخ",
-            "الحركة",
-            "اسم العميل",
-            "اسم الصنف",
-            "عدد جركن",
-            "عدد كرتونة",
-            "سعر جركن",
-            "سعر كرتونة"
-        ]);
-
-        // =========================
-        // الفواتير
-        // =========================
 
         allInvoices.forEach(inv => {
 
