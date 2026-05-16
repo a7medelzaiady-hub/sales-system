@@ -237,7 +237,7 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
-    // العناوين
+    // عناوين الأعمدة
     excelData.push([
         "التاريخ",
         "الحركة",
@@ -255,10 +255,16 @@ window.exportToExcel = () => {
         const remaining = Number(inv.remaining || 0);
         const paid = total - remaining;
 
-        const dateObj =
-            inv.timestamp?.toDate?.()
-            || inv.time
-            || new Date();
+        // التاريخ
+        let dateObj;
+
+        if (inv.timestamp?.toDate) {
+            dateObj = inv.timestamp.toDate();
+        } else if (inv.time) {
+            dateObj = new Date(inv.time);
+        } else {
+            dateObj = new Date();
+        }
 
         // أصناف الفاتورة
         Object.keys(inv).forEach(k => {
@@ -268,14 +274,13 @@ window.exportToExcel = () => {
                 const item = inv[k];
                 const isBox = item.unit === "box";
 
-                // صف البيع
                 excelData.push([
                     formatDateArabic(dateObj),
                     "بيع",
                     inv.customerName || "النقدي",
                     item.name || "",
-                    !isBox ? (item.qty || 0) : 0,
-                    isBox ? (item.qty || 0) : 0,
+                    !isBox ? Number(item.qty || 0) : 0,
+                    isBox ? Number(item.qty || 0) : 0,
                     !isBox ? Math.round(item.price || 0) : 0,
                     isBox ? Math.round(item.price || 0) : 0
                 ]);
@@ -284,23 +289,40 @@ window.exportToExcel = () => {
 
         });
 
-        // صف السداد النقدي
-        excelData.push([
-            formatDateArabic(dateObj),
-            "سداد منه نقدى",
-            inv.customerName || "النقدي",
-            "سداد نقدي",
-            0,
-            1,
-            0,
-            Math.round(paid)
-        ]);
+        // إضافة السداد النقدي فقط لو فيه مبلغ مدفوع
+        if (paid > 0) {
+
+            excelData.push([
+                formatDateArabic(dateObj),
+                "سداد منه نقدى",
+                inv.customerName || "النقدي",
+                "سداد نقدي",
+                0,
+                1,
+                0,
+                Math.round(paid)
+            ]);
+
+        }
 
     });
 
-    // إنشاء ملف Excel
+    // إنشاء الشيت
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
+    // عرض الأعمدة
+    worksheet['!cols'] = [
+        { wch: 14 },
+        { wch: 18 },
+        { wch: 28 },
+        { wch: 35 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 14 }
+    ];
+
+    // إنشاء الملف
     const workbook = XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(
@@ -309,6 +331,7 @@ window.exportToExcel = () => {
         "المبيعات"
     );
 
+    // تحميل الملف
     XLSX.writeFile(workbook, "المبيعات.xlsx");
 
 };
