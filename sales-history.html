@@ -128,12 +128,6 @@
     <button class="btn-export btn-excel" onclick="exportToExcel()">
         <i class="fas fa-file-excel"></i> تصدير Excel
     </button>
-    <button class="btn-export"
-style="background:#dc3545"
-onclick="deleteAllInvoices()">
-<i class="fas fa-trash"></i>
-حذف جميع الفواتير
-</button>
     <button class="btn-export btn-pdf-report" onclick="window.print()">
         <i class="fas fa-file-pdf"></i> طباعة PDF
     </button>
@@ -217,18 +211,6 @@ onclick="deleteAllInvoices()">
             return Number(initialBalance) + invoiceDebt + transEffect;
         } catch (e) { return Number(initialBalance); }
     }
-    function formatDateArabic(dateStr) {
-    const months = [
-        "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
-        "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
-    ];
-
-    const d = new Date(dateStr);
-    const day = d.getDate();
-    const month = months[d.getMonth()];
-
-    return `${day}-${month}`;
-}
 window.exportToExcel = () => {
 
     if (allInvoices.length === 0) {
@@ -237,10 +219,8 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
-    // العناوين
+    // الهيدر
     excelData.push([
-        "التاريخ",
-        "الحركة",
         "اسم العميل",
         "اسم الصنف",
         "عدد جركن",
@@ -251,66 +231,41 @@ window.exportToExcel = () => {
 
     allInvoices.forEach(inv => {
 
-        const total = Number(inv.total || 0);
-        const remaining = Number(inv.remaining || 0);
-        const paid = total - remaining;
-
-        const dateObj =
-            inv.timestamp?.toDate?.()
-            || inv.time
-            || new Date();
-
-        // أصناف الفاتورة
         Object.keys(inv).forEach(k => {
 
             if (!isNaN(k) && inv[k]) {
 
                 const item = inv[k];
+
                 const isBox = item.unit === "box";
 
-                // صف البيع
-                excelData.push([
-                    formatDateArabic(dateObj),
-                    "بيع",
-                    inv.customerName || "النقدي",
-                    item.name || "",
-                    !isBox ? (item.qty || 0) : 0,
-                    isBox ? (item.qty || 0) : 0,
-                    !isBox ? Math.round(item.price || 0) : 0,
-                    isBox ? Math.round(item.price || 0) : 0
-                ]);
+                const jerryQty = !isBox ? (item.qty || 0) : 0;
+                const boxQty = isBox ? (item.qty || 0) : 0;
 
+                // الأسعار (لو عندك نفس السعر للجميع هنحطه في الجركن فقط)
+                const jerryPrice = !isBox ? (item.price || 0) : 0;
+                const boxPrice = isBox ? (item.price || 0) : 0;
+
+                excelData.push([
+                    inv.customerName || "النقدى",
+                    item.name || "",
+                    jerryQty,
+                    boxQty,
+                    jerryPrice,
+                    boxPrice
+                ]);
             }
 
         });
 
-        // صف السداد النقدي
-        excelData.push([
-            formatDateArabic(dateObj),
-            "سداد منه نقدى",
-            inv.customerName || "النقدي",
-            "سداد نقدي",
-            0,
-            1,
-            0,
-            Math.round(paid)
-        ]);
-
     });
 
-    // إنشاء ملف Excel
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-
     const workbook = XLSX.utils.book_new();
 
-    XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        "المبيعات"
-    );
+    XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
 
     XLSX.writeFile(workbook, "المبيعات.xlsx");
-
 };
     window.loadInvoices = async () => {
         try {
@@ -424,43 +379,7 @@ window.exportToExcel = () => {
         } catch (err) { console.error(err); shareContainer.style.display = 'none'; }
         btn.innerHTML = icon;
     };
-window.deleteAllInvoices = async () => {
 
-    if (!confirm("⚠️ هل تريد حذف جميع الفواتير نهائياً؟")) return;
-
-    try {
-
-        const snap = await getDocs(collection(db, "invoices"));
-
-        if (snap.empty) {
-            alert("لا توجد فواتير");
-            return;
-        }
-
-        let deleted = 0;
-
-        for (const docSnap of snap.docs) {
-
-            await deleteDoc(doc(db, "invoices", docSnap.id));
-
-            deleted++;
-
-            console.log(`تم حذف ${deleted} / ${snap.docs.length}`);
-
-        }
-
-        alert(`تم حذف ${deleted} فاتورة بنجاح ✅`);
-
-        loadInvoices();
-
-    } catch (e) {
-
-        console.error(e);
-        alert("خطأ: " + e.message);
-
-    }
-
-};
     window.printInv = async (id) => {
         const inv = allInvoices.find(i => i.id === id);
         let realDebt = 0;
