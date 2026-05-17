@@ -523,8 +523,52 @@ window.saveInvoice = async () => {
         }
 
         isChanged = false;
-        alert("تم حفظ الفاتورة بنجاح");
-        window.location.href = "sales-history.html";
+       isChanged = false;
+
+        // تجهيز نص رسالة المشاركة لتظهر بشكل منسق
+        let shareText = `🧾 *فاتورة مبيعات - شركة الزيادي* \n`;
+        shareText += `👤 *العميل:* ${customerName}\n`;
+        shareText += `📅 *التاريخ:* ${invoiceData.time}\n`;
+        shareText += `--------------------------------\n`;
+        items.forEach((item, index) => {
+            const unitText = item.unit === 'box' ? 'كرتونة' : 'قطعة';
+            shareText += `${index + 1}. ${item.name} (${item.qty} ${unitText}) بسعر ${item.price}\n`;
+        });
+        shareText += `--------------------------------\n`;
+        shareText += `💰 *الإجمالي:* ${total.toFixed(2)} ج.م\n`;
+        shareText += `💵 *المدفوع:* ${paid.toFixed(2)} ج.م\n`;
+        shareText += `💳 *المتبقي:* ${remaining.toFixed(2)} ج.م\n`;
+        shareText += `🙏 شكراً لتعاملكم معنا.`;
+
+        // إظهار نافذة تأكيد للمستخدم (مشاركة أو إلغاء)
+        if (confirm("تم حفظ الفاتورة بنجاح! 🎉\n\nهل تريد مشاركة تفاصيل الفاتورة الآن؟")) {
+            // التحقق من دعم المتصفح لميزة المشاركة الأصلية (مثل الهواتف)
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'فاتورة مبيعات - شركة الزيادي',
+                        text: shareText
+                    });
+                    // الانتقال لصفحة السجل بعد المشاركة
+                    window.location.href = "sales-history.html";
+                } catch (err) {
+                    // في حال تراجع المستخدم عن المشاركة بعد فتح القائمة
+                    window.location.href = "sales-history.html";
+                }
+            } else {
+                // حل بديل للمتصفحات التي لا تدعم الـ Share API (مثل بعض أجهزة الكمبيوتر)
+                try {
+                    await navigator.clipboard.writeText(shareText);
+                    alert("المتصفح لا يدعم المشاركة المباشرة. تم نسخ نص الفاتورة للحافظة بنجاح لتتمكن من لصقها يدويًا.");
+                } catch (clipErr) {
+                    console.log("Clipboard format fallback failed");
+                }
+                window.location.href = "sales-history.html";
+            }
+        } else {
+            // إذا ضغط المستخدم "إلغاء" (أي لا يريد المشاركة)
+            window.location.href = "sales-history.html";
+        }
 
     } catch (e) {
         alert("خطأ: " + e.message);
