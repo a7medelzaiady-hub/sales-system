@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>طلب عميل جديد</title>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
@@ -12,7 +13,7 @@
 body{
     font-family:'Cairo';
     background:#f4f7f6;
-    padding-bottom:120px;
+    padding-bottom:110px;
 }
 
 .header{
@@ -21,6 +22,7 @@ body{
     padding:15px;
     display:flex;
     justify-content:space-between;
+    align-items:center;
 }
 
 .card-box{
@@ -73,7 +75,9 @@ input,select{
 <body>
 
 <div class="header">
+    <a href="orders-home.html" style="color:#fff;text-decoration:none;">⬅</a>
     <h6>🧾 طلب عميل جديد</h6>
+    <span></span>
 </div>
 
 <div class="container">
@@ -87,7 +91,7 @@ input,select{
 
     <datalist id="customersList"></datalist>
 
-    <label class="mt-2">📅 تاريخ التنفيذ</label>
+    <label class="mt-2">📅 تاريخ التسليم</label>
     <input type="date" id="deliveryDate" class="form-control">
 
     <label class="mt-2">ملاحظات</label>
@@ -133,7 +137,7 @@ const db = getFirestore(app);
 
 let products = [];
 
-/* ================= العملاء ================= */
+/* العملاء */
 async function loadCustomers(){
     const snap = await getDocs(collection(db,'customers'));
     const list = document.getElementById("customersList");
@@ -146,105 +150,61 @@ async function loadCustomers(){
     });
 }
 
-/* ================= الأصناف ================= */
-
+/* الأصناف */
 async function loadProducts(){
-
     const snap = await getDocs(collection(db,'products'));
-
     products = [];
 
     snap.forEach(d=>{
-
         const data = d.data();
-
-        if(data.name){
-            products.push(data.name);
-        }
-
+        if(data.name) products.push(data.name);
     });
-
-    console.log(products);
-
 }
 
-/* ================= إضافة صنف ================= */
-/* ================= إضافة صنف ================= */
-
+/* إضافة صنف */
 window.addItem = () => {
-
-    if(products.length === 0){
-        alert("لم يتم تحميل الأصناف من المخزن");
-        return;
-    }
 
     const div = document.createElement("div");
     div.className = "order-item";
 
-    const listId =
-    "productsList_" + Date.now() + Math.floor(Math.random()*1000);
+    const listId = "p_" + Date.now();
 
     div.innerHTML = `
+        <div class="row g-2">
 
-    <div class="row g-2 align-items-center">
+            <div class="col-7">
+                <input class="form-control item-name"
+                       list="${listId}"
+                       placeholder="الصنف">
 
-        <div class="col-7">
+                <datalist id="${listId}">
+                    ${products.map(p=>`<option value="${p}">`).join('')}
+                </datalist>
+            </div>
 
-            <input
-                type="text"
-                class="form-control item-name"
-                list="${listId}"
-                placeholder="اختر أو اكتب الصنف">
-
-            <datalist id="${listId}">
-
-                ${products.map(p => `
-                    <option value="${p}">
-                `).join('')}
-
-            </datalist>
-
-        </div>
-
-        <div class="col-3">
-
-            <input
-                type="number"
-                min="1"
-                value="1"
-                class="form-control item-qty"
-                placeholder="الكمية">
+            <div class="col-5">
+                <input class="form-control item-qty"
+                       type="number"
+                       placeholder="الكمية">
+            </div>
 
         </div>
 
-        <div class="col-2">
-
-            <button
-                type="button"
-                class="btn btn-danger w-100"
-                onclick="this.closest('.order-item').remove()">
-
-                🗑️
-
-            </button>
-
-        </div>
-
-    </div>
-
+        <button class="btn btn-danger btn-sm mt-2 w-100"
+        onclick="this.closest('.order-item').remove()">
+        حذف
+        </button>
     `;
 
-    document
-    .getElementById("itemsContainer")
-    .appendChild(div);
+    document.getElementById("itemsContainer").appendChild(div);
 };
 
-/* ================= حفظ الطلب ================= */
+/* حفظ الطلب */
 window.saveOrder = async () => {
 
     const customer = document.getElementById("customerSelect").value;
-    const note = document.getElementById("note").value;
     const deliveryDate = document.getElementById("deliveryDate").value;
+    const note = document.getElementById("note").value;
 
     let items = [];
 
@@ -258,75 +218,27 @@ window.saveOrder = async () => {
     });
 
     if(!customer || !deliveryDate || items.length===0){
-        return alert("من فضلك املأ البيانات");
+        return alert("اكمل البيانات");
     }
 
     await addDoc(collection(db,'customer_orders'),{
         customerName:customer,
-        note,
         deliveryDate,
+        note,
         items,
         status:"new",
         createdAt:serverTimestamp()
     });
 
-    alert("تم حفظ الطلب");
-
-window.location.href = "orders.html";
+    window.location.href = "orders-home.html";
 };
 
-/* ================= تنبيهات ================= */
-async function checkAlerts(){
-
-    const snap = await getDocs(collection(db,'customer_orders'));
-    const today = new Date();
-    today.setHours(0,0,0,0);
-
-    snap.forEach(d=>{
-        const o = d.data();
-        if(!o.deliveryDate) return;
-
-        const dDate = new Date(o.deliveryDate);
-        dDate.setHours(0,0,0,0);
-
-        const diff = Math.ceil((dDate - today)/(1000*60*60*24));
-
-        if(diff===0){
-            console.log("⚠️ طلب اليوم:", o.customerName);
-        }
-
-        if(diff<0){
-            console.log("🚨 طلب متأخر:", o.customerName);
-        }
-    });
-}
-
-/* ================= تشغيل ================= */
-/* ================= تشغيل ================= */
-
+/* تشغيل */
 async function init(){
-
-    try{
-
-        await loadCustomers();
-
-        await loadProducts();
-
-        await checkAlerts();
-
-        addItem();
-
-    }catch(e){
-
-        console.error(e);
-
-        alert("حدث خطأ أثناء تحميل البيانات");
-
-    }
-
+    await loadCustomers();
+    await loadProducts();
+    addItem();
 }
-
-init();
 
 init();
 
