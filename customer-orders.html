@@ -9,35 +9,76 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
-body{font-family:Cairo;background:#f5f7f6;padding-bottom:100px}
-.header{background:#0b5e3d;color:#fff;padding:15px}
-.card-box{background:#fff;padding:15px;border-radius:15px;margin-top:10px}
-.order-card{background:#fff;padding:15px;border-radius:15px;margin-top:10px;border-right:5px solid #0b5e3d}
-.btn-save{background:#0b5e3d;color:#fff;width:100%;padding:10px;border:none;border-radius:10px}
+body{font-family:Cairo;background:#f5f7f6;padding-bottom:80px}
+
+.header{
+background:#0b5e3d;color:#fff;padding:15px;
+font-weight:bold;font-size:18px;
+}
+
+.card-box{
+background:#fff;padding:15px;border-radius:15px;
+margin-top:10px;box-shadow:0 2px 8px rgba(0,0,0,.05)
+}
+
+.order-card{
+background:#fff;padding:15px;border-radius:15px;
+margin-top:10px;border-right:5px solid #0b5e3d
+}
+
+.btn-save{
+background:#0b5e3d;color:#fff;width:100%;
+padding:10px;border:none;border-radius:10px
+}
+
+.suggest-box{
+position:relative
+}
+
+.suggest-list{
+position:absolute;background:#fff;width:100%;
+border:1px solid #ddd;z-index:999;
+max-height:150px;overflow:auto
+}
+
+.suggest-item{
+padding:8px;cursor:pointer
+}
+
+.suggest-item:hover{
+background:#f1f1f1
+}
 </style>
 
 </head>
+
 <body>
 
 <div class="header">طلبات العملاء</div>
 
 <div class="container">
 
-<input id="searchBox" class="form-control mt-2" placeholder="بحث..." oninput="searchOrders()">
+<!-- 🔍 Search -->
+<input id="searchBox" class="form-control mt-2" placeholder="بحث باسم العميل أو الصنف..." oninput="searchOrders()">
 
+<!-- FORM -->
 <div class="card-box">
 
-<select id="customerName" class="form-select"></select>
+<!-- 👇 Auto Complete Client -->
+<div class="suggest-box">
+<input id="customerInput" class="form-control" placeholder="اكتب اسم العميل...">
+<div id="suggestList" class="suggest-list d-none"></div>
+</div>
 
 <input id="deliveryDate" type="date" class="form-control mt-2">
 
 <div id="itemsContainer"></div>
 
-<button class="btn btn-primary mt-2" onclick="addItemRow()">+ صنف</button>
+<button class="btn btn-outline-primary mt-2 w-100" onclick="addItemRow()">+ صنف</button>
 
 <textarea id="notes" class="form-control mt-2" placeholder="ملاحظات"></textarea>
 
-<button class="btn-save mt-2" onclick="saveOrder()">حفظ</button>
+<button class="btn-save mt-2" onclick="saveOrder()">حفظ الطلب</button>
 
 </div>
 
@@ -53,7 +94,7 @@ getFirestore, collection, addDoc, getDocs, query, orderBy, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
-apiKey:"AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+apiKey:"AIzaSyAS0NNcZy0-t-LN2WCB7p0941jR0bo-MNls",
 authDomain:"ahmedelzaiady.firebaseapp.com",
 projectId:"ahmedelzaiady"
 };
@@ -61,18 +102,52 @@ projectId:"ahmedelzaiady"
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-let products = [];
+let customers = [];
 let orders = [];
 
-/* ===== LOAD ===== */
+/* ===== LOAD CUSTOMERS ===== */
 async function loadCustomers(){
 const snap = await getDocs(collection(db,'customers'));
-const sel = document.getElementById('customerName');
-sel.innerHTML = `<option value="">اختر العميل</option>`;
+
+customers = [];
+
 snap.forEach(d=>{
-sel.innerHTML += `<option value="${d.data().name}">${d.data().name}</option>`;
+customers.push(d.data().name);
 });
 }
+
+/* ===== AUTOCOMPLETE ===== */
+const input = document.getElementById("customerInput");
+const list = document.getElementById("suggestList");
+
+input.addEventListener("input", ()=>{
+
+let val = input.value.toLowerCase();
+list.innerHTML = "";
+
+if(!val){
+list.classList.add("d-none");
+return;
+}
+
+let filtered = customers.filter(c=>c.toLowerCase().includes(val));
+
+filtered.forEach(c=>{
+let div = document.createElement("div");
+div.className="suggest-item";
+div.innerText = c;
+
+div.onclick = ()=>{
+input.value = c;
+list.classList.add("d-none");
+};
+
+list.appendChild(div);
+});
+
+list.classList.remove("d-none");
+
+});
 
 /* ===== ITEMS ===== */
 window.addItemRow = ()=>{
@@ -84,10 +159,10 @@ div.innerHTML = `
 <input class="form-control item-name" placeholder="الصنف">
 </div>
 <div class="col-4">
-<input class="form-control item-qty" placeholder="كمية" type="number">
+<input class="form-control item-qty" type="number" placeholder="كمية">
 </div>
 <div class="col-1">
-<button onclick="this.parentElement.parentElement.remove()">X</button>
+<button class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">X</button>
 </div>
 </div>
 `;
@@ -98,7 +173,7 @@ document.getElementById('itemsContainer').appendChild(div);
 /* ===== SAVE ===== */
 window.saveOrder = async ()=>{
 
-const name = document.getElementById('customerName').value;
+const customerName = input.value;
 const date = document.getElementById('deliveryDate').value;
 const notes = document.getElementById('notes').value;
 
@@ -110,7 +185,7 @@ if(el.value) items.push(`${el.value} × ${qty}`);
 });
 
 await addDoc(collection(db,'customer_orders'),{
-customerName:name,
+customerName,
 deliveryDate:date,
 items:items.join('\n'),
 notes,
@@ -118,8 +193,8 @@ status:"new",
 timestamp:serverTimestamp()
 });
 
-loadOrders();
 alert("تم الحفظ");
+loadOrders();
 };
 
 /* ===== LOAD ORDERS ===== */
@@ -128,11 +203,13 @@ async function loadOrders(){
 const snap = await getDocs(query(collection(db,'customer_orders'),orderBy('timestamp','desc')));
 
 orders = [];
-snap.forEach(d=>orders.push({id:d.id,...d.data()}));
+
+snap.forEach(d=>orders.push(d.data()));
 
 render(orders);
 }
 
+/* ===== RENDER ===== */
 function render(list){
 
 document.getElementById('ordersContainer').innerHTML =
@@ -141,37 +218,4 @@ list.map(o=>`
 <div class="order-card">
 
 <h5>${o.customerName}</h5>
-<div>${o.deliveryDate}</div>
-
-<hr>
-
-<div>${(o.items||"").replace(/\n/g,"<br>")}</div>
-
-<div>${o.notes||""}</div>
-
-</div>
-
-`).join("");
-}
-
-/* ===== SEARCH ===== */
-window.searchOrders = ()=>{
-
-let val = document.getElementById('searchBox').value.toLowerCase();
-
-let filtered = orders.filter(o=>
-(o.customerName||"").toLowerCase().includes(val) ||
-(o.items||"").toLowerCase().includes(val)
-);
-
-render(filtered);
-};
-
-/* INIT */
-loadCustomers();
-loadOrders();
-
-</script>
-
-</body>
-</html>
+<div class="text-muted">${o.deliveryDate}</div
