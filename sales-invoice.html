@@ -532,6 +532,81 @@
                     if (oldData.items) {
                         for (const item of oldData.items) {
                             const p = inventory.find(i => i.id === item.stockId);
+    window.saveInvoice = async () => {
+        const saveBtn = document.getElementById('saveBtn');
+
+        try {
+            const { total, paid, paidCash, paidVodafone, remaining } = calc();
+
+            const customerId = document.getElementById('customerSelect').value;
+            const customerName = document.getElementById('customerSearch').value;
+
+            if (!customerId || !customerName) {
+                return alert("الرجاء اختيار العميل");
+            }
+
+            const items = [];
+            document.querySelectorAll('.product-row').forEach(r => {
+                const pid = r.querySelector('.p-select')?.value;
+                const name = r.querySelector('.p-search')?.value;
+                const unit = r.querySelector('.p-unit')?.value;
+                const qty = Number(r.querySelector('.p-qty')?.value || 0);
+                const price = Number(r.querySelector('.p-price')?.value || 0);
+
+                if (!pid || qty <= 0) return;
+
+                items.push({ stockId: pid, name, unit, qty, price });
+            });
+
+            if (items.length === 0) {
+                return alert("الرجاء إضافة أصناف للفاتورة");
+            }
+
+            saveBtn.disabled = true;
+            saveBtn.innerText = "جاري الحفظ...";
+
+            let paymentMethodText = "آجل";
+            if (paidCash > 0 && paidVodafone > 0) {
+                paymentMethodText = "نقدي + فودافون كاش";
+            } else if (paidCash > 0) {
+                paymentMethodText = "نقدي";
+            } else if (paidVodafone > 0) {
+                paymentMethodText = "فودافون كاش";
+            }
+
+            const invoiceData = {
+                customerId,
+                customerName,
+                total,
+                paid, 
+                paidCash,       
+                paidVodafone,   
+                remaining,
+                paymentMethod: paymentMethodText,
+                time: document.getElementById('invTime').value,
+                timestamp: serverTimestamp(),
+                items
+            };
+
+            // حفظ جديد
+            if (!editId) {
+                for (const item of items) {
+                    const p = inventory.find(i => i.id === item.stockId);
+                    const qtyPcs = item.unit === 'box' ? item.qty * (p.unitFactor || 1) : item.qty;
+                    await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
+                }
+                await addDoc(collection(db, "invoices"), invoiceData);
+            }
+            // تعديل فاتورة سابقة
+            else {
+                const oldRef = doc(db, "invoices", editId);
+                const oldSnap = await getDoc(oldRef);
+
+                if (oldSnap.exists()) {
+                    const oldData = oldSnap.data();
+                    if (oldData.items) {
+                        for (const item of oldData.items) {
+                            const p = inventory.find(i => i.id === item.stockId);
                             const qtyBack = item.unit === 'box' ? item.qty * (p.unitFactor || 1) : item.qty;
                             await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(qtyBack) });
                         }
@@ -546,31 +621,26 @@
             }
 
             isChanged = false;
-            
-            // --- تفاصيل ميزة المشاركة الجديدة بعد الحفظ بنجاح ---
+
+            // كود المشاركة الأصلي المرة الأولى
             const shareText = `فاتورة مبيعات - شركة الزيادي\nالعميل: ${customerName}\nالإجمالي: ${total.toFixed(2)} ج.م\nالمدفوع: ${paid.toFixed(2)} ج.م\nالمتبقي: ${remaining.toFixed(2)} ج.م`;
             
             if (confirm("تم حفظ الفاتورة بنجاح بنمط السداد المحدث!\n\nهل تريد مشاركة تفاصيل الفاتورة الآن؟")) {
-                // إذا وافق على المشاركة، نتحقق أولاً من دعم نظام الجهاز للمشاركة السريعة
                 if (navigator.share) {
                     try {
                         await navigator.share({
                             title: 'فاتورة مبيعات - شركة الزيادي',
                             text: shareText,
-                            url: window.location.origin + '/sales-history.html' // يمكنك تعديل الرابط ليوجه لصفحة عرض الفاتورة المحددة إن وجدت
                         });
                     } catch (err) {
-                        // في حال إلغاء نافذة المشاركة من قبل المستخدم أو حدوث خطأ مفاجئ
-                        console.log("تم إلغاء المشاركة أو حدث خطأ");
+                        console.log("تم إلغاء نافذة المشاركة");
                     }
                 } else {
-                    // حل بديل للمتصفحات التي لا تدعم الخاصية (مثل بعض متصفحات الكومبيوتر): فتح واتساب المباشر
-                    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
-                    window.open(whatsappUrl, '_blank');
+                    alert("المشاركة غير مدعومة على هذا المتصفح، سيتم تحويلك للسجل.");
                 }
             }
 
-            // التوجيه التلقائي بعد انتهاء إجراء المشاركة أو الضغط على إلغاء
+            // الرجوع للسجل مباشرة بعد الاختيار (شير أو إلغاء)
             window.location.href = "sales-history.html";
 
         } catch (e) {
