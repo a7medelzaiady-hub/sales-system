@@ -279,20 +279,33 @@
     };
 
     window.exportToExcel = () => {
-        if(localReceiptsArray.length === 0) return alert("لا توجد بيانات لتصديرها");
-        const cleanData = localReceiptsArray.map((item, index) => ({
-            "م": index + 1,
-            "اسم العميل": item.customerName,
-            "نوع السند": "سند " + item.type,
-            "المبلغ (ج.م)": item.amount,
+    if (localReceiptsArray.length === 0) return alert("لا توجد بيانات لتصديرها");
+
+    // إعادة هيكلة البيانات بالترتيب والشروط المطلوبة تماماً
+    const cleanData = localReceiptsArray.map(item => {
+        const isGabz = item.type === 'قبض';
+        
+        return {
             "التاريخ": item.date,
-            "البيان / الملاحظات": item.notes
-        }));
-        const worksheet = XLSX.utils.json_to_sheet(cleanData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "السندات المالية");
-        XLSX.writeFile(workbook, `سندات_شركة_الزيادي_${new Date().toISOString().split('T')[0]}.xlsx`);
-    };
+            "الحركه": isGabz ? "سداد منه نقدى" : ("سند " + item.type),
+            "اسم العميل": item.customerName,
+            "اسم الصنف": isGabz ? "سداد منه" : (item.notes || "---"),
+            "عدد كرتونه": isGabz ? 1 : 0,
+            "عدد جركن": 0,
+            "سعر جركن": 0,
+            "سعر كرتونه": isGabz ? item.amount : 0
+        };
+    });
+
+    // تحويل البيانات إلى شيت إكسيل
+    const worksheet = XLSX.utils.json_to_sheet(cleanData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "السندات المالية");
+
+    // تحميل الملف للمستخدم
+    XLSX.writeFile(workbook, `سندات_شركة_الزيادي_${new Date().toISOString().split('T')[0]}.xlsx`);
+};
+
 
     loadAllReceipts();
 </script>
