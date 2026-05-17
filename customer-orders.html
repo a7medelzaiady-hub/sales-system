@@ -90,12 +90,13 @@ input,select{
 
 <div class="glass-card">
 
+
 <input id="customerSelect"
        class="form-control"
        list="customersList"
        placeholder="اكتب اسم العميل">
 
-
+<datalist id="customersList"></datalist>
 
 <label class="mt-2">ملاحظات</label>
 <input id="note" class="form-control" placeholder="ملاحظات الطلب">
@@ -199,24 +200,21 @@ console.log("🚨 طلب متأخر:", o.customerName);
 }
 let products = [];
 
-/* ===== تحميل العملاء ===== */
+/* العملاء */
 async function loadCustomers(){
   const snap = await getDocs(collection(db,'customers'));
 
   const list = document.getElementById("customersList");
   list.innerHTML = "";
 
-  snap.forEach((d) => {
-    const name = d.data().name;
-
+  snap.forEach(d=>{
     const option = document.createElement("option");
-    option.value = name;
-
+    option.value = d.data().name;
     list.appendChild(option);
   });
 }
 
-/* ===== تحميل الأصناف ===== */
+/* الأصناف */
 async function loadProducts(){
   const snap = await getDocs(collection(db,'products'));
   products = [];
@@ -227,36 +225,36 @@ async function loadProducts(){
 }
 
 /* ===== إضافة صنف (صح) ===== */
+
 window.addItem = () => {
 
   const div = document.createElement("div");
   div.className = "order-item";
 
   div.innerHTML = `
-  <div class="row g-2">
+    <div class="row g-2">
 
-    <div class="col-7">
-      <select class="form-control item-name">
-        <option value="">اختر الصنف</option>
-        ${products.map(p => `<option value="${p}">${p}</option>`).join('')}
-      </select>
+      <div class="col-7">
+        <select class="form-control item-name">
+          <option value="">اختر الصنف</option>
+          ${products.map(p => `<option value="${p}">${p}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="col-4">
+        <input class="form-control item-qty" type="number" placeholder="الكمية">
+      </div>
+
+      <div class="col-1">
+        <button class="btn btn-danger btn-sm"
+        onclick="this.closest('.order-item').remove()">X</button>
+      </div>
+
     </div>
-
-    <div class="col-4">
-      <input class="form-control item-qty" type="number" placeholder="الكمية">
-    </div>
-
-    <div class="col-1">
-      <button class="btn btn-danger btn-sm"
-      onclick="this.parentElement.parentElement.parentElement.remove()">X</button>
-    </div>
-
-  </div>
   `;
 
   document.getElementById("itemsContainer").appendChild(div);
 };
-
 /* ===== حفظ الطلب ===== */
 window.saveOrder = async () => {
 
@@ -321,13 +319,6 @@ window.addItem = () => {
         onclick="this.closest('.order-item').remove()">X</button>
       </div>
 
-    </div>
-  `;
-
-  document.getElementById("itemsContainer").appendChild(div);
-};
-
-/* ===== حفظ الطلب ===== */
 window.saveOrder = async () => {
 
   const customer = document.getElementById("customerSelect").value;
@@ -345,15 +336,15 @@ window.saveOrder = async () => {
     }
   });
 
-  if (!customer || items.length === 0 || !deliveryDate) {
-    return alert("من فضلك اختر العميل + التاريخ + الأصناف");
+  if (!customer || !deliveryDate || items.length === 0) {
+    return alert("املأ العميل + التاريخ + الأصناف");
   }
 
   await addDoc(collection(db,'customer_orders'), {
     customerName: customer,
-    items,
     note,
     deliveryDate,
+    items,
     status: "new",
     createdAt: serverTimestamp()
   });
@@ -391,7 +382,6 @@ async function checkAlerts(){
 /* ===== تشغيل ===== */
 loadCustomers();
 loadProducts();
-checkAlerts();
-addItem(); // أول صنف تلقائي
+addItem();
 </body>
 </html>
