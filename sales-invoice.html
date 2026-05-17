@@ -454,7 +454,7 @@
         return { total, paid: totalPaid, paidCash, paidVodafone, remaining: total - totalPaid };
     };
 
-    window.saveInvoice = async () => {
+        window.saveInvoice = async () => {
         const saveBtn = document.getElementById('saveBtn');
 
         try {
@@ -487,7 +487,6 @@
             saveBtn.disabled = true;
             saveBtn.innerText = "جاري الحفظ...";
 
-            // بناء نص طريقة الدفع لعرضها في الفاتورة والسجلات لاحقاً
             let paymentMethodText = "آجل";
             if (paidCash > 0 && paidVodafone > 0) {
                 paymentMethodText = "نقدي + فودافون كاش";
@@ -502,14 +501,16 @@
                 customerName,
                 total,
                 paid, 
-                paidCash,       // حفظ القيمة النقدية منفصلة بقاعدة البيانات
-                paidVodafone,   // حفظ قيمة فودافون كاش منفصلة بقاعدة البيانات
+                paidCash,       
+                paidVodafone,   
                 remaining,
                 paymentMethod: paymentMethodText,
                 time: document.getElementById('invTime').value,
                 timestamp: serverTimestamp(),
                 items
             };
+
+            let savedInvoiceId = editId; // للحفاظ على المعرف في حالة التعديل أو الجديد
 
             // حفظ جديد
             if (!editId) {
@@ -518,7 +519,8 @@
                     const qtyPcs = item.unit === 'box' ? item.qty * (p.unitFactor || 1) : item.qty;
                     await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
                 }
-                await addDoc(collection(db, "invoices"), invoiceData);
+                const docRef = await addDoc(collection(db, "invoices"), invoiceData);
+                savedInvoiceId = docRef.id; // أخذ معرف الفاتورة الجديدة
             }
             // تعديل فاتورة سابقة
             else {
@@ -544,7 +546,31 @@
             }
 
             isChanged = false;
-            alert("تم حفظ الفاتورة بنجاح بنمط السداد المحدث");
+            
+            // --- تفاصيل ميزة المشاركة الجديدة بعد الحفظ بنجاح ---
+            const shareText = `فاتورة مبيعات - شركة الزيادي\nالعميل: ${customerName}\nالإجمالي: ${total.toFixed(2)} ج.م\nالمدفوع: ${paid.toFixed(2)} ج.م\nالمتبقي: ${remaining.toFixed(2)} ج.م`;
+            
+            if (confirm("تم حفظ الفاتورة بنجاح بنمط السداد المحدث!\n\nهل تريد مشاركة تفاصيل الفاتورة الآن؟")) {
+                // إذا وافق على المشاركة، نتحقق أولاً من دعم نظام الجهاز للمشاركة السريعة
+                if (navigator.share) {
+                    try {
+                        await navigator.share({
+                            title: 'فاتورة مبيعات - شركة الزيادي',
+                            text: shareText,
+                            url: window.location.origin + '/sales-history.html' // يمكنك تعديل الرابط ليوجه لصفحة عرض الفاتورة المحددة إن وجدت
+                        });
+                    } catch (err) {
+                        // في حال إلغاء نافذة المشاركة من قبل المستخدم أو حدوث خطأ مفاجئ
+                        console.log("تم إلغاء المشاركة أو حدث خطأ");
+                    }
+                } else {
+                    // حل بديل للمتصفحات التي لا تدعم الخاصية (مثل بعض متصفحات الكومبيوتر): فتح واتساب المباشر
+                    const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
+                    window.open(whatsappUrl, '_blank');
+                }
+            }
+
+            // التوجيه التلقائي بعد انتهاء إجراء المشاركة أو الضغط على إلغاء
             window.location.href = "sales-history.html";
 
         } catch (e) {
@@ -553,6 +579,7 @@
             saveBtn.innerText = "حفظ وتحديث البيانات";
         }
     };
+
 
     init();
 </script>
