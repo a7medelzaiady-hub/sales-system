@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سند قبض وصرف عملاء - شركة الزيادي</title>
+    <title>سند قبض وصرف عملاء - شركة الزيادي لزيوت السيارات</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- مكتبة تحويل الـ HTML إلى صورة بشكل محلي وتوفيري -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
@@ -64,7 +63,6 @@
 
         .info-tag { background: rgba(11, 94, 61, 0.1); color: var(--accent); padding: 5px 15px; border-radius: 8px; font-size: 0.75rem; font-weight: 700; margin-bottom: 15px; display: inline-block; }
 
-        /* تنسيق قالب السند المخصص للمشاركة كصورة (مخفي من الصفحة ويظهر في الصورة فقط) */
         #receiptCaptureTemplate {
             width: 450px; position: absolute; left: -9999px; top: -9999px;
             background: #ffffff; padding: 30px; border: 2px solid #0b5e3d; border-radius: 10px;
@@ -74,13 +72,12 @@
 </head>
 <body>
 
-<!-- قائمة البحث الذكية والمنبثقة للعملاء -->
 <datalist id="customersList"></datalist>
 
 <div class="header-section">
     <a href="javascript:history.back()" class="text-white"><i class="fas fa-chevron-right"></i></a>
     <h5 class="m-0 fw-bold" id="mainTitle">سند مالي (عملاء)</h5>
-    <div style="width: 20px;"></div>
+    <a href="all-receipts.html" class="btn btn-sm btn-light fw-bold text-success"><i class="fas fa-list-alt me-1"></i> أرشيف السندات</a>
 </div>
 
 <div class="container">
@@ -92,7 +89,6 @@
             <button class="t-btn" id="btnExpense" onclick="setMode('صرف')">سند صرف</button>
         </div>
 
-        <!-- تم تحويل الاختيار القديم إلى حقل بحث توفيري وذكي للبيانات -->
         <label class="form-label">اسم العميل (ابحث واكتب هنا)</label>
         <input type="text" id="customerInput" class="form-control" list="customersList" placeholder="اكتب أول 3 أحرف للبحث عن العميل...">
         <input type="hidden" id="partyName">
@@ -117,12 +113,11 @@
     </div>
 </div>
 
-<!-- ========================================== -->
-<!-- قالب الإيصال المنسق الذي سيتم تحويله لصورة وصناعته للمشاركة -->
+<!-- قالب الإيصال المنسق المحدث باسم الشركة الجديد -->
 <div id="receiptCaptureTemplate">
     <div style="text-align: center; border-bottom: 2px dashed #0b5e3d; padding-bottom: 15px; margin-bottom: 20px;">
-        <h3 style="color: #0b5e3d; margin: 0; font-weight: 700;">شركة الزيادي</h3>
-        <p style="font-size: 0.85rem; color: #555; margin: 5px 0 0 0;">للتجارة والتوزيع والمقاولات</p>
+        <h3 style="color: #0b5e3d; margin: 0; font-weight: 700;">الزيادي لزيوت السيارات</h3>
+        <p style="font-size: 0.85rem; color: #555; margin: 5px 0 0 0;">للتجارة والتوزيع المعتمد</p>
     </div>
     
     <div style="text-align: center; margin-bottom: 25px;">
@@ -153,8 +148,6 @@
         <span style="font-size: 0.75rem; color: #0b5e3d; font-weight: bold;">سند مالي إلكتروني مُوثق</span>
     </div>
 </div>
-<!-- ========================================== -->
-
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -197,7 +190,6 @@
     };
 
     async function initPage() {
-        // مستمع البحث الموفر للبيانات للعملاء
         document.getElementById('customerInput').addEventListener('input', function() {
             const val = this.value.trim();
             if(customersDataMap[val]) {
@@ -210,7 +202,6 @@
             }
         });
 
-        // إذا تم فتح الصفحة برابط يحمل id العميل مباشرة
         if(targetId) {
             const custSnap = await getDoc(doc(db, "customers", targetId));
             if(custSnap.exists()) {
@@ -229,7 +220,6 @@
         }
     }
 
-    // دالة البحث الموفرة للبيانات والعمليات في فايربيس
     async function searchCustomersFirebase(searchText) {
         try {
             const q = query(
@@ -271,9 +261,6 @@
                 document.getElementById('customerInput').value = name;
                 customersDataMap[name] = custSnap.id;
             }
-
-            window.oldAmount = data.amount;
-            window.oldType = data.type;
         }
     }
 
@@ -291,9 +278,11 @@
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري حفظ السند...';
 
         try {
+            let currentPartyName = customerName;
             if (editId) {
                 await updateDoc(doc(db, "transactions", editId), {
                     partyId: id,
+                    customerName: currentPartyName,
                     amount: amt,
                     date: date,
                     notes: notes,
@@ -303,6 +292,7 @@
             } else {
                 await addDoc(collection(db, "transactions"), {
                     partyId: id,
+                    customerName: currentPartyName,
                     partyType: 'customer',
                     type: currentMode,
                     amount: amt,
@@ -318,8 +308,7 @@
                 });
             }
 
-            // استدعاء دالة توليد الصورة ومشاركتها فوراً قبل الخروج من الصفحة
-            await generateAndShareReceiptImage(customerName, amt, date, notes, currentMode, id);
+            await generateAndShareReceiptImage(currentPartyName, amt, date, notes, currentMode, id);
 
         } catch (e) {
             console.error(e);
@@ -329,12 +318,10 @@
         }
     };
 
-    // الدالة السحرية لتوليد صورة السند ومشاركتها بشكل منسق محلياً بدون استهلاك إنترنت
     async function generateAndShareReceiptImage(custName, amt, date, notes, type, partyId) {
         const template = document.getElementById('receiptCaptureTemplate');
         const badge = document.getElementById('img_Type');
         
-        // ضبط ألوان ونصوص القالب بناءً على نوع السند
         if(type === 'قبض') {
             badge.innerText = "سند قبض مالي";
             badge.style.background = "#28a745";
@@ -348,44 +335,36 @@
         document.getElementById('img_Amount').innerText = amt.toLocaleString('ar-EG') + " ج.م";
         document.getElementById('img_Notes').innerText = notes ? notes : "لا يوجد ملاحظات إضافية";
 
-        // إتاحة فرصة قصيرة للمتصفح لتحديث وعرض النصوص داخل القالب المخفي
         await new Promise(resolve => setTimeout(resolve, 300));
 
         try {
-            // تحويل كود الـ HTML المخفي إلى Canvas بدقة عالية
             const canvas = await html2canvas(template, { scale: 2, useCORS: true });
-            
             canvas.toBlob(async (blob) => {
                 if (!blob) return alert("حدث خطأ في معالجة الصورة");
-                
                 const file = new File([blob], `سند_${type}_${custName}.png`, { type: 'image/png' });
 
-                // التحقق مما إذا كان جهاز المستخدم يدعم ميزة مشاركة الملفات المباشرة (مثل الهواتف الذكية)
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     try {
                         await navigator.share({
                             files: [file],
-                            title: `سند ${type} - شركة الزيادي`,
-                            text: `مرفق لكم صورة سند ${type} الخاص بالسيد/ة ${custName}`
+                            title: `سند ${type} - الزيادي لزيوت السيارات`,
+                            text: `مرفق صورة سند ${type} الخاص بالسيد/ة ${custName}`
                         });
-                        // الانتقال لصفحة تفاصيل العميل بعد إتمام المشاركة بنجاح
-                        window.location.href = `customer-details.html?id=${partyId}`;
+                        window.location.href = "all-receipts.html";
                     } catch (shareErr) {
-                        // في حال إلغاء المستخدم للمشاركة أو حدوث خطأ غير متوقع
-                        window.location.href = `customer-details.html?id=${partyId}`;
+                        window.location.href = "all-receipts.html";
                     }
                 } else {
-                    // إذا كان الفتح يتم من كمبيوتر قديم لا يدعم التنزيل المباشر، يتم تحميل الصورة بدلاً من المشاركة
                     const link = document.createElement('a');
                     link.download = `سند_${type}_${custName}.png`;
                     link.href = URL.createObjectURL(blob);
                     link.click();
-                    window.location.href = `customer-details.html?id=${partyId}`;
+                    window.location.href = "all-receipts.html";
                 }
             }, 'image/png');
         } catch (imgErr) {
-            console.error("خطأ في إنتاج الصورة:", imgErr);
-            window.location.href = `customer-details.html?id=${partyId}`;
+            console.error(imgErr);
+            window.location.href = "all-receipts.html";
         }
     }
 
