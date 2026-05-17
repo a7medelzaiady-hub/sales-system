@@ -270,6 +270,76 @@ window.saveOrder = async () => {
 
   let items = [];
 
+ let customers = [];
+let products = [];
+
+/* ===== تحميل العملاء ===== */
+async function loadCustomers(){
+  const snap = await getDocs(collection(db,'customers'));
+
+  const list = document.getElementById("customersList");
+  list.innerHTML = "";
+
+  snap.forEach((d) => {
+    const name = d.data().name;
+
+    const option = document.createElement("option");
+    option.value = name;
+
+    list.appendChild(option);
+  });
+}
+
+/* ===== تحميل الأصناف ===== */
+async function loadProducts(){
+  const snap = await getDocs(collection(db,'products'));
+  products = [];
+
+  snap.forEach(d=>{
+    products.push(d.data().name);
+  });
+}
+
+/* ===== إضافة صنف (صح + احترافي) ===== */
+window.addItem = () => {
+
+  const div = document.createElement("div");
+  div.className = "order-item";
+
+  div.innerHTML = `
+    <div class="row g-2">
+
+      <div class="col-7">
+        <select class="form-control item-name">
+          <option value="">اختر الصنف</option>
+          ${products.map(p => `<option value="${p}">${p}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="col-4">
+        <input class="form-control item-qty" type="number" placeholder="الكمية">
+      </div>
+
+      <div class="col-1">
+        <button class="btn btn-danger btn-sm"
+        onclick="this.closest('.order-item').remove()">X</button>
+      </div>
+
+    </div>
+  `;
+
+  document.getElementById("itemsContainer").appendChild(div);
+};
+
+/* ===== حفظ الطلب ===== */
+window.saveOrder = async () => {
+
+  const customer = document.getElementById("customerSelect").value;
+  const note = document.getElementById("note").value;
+  const deliveryDate = document.getElementById("deliveryDate").value;
+
+  let items = [];
+
   document.querySelectorAll(".order-item").forEach(row => {
     const name = row.querySelector(".item-name").value;
     const qty = row.querySelector(".item-qty").value;
@@ -326,6 +396,6 @@ async function checkAlerts(){
 loadCustomers();
 loadProducts();
 checkAlerts();
-addItem(); // عشان أول صنف يظهر تلقائي
+addItem(); // أول صنف تلقائي
 </body>
 </html>
