@@ -34,42 +34,38 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         .search-box {
-    background: #ffffff;
-    border: 2px solid rgba(255,255,255,0.2);
-    border-radius: 14px;
-    padding: 10px 15px;
-    display: flex;
-    align-items: center;
-    margin: 12px 15px 0;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
-    transition: 0.2s;
-}
-
-.search-box:focus-within {
-    border-color: #9dd8b9;
-    box-shadow: 0 0 0 4px rgba(255,255,255,0.15);
-}
-
-.search-box i {
-    color: #0b5e3d;
-    font-size: 0.9rem;
-    margin-left: 8px;
-}
-
-.search-box input {
-    background: transparent;
-    border: none;
-    color: #1b2e26;
-    width: 100%;
-    outline: none;
-    font-size: 0.9rem;
-    font-weight: 700;
-}
-
-.search-box input::placeholder {
-    color: #7a8b83;
-    font-weight: 600;
-}
+            background: #ffffff;
+            border: 2px solid rgba(255,255,255,0.2);
+            border-radius: 14px;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            margin: 12px 15px 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            transition: 0.2s;
+        }
+        .search-box:focus-within {
+            border-color: #9dd8b9;
+            box-shadow: 0 0 0 4px rgba(255,255,255,0.15);
+        }
+        .search-box i {
+            color: #0b5e3d;
+            font-size: 0.9rem;
+            margin-left: 8px;
+        }
+        .search-box input {
+            background: transparent;
+            border: none;
+            color: #1b2e26;
+            width: 100%;
+            outline: none;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+        .search-box input::placeholder {
+            color: #7a8b83;
+            font-weight: 600;
+        }
         .customer-card {
             background: var(--white);
             border: 1px solid var(--border);
@@ -83,12 +79,8 @@
             border-right: 5px solid transparent;
             box-shadow: 0 4px 6px rgba(0,0,0,0.02);
         }
-        .customer-card.has-debt {
-            border-right-color: var(--neon-red);
-        }
-        .customer-card.is-clear {
-            border-right-color: var(--neon-green);
-        }
+        .customer-card.has-debt { border-right-color: var(--neon-red); }
+        .customer-card.is-clear { border-right-color: var(--neon-green); }
         .customer-name {
             color: var(--text-primary);
             font-weight: 700;
@@ -108,16 +100,9 @@
             display: block;
             margin-top: 5px;
         }
-        .text-debt {
-            color: var(--neon-red);
-        }
-        .text-clear {
-            color: var(--neon-green);
-        }
-        .action-container {
-            display: flex;
-            gap: 8px;
-        }
+        .text-debt { color: var(--neon-red); }
+        .text-clear { color: var(--neon-green); }
+        .action-container { display: flex; gap: 8px; }
         .action-btn {
             width: 38px;
             height: 38px;
@@ -173,14 +158,9 @@
             </div>
         </div>
         <div class="search-box">
-    <i class="fas fa-search"></i>
-    <input 
-        type="text"
-        id="searchInput"
-        placeholder="ابحث باسم العميل أو رقم الهاتف..."
-        oninput="filterCustomers()"
-    >
-</div>
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="ابحث باسم العميل أو رقم الهاتف..." oninput="filterCustomers()">
+        </div>
     </div>
 
     <div class="container py-3" id="customersContainer">
@@ -192,7 +172,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, getDocs, orderBy, query, doc, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { initializeFirestore, persistentLocalCache, collection, getDocs, orderBy, query, doc, updateDoc, deleteDoc, writeBatch, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -205,23 +185,27 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        
+        // تعديل 1: إجبار الفايربيس على استخدام الكاش المحلي المتطور لحفظ البيانات على الهاتف وتقليل الاستهلاك
+        const db = initializeFirestore(app, { localCache: persistentLocalCache() });
         let allCustomers = [];
 
-        async function loadCustomers() {
-            const container = document.getElementById('customersContainer');
-            try {
-                const q = query(collection(db, "customers"), orderBy("name"));
-                const snap = await getDocs(q);
-                
-                allCustomers = snap.docs
-                    .map(d => ({ id: d.id, ...d.data() }))
-                    .filter(c => c.isDeleted !== true);
-                
+        // تعديل 2: تحويل الاستدعاء إلى مستمع مباشر ذكي يقرأ الكاش أولاً ولا يستهلك إنترنت إلا للتحديثات الجديدة
+        function listenToCustomers() {
+            const q = query(collection(db, "customers"), orderBy("name"));
+            
+            onSnapshot(q, (snap) => {
+                allCustomers = [];
+                snap.forEach(d => {
+                    const data = d.data();
+                    if (data.isDeleted !== true) {
+                        allCustomers.push({ id: d.id, ...data });
+                    }
+                });
                 renderCustomers(allCustomers);
-            } catch (e) {
-                container.innerHTML = `<div class="alert alert-danger mx-3 text-center">خطأ: ${e.message}</div>`;
-            }
+            }, (error) => {
+                document.getElementById('customersContainer').innerHTML = `<div class="alert alert-danger mx-3 text-center">خطأ: ${error.message}</div>`;
+            });
         }
 
         window.renderCustomers = (list) => {
@@ -262,7 +246,7 @@
                     isDeleted: true,
                     deletedAt: new Date().toISOString()
                 });
-                await loadCustomers();
+                // لا نحتاج لاستدعاء دالة التحميل هنا لأن onSnapshot سيحدث الواجهة تلقائياً وبدون استهلاك قراءات إضافية!
             } catch (e) {
                 alert("خطأ: " + e.message);
             }
@@ -282,7 +266,6 @@
                 });
                 await batch.commit();
                 alert("تم حذف جميع العملاء بنجاح");
-                await loadCustomers();
             } catch (e) {
                 alert("خطأ: " + e.message);
             }
@@ -297,8 +280,8 @@
             renderCustomers(filtered);
         }
 
-        // تشغيل التحميل الأولي عند تحميل الصفحة
-        loadCustomers();
+        // تشغيل المستمع الذكي الموفر فور فتح الصفحة
+        listenToCustomers();
     </script>
 </body>
 </html>
