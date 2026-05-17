@@ -16,8 +16,6 @@
             --border: #dce3de;
             --white: #ffffff;
             --text-muted: #707b7c;
-            --warning-light: #fff9e6;
-            --warning-border: #ffe0b2;
         }
 
         body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 110px; }
@@ -35,26 +33,6 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; 
         }
 
-        /* تصميم مربع التذكير بالطلبيات القريبة */
-        .reminder-card {
-            background: var(--warning-light);
-            border: 1px solid var(--warning-border);
-            border-right: 5px solid #ff9800;
-            border-radius: 15px;
-            padding: 15px;
-            margin-bottom: 15px;
-            display: none; /* يظهر فقط عند وجود طلبيات قريبة */
-        }
-
-        .reminder-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px dashed var(--warning-border);
-        }
-        .reminder-item:last-child { border-bottom: none; }
-
         .order-item { 
             background: #f8faf9; border: 1px solid var(--border); 
             border-radius: 15px; padding: 15px; margin-bottom: 12px; 
@@ -69,6 +47,9 @@
             margin-bottom: 10px; padding: 10px !important; font-weight: 600;
         }
         input:focus, select:focus { border-color: var(--accent) !important; box-shadow: 0 0 8px rgba(11, 94, 61, 0.1) !important; }
+
+        /* إضافة تأثير مرئي عند التعرف على العميل */
+        .is-valid-customer { border-color: #198754 !important; background-color: #f8fffb !important; }
 
         .btn-add-item { 
             border: 2px dashed var(--accent); color: var(--accent); 
@@ -108,18 +89,11 @@
 </div>
 
 <div class="container mt-3">
-    
-    <!-- مربع التذكير الذكي بالطلبيات المقتربة -->
-    <div id="reminderBox" class="reminder-card">
-        <h6 class="fw-bold text-warning-dark mb-2"><i class="fas fa-bell text-warning me-1"></i> تذكير: طلبيات اقترب موعد تسليمها!</h6>
-        <div id="reminderList"></div>
-    </div>
-
     <div class="glass-card">
         <div class="row">
             <div class="col-12">
-                <label>العميل المستهدف</label>
-                <input type="text" id="customerInput" class="form-control" list="customersList" placeholder="اكتب أول 3 أحرف من اسم العميل للبحث...">
+                <label id="customerLabel">العميل المستهدف</label>
+                <input type="text" id="customerInput" class="form-control" list="customersList" placeholder="اكتب اسم العميل للبحث...">
                 <input type="hidden" id="customerSelect">
             </div>
             <div class="col-12 mt-2">
@@ -148,10 +122,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { 
-        getFirestore, initializeFirestore, persistentLocalCache, collection, getDocs, 
-        addDoc, doc, getDoc, updateDoc, serverTimestamp, query, where, limit 
-    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, addDoc, doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -164,35 +135,60 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    
-    const db = initializeFirestore(app, {
-        localCache: persistentLocalCache()
-    });
+    const db = getFirestore(app);
 
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('edit');
     
     let customersDataMap = {};
-    let timeouts = {}; 
 
     async function initPage() {
         try {
-            // فحص جلب التذكيرات بالطلبيات القريبة أولاً
-            await checkUpcomingOrders();
-
-            document.getElementById('customerInput').addEventListener('input', function() {
-                const val = this.value.trim();
-                if(customersDataMap[val]) {
-                    document.getElementById('customerSelect').value = customersDataMap[val];
-                    return;
+            // 1. جلب العملاء
+            const custSnap = await getDocs(collection(db, "customers"));
+            const custDatalist = document.getElementById('customersList');
+            let custOptions = '';
+            
+            custSnap.forEach(doc => {
+                const data = doc.data();
+                if(data.name) {
+                    const cleanedName = data.name.trim();
+                    custOptions += `<option value="${cleanedName}">`;
+                    customersDataMap[cleanedName] = doc.id;
                 }
-                if(val.length >= 3) {
-                    clearTimeout(timeouts['cust']);
-                    timeouts['cust'] = setTimeout(() => searchCustomersFirebase(val), 400); 
+            });
+            custDatalist.innerHTML = custOptions;
+
+            // مستمع الأحداث المطور للتحقق من العميل وإعطاء إشارة مرئية
+            const customerInput = document.getElementById('customerInput');
+            customerInput.addEventListener('input', function() {
+                const inputValue = this.value.trim();
+                const selectedId = customersDataMap[inputValue];
+                
+                if (selectedId) {
+                    document.getElementById('customerSelect').value = selectedId;
+                    this.classList.add('is-valid-customer');
+                } else {
+                    document.getElementById('customerSelect').value = '';
+                    this.classList.remove('is-valid-customer');
                 }
             });
 
-            document.getElementById('requiredDate').value = new Date().toISOString().split('T')[0];
+            // 2. جلب أصناف المخزن
+            const invSnap = await getDocs(collection(db, "inventory")); 
+            const datalist = document.getElementById('inventoryList');
+            let options = '';
+            invSnap.forEach(doc => {
+                const data = doc.data();
+                const itemName = data.name || data.itemName;
+                if(itemName) options += `<option value="${itemName.trim()}">`;
+            });
+            datalist.innerHTML = options;
+
+            // تعيين تاريخ اليوم كحد أدنى و كقيمة افتراضية
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('requiredDate').value = today;
+            document.getElementById('requiredDate').min = today;
 
             if (editId) {
                 await loadOrderData();
@@ -200,117 +196,9 @@
                 addNewRow();
             }
         } catch (e) {
-            console.error(e);
+            console.error("حدث خطأ أثناء تحميل البيانات: ", e);
         }
     }
-
-    // دالة فحص الطلبيات المقتربة الذكية والموفرة لاستهلاك فايربيس
-    async function checkUpcomingOrders() {
-        try {
-            const today = new Date();
-            const dateStrings = [];
-            
-            // حساب صيغ التواريخ للأيام الثلاثة القادمة (اليوم، غداً، بعد غد)
-            for(let i = 0; i < 3; i++) {
-                const d = new Date();
-                d.setDate(today.getDate() + i);
-                dateStrings.push(d.toISOString().split('T')[0]);
-            }
-
-            // استعلام موفر جداً: يجلب الطلبيات القائمة والمعلقة التي يطابق تاريخها الأيام الـ 3 القادمة فقط
-            const q = query(
-                collection(db, "customer_orders"),
-                where("status", "==", "pending"),
-                where("requiredDate", "in", dateStrings),
-                limit(5) // جلب أقصى 5 تنبيهات لعدم استهلاك الإنترنت
-            );
-
-            const snap = await getDocs(q);
-            if(snap.empty) return; // إذا لم يجد طلبيات قريبة، يبقى المربع مخفياً
-
-            const reminderList = document.getElementById('reminderList');
-            let listHtml = '';
-
-            for (const orderDoc of snap.docs) {
-                const orderData = orderDoc.data();
-                
-                // جلب اسم العميل الفردي للمستند لعدم تحميل قائمة العملاء كاملة
-                let custName = "عميل غير معروف";
-                if(orderData.customerId) {
-                    const cSnap = await getDoc(doc(db, "customers", orderData.customerId));
-                    if(cSnap.exists()) custName = cSnap.data().name;
-                }
-
-                listHtml += `
-                    <div class="reminder-item">
-                        <div>
-                            <strong class="text-dark">${custName}</strong>
-                            <div class="text-muted small"><i class="far fa-calendar-alt me-1"></i> مطلوب في: ${orderData.requiredDate}</div>
-                        </div>
-                        <a href="?edit=${orderDoc.id}" class="btn btn-sm btn-outline-warning text-dark fw-bold px-3" style="border-radius:8px;">
-                            <i class="fas fa-edit me-1"></i> عرض وتعديل
-                        </a>
-                    </div>
-                `;
-            }
-
-            reminderList.innerHTML = listHtml;
-            document.getElementById('reminderBox').style.display = 'block'; // إظهار مربع التذكير
-
-        } catch (err) {
-            console.error("خطأ أثناء فحص التذكيرات:", err);
-        }
-    }
-
-    async function searchCustomersFirebase(searchText) {
-        try {
-            const q = query(
-                collection(db, "customers"),
-                where("name", ">=", searchText),
-                where("name", "<=", searchText + '\uf8ff'),
-                limit(5) 
-            );
-            const snap = await getDocs(q);
-            const datalist = document.getElementById('customersList');
-            let options = '';
-            
-            snap.forEach(doc => {
-                const data = doc.data();
-                if(data.name) {
-                    const name = data.name.trim();
-                    options += `<option value="${name}">`;
-                    customersDataMap[name] = doc.id;
-                }
-            });
-            datalist.innerHTML = options;
-        } catch (err) { console.error(err); }
-    }
-
-    window.searchInventoryFirebase = async (inputElement) => {
-        const val = inputElement.value.trim();
-        if(val.length < 2) return;
-
-        clearTimeout(timeouts[inputElement.id]);
-        timeouts[inputElement.id] = setTimeout(async () => {
-            try {
-                const q = query(
-                    collection(db, "inventory"),
-                    where("name", ">=", val),
-                    where("name", "<=", val + '\uf8ff'),
-                    limit(7) 
-                );
-                const snap = await getDocs(q);
-                const datalist = document.getElementById('inventoryList');
-                let options = '';
-                snap.forEach(doc => {
-                    const data = doc.data();
-                    const itemName = data.name || data.itemName;
-                    if(itemName) options += `<option value="${itemName.trim()}">`;
-                });
-                datalist.innerHTML = options;
-            } catch(e) { console.error(e); }
-        }, 400);
-    };
 
     async function loadOrderData() {
         document.getElementById('pageTitle').innerText = "تعديل طلبية العميل";
@@ -318,31 +206,35 @@
         document.getElementById('statusLabel').className = "badge-status bg-warning text-dark fw-bold";
         document.getElementById('btnSave').innerText = "تحديث البيانات";
 
+        // تم توحيد المجموعة إلى customer_orders لتعديل الطلبيات بشكل صحيح
         const orderRef = doc(db, "customer_orders", editId);
         const snap = await getDoc(orderRef);
 
         if (snap.exists()) {
             const data = snap.data();
-            document.getElementById('customerSelect').value = data.customerId;
             
-            const custSnap = await getDoc(doc(db, "customers", data.customerId));
-            if(custSnap.exists()) {
-                const cName = custSnap.data().name;
-                document.getElementById('customerInput').value = cName;
-                customersDataMap[cName] = custSnap.id;
+            document.getElementById('customerSelect').value = data.customerId;
+            for (let name in customersDataMap) {
+                if (customersDataMap[name] === data.customerId) {
+                    document.getElementById('customerInput').value = name;
+                    document.getElementById('customerInput').classList.add('is-valid-customer');
+                    break;
+                }
             }
             
             document.getElementById('orderNote').value = data.note || "";
-            if(data.requiredDate) document.getElementById('requiredDate').value = data.requiredDate;
+            if(data.requiredDate) {
+                document.getElementById('requiredDate').value = data.requiredDate;
+            }
             
-            document.getElementById('itemsContainer').innerHTML = ''; 
+            document.getElementById('itemsContainer').innerHTML = '';
             data.items.forEach(item => addNewRow(item));
         }
     }
 
     window.addNewRow = (item = null) => {
         const container = document.getElementById('itemsContainer');
-        const rowId = 'r_' + Math.random().toString(36).substr(2, 9);
+        const rowId = Date.now() + Math.random();
         const html = `
             <div class="order-item" id="row_${rowId}">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -351,17 +243,16 @@
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
-                <input type="text" class="form-control item-name" list="inventoryList" id="input_${rowId}"
-                       oninput="searchInventoryFirebase(this)"
-                       value="${item ? item.name : ''}" placeholder="اكتب للبحث عن الصنف...">
+                <input type="text" class="form-control item-name" list="inventoryList" 
+                       value="${item ? item.name : ''}" placeholder="ابحث أو اكتب اسم الصنف...">
                 <div class="row g-2">
                     <div class="col-6">
                         <label>الكمية</label>
-                        <input type="number" class="form-control item-qty" value="${item ? item.qty : ''}" placeholder="0">
+                        <input type="number" class="form-control item-qty" value="${item ? item.qty : ''}" placeholder="0" min="1">
                     </div>
                     <div class="col-6">
                         <label>السعر (اختياري)</label>
-                        <input type="number" class="form-control item-price" value="${item ? (item.price || '') : ''}" placeholder="0.00">
+                        <input type="number" class="form-control item-price" value="${item ? (item.price || '') : ''}" placeholder="0.00" min="0" step="0.01">
                     </div>
                 </div>
             </div>
@@ -376,7 +267,7 @@
         const note = document.getElementById('orderNote').value;
         const rows = document.querySelectorAll('.order-item');
 
-        if(!custId) return alert("برجاء اختيار عميل صحيح يظهر في قائمة البحث المنسدلة");
+        if(!custId) return alert("برجاء اختيار عميل صحيح من القائمة المنسدلة الناتجة عن البحث");
         if(!requiredDate) return alert("برجاء تحديد التاريخ المطلوب للطلبية");
         if(rows.length === 0) return alert("برجاء إضافة صنف واحد على الأقل للطلبية");
 
@@ -405,7 +296,7 @@
                 customerId: custId,
                 items,
                 note,
-                requiredDate, 
+                requiredDate,
                 updatedAt: serverTimestamp(),
                 date: new Date().toISOString().split('T')[0]
             };
