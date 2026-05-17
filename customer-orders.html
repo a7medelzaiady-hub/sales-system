@@ -147,61 +147,96 @@ async function loadCustomers(){
 }
 
 /* ================= الأصناف ================= */
+
 async function loadProducts(){
+
     const snap = await getDocs(collection(db,'products'));
+
     products = [];
 
     snap.forEach(d=>{
-        products.push(d.data().name);
+
+        const data = d.data();
+
+        if(data.name){
+            products.push(data.name);
+        }
+
     });
+
+    console.log(products);
+
 }
 
-
 /* ================= إضافة صنف ================= */
+/* ================= إضافة صنف ================= */
+
 window.addItem = () => {
+
+    if(products.length === 0){
+        alert("لم يتم تحميل الأصناف من المخزن");
+        return;
+    }
 
     const div = document.createElement("div");
     div.className = "order-item";
 
-    const listId = "productsList_" + Math.random().toString(36).substring(2,9);
+    const listId =
+    "productsList_" + Date.now() + Math.floor(Math.random()*1000);
 
     div.innerHTML = `
-        <div class="row g-2">
 
-            <div class="col-7">
+    <div class="row g-2 align-items-center">
 
-                <input
-                    class="form-control item-name"
-                    list="${listId}"
-                    placeholder="اكتب اسم الصنف">
+        <div class="col-7">
 
-                <datalist id="${listId}">
-                    ${products.map(p=>`
-                        <option value="${p}"></option>
-                    `).join('')}
-                </datalist>
+            <input
+                type="text"
+                class="form-control item-name"
+                list="${listId}"
+                placeholder="اختر أو اكتب الصنف">
 
-            </div>
+            <datalist id="${listId}">
 
-            <div class="col-4">
-                <input
-                    class="form-control item-qty"
-                    type="number"
-                    placeholder="الكمية">
-            </div>
+                ${products.map(p => `
+                    <option value="${p}">
+                `).join('')}
 
-            <div class="col-1">
-                <button
-                    class="btn btn-danger btn-sm"
-                    onclick="this.closest('.order-item').remove()">
-                    X
-                </button>
-            </div>
+            </datalist>
 
         </div>
+
+        <div class="col-3">
+
+            <input
+                type="number"
+                min="1"
+                value="1"
+                class="form-control item-qty"
+                placeholder="الكمية">
+
+        </div>
+
+        <div class="col-2">
+
+            <button
+                type="button"
+                class="btn btn-danger w-100"
+                onclick="this.closest('.order-item').remove()">
+
+                🗑️
+
+            </button>
+
+        </div>
+
+    </div>
+
     `;
 
-    document.getElementById("itemsContainer").appendChild(div);
+    document
+    .getElementById("itemsContainer")
+    .appendChild(div);
 };
 
 /* ================= حفظ الطلب ================= */
@@ -267,16 +302,31 @@ async function checkAlerts(){
 }
 
 /* ================= تشغيل ================= */
+/* ================= تشغيل ================= */
+
 async function init(){
 
-    await loadCustomers();
+    try{
 
-    await loadProducts();
+        await loadCustomers();
 
-    await checkAlerts();
+        await loadProducts();
 
-    addItem();
+        await checkAlerts();
+
+        addItem();
+
+    }catch(e){
+
+        console.error(e);
+
+        alert("حدث خطأ أثناء تحميل البيانات");
+
+    }
+
 }
+
+init();
 
 init();
 
