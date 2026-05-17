@@ -3,234 +3,175 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>طلبات العملاء</title>
+<title>فاتورة طلب عميل</title>
 
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
-body{font-family:Cairo;background:#f5f7f6;padding-bottom:80px}
+body{
+font-family:Cairo;
+background:#f4f6f8;
+}
 
 .header{
-background:#0b5e3d;color:#fff;padding:15px;
-font-weight:bold;font-size:18px;
+background:#0b5e3d;
+color:#fff;
+padding:15px;
+font-weight:bold;
 }
 
-.card-box{
-background:#fff;padding:15px;border-radius:15px;
-margin-top:10px;box-shadow:0 2px 8px rgba(0,0,0,.05)
+.invoice{
+background:#fff;
+border-radius:15px;
+padding:15px;
+margin-top:15px;
+box-shadow:0 2px 10px rgba(0,0,0,0.05);
 }
 
-.order-card{
-background:#fff;padding:15px;border-radius:15px;
-margin-top:10px;border-right:5px solid #0b5e3d
+.row-item{
+display:flex;
+gap:10px;
+margin-top:10px;
+}
+
+.row-item input{
+border-radius:10px;
+}
+
+.btn-add{
+background:#0b5e3d;
+color:#fff;
+border:none;
+padding:10px;
+width:100%;
+border-radius:10px;
+margin-top:10px;
 }
 
 .btn-save{
-background:#0b5e3d;color:#fff;width:100%;
-padding:10px;border:none;border-radius:10px
+background:#198754;
+color:#fff;
+border:none;
+padding:12px;
+width:100%;
+border-radius:10px;
+margin-top:10px;
 }
 
-.suggest-box{
-position:relative
+.remove{
+background:#dc3545;
+color:#fff;
+border:none;
+width:40px;
+border-radius:10px;
 }
 
-.suggest-list{
-position:absolute;background:#fff;width:100%;
-border:1px solid #ddd;z-index:999;
-max-height:150px;overflow:auto
-}
-
-.suggest-item{
-padding:8px;cursor:pointer
-}
-
-.suggest-item:hover{
-background:#f1f1f1
+.total{
+font-weight:bold;
+font-size:18px;
+text-align:left;
+margin-top:10px;
 }
 </style>
-
 </head>
 
 <body>
 
-<div class="header">طلبات العملاء</div>
+<div class="header">🧾 فاتورة طلب عميل</div>
 
 <div class="container">
 
-<!-- 🔍 Search -->
-<input id="searchBox" class="form-control mt-2" placeholder="بحث باسم العميل أو الصنف..." oninput="searchOrders()">
+<!-- 👤 العميل -->
+<div class="invoice">
 
-<!-- FORM -->
-<div class="card-box">
+<label>اسم العميل</label>
+<input id="customerName" class="form-control" placeholder="اكتب اسم العميل">
 
-<!-- 👇 Auto Complete Client -->
-<div class="suggest-box">
-<input id="customerInput" class="form-control" placeholder="اكتب اسم العميل...">
-<div id="suggestList" class="suggest-list d-none"></div>
+<label class="mt-2">رقم الهاتف</label>
+<input id="phone" class="form-control">
+
+<label class="mt-2">تاريخ التسليم</label>
+<input type="date" id="date" class="form-control">
+
+<hr>
+
+<!-- 📦 الأصناف -->
+<div id="itemsBox"></div>
+
+<button class="btn-add" onclick="addItem()">+ إضافة صنف</button>
+
+<div class="total">
+الإجمالي: <span id="total">0</span>
 </div>
 
-<input id="deliveryDate" type="date" class="form-control mt-2">
-
-<div id="itemsContainer"></div>
-
-<button class="btn btn-outline-primary mt-2 w-100" onclick="addItemRow()">+ صنف</button>
-
-<textarea id="notes" class="form-control mt-2" placeholder="ملاحظات"></textarea>
-
-<button class="btn-save mt-2" onclick="saveOrder()">حفظ الطلب</button>
+<!-- 💾 -->
+<button class="btn-save" onclick="saveInvoice()">حفظ الفاتورة</button>
 
 </div>
 
-<div id="ordersContainer"></div>
-
 </div>
 
-<script type="module">
+<script>
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import {
-getFirestore, collection, addDoc, getDocs, query, orderBy, serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+let itemsBox = document.getElementById("itemsBox");
 
-const firebaseConfig = {
-apiKey:"AIzaSyAS0NNcZy0-t-LN2WCB7p0941jR0bo-MNls",
-authDomain:"ahmedelzaiady.firebaseapp.com",
-projectId:"ahmedelzaiady"
-};
+/* ===== إضافة صنف ===== */
+function addItem(){
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-let customers = [];
-let orders = [];
-
-/* ===== LOAD CUSTOMERS ===== */
-async function loadCustomers(){
-const snap = await getDocs(collection(db,'customers'));
-
-customers = [];
-
-snap.forEach(d=>{
-customers.push(d.data().name);
-});
-}
-
-/* ===== AUTOCOMPLETE ===== */
-const input = document.getElementById("customerInput");
-const list = document.getElementById("suggestList");
-
-input.addEventListener("input", ()=>{
-
-let val = input.value.toLowerCase();
-list.innerHTML = "";
-
-if(!val){
-list.classList.add("d-none");
-return;
-}
-
-let filtered = customers.filter(c=>c.toLowerCase().includes(val));
-
-filtered.forEach(c=>{
 let div = document.createElement("div");
-div.className="suggest-item";
-div.innerText = c;
-
-div.onclick = ()=>{
-input.value = c;
-list.classList.add("d-none");
-};
-
-list.appendChild(div);
-});
-
-list.classList.remove("d-none");
-
-});
-
-/* ===== ITEMS ===== */
-window.addItemRow = ()=>{
-const div = document.createElement('div');
+div.className = "row-item";
 
 div.innerHTML = `
-<div class="row mt-2">
-<div class="col-7">
-<input class="form-control item-name" placeholder="الصنف">
-</div>
-<div class="col-4">
-<input class="form-control item-qty" type="number" placeholder="كمية">
-</div>
-<div class="col-1">
-<button class="btn btn-danger btn-sm" onclick="this.parentElement.parentElement.remove()">X</button>
-</div>
-</div>
+<input class="form-control name" placeholder="اسم الصنف" style="flex:3">
+<input class="form-control qty" type="number" placeholder="كمية" style="flex:1">
+<button class="remove" onclick="this.parentElement.remove();calcTotal()">X</button>
 `;
 
-document.getElementById('itemsContainer').appendChild(div);
-};
+itemsBox.appendChild(div);
+}
 
-/* ===== SAVE ===== */
-window.saveOrder = async ()=>{
+/* ===== حساب إجمالي (اختياري) ===== */
+function calcTotal(){
 
-const customerName = input.value;
-const date = document.getElementById('deliveryDate').value;
-const notes = document.getElementById('notes').value;
+let qtys = document.querySelectorAll(".qty");
+let total = 0;
+
+qtys.forEach(q=>{
+total += Number(q.value || 0);
+});
+
+document.getElementById("total").innerText = total;
+}
+
+/* ===== حفظ ===== */
+function saveInvoice(){
+
+let customer = document.getElementById("customerName").value;
+let phone = document.getElementById("phone").value;
+let date = document.getElementById("date").value;
 
 let items = [];
 
-document.querySelectorAll('.item-name').forEach((el,i)=>{
-let qty = document.querySelectorAll('.item-qty')[i].value;
-if(el.value) items.push(`${el.value} × ${qty}`);
+document.querySelectorAll(".row-item").forEach(row=>{
+let name = row.querySelector(".name").value;
+let qty = row.querySelector(".qty").value;
+
+if(name){
+items.push(name + " × " + qty);
+}
 });
 
-await addDoc(collection(db,'customer_orders'),{
-customerName,
-deliveryDate:date,
-items:items.join('\n'),
-notes,
-status:"new",
-timestamp:serverTimestamp()
-});
-
-alert("تم الحفظ");
-loadOrders();
-};
-
-/* ===== LOAD ORDERS ===== */
-async function loadOrders(){
-
-const snap = await getDocs(query(collection(db,'customer_orders'),orderBy('timestamp','desc')));
-
-orders = [];
-
-snap.forEach(d=>orders.push(d.data()));
-
-render(orders);
+alert(
+"تم حفظ الفاتورة\n\n" +
+"العميل: " + customer + "\n" +
+"المنتجات:\n" + items.join("\n")
+);
 }
 
-/* ===== RENDER ===== */
-function render(list){
+/* ===== حدث حساب تلقائي ===== */
+document.addEventListener("input", calcTotal);
 
-document.getElementById('ordersContainer').innerHTML =
-list.map(o=>`
+</script>
 
-<div class="order-card">
-
-<h5>${o.customerName || ""}</h5>
-<div class="text-muted">${o.deliveryDate || ""}</div>
-
-<pre style="white-space:pre-wrap;margin-top:10px">
-${o.items || ""}
-</pre>
-
-<div style="margin-top:10px;color:#555">
-${o.notes || ""}
-</div>
-
-</div>
-
-`).join("");
-}
-  loadCustomers();
-loadOrders();
+</body>
+</html>
