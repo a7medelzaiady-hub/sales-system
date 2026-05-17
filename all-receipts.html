@@ -37,9 +37,10 @@
         }
         .btn-delete:hover { background: rgba(220, 53, 69, 0.1); }
 
+        /* قالب التصوير السري والمخفي */
         #receiptCaptureTemplate {
             width: 450px; position: absolute; left: -9999px; top: -9999px;
-            background: #ffffff; padding: 30px; border: 2px solid #0b5e3d; border-radius: 10px;
+            background: #ffffff; padding: 30px; border: 2px solid #0b5e3d; border-radius: 12px;
         }
     </style>
 </head>
@@ -64,7 +65,7 @@
     </div>
 </div>
 
-<!-- قالب البنية للتصوير اللحظي والمشاركة -->
+<!-- ================= قالب البنية للتصوير اللحظي والمشاركة المعدل بالكامل ================= -->
 <div id="receiptCaptureTemplate">
     <div style="text-align: center; border-bottom: 2px dashed #0b5e3d; padding-bottom: 15px; margin-bottom: 20px;">
         <h3 style="color: #0b5e3d; margin: 0; font-weight: 700;">الزيادي لزيوت السيارات</h3>
@@ -73,12 +74,18 @@
     <div style="text-align: center; margin-bottom: 25px;">
         <span id="img_Type" style="font-size: 1.3rem; font-weight: 700; padding: 5px 30px; border-radius: 8px; color: #fff;"></span>
     </div>
-    <table style="width: 100%; font-size: 1rem; border-collapse: collapse;" dir="rtl">
+    <table style="width: 100%; font-size: 1.05rem; border-collapse: collapse;" dir="rtl">
         <tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 0; color: #666;">اسم العميل:</td><td style="padding: 10px 0; font-weight: 700; text-align: left;" id="img_CustName"></td></tr>
         <tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 0; color: #666;">التاريخ:</td><td style="padding: 10px 0; font-weight: 700; text-align: left;" id="img_Date"></td></tr>
-        <tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 0; color: #666;">المبلغ:</td><td style="padding: 10px 0; font-size: 1.2rem; font-weight: 700; text-align: left; color: #0b5e3d;" id="img_Amount"></td></tr>
+        <tr style="border-bottom: 1px solid #eee;"><td style="padding: 10px 0; color: #666;">المبلغ المدفوع:</td><td style="padding: 10px 0; font-size: 1.2rem; font-weight: 700; text-align: left; color: #0b5e3d;" id="img_Amount"></td></tr>
+        
+        <!-- البنود الجديدة المضافة بطلبك وضبط حساباتها -->
+        <tr style="border-bottom: 1px solid #eee; background: #fafafa;"><td style="padding: 10px 8px; color: #555;">الحساب السابق:</td><td style="padding: 10px 8px; font-weight: 700; text-align: left; color: #444;" id="img_PrevBalance">0 ج.م</td></tr>
+        <tr style="border-bottom: 1px solid #eee; background: #f1f9f5;"><td style="padding: 10px 8px; color: #0b5e3d; font-weight: bold;">الرصيد المتبقي:</td><td style="padding: 10px 8px; font-size: 1.15rem; font-weight: 800; text-align: left; color: #0b5e3d;" id="img_RemBalance">0 ج.م</td></tr>
+        
         <tr><td style="padding: 10px 0; color: #666; vertical-align: top;">البيان:</td><td style="padding: 10px 0; font-weight: 600; text-align: left; color: #444;" id="img_Notes"></td></tr>
     </table>
+    
     <div style="margin-top: 40px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding-top: 15px;">
         <span style="font-size: 0.75rem; color: #999;">توقيع المستلم المعتمَد</span>
         <span style="font-size: 0.75rem; color: #0b5e3d; font-weight: bold;">سند مالي إلكتروني مُوثق</span>
@@ -103,8 +110,8 @@
     const db = initializeFirestore(app, { localCache: persistentLocalCache() });
 
     let localReceiptsArray = [];
+    let globalCustomersCache = {}; // كاش لحفظ بيانات العملاء وأرصدتهم الحالية
 
-    // دالة جلب السندات مع التحقق الذكي من اسم العميل لتجنب "عميل غير مدرج"
     async function loadAllReceipts() {
         const container = document.getElementById('receiptsListContainer');
         try {
@@ -117,24 +124,29 @@
             }
 
             localReceiptsArray = [];
+            globalCustomersCache = {};
 
-            // جلب خريطة سريعة لكل العملاء الحاليين لمطابقة المعرف بالاسم الفعلي فوراً كخط دفاع ثانٍ
-            let customersCache = {};
+            // جلب خريطة العملاء مع الاحتفاظ بالرصيد الحالي (balance) الخاص بكل عميل
             try {
                 const custSnap = await getDocs(collection(db, "customers"));
                 custSnap.forEach(cDoc => {
-                    customersCache[cDoc.id] = cDoc.data().name;
+                    const cData = cDoc.data();
+                    globalCustomersCache[cDoc.id] = {
+                        name: cData.name,
+                        balance: cData.balance || 0
+                    };
                 });
-            } catch(ce) { console.error("خطأ في جلب الكاش للأعضاء:", ce); }
+            } catch(ce) { console.error("خطأ في جلب بيانات العملاء:", ce); }
 
             snap.forEach(doc => {
                 const data = doc.data();
                 
-                // البحث الذكي عن الاسم: 1- الحقل المباشر، 2- المطابقة مع كاش جدول العملاء عبر الـ partyId
                 let resolvedName = data.customerName || data.partyName;
+                let partyId = data.partyId || "";
+
                 if (!resolvedName || resolvedName === "عميل غير مدرج الاسم") {
-                    if (data.partyId && customersCache[data.partyId]) {
-                        resolvedName = customersCache[data.partyId];
+                    if (partyId && globalCustomersCache[partyId]) {
+                        resolvedName = globalCustomersCache[partyId].name;
                     } else {
                         resolvedName = "عميل نقدي / غير معرف";
                     }
@@ -142,8 +154,9 @@
 
                 localReceiptsArray.push({
                     id: doc.id,
+                    partyId: partyId,
                     customerName: resolvedName,
-                    amount: data.amount || 0,
+                    amount: Number(data.amount) || 0,
                     date: data.date || "---",
                     notes: data.notes || "لا يوجد ملاحظات",
                     type: data.type || "قبض"
@@ -172,7 +185,6 @@
                     <span class="badge-receipt ${isGabz ? 'bg-gabz' : 'bg-sarf'}">سند ${item.type}</span>
                     <div class="d-flex align-items-center gap-2">
                         <span class="fw-bold text-muted small"><i class="far fa-calendar-alt me-1"></i> ${item.date}</span>
-                        <!-- زر الحذف السريع (سلة المهملات) -->
                         <button class="btn-delete" onclick="deleteReceiptById('${item.id}')" title="حذف السند">
                             <i class="fas fa-trash-alt"></i>
                         </button>
@@ -181,7 +193,7 @@
                 <h6 class="fw-bold text-dark mb-1"><i class="fas fa-user text-muted small me-1"></i> ${item.customerName}</h6>
                 <div class="d-flex justify-content-between align-items-center mt-2">
                     <span class="fw-bold text-success">${item.amount.toLocaleString()} ج.م</span>
-                    <button class="btn btn-sm btn-outline-dark fw-bold" onclick="reShareImage('${item.customerName}', ${item.amount}, '${item.date}', '${item.notes}', '${item.type}')">
+                    <button class="btn btn-sm btn-outline-dark fw-bold" onclick="reShareImage('${item.id}')">
                         <i class="fas fa-share-alt me-1"></i> شير الصورة 🔗
                     </button>
                 </div>
@@ -197,27 +209,25 @@
         renderList(filtered);
     };
 
-    // دالة الحذف من الفايربيس وتحديث الواجهة مباشرة
     window.deleteReceiptById = async (id) => {
-        if (!confirm("هل أنت متأكد من رغبتك في حذف هذا السند نهائياً من الحسابات؟")) return;
-        
+        if (!confirm("هل أنت متأكد من رغبتك في حذف هذا السند نهائياً؟")) return;
         try {
             await deleteDoc(doc(db, "transactions", id));
             alert("تم حذف السند بنجاح");
-            // إزالة السند محلياً من المصفوفة لإخفائه فوراً
             localReceiptsArray = localReceiptsArray.filter(item => item.id !== id);
             renderList(localReceiptsArray);
-        } catch (err) {
-            console.error(err);
-            alert("عذراً، فشل حذف السند من السيرفر.");
-        }
+        } catch (err) { alert("فشل الحذف من السيرفر."); }
     };
 
-    window.reShareImage = async (name, amt, date, notes, type) => {
+    // الدالة المطورة لإنتاج الصورة مع الحساب السابق والمتبقي بدقة متناهية
+    window.reShareImage = async (receiptId) => {
+        const item = localReceiptsArray.find(r => r.id === receiptId);
+        if(!item) return alert("تعذر العثور على بيانات السند");
+
         const template = document.getElementById('receiptCaptureTemplate');
         const badge = document.getElementById('img_Type');
         
-        if(type === 'قبض') {
+        if(item.type === 'قبض') {
             badge.innerText = "سند قبض مالي";
             badge.style.background = "#28a745";
         } else {
@@ -225,22 +235,42 @@
             badge.style.background = "#dc3545";
         }
 
-        document.getElementById('img_CustName').innerText = name;
-        document.getElementById('img_Date').innerText = date;
-        document.getElementById('img_Amount').innerText = amt.toLocaleString('ar-EG') + " ج.م";
-        document.getElementById('img_Notes').innerText = notes && notes !== "undefined" ? notes : "لا يوجد ملاحظات إضافية";
+        // حساب الرصيد السابق والمتبقي بناءً على البيانات المسترجعة
+        let currentCustomerBalance = 0;
+        if (item.partyId && globalCustomersCache[item.partyId]) {
+            currentCustomerBalance = globalCustomersCache[item.partyId].balance;
+        }
 
-        await new Promise(r => setTimeout(r, 200));
+        let prevBalance = 0;
+        let remBalance = currentCustomerBalance;
+
+        // ضبط وتعديل المتبقي: السند مخزن ومحسوب بالفعل في الرصيد الحالي للـ Firebase
+        // إذن: الرصيد المتبقي (الآن) هو الرصيد الحالي للعميل. والحساب السابق يتم استنتاجه عكسياً.
+        if(item.type === 'قبض') {
+            prevBalance = remBalance + item.amount; // الرصيد قبل الخصم
+        } else {
+            prevBalance = remBalance - item.amount; // الرصيد قبل الإضافة (إذا كان صرف)
+        }
+
+        // تعبئة حقول الصورة
+        document.getElementById('img_CustName').innerText = item.customerName;
+        document.getElementById('img_Date').innerText = item.date;
+        document.getElementById('img_Amount').innerText = item.amount.toLocaleString('ar-EG') + " ج.م";
+        document.getElementById('img_PrevBalance').innerText = prevBalance.toLocaleString('ar-EG') + " ج.م";
+        document.getElementById('img_RemBalance').innerText = remBalance.toLocaleString('ar-EG') + " ج.م";
+        document.getElementById('img_Notes').innerText = item.notes && item.notes !== "undefined" ? item.notes : "لا يوجد ملاحظات إضافية";
+
+        await new Promise(r => setTimeout(r, 250)); // مهلة بسيطة لضمان كتابة النصوص بداخل الصورة
 
         try {
             const canvas = await html2canvas(template, { scale: 2 });
             canvas.toBlob(async (blob) => {
-                const file = new File([blob], `سند_${type}_${name}.png`, { type: 'image/png' });
+                const file = new File([blob], `سند_${item.type}_${item.customerName}.png`, { type: 'image/png' });
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     await navigator.share({ files: [file], title: `سند مالي` });
                 } else {
                     const link = document.createElement('a');
-                    link.download = `سند_${type}_${name}.png`;
+                    link.download = `سند_${item.type}_${item.customerName}.png`;
                     link.href = URL.createObjectURL(blob);
                     link.click();
                 }
@@ -250,7 +280,6 @@
 
     window.exportToExcel = () => {
         if(localReceiptsArray.length === 0) return alert("لا توجد بيانات لتصديرها");
-        
         const cleanData = localReceiptsArray.map((item, index) => ({
             "م": index + 1,
             "اسم العميل": item.customerName,
@@ -259,11 +288,9 @@
             "التاريخ": item.date,
             "البيان / الملاحظات": item.notes
         }));
-
         const worksheet = XLSX.utils.json_to_sheet(cleanData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "السندات المالية");
-        
         XLSX.writeFile(workbook, `سندات_شركة_الزيادي_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
