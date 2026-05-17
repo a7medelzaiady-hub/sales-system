@@ -1,234 +1,301 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>كل الطلبات</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background: #f4f7f6;
+            padding-bottom: 40px;
+        }
 
-<title>كل الطلبات</title>
+        .header {
+            background: #0b5e3d;
+            color: #fff;
+            padding: 15px;
+            font-size: 20px;
+            font-weight: bold;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
 
-<link rel="stylesheet"
-href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+        /* تصميم مربع التذكير الذكي */
+        .reminder-card {
+            background: #fff9e6;
+            border: 1px solid #ffe0b2;
+            border-right: 5px solid #ff9800;
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 15px;
+            display: none; /* يظهر فقط عند وجود طلبيات قريبة */
+        }
 
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap"
-rel="stylesheet">
+        .reminder-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px dashed #ffe0b2;
+        }
+        .reminder-item:last-child { border-bottom: none; }
 
-<style>
+        .order-card {
+            background: #fff;
+            border-radius: 15px;
+            padding: 15px;
+            margin-top: 15px;
+            border: 1px solid #ddd;
+            border-right: 5px solid #0b5e3d;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+        }
 
-body{
-    font-family:'Cairo';
-    background:#f4f7f6;
-}
+        .item {
+            background: #f8faf9;
+            padding: 8px;
+            border-radius: 10px;
+            margin-top: 5px;
+            font-weight: 600;
+        }
 
-.header{
-    background:#0b5e3d;
-    color:#fff;
-    padding:15px;
-    font-size:20px;
-    font-weight:bold;
-}
+        .status {
+            background: #0b5e3d;
+            color: #fff;
+            padding: 4px 10px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: bold;
+        }
 
-.order-card{
-    background:#fff;
-    border-radius:15px;
-    padding:15px;
-    margin-top:15px;
-    border:1px solid #ddd;
-    border-right:5px solid #0b5e3d;
-}
-
-.item{
-    background:#f8faf9;
-    padding:8px;
-    border-radius:10px;
-    margin-top:5px;
-}
-
-.status{
-    background:#0b5e3d;
-    color:#fff;
-    padding:4px 10px;
-    border-radius:10px;
-    font-size:13px;
-}
-
-.empty{
-    text-align:center;
-    margin-top:50px;
-    color:#888;
-}
-
-</style>
+        .empty {
+            text-align: center;
+            margin-top: 50px;
+            color: #888;
+        }
+    </style>
 </head>
 
 <body>
 
 <div class="header d-flex justify-content-between align-items-center">
-
     <span>📋 طلبات العملاء</span>
-
-    <button
-        class="btn btn-light btn-sm"
-        onclick="goHome()">
-
+    <button class="btn btn-light btn-sm fw-bold" onclick="goHome()">
         🏠 الرئيسية
-
     </button>
-
 </div>
 
 <div class="container pb-5">
+    
+    <!-- مربع التذكير الذكي بالطلبيات المقتربة -->
+    <div id="reminderBox" class="reminder-card">
+        <h6 class="fw-bold text-dark mb-2"><i class="fas fa-bell text-warning me-1"></i> تذكير: طلبيات اقترب موعد تسليمها جداً!</h6>
+        <div id="reminderList"></div>
+    </div>
 
+    <!-- حاوية عرض كل الطلبات -->
     <div id="ordersContainer"></div>
 
 </div>
 
 <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { 
+        getFirestore, initializeFirestore, persistentLocalCache, collection, getDocs, 
+        query, orderBy, deleteDoc, doc, getDoc, where, limit 
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-import { initializeApp }
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    const firebaseConfig = {
+        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+        authDomain: "ahmedelzaiady.firebaseapp.com",
+        projectId: "ahmedelzaiady",
+        storageBucket: "ahmedelzaiady.firebasestorage.app",
+        messagingSenderId: "300306825071",
+        appId: "1:300306825071:web:0426ddde56280fa090329a",
+        measurementId: "G-WE04GK5XZZ"
+    };
 
-import {
-getFirestore,
-collection,
-getDocs,
-query,
-orderBy,
-deleteDoc,
-doc
-}
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-/* Firebase */
+    const app = initializeApp(firebaseConfig);
+    // تفعيل الكاش المحلي لتوفير قراءات الفايربيس والإنترنت
+    const db = initializeFirestore(app, { localCache: persistentLocalCache() });
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-  measurementId: "G-WE04GK5XZZ"
-};
+    // ذاكرة مؤقتة لحفظ أسماء العملاء المعروضين لعدم تكرار جلب الاسم من فايربيس
+    let cachedCustomerNames = {};
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-/* تحميل الطلبات */
-
-async function loadOrders(){
-
-    const container =
-    document.getElementById("ordersContainer");
-
-    container.innerHTML = "جاري التحميل...";
-
-    const q = query(
-        collection(db,"customer_orders"),
-        orderBy("createdAt","desc")
-    );
-
-    const snap = await getDocs(q);
-
-    container.innerHTML = "";
-
-    if(snap.empty){
-
-        container.innerHTML = `
-            <div class="empty">
-                لا توجد طلبات
-            </div>
-        `;
-
-        return;
+    // دالة مساعدة سريعة لجلب اسم العميل بناءً على الـ ID الخاص به
+    async function getCustomerName(customerId) {
+        if (!customerId) return "عميل غير معروف";
+        if (cachedCustomerNames[customerId]) return cachedCustomerNames[customerId];
+        
+        try {
+            const cSnap = await getDoc(doc(db, "customers", customerId));
+            if (cSnap.exists()) {
+                cachedCustomerNames[customerId] = cSnap.data().name;
+                return cachedCustomerNames[customerId];
+            }
+        } catch (e) { console.error(e); }
+        return "عميل غير معروف";
     }
 
-    snap.forEach(d=>{
+    /* 1. فحص وعرض التذكيرات بالطلبيات القريبة */
+    async function checkUpcomingOrders() {
+        try {
+            const today = new Date();
+            const dateStrings = [];
+            
+            // حساب تواريخ (اليوم، غداً، بعد غد)
+            for(let i = 0; i < 3; i++) {
+                const d = new Date();
+                d.setDate(today.getDate() + i);
+                dateStrings.push(d.toISOString().split('T')[0]);
+            }
 
-        const order = d.data();
+            // استعلام ذكي وموفر يجلب فقط الطلبيات المعلقة القريبة جداً
+            const q = query(
+                collection(db, "customer_orders"),
+                where("status", "==", "pending"),
+                where("requiredDate", "in", dateStrings),
+                limit(5)
+            );
 
-        let itemsHTML = "";
+            const snap = await getDocs(q);
+            if(snap.empty) {
+                document.getElementById('reminderBox').style.display = 'none';
+                return;
+            }
 
-        order.items.forEach(item=>{
+            const reminderList = document.getElementById('reminderList');
+            let listHtml = '';
 
-            itemsHTML += `
-                <div class="item">
-                    📦 ${item.name}
-                    — الكمية:
-                    <b>${item.qty}</b>
-                </div>
-            `;
-        });
+            for (const orderDoc of snap.docs) {
+                const orderData = orderDoc.data();
+                const custName = await getCustomerName(orderData.customerId);
 
-        const div = document.createElement("div");
+                listHtml += `
+                    <div class="reminder-item">
+                        <div>
+                            <strong class="text-dark">👤 ${custName}</strong>
+                            <div class="text-muted small mt-1"><i class="far fa-calendar-alt text-danger me-1"></i> موعد التسليم: ${orderData.requiredDate || "غير محدد"}</div>
+                        </div>
+                        <a href="add-order.html?edit=${orderDoc.id}" class="btn btn-sm btn-warning text-dark fw-bold px-3" style="border-radius:8px; font-size:12px;">
+                            <i class="fas fa-eye me-1"></i> عرض وتعديل
+                        </a>
+                    </div>
+                `;
+            }
 
-        div.className = "order-card";
-div.innerHTML = `
+            reminderList.innerHTML = listHtml;
+            document.getElementById('reminderBox').style.display = 'block';
 
-<div class="d-flex justify-content-between align-items-start">
+        } catch (err) {
+            console.error("خطأ أثناء جلب التذكيرات:", err);
+        }
+    }
 
-    <div>
-        <h5>${order.customerName}</h5>
+    /* 2. تحميل وعرض كل الطلبات المجدولة */
+    async function loadOrders(){
+        const container = document.getElementById("ordersContainer");
+        container.innerHTML = `<div class="text-center mt-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i> جاري تحميل كل الطلبات...</div>`;
 
-        <small>
-            📅 ${order.deliveryDate}
-        </small>
-    </div>
+        // تشغيل فحص التذكيرات بالتوازي
+        checkUpcomingOrders();
 
-    <div class="d-flex gap-2 align-items-center">
+        try {
+            const q = query(
+                collection(db, "customer_orders"),
+                orderBy("createdAt", "desc")
+            );
 
-        <span class="status">
-            ${order.status}
-        </span>
+            const snap = await getDocs(q);
+            container.innerHTML = "";
 
-        <button
-            class="btn btn-danger btn-sm"
-            onclick="deleteOrder('${d.id}')">
+            if(snap.empty){
+                container.innerHTML = `<div class="empty">📭 لا توجد أي طلبات مسجلة حالياً</div>`;
+                return;
+            }
 
-            🗑️
+            for (const d of snap.docs) {
+                const order = d.data();
+                let itemsHTML = "";
 
-        </button>
+                if (order.items && Array.isArray(order.items)) {
+                    order.items.forEach(item => {
+                        itemsHTML += `
+                            <div class="item">
+                                📦 ${item.name} — الكمية: <b>${item.qty}</b> ${item.price ? `— السعر: <b>${item.price} ج.م</b>` : ''}
+                            </div>
+                        `;
+                    });
+                }
 
-    </div>
+                // جلب اسم العميل بطريقة موفرة
+                const displayCustomerName = await getCustomerName(order.customerId);
 
-</div>
+                const div = document.createElement("div");
+                div.className = "order-card";
+                
+                // تلوين الحافة بناءً على الحالة
+                if(order.status === 'pending') div.style.borderRightColor = '#ff9800';
 
-<hr>
+                div.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="fw-bold mb-1" style="color: #0b5e3d;">${displayCustomerName}</h5>
+                            <small class="text-muted fw-bold">
+                                📅 مطلوب في: ${order.requiredDate || "غير محدد"}
+                            </small>
+                        </div>
+                        <div class="d-flex gap-2 align-items-center">
+                            <span class="status" style="background: ${order.status === 'pending' ? '#ff9800' : '#0b5e3d'}">
+                                ${order.status === 'pending' ? 'قيد الانتظار' : order.status}
+                            </span>
+                            <a href="add-order.html?edit=${d.id}" class="btn btn-outline-secondary btn-sm" title="تعديل">
+                                ✏️
+                            </a>
+                            <button class="btn btn-danger btn-sm" onclick="deleteOrder('${d.id}')" title="حذف">
+                                🗑️
+                            </button>
+                        </div>
+                    </div>
+                    <hr class="my-2" style="opacity: 0.1;">
+                    ${itemsHTML}
+                    <div class="mt-2 bg-light p-2 rounded" style="font-size: 13px;">
+                        <b>📝 ملاحظات:</b>
+                        <span class="text-muted">${order.note || "لا يوجد ملاحظات"}</span>
+                    </div>
+                `;
+                container.appendChild(div);
+            }
+        } catch (e) {
+            console.error(e);
+            container.innerHTML = `<div class="text-center text-danger mt-4">حدث خطأ أثناء جلب البيانات.</div>`;
+        }
+    }
 
-${itemsHTML}
+    // نافذة الحذف المباشر
+    window.deleteOrder = async (id) => {
+        const ok = confirm("هل تريد حذف هذا الطلب نهائياً؟");
+        if(!ok) return;
 
-<div class="mt-3">
-    <b>ملاحظات:</b>
+        try {
+            await deleteDoc(doc(db, "customer_orders", id));
+            alert("تم حذف الطلب بنجاح");
+            loadOrders();
+        } catch (e) {
+            alert("فشل في حذف الطلب");
+        }
+    };
 
-    <div class="text-muted">
-        ${order.note || "لا يوجد"}
-    </div>
-</div>
+    window.goHome = () => {
+        window.location.href = "index.html";
+    };
 
-`;
-
-        container.appendChild(div);
-
-    });
-
-}
-
-loadOrders();
-window.deleteOrder = async (id) => {
-
-    const ok = confirm("هل تريد حذف الطلب؟");
-
-    if(!ok) return;
-
-    await deleteDoc(doc(db, "customer_orders", id));
-
-    alert("تم حذف الطلب");
-
+    // تشغيل الصفحة
     loadOrders();
-};
-   window.goHome = () => {
-
-    window.location.href = "index.html";
-
-}; 
 </script>
 
 </body>
