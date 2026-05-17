@@ -193,7 +193,9 @@ const firebaseConfig = {
 
 let totalPurchaseSum = 0;
 let totalReturnSum = 0;
-let totalPaid = 0;
+
+let totalCashInvoices = 0;
+let totalVoucherPayments = 0;
 
 transSnap.forEach(doc => {
 
@@ -205,7 +207,7 @@ transSnap.forEach(doc => {
         0;
 
     // =========================
-    // شراء
+    // فواتير الشراء
     // =========================
     if (
         data.type === "شراء" ||
@@ -219,17 +221,17 @@ transSnap.forEach(doc => {
 
         totalPurchaseSum += amt;
 
-        // لو نقدي يتحسب مدفوع
+        // الفواتير النقدي تعتبر مدفوعة
         if (data.paymentType === "cash") {
 
-            totalPaid += amt;
+            totalCashInvoices += amt;
 
         }
 
     }
 
     // =========================
-    // مرتجع
+    // مرتجع شراء
     // =========================
     else if (data.type === "مرتجع شراء") {
 
@@ -244,25 +246,35 @@ transSnap.forEach(doc => {
 });
 
 // =========================
-// إضافة سندات الصرف
+// سندات الصرف
 // =========================
 voucherSnap.forEach(v => {
 
-    totalPaid += Number(v.data().amount || 0);
+    const amount =
+        Number(v.data().amount || 0);
+
+    totalVoucherPayments += amount;
 
 });
 
 // =========================
 // الحسابات النهائية
 // =========================
+
+// صافي الشراء
 const netPurchase =
     totalPurchaseSum - totalReturnSum;
 
+// المدفوع = النقدي + سندات الصرف
+const totalPaid =
+    totalCashInvoices + totalVoucherPayments;
+
+// المتبقي
 const finalPending =
     netPurchase - totalPaid;
 
 // =========================
-// عرض القيم
+// عرض النتائج
 // =========================
 document.getElementById('totalPurchase').innerText =
     netPurchase.toLocaleString();
