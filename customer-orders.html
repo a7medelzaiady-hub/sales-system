@@ -95,7 +95,7 @@ input,select{
        list="customersList"
        placeholder="اكتب اسم العميل">
 
-<datalist id="customersList"></datalist>
+
 
 <label class="mt-2">ملاحظات</label>
 <input id="note" class="form-control" placeholder="ملاحظات الطلب">
@@ -203,71 +203,128 @@ console.log("🚨 طلب متأخر:", o.customerName);
 }
 let products = [];
 
-const div = document.createElement("div");
-div.className = "order-item";
+/* ===== تحميل العملاء ===== */
+async function loadCustomers(){
+  const snap = await getDocs(collection(db,'customers'));
 
-div.innerHTML = `
-<div class="row g-2">
+  const list = document.getElementById("customersList");
+  list.innerHTML = "";
 
-<div class="col-7">
-<input class="form-control item-name" placeholder="اسم الصنف">
-</div>
+  snap.forEach((d) => {
+    const name = d.data().name;
 
-<div class="col-4">
-<input class="form-control item-qty" type="number" placeholder="الكمية">
-</div>
+    const option = document.createElement("option");
+    option.value = name;
 
-<div class="col-1">
-<button class="btn btn-danger btn-sm"
-onclick="this.parentElement.parentElement.parentElement.remove()">X</button>
-</div>
+    list.appendChild(option);
+  });
+}
 
-</div>
-`;
+/* ===== تحميل الأصناف ===== */
+async function loadProducts(){
+  const snap = await getDocs(collection(db,'products'));
+  products = [];
 
-document.getElementById("itemsContainer").appendChild(div);
+  snap.forEach(d=>{
+    products.push(d.data().name);
+  });
+}
+
+/* ===== إضافة صنف (صح) ===== */
+window.addItem = () => {
+
+  const div = document.createElement("div");
+  div.className = "order-item";
+
+  div.innerHTML = `
+  <div class="row g-2">
+
+    <div class="col-7">
+      <select class="form-control item-name">
+        <option value="">اختر الصنف</option>
+        ${products.map(p => `<option value="${p}">${p}</option>`).join('')}
+      </select>
+    </div>
+
+    <div class="col-4">
+      <input class="form-control item-qty" type="number" placeholder="الكمية">
+    </div>
+
+    <div class="col-1">
+      <button class="btn btn-danger btn-sm"
+      onclick="this.parentElement.parentElement.parentElement.remove()">X</button>
+    </div>
+
+  </div>
+  `;
+
+  document.getElementById("itemsContainer").appendChild(div);
 };
 
 /* ===== حفظ الطلب ===== */
-window.saveOrder = async ()=>{
+window.saveOrder = async () => {
 
-const customer = document.getElementById("customerSelect").value;
-const note = document.getElementById("note").value;
-const deliveryDate = document.getElementById("deliveryDate").value;
+  const customer = document.getElementById("customerSelect").value;
+  const note = document.getElementById("note").value;
+  const deliveryDate = document.getElementById("deliveryDate").value;
 
-let items = [];
+  let items = [];
 
-document.querySelectorAll(".order-item").forEach(row=>{
-const name = row.querySelector(".item-name").value;
-const qty = row.querySelector(".item-qty").value;
+  document.querySelectorAll(".order-item").forEach(row => {
+    const name = row.querySelector(".item-name").value;
+    const qty = row.querySelector(".item-qty").value;
 
-if(name && qty){
-items.push({name, qty:Number(qty)});
-}
-});
+    if (name && qty) {
+      items.push({ name, qty: Number(qty) });
+    }
+  });
 
-if(!customer || items.length === 0 || !deliveryDate){
-return alert("من فضلك اختر العميل + التاريخ + الأصناف");
-}
+  if (!customer || items.length === 0 || !deliveryDate) {
+    return alert("من فضلك اختر العميل + التاريخ + الأصناف");
+  }
 
-await addDoc(collection(db,'customer_orders'),{
-customerName:customer,
-items,
-note,
-deliveryDate,
-status:"new",
-createdAt:serverTimestamp()
-});
+  await addDoc(collection(db,'customer_orders'), {
+    customerName: customer,
+    items,
+    note,
+    deliveryDate,
+    status: "new",
+    createdAt: serverTimestamp()
+  });
 
-alert("تم حفظ الطلب");
-location.reload();
+  alert("تم حفظ الطلب");
+  location.reload();
 };
 
+/* ===== تنبيهات ===== */
+async function checkAlerts(){
+
+  const snap = await getDocs(collection(db,'customer_orders'));
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  snap.forEach(d=>{
+    const o = d.data();
+    if(!o.deliveryDate) return;
+
+    const dDate = new Date(o.deliveryDate);
+    dDate.setHours(0,0,0,0);
+
+    const diff = Math.ceil((dDate - today)/(1000*60*60*24));
+
+    if(diff === 0){
+      console.log("⚠️ طلب النهارده:", o.customerName);
+    }
+
+    if(diff < 0){
+      console.log("🚨 طلب متأخر:", o.customerName);
+    }
+  });
+}
+
+/* ===== تشغيل ===== */
 loadCustomers();
 loadProducts();
 checkAlerts();
-
-</script>
-
 </body>
 </html>
