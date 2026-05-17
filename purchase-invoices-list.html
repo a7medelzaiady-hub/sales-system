@@ -307,8 +307,7 @@ window.deleteAllInvoices = async () => {
 
 };
 
-
-          window.exportToExcel = () => {
+window.exportToExcel = () => {
 
     if (allInvoices.length === 0) {
         return alert("لا توجد بيانات");
@@ -334,66 +333,87 @@ window.deleteAllInvoices = async () => {
             suppliersNames[inv.supplierId] || "";
 
         // ===============================
-        // عرض الأصناف
+        // الأصناف
         // ===============================
         if (Array.isArray(inv.items) && inv.items.length > 0) {
 
-    inv.items.forEach(item => {
+            inv.items.forEach(item => {
 
-        excelData.push([
+                excelData.push([
 
-            inv.date || "",
+                    inv.date || "",
 
-            inv.isReturn ? "مرتجع شراء" : "شراء",
+                    inv.isReturn
+                        ? "مرتجع شراء"
+                        : "شراء",
 
-            supplierName,
+                    supplierName,
 
-            item.name || item.productName || item.itemName || "",
+                    item.name ||
+                    item.productName ||
+                    item.itemName ||
+                    "",
 
-            // عدد جركن
-            item.qtyGallons || item.gallons || item.qty || "",
+                    // عدد جركن
+                    item.qtyGallons ||
+                    item.gallons ||
+                    "",
 
-            // عدد كرتونة (في الشراء = الكمية)
-            item.qtyCartons || item.cartons || item.qty2 || 0,
+                    // عدد كرتونة
+                    item.qtyCartons ||
+                    item.cartons ||
+                    item.qty ||
+                    0,
 
-            // سعر جركن
-            item.gallonPrice || item.price1 || "",
+                    // سعر جركن
+                    item.gallonPrice ||
+                    item.price1 ||
+                    "",
 
-            // سعر كرتونة (في الشراء = السعر)
-            item.cartonPrice || item.price || item.price2 || 0
+                    // سعر كرتونة
+                    item.cartonPrice ||
+                    item.price ||
+                    item.price2 ||
+                    0
 
-        ]);
+                ]);
+
+            });
+
+        }
+
+        // ===============================
+        // السداد النقدي
+        // ===============================
+        if (inv.paymentType === "cash") {
+
+            excelData.push([
+
+                inv.date || "",
+
+                "سداد له نقدى",
+
+                supplierName,
+
+                "سداد نقدى",
+
+                "",
+
+                1,
+
+                "",
+
+                Number(inv.displayAmount || 0)
+
+            ]);
+
+        }
 
     });
 
-}
-
-// ===============================
-// السداد النقدي
-// ===============================
-if (inv.paymentType === "cash") {
-
-    excelData.push([
-
-        inv.date || "",
-
-        "سداد له نقدى",
-
-        supplierName,
-
-        "سداد نقدى",
-
-        "",
-
-        1,
-
-        "",
-
-        Number(inv.displayAmount || 0)
-
-    ]);
-
-}
+    // إنشاء الشيت
+    const worksheet =
+        XLSX.utils.aoa_to_sheet(excelData);
 
     // عرض الأعمدة
     worksheet['!cols'] = [
@@ -407,7 +427,9 @@ if (inv.paymentType === "cash") {
         { wch: 18 }
     ];
 
-    const workbook = XLSX.utils.book_new();
+    // إنشاء الملف
+    const workbook =
+        XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(
         workbook,
@@ -420,7 +442,10 @@ if (inv.paymentType === "cash") {
         "تقرير_المشتريات.xlsx"
     );
 
-};          
+};
+
+
+
     init();
 </script>
 </body>
