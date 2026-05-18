@@ -280,17 +280,31 @@
                                 📅 موعد التسليم: ${timing.text}
                             </small>
                         </div>
-                        <div class="d-flex gap-2 align-items-center">
-                            <span class="status" style="background: ${order.status === 'pending' ? '#ff9800' : '#0b5e3d'}">
-                                ${order.status === 'pending' ? 'قيد الانتظار' : order.status}
-                            </span>
-                            <a href="${ORDER_PAGE_NAME}?edit=${d.id}" class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" style="width:32px; height:32px;" title="تعديل">
-                                <i class="fas fa-pencil-alt" style="font-size:12px;"></i>
-                            </a>
-                            <button class="btn btn-danger btn-sm d-flex align-items-center justify-content-center" style="width:32px; height:32px;" onclick="deleteOrder('${d.id}')" title="حذف">
-                                <i class="fas fa-trash-alt" style="font-size:12px;"></i>
-                            </button>
-                        </div>
+                       <div class="d-flex gap-2 align-items-center flex-wrap">
+    <span class="status" style="background: ${order.status === 'pending' ? '#ff9800' : '#0b5e3d'}">
+        ${order.status === 'pending' ? 'قيد الانتظار' : order.status}
+    </span>
+
+    <a href="${ORDER_PAGE_NAME}?edit=${d.id}" 
+       class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center"
+       style="width:32px; height:32px;" title="تعديل">
+        <i class="fas fa-pencil-alt" style="font-size:12px;"></i>
+    </a>
+
+    <button class="btn btn-dark btn-sm d-flex align-items-center justify-content-center"
+        style="width:32px; height:32px;"
+        onclick="shareOrder('${d.id}')"
+        title="مشاركة">
+        <i class="fas fa-share-alt" style="font-size:12px;"></i>
+    </button>
+
+    <button class="btn btn-danger btn-sm d-flex align-items-center justify-content-center"
+        style="width:32px; height:32px;"
+        onclick="deleteOrder('${d.id}')"
+        title="حذف">
+        <i class="fas fa-trash-alt" style="font-size:12px;"></i>
+    </button>
+</div>
                     </div>
                     <hr class="my-2" style="opacity: 0.1;">
                     ${itemsHTML}
@@ -323,9 +337,94 @@
     window.goHome = () => {
         window.location.href = "index.html";
     };
+<script>
+window.shareOrder = async (orderId) => {
+    try {
 
+        const orderCards = document.querySelectorAll(".order-card");
+        let targetCard = null;
+
+        orderCards.forEach(card => {
+            if (card.innerHTML.includes(`shareOrder('${orderId}')`)) {
+                targetCard = card;
+            }
+        });
+
+        if (!targetCard) {
+            alert("لم يتم العثور على الطلب");
+            return;
+        }
+
+        // إنشاء نسخة للطباعة الحرارية
+        const thermalDiv = document.createElement("div");
+
+        thermalDiv.style.width = "380px";
+        thermalDiv.style.background = "#fff";
+        thermalDiv.style.padding = "20px";
+        thermalDiv.style.fontFamily = "Cairo";
+        thermalDiv.style.direction = "rtl";
+        thermalDiv.style.color = "#000";
+        thermalDiv.style.position = "fixed";
+        thermalDiv.style.top = "-99999px";
+
+        thermalDiv.innerHTML = `
+            <div style="text-align:center; margin-bottom:15px;">
+                <h3 style="margin:0;">شركة الزيادي</h3>
+                <div style="font-size:13px;">فاتورة طلب عميل</div>
+                <hr>
+            </div>
+
+            ${targetCard.innerHTML}
+
+            <div style="text-align:center; margin-top:20px; font-size:12px;">
+                شكراً لتعاملكم معنا ❤️
+            </div>
+        `;
+
+        document.body.appendChild(thermalDiv);
+
+        const canvas = await html2canvas(thermalDiv, {
+            scale: 3,
+            backgroundColor: "#ffffff"
+        });
+
+        document.body.removeChild(thermalDiv);
+
+        canvas.toBlob(async (blob) => {
+
+            const file = new File(
+                [blob],
+                `order-${orderId}.png`,
+                { type: "image/png" }
+            );
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+
+                await navigator.share({
+                    title: "طلب عميل",
+                    text: "مشاركة الطلب",
+                    files: [file]
+                });
+
+            } else {
+
+                const link = document.createElement("a");
+                link.href = URL.createObjectURL(blob);
+                link.download = `order-${orderId}.png`;
+                link.click();
+
+            }
+
+        });
+
+    } catch (err) {
+        console.error(err);
+        alert("حدث خطأ أثناء مشاركة الطلب");
+    }
+};
+</script>
     loadOrders();
 </script>
-
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </body>
 </html>
