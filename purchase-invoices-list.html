@@ -114,7 +114,7 @@
     <div class="px-3 mb-3">
         <div class="row g-2">
             <div class="col-4">
-                <a href="index.html" class="btn w-100 text-white fw-bold d-flex align-items-center justify-content-center gap-1" style="background:#0b5e3d; border-radius:12px; padding: 10px 5px; font-size: 0.85rem;">
+                <a href="index1.html" class="btn w-100 text-white fw-bold d-flex align-items-center justify-content-center gap-1" style="background:#0b5e3d; border-radius:12px; padding: 10px 5px; font-size: 0.85rem;">
                     <i class="fas fa-home"></i> الرئيسية
                 </a>
             </div>
@@ -247,8 +247,8 @@
                              <i class="fas fa-file-invoice"></i>
                              <span>تعديل التفاصيل</span>
                         </div>
-                        <button class="btn share-btn-icon" onclick="shareInvoice('${inv.id}', '${supplierName}', '${inv.date}', ${inv.displayAmount}, ${inv.isReturn})" title="مشاركة الفاتورة">
-                            <i class="fas fa-share-alt"></i>
+                        <button class="btn share-btn-icon" onclick="shareThermalInvoice('${inv.id}')" title="مشاركة الفاتورة الحرارية">
+                            <i class="fas fa-share-alt"></i> شير 80mm
                         </button>
                     </div>
                     <div class="price-tag invoice-card-clickable" onclick="window.location.href='new-purchase-invoice.html?edit=${inv.id}'">
@@ -263,15 +263,62 @@
         `}).join('');
     }
 
-    window.shareInvoice = (id, supplier, date, amount, isReturn) => {
-        const typeText = isReturn ? "مرتجع شراء ↩️" : "فاتورة شراء 🧾";
-        const textToShare = `شركة الزيادى للتجارة\n--------------------\nالحركة: ${typeText}\nالمورد: ${supplier}\nالتاريخ: ${date}\nالقيمة: ${amount} ج.م\n--------------------\nتم الإرسال عبر النظام الذكي للمشتريات.`;
+    // دالة توليد الشير على هيئة طابعة كاشير حرارية 80 ملم ومشاركتها بشكل مظهر مميز
+    window.shareThermalInvoice = (invoiceId) => {
+        const inv = allInvoices.find(i => i.id === invoiceId);
+        if(!inv) return;
+
+        const supName = suppliersNames[inv.supplierId] || 'مورد غير معروف';
+        const typeTitle = inv.isReturn ? "مرتجع شراء" : "فاتورة شراء";
+        const items = inv.items || [];
         
+        let itemsHtml = "";
+        items.forEach((item, index) => {
+            const qty = item.qty || item.returnQty || 0;
+            const price = item.buy || 0;
+            const subtotal = qty * price;
+            itemsHtml += `
+                <tr>
+                    <td style="padding: 5px 0;">${item.name}<br><small>(${qty} ${item.unitName || 'وحدة'} × ${price})</small></td>
+                    <td style="text-align: left; padding: 5px 0;">${subtotal.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+
+        // بناء قالب الفاتورة الحرارية قياس 80 ملم
+        const thermalTemplate = `
+================================
+       شركة الزيادى للتجارة     
+================================
+الحركة: ${typeTitle}
+المورد: ${supName}
+التاريخ: ${inv.date || 'بلا تاريخ'}
+--------------------------------
+الصنف                  الإجمالي
+--------------------------------
+${items.map(item => {
+    const qty = item.qty || item.returnQty || 0;
+    const unit = item.unitName || 'وحدة';
+    const rowStr = `${item.name} (${qty} ${unit})`;
+    const spaceCount = Math.max(1, 24 - rowStr.length);
+    return `${rowStr}${" ".repeat(spaceCount)}${(qty * (item.buy || 0)).toFixed(2)}`;
+}).join('\n')}
+--------------------------------
+الإجمالي النهائي: ${Number(inv.displayAmount).toFixed(2)} ج.م
+المدفوع نقداً: ${Number(inv.paidAmount || 0).toFixed(2)} ج.م
+المتبقي: ${Math.max(0, Number(inv.displayAmount) - Number(inv.paidAmount || 0)).toFixed(2)} ج.م
+================================
+ شكراً لتعاملكم مع شركة الزيادى 
+================================`;
+
         if (navigator.share) {
-            navigator.share({ title: 'فاتورة شراء', text: textToShare }).catch(console.error);
+            navigator.share({
+                title: `فاتورة حرارية - ${supName}`,
+                text: thermalTemplate
+            }).catch(console.error);
         } else {
-            navigator.clipboard.writeText(textToShare).then(() => {
-                alert("تم نسخ تفاصيل الفاتورة إلى الحافظة لمشاركتها يدوياً!");
+            navigator.clipboard.writeText(thermalTemplate).then(() => {
+                alert("تم توليد الفاتورة الحرارية 80mm ونسخها للحافظة بنجاح ✅ جاهزة للصق في الواتساب");
             });
         }
     };
@@ -318,8 +365,10 @@
 
         allInvoices.forEach(inv => {
             const supplierName = suppliersNames[inv.supplierId] || "";
-            const motionType = inv.isReturn ? "بيع" : "شراء";
+            // تعديل عمود الحركة: بناءً على اختيار علامة المرتجع
+            const motionType = inv.isReturn ? "مرتجع" : "شراء";
 
+            // 1. إضافة تفاصيل الأصناف المباشرة بالفاتورة
             if (Array.isArray(inv.items) && inv.items.length > 0) {
                 inv.items.forEach(item => {
                     const unit = item.unitName || "كرتونة";
@@ -346,16 +395,18 @@
                 });
             }
 
-            if (inv.paymentType === "cash") {
+            // 2. تحديث السداد النقدي: فحص خانة السداد (المبلغ المدفوع) وكتابته كسطر منفصل إذا وجد
+            const currentPaid = Number(inv.paidAmount || 0);
+            if (currentPaid > 0) {
                 excelData.push([
                     inv.date || "",
                     "سداد له نقدى",
                     supplierName,
-                    "سداد نقدى كاش",
-                    "",
-                    "",
-                    "",
-                    Number(inv.displayAmount || 0)
+                    "سداد نقدى",
+                    "",         // عدد قطعة فارغ
+                    1,          // عمود عدد كرتونة يكتب فيه 1
+                    "",         // سعر قطعة فارغ
+                    currentPaid // عمود سعر كرتونة يكتب فيه المبلغ بالكامل
                 ]);
             }
         });
