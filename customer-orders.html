@@ -75,7 +75,7 @@
 
         .badge-status { font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; }
 
-        /* أزرار الإملاء الصوتي الذكي */
+        /* تعديلات أزرار الإملاء الصوتي */
         .voice-fab {
             position: fixed; bottom: 85px; left: 20px;
             width: 60px; height: 60px; border-radius: 50%;
@@ -84,6 +84,7 @@
             z-index: 1050; font-size: 24px; display: flex;
             align-items: center; justify-content: center;
             transition: 0.3s ease;
+            cursor: pointer;
         }
         .voice-fab.listening {
             animation: pulse 1.5s infinite;
@@ -114,7 +115,7 @@
 </div>
 
 <div class="container mt-3">
-    <!-- تنبيه صوتي مؤقت -->
+    <!-- حالة التنبيه الصوتي المحدثة -->
     <div id="voiceStatusAlert" class="alert alert-dark text-center py-2 d-none" style="border-radius:12px; font-size:0.9rem;">
         جاري الاستماع... تحدث بالطلبية كاملة الآن.
     </div>
@@ -224,7 +225,7 @@
                 addNewRow();
             }
 
-            // إعداد محرك التعرف على الصوت المدمج بالمتصفح
+            // تهيئة إعدادات الصوت
             setupVoiceRecognition();
 
         } catch (e) {
@@ -296,17 +297,17 @@
         container.insertAdjacentHTML('beforeend', html);
     };
 
-    // ================= وظائف الذكاء الاصطناعي والتعرف الصوتي =================
+    // ================= وظائف الذكاء الاصطناعي والتعرف الصوتي المصلحة =================
 
     function setupVoiceRecognition() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            document.getElementById('voiceBtn').style.display = 'none';
-            console.log("المتصفح لا يدعم التعرف الصوتي المباشر.");
+            console.log("المتصفح الحالي لا يدعم التعرف على الصوت المباشر بشكل افتراضي.");
             return;
         }
+        
         recognition = new SpeechRecognition();
-        recognition.lang = 'ar-EG'; // تعيين اللهجة المصرية كمثال رئيسي أو العربية العامة
+        recognition.lang = 'ar-EG'; 
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
 
@@ -325,9 +326,13 @@
         };
 
         recognition.onerror = (event) => {
-            console.error("Voice error: ", event.error);
+            console.error("Voice recognition error: ", event.error);
             document.getElementById('voiceStatusAlert').classList.add('d-none');
-            alert("حدث خطأ في التقاط الصوت، يرجى المحاولة مرة أخرى.");
+            if(event.error === 'not-allowed') {
+                alert("يرجى تفعيل صلاحية الميكروفون من إعدادات المتصفح لتتمكن من استخدام الإملاء الصوتي.");
+            } else {
+                alert("تعذر التقاط الصوت بوضوح، يرجى المحاولة مرة أخرى.");
+            }
         };
 
         recognition.onresult = async (event) => {
@@ -337,8 +342,11 @@
         };
     }
 
+    // ربط الدالة بـ window لجعل الـ HTML يراها من وسم الموديول
     window.toggleVoiceRecognition = () => {
-        if (!recognition) return alert("التعرف الصوتي غير مدعوم في متصفحك الحالي.");
+        if (!recognition) {
+            return alert("التعرف الصوتي غير مدعوم في متصفحك أو يحتاج إلى متصفح Google Chrome.");
+        }
         if (isListening) {
             recognition.stop();
         } else {
@@ -346,9 +354,7 @@
         }
     };
 
-    // إرسال النص إلى ذكاء Gemini الاصطناعي لتحليله واستخراج الخانات كـ JSON
     async function processTextWithAI(text) {
-        // تنويه: يفضل حماية الـ API Key في البيئات الإنتاجية عبر Backend الخاص بك
         const GEMINI_API_KEY = "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls"; 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
         
@@ -383,18 +389,12 @@
 
             const resData = await response.json();
             let aiText = resData.candidates[0].content.parts[0].text.trim();
-            
-            // تنظيف النص من علامات الـ Markdown إن وجدت
             aiText = aiText.replace(/```json/g, "").replace(/
 ```/g, "").trim();
             
             const parsedData = JSON.parse(aiText);
-            
-            // تعبئة البيانات المستخرجة في الصفحة تلقائياً
             applyAiDataToFields(parsedData);
-            
             document.getElementById('voiceStatusAlert').classList.add('d-none');
-            alert("تم تحليل الكلام وتعبئة الطلبية بنجاح!");
             
         } catch (error) {
             console.error("AI Analysis error:", error);
@@ -404,12 +404,10 @@
     }
 
     function applyAiDataToFields(data) {
-        // 1. محاولة مطابقة اسم العميل
         if (data.customerName) {
             const input = document.getElementById('customerInput');
             const searchName = data.customerName.trim();
             
-            // ابحث عن أقرب اسم عميل يطابق الاسم المستخرج
             let foundMatch = false;
             for (let name in customersDataMap) {
                 if (name.includes(searchName) || searchName.includes(name)) {
@@ -421,16 +419,14 @@
                 }
             }
             if(!foundMatch) {
-                input.value = data.customerName; // ضعه كما هو ليبحث عنه المستخدم يدوياً
+                input.value = data.customerName;
             }
         }
 
-        // 2. تعبئة الملاحظات
         if (data.note) {
             document.getElementById('orderNote').value = data.note;
         }
 
-        // 3. مسح الأسطر الفارغة الافتراضية وتعبئة الأصناف
         if (data.items && data.items.length > 0) {
             document.getElementById('itemsContainer').innerHTML = '';
             data.items.forEach(item => {
