@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>طلبية عميل جديدة - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2=family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { 
@@ -63,15 +63,35 @@
             box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
             border-top: 1px solid var(--border);
             z-index: 1000;
+            display: flex; gap: 10px;
         }
 
         .btn-save { 
             background: var(--accent); color: #fff; border: none; 
-            width: 100%; padding: 12px; border-radius: 15px; 
+            flex-grow: 1; padding: 12px; border-radius: 15px; 
             font-weight: bold; font-size: 1.1rem; 
             transition: 0.3s;
         }
         .btn-save:active { transform: scale(0.98); opacity: 0.9; }
+
+        /* زر الإملاء الصوتي الجديد */
+        .btn-voice {
+            background: #dc3545; color: white; border: none;
+            width: 55px; height: 55px; border-radius: 50%;
+            font-size: 1.4rem; display: flex; align-items: center;
+            justify-content: center; box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3);
+            transition: 0.3s;
+        }
+        .btn-voice.listening {
+            animation: pulse 1.2s infinite;
+            background: #28a745;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+        }
 
         .badge-status { font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; }
     </style>
@@ -88,11 +108,16 @@
 </div>
 
 <div class="container mt-3">
+    <!-- صندوق النص المستمع المستتر للمساعدة في رؤية ما تم قوله -->
+    <div id="voiceStatusCard" class="alert alert-info d-none text-center fw-bold text-dark" style="border-radius: 15px;">
+        <i class="fas fa-microphone fa-spin me-2 text-danger"></i> جاري الاستماع: <span id="voiceText">...</span>
+    </div>
+
     <div class="glass-card">
         <div class="row">
             <div class="col-12">
                 <label id="customerLabel">العميل المستهدف</label>
-                <input type="text" id="customerInput" class="form-control" list="customersList" placeholder="اكتب اسم العميل للبحث...">
+                <input type="text" id="customerInput" class="form-control" list="customersList" placeholder="اكتب اسم العميل أو املأه صوتياً...">
                 <input type="hidden" id="customerSelect">
             </div>
             <div class="col-12 mt-2">
@@ -116,6 +141,10 @@
 </div>
 
 <div class="footer-action">
+    <!-- زر المايك المضاف -->
+    <button type="button" class="btn-voice" id="voiceBtn" onclick="toggleVoiceRecognition()" title="اضغط للتحدث">
+        <i class="fas fa-microphone" id="micIcon"></i>
+    </button>
     <button class="btn-save" id="btnSave" onclick="saveOrder()">حفظ وإرسال الطلبية</button>
 </div>
 
@@ -140,6 +169,7 @@
     const editId = urlParams.get('edit');
     
     let customersDataMap = {};
+    let inventoryItemsList = []; // مصفوفة لتخزين أسماء المنتجات للمطابقة الصوتية
 
     async function initPage() {
         try {
@@ -177,7 +207,11 @@
             invSnap.forEach(doc => {
                 const data = doc.data();
                 const itemName = data.name || data.itemName;
-                if(itemName) options += `<option value="${itemName.trim()}">`;
+                if(itemName) {
+                    const cleanedItem = itemName.trim();
+                    options += `<option value="${cleanedItem}">`;
+                    inventoryItemsList.push(cleanedItem); // حفظ الاسم للذكاء الاصطناعي الصوتي
+                }
             });
             datalist.innerHTML = options;
 
@@ -230,7 +264,6 @@
         const container = document.getElementById('itemsContainer');
         const rowId = Date.now() + Math.random();
         
-        // التعديل: تعديل الـ label الخاص بالسعر وإدراج كلمة (اختياري) بداخل الـ placeholder لضمان الاستواء التام
         const html = `
             <div class="order-item" id="row_${rowId}">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -258,7 +291,166 @@
             </div>
         `;
         container.insertAdjacentHTML('beforeend', html);
+        return rowId; // إرجاع المعرف للتحكم به عبر الصوت
     };
+
+    // ================= محرك الإدخال والتحليل الصوتي الذكي =================
+    let recognition;
+    let isListening = false;
+
+    window.toggleVoiceRecognition = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("عذراً، متصفحك الحالي لا يدعم خاصية التعرف على الصوت. يرجى استخدام متصفح Google Chrome.");
+            return;
+        }
+
+        if (!recognition) {
+            recognition = new SpeechRecognition();
+            recognition.lang = 'ar-EG'; // تعيين اللهجة المصرية والعربية كافتراضي
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onstart = () => {
+                isListening = true;
+                document.getElementById('voiceBtn').classList.add('listening');
+                document.getElementById('micIcon').className = "fas fa-stop";
+                document.getElementById('voiceStatusCard').classList.remove('d-none');
+                document.getElementById('voiceText').innerText = "تحدث الآن بقائمة الطلبات...";
+            };
+
+            recognition.onresult = (event) => {
+                const textResult = event.results[0][0].transcript;
+                document.getElementById('voiceText').innerText = textResult;
+                parseVoiceText(textResult); // استدعاء دالة التحليل الذكي للبيانات
+            };
+
+            recognition.onerror = (e) => {
+                console.error(e);
+                stopListeningState();
+            };
+
+            recognition.onend = () => {
+                stopListeningState();
+            };
+        }
+
+        if (isListening) {
+            recognition.stop();
+        } else {
+            recognition.start();
+        }
+    };
+
+    function stopListeningState() {
+        isListening = false;
+        document.getElementById('voiceBtn').classList.remove('listening');
+        document.getElementById('micIcon').className = "fas fa-microphone";
+        setTimeout(() => {
+            document.getElementById('voiceStatusCard').classList.add('d-none');
+        }, 3000);
+    }
+
+    // دالة تحليل النص الصوتي المكتوب وترجمته لخانات الصفحة
+    function parseVoiceText(text) {
+        // 1. محاولة التعرف على العميل
+        // يبحث عن الكلمة بعد "عميل" أو "لـ" أو "اسم" أو يفحص الأسماء المسجلة
+        for (let customerName in customersDataMap) {
+            if (text.includes(customerName)) {
+                const inputCust = document.getElementById('customerInput');
+                inputCust.value = customerName;
+                document.getElementById('customerSelect').value = customersDataMap[customerName];
+                inputCust.classList.add('is-valid-customer');
+                break;
+            }
+        }
+
+        // 2. محاولة استخراج الملاحظات
+        // إذا قال "ملاحظة التسليم الصبح" أو "ملاحظات يرجى التأكيد"
+        const noteMatch = text.match(/(?:ملاحظة|ملاحظات|اكتب)\s+(.+)/);
+        if (noteMatch && noteMatch[1]) {
+            document.getElementById('orderNote').value = noteMatch[1].trim();
+        }
+
+        // 3. تحليل المنتجات والكميات
+        // صيغة ذكية تبحث عن اسم الصنف متبوعاً أو مسبوقاً بالأرقام وكلمة كرتونة أو قطعة
+        // مثال: "5 كرتونة شيبسي" أو "شيبسي 5 كرتونة و 10 قطعة بسكوت"
+        
+        // لتسهيل التحليل، سنمر على الأصناف المسجلة بالمخزن ونبحث عنها بالنص
+        let foundAnyItem = false;
+        
+        inventoryItemsList.forEach(itemName => {
+            if (text.includes(itemName)) {
+                // استخراج الجزء المحيط باسم المنتج للبحث عن الأرقام والوحدات
+                const textSegment = text.substring(Math.max(0, text.indexOf(itemName) - 15), Math.min(text.length, text.indexOf(itemName) + itemName.length + 15));
+                
+                let cartonQty = 0;
+                let pieceQty = 0;
+
+                // استخراج كمية الكرتونة (مثال: 5 كرتونة أو كرتونة رقم 5)
+                const cartonMatch = textSegment.match(/(\d+)\s*كرتون/);
+                if (cartonMatch) cartonQty = parseInt(cartonMatch[1]);
+
+                // استخراج كمية القطعة (مثال: 12 قطعة أو 10 قطع)
+                const pieceMatch = textSegment.match(/(\d+)\s*(?:قطع|قطعه)/);
+                if (pieceMatch) pieceQty = parseInt(pieceMatch[1]);
+
+                // إذا لم يتم العثور على كلمة كرتونة أو قطعة صريحة، وجدنا رقم مجرد بجانب الاسم، نعتبره كرتونة تلقائياً كـ ديفولت
+                if (!cartonMatch && !pieceMatch) {
+                    const genericNumberMatch = textSegment.match(/(\d+)/);
+                    if (genericNumberMatch) cartonQty = parseInt(genericNumberMatch[1]);
+                }
+
+                if (cartonQty > 0 || pieceQty > 0) {
+                    // إذا كان السطر الأول فارغاً، استخدمه، وإلا أضف سطر جديد
+                    const container = document.getElementById('itemsContainer');
+                    const rows = container.querySelectorAll('.order-item');
+                    let targetRow;
+
+                    if (rows.length === 1 && rows[0].querySelector('.item-name').value === '') {
+                        targetRow = rows[0];
+                    } else {
+                        const newId = addNewRow();
+                        targetRow = document.getElementById(`row_${newId}`);
+                    }
+
+                    targetRow.querySelector('.item-name').value = itemName;
+                    if (cartonQty > 0) targetRow.querySelector('.item-carton').value = cartonQty;
+                    if (pieceQty > 0) targetRow.querySelector('.item-piece').value = pieceQty;
+                    foundAnyItem = true;
+                }
+            }
+        });
+
+        if(!foundAnyItem) {
+             // طريقة بديلة مرنة إذا لم يتطابق اسم الصنف حرفياً مع المخزن
+             // يبحث عن تركيب جملة "رقم ثم كلمة كرتونة أو قطعة ثم اسم عشوائي"
+             const genericRegex = /(\d+)\s*(كرتون|قطع|قطعه)\s+([\u0600-\u06FF\s]+?)(?=\s+\d|\s+ملاحظة|$)/g;
+             let match;
+             while ((match = genericRegex.exec(text)) !== null) {
+                 const qty = match[1];
+                 const type = match[2];
+                 const name = match[3].replace(/(و|لـ)$/, "").trim(); // تنظيف فضلات العطف
+
+                 const container = document.getElementById('itemsContainer');
+                 const rows = container.querySelectorAll('.order-item');
+                 let targetRow = (rows.length === 1 && rows[0].querySelector('.item-name').value === '') ? rows[0] : null;
+                 
+                 if (!targetRow) {
+                     const newId = addNewRow();
+                     targetRow = document.getElementById(`row_${newId}`);
+                 }
+
+                 targetRow.querySelector('.item-name').value = name;
+                 if (type.includes('كرتون')) {
+                     targetRow.querySelector('.item-carton').value = qty;
+                 } else {
+                     targetRow.querySelector('.item-piece').value = qty;
+                 }
+             }
+        }
+    }
+    // ===================================================================
 
     window.saveOrder = async () => {
         const btn = document.getElementById('btnSave');
