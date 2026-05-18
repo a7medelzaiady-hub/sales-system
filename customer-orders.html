@@ -104,8 +104,8 @@
 <datalist id="customersList"></datalist>
 <datalist id="inventoryList"></datalist>
 
-<!-- زر الإملاء الصوتي العائم ذو استدعاء آمن -->
-<button class="voice-fab" id="voiceBtn" title="املي الطلبية صوتياً بالكامل">
+<!-- ربط مباشر صريح للدالة لمنع مشاكل العزل -->
+<button class="voice-fab" id="voiceBtn" onclick="toggleVoiceRecognition()" title="املي الطلبية صوتياً بالكامل">
     <i class="fas fa-microphone" id="voiceIcon"></i>
 </button>
 
@@ -141,20 +141,22 @@
     <div class="glass-card">
         <h6 class="mb-3 fw-bold"><i class="fas fa-shopping-basket me-2 text-success"></i> تفاصيل الأصناف</h6>
         <div id="itemsContainer"></div>
-        <button class="btn-add-item mt-2" id="addItemBtn">
+        <button class="btn-add-item mt-2" onclick="addNewRow()">
             <i class="fas fa-plus-circle me-1"></i> إضافة صنف للطلبية
         </button>
     </div>
 </div>
 
 <div class="footer-action">
-    <button class="btn-save" id="btnSave">حفظ وإرسال الطلبية</button>
+    <button class="btn-save" id="btnSave" onclick="saveOrder()">حفظ وإرسال الطلبية</button>
 </div>
 
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+<!-- استدعاء سكريبت Firebase المتوافق مع النظام العام والتنفيذي المباشر -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
+<script>
+    // تهيئة Firebase بالنسخة العامة المستقرة الخالية من قيود الـ Module
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
         authDomain: "ahmedelzaiady.firebaseapp.com",
@@ -165,8 +167,8 @@
         measurementId: "G-WE04GK5XZZ"
     };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
 
     const urlParams = new URLSearchParams(window.location.search);
     const editId = urlParams.get('edit');
@@ -175,13 +177,13 @@
     let recognition = null;
     let isListening = false;
 
-    // تم تصدير الدالة لنطاق الويندوز العالمي لضمان عمل أزرار الحذف الديناميكية بنجاح
-    window.removeRow = (id) => {
+    // وظائف إدارة الأسطر (تمت صياغتها لتكون عامة وتستجيب فوراً للـ onclick)
+    function removeRow(id) {
         const row = document.getElementById(id);
         if (row) row.remove();
-    };
+    }
 
-    window.addNewRow = (item = null) => {
+    function addNewRow(item = null) {
         const container = document.getElementById('itemsContainer');
         const rowId = 'row_' + Date.now() + Math.floor(Math.random() * 1000);
         
@@ -189,7 +191,7 @@
             <div class="order-item" id="${rowId}">
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <span class="small fw-bold text-muted"><i class="fas fa-tag me-1"></i> بيانات المنتج</span>
-                    <button class="btn btn-sm text-danger border-0 p-0" onclick="window.removeRow('${rowId}')">
+                    <button class="btn btn-sm text-danger border-0 p-0" onclick="removeRow('${rowId}')">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
@@ -212,11 +214,16 @@
             </div>
         `;
         container.insertAdjacentHTML('beforeend', html);
-    };
+    }
 
     async function initPage() {
         try {
-            const custSnap = await getDocs(collection(db, "customers"));
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('requiredDate').value = today;
+            document.getElementById('requiredDate').min = today;
+
+            // جلب بيانات العملاء
+            const custSnap = await db.collection("customers").get();
             const custDatalist = document.getElementById('customersList');
             let custOptions = '';
             
@@ -230,21 +237,8 @@
             });
             custDatalist.innerHTML = custOptions;
 
-            const customerInput = document.getElementById('customerInput');
-            customerInput.addEventListener('input', function() {
-                const inputValue = this.value.trim();
-                const selectedId = customersDataMap[inputValue];
-                
-                if (selectedId) {
-                    document.getElementById('customerSelect').value = selectedId;
-                    this.classList.add('is-valid-customer');
-                } else {
-                    document.getElementById('customerSelect').value = '';
-                    this.classList.remove('is-valid-customer');
-                }
-            });
-
-            const invSnap = await getDocs(collection(db, "inventory")); 
+            // جلب بيانات المخزن
+            const invSnap = await db.collection("inventory").get(); 
             const datalist = document.getElementById('inventoryList');
             let options = '';
             invSnap.forEach(doc => {
@@ -254,36 +248,30 @@
             });
             datalist.innerHTML = options;
 
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('requiredDate').value = today;
-            document.getElementById('requiredDate').min = today;
+            // مراقبة حقل إدخال العميل
+            document.getElementById('customerInput').addEventListener('input', function() {
+                const inputValue = this.value.trim();
+                const selectedId = customersDataMap[inputValue];
+                if (selectedId) {
+                    document.getElementById('customerSelect').value = selectedId;
+                    this.classList.add('is-valid-customer');
+                } else {
+                    document.getElementById('customerSelect').value = '';
+                    this.classList.remove('is-valid-customer');
+                }
+            });
 
             if (editId) {
                 await loadOrderData();
             } else {
-                window.addNewRow();
+                addNewRow();
             }
 
             setupVoiceRecognition();
-            bindActionButtons();
 
         } catch (e) {
             console.error("حدث خطأ أثناء تحميل البيانات: ", e);
         }
-    }
-
-    function bindActionButtons() {
-        document.getElementById('addItemBtn').addEventListener('click', () => {
-            window.addNewRow();
-        });
-
-        document.getElementById('btnSave').addEventListener('click', () => {
-            saveOrder();
-        });
-
-        document.getElementById('voiceBtn').addEventListener('click', () => {
-            toggleVoiceRecognition();
-        });
     }
 
     async function loadOrderData() {
@@ -292,13 +280,12 @@
         document.getElementById('statusLabel').className = "badge-status bg-warning text-dark fw-bold";
         document.getElementById('btnSave').innerText = "تحديث البيانات";
 
-        const orderRef = doc(db, "customer_orders", editId);
-        const snap = await getDoc(orderRef);
+        const snap = await db.collection("customer_orders").doc(editId).get();
 
-        if (snap.exists()) {
+        if (snap.exists) {
             const data = snap.data();
-            
             document.getElementById('customerSelect').value = data.customerId;
+            
             for (let name in customersDataMap) {
                 if (customersDataMap[name] === data.customerId) {
                     document.getElementById('customerInput').value = name;
@@ -313,14 +300,16 @@
             }
             
             document.getElementById('itemsContainer').innerHTML = '';
-            data.items.forEach(item => window.addNewRow(item));
+            data.items.forEach(item => addNewRow(item));
         }
     }
+
+    // ================= منظومة التحدث والذكاء الاصطناعي العامة =================
 
     function setupVoiceRecognition() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            console.log("التعرف الصوتي غير مدعوم في هذا المتصفح.");
+            console.log("التعرف الصوتي المباشر غير مدعوم في هذا المتصفح.");
             return;
         }
         
@@ -333,7 +322,7 @@
             isListening = true;
             document.getElementById('voiceBtn').classList.add('listening');
             document.getElementById('voiceIcon').className = "fas fa-stop";
-            document.getElementById('voiceStatusAlert').innerText = "جاري الاستماع... تحدث ببيانات الطلبية الآن بوضوح.";
+            document.getElementById('voiceStatusAlert').innerText = "جاري الاستماع... تحدث بالطلبية كاملة الآن.";
             document.getElementById('voiceStatusAlert').classList.remove('d-none');
         };
 
@@ -347,22 +336,22 @@
             console.error("خطأ الميكروفون: ", event.error);
             document.getElementById('voiceStatusAlert').classList.add('d-none');
             if (event.error === 'not-allowed') {
-                alert("يرجى التأكد من تشغيل الصفحة عبر رابط آمن (HTTPS) والموافقة على صلاحية الميكروفون.");
+                alert("يرجى السماح للمتصفح بالوصول إلى الميكروفون، وتأكد من تشغيل الصفحة برابط آمن HTTPS.");
             } else {
-                alert("لم يتم التقاط الصوت، حاول التحدث مجدداً بوضوح.");
+                alert("تعذر التقاط الصوت بوضوح، أعد المحاولة.");
             }
         };
 
         recognition.onresult = async (event) => {
             const speechToText = event.results[0][0].transcript;
-            document.getElementById('voiceStatusAlert').innerText = "جاري تعبئة الخانات عبر الذكاء الاصطناعي...";
+            document.getElementById('voiceStatusAlert').innerText = "جاري معالجة وتوزيع البيانات بالذكاء الاصطناعي...";
             await processTextWithAI(speechToText);
         };
     }
 
     function toggleVoiceRecognition() {
         if (!recognition) {
-            return alert("التعرف الصوتي يتطلب متصفح مدمج مثل Google Chrome وأن تعمل الصفحة عبر خادم آمن HTTPS وليس بروتوكول File:// المحلي.");
+            return alert("التعرف الصوتي يتطلب متصفح Google Chrome ويعمل فقط عندما تكون الصفحة مرفوعة أونلاين برابط آمن يبدأ بـ HTTPS.");
         }
         if (isListening) {
             recognition.stop();
@@ -376,17 +365,17 @@
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
         
         const systemPrompt = `
-        أنت مساعد مبيعات ذكي لـ "شركة الزيادي". حلل النص المستخرج من الصوت لطلب العميل، واستخرج البيانات منه على شكل كود JSON فقط دون أي نصوص خارجية ترحيبية أو نقاط.
-        البنية المطلوبة بدقة:
+        أنت مساعد مبيعات ذكي لشركة الزيادي للتوزيع. مهمتك استخراج البيانات من النص المدخل وإرجاع كود JSON منظم فقط بدون أي كلام جانبي.
+        صيغة الـ JSON المطلوبة:
         {
           "customerName": "اسم العميل المذكور بالنص أو حقل فارغ",
-          "note": "أي ملاحظات إضافية ذكرت أو حقل فارغ",
+          "note": "الملاحظات الإضافية المذكورة أو حقل فارغ",
           "items": [
-             { "name": "اسم المنتج", "cartonQty": 0, "pieceQty": 0, "price": 0 }
+             { "name": "اسم المنتج بدقة كما ذكر", "cartonQty": 0, "pieceQty": 0, "price": 0 }
           ]
         }
-        قواعد: حوّل الأعداد الحرفية لأرقام (خمسة تعني 5)، إن لم يحدد نوع الكمية خمنها طبيعياً، السعر صفر إن لم يذكر.
-        النص: "${text}"
+        قواعد: حول الأرقام المكتوبة حرفياً إلى أعداد، السعر الافتراضي 0 إذا لم يذكر صراحة.
+        النص هو: "${text}"
         `;
 
         try {
@@ -408,7 +397,7 @@
         } catch (error) {
             console.error("AI Error:", error);
             document.getElementById('voiceStatusAlert').classList.add('d-none');
-            alert("حدث خطأ أثناء معالجة النص بالذكاء الاصطناعي، يرجى المحاولة يدوياً.");
+            alert("فشل الذكاء الاصطناعي في ترجمة كلامك إلى خانات، يرجى المحاولة مرة أخرى.");
         }
     }
 
@@ -434,7 +423,7 @@
         if (data.items && data.items.length > 0) {
             document.getElementById('itemsContainer').innerHTML = '';
             data.items.forEach(item => {
-                window.addNewRow({
+                addNewRow({
                     name: item.name,
                     cartonQty: item.cartonQty || '',
                     pieceQty: item.pieceQty || '',
@@ -443,6 +432,8 @@
             });
         }
     }
+
+    // ================= حفظ البيانات النهائي =================
 
     async function saveOrder() {
         const btn = document.getElementById('btnSave');
@@ -488,16 +479,16 @@
                 items,
                 note,
                 requiredDate,
-                updatedAt: serverTimestamp(),
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
                 date: new Date().toISOString().split('T')[0]
             };
 
             if (editId) {
-                await updateDoc(doc(db, "customer_orders", editId), orderData);
+                await db.collection("customer_orders").doc(editId).update(orderData);
             } else {
                 orderData.status = "pending";
-                orderData.createdAt = serverTimestamp();
-                await addDoc(collection(db, "customer_orders"), orderData);
+                orderData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                await db.collection("customer_orders").add(orderData);
             }
             window.location.href = "orders.html";
         } catch (e) {
@@ -508,6 +499,7 @@
         }
     }
 
+    // بدء تشغيل الصفحة فوراً
     initPage();
 </script>
 </body>
