@@ -81,7 +81,7 @@
 
         .share-btn-icon {
             background: #f4f7f6; color: var(--accent); border: 1px solid var(--border);
-            padding: 8px 12px; border-radius: 10px; font-size: 0.9rem; transition: 0.2s;
+            padding: 8px 14px; border-radius: 10px; font-size: 1rem; transition: 0.2s;
         }
         .share-btn-icon:hover { background: var(--accent); color: white; }
     </style>
@@ -247,8 +247,8 @@
                              <i class="fas fa-file-invoice"></i>
                              <span>تعديل التفاصيل</span>
                         </div>
-                        <button class="btn share-btn-icon" onclick="shareThermalInvoice('${inv.id}')" title="مشاركة الفاتورة الحرارية">
-                            <i class="fas fa-share-alt"></i> شير 80mm
+                        <button class="btn share-btn-icon" onclick="shareThermalInvoice('${inv.id}')" title="مشاركة">
+                            <i class="fas fa-share-alt"></i>
                         </button>
                     </div>
                     <div class="price-tag invoice-card-clickable" onclick="window.location.href='new-purchase-invoice.html?edit=${inv.id}'">
@@ -263,53 +263,49 @@
         `}).join('');
     }
 
-    // دالة توليد الشير على هيئة طابعة كاشير حرارية 80 ملم ومشاركتها بشكل مظهر مميز
     window.shareThermalInvoice = (invoiceId) => {
         const inv = allInvoices.find(i => i.id === invoiceId);
         if(!inv) return;
 
         const supName = suppliersNames[inv.supplierId] || 'مورد غير معروف';
-        const typeTitle = inv.isReturn ? "مرتجع شراء" : "فاتورة شراء";
         const items = inv.items || [];
         
-        let itemsHtml = "";
-        items.forEach((item, index) => {
+        let lines = [];
+        lines.push("================================");
+        lines.push("       شركة الزيادى للتجارة     ");
+        lines.push("================================");
+        lines.push(`المورد: ${supName}`);
+        lines.push(`التاريخ: ${inv.date || 'بلا تاريخ'}`);
+        lines.push("--------------------------------");
+        lines.push("الصنف                  الإجمالي");
+        lines.push("--------------------------------");
+
+        items.forEach(item => {
+            const isItemReturn = item.returnQty > 0 || inv.isReturn;
             const qty = item.qty || item.returnQty || 0;
+            const unit = item.unitName || 'وحدة';
             const price = item.buy || 0;
             const subtotal = qty * price;
-            itemsHtml += `
-                <tr>
-                    <td style="padding: 5px 0;">${item.name}<br><small>(${qty} ${item.unitName || 'وحدة'} × ${price})</small></td>
-                    <td style="text-align: left; padding: 5px 0;">${subtotal.toFixed(2)}</td>
-                </tr>
-            `;
+
+            // تطبيق قاعدة السالب للمرتجع لتنزل جاهزة ومطروحة بالطباعة
+            const qtyStr = isItemReturn ? `-${qty}` : `${qty}`;
+            const priceStr = isItemReturn ? `-${price.toFixed(2)}` : `${price.toFixed(2)}`;
+            const subtotalStr = isItemReturn ? `-${subtotal.toFixed(2)}` : `${subtotal.toFixed(2)}`;
+
+            const rowStr = `${item.name} (${qtyStr} ${unit} × ${priceStr})`;
+            const spaceCount = Math.max(1, 32 - (rowStr.length + subtotalStr.length));
+            lines.push(`${rowStr}${" ".repeat(spaceCount)}${subtotalStr}`);
         });
 
-        // بناء قالب الفاتورة الحرارية قياس 80 ملم
-        const thermalTemplate = `
-================================
-       شركة الزيادى للتجارة     
-================================
-الحركة: ${typeTitle}
-المورد: ${supName}
-التاريخ: ${inv.date || 'بلا تاريخ'}
---------------------------------
-الصنف                  الإجمالي
---------------------------------
-${items.map(item => {
-    const qty = item.qty || item.returnQty || 0;
-    const unit = item.unitName || 'وحدة';
-    const rowStr = `${item.name} (${qty} ${unit})`;
-    const spaceCount = Math.max(1, 24 - rowStr.length);
-    return `${rowStr}${" ".repeat(spaceCount)}${(qty * (item.buy || 0)).toFixed(2)}`;
-}).join('\n')}
---------------------------------
-الإجمالي النهائي: ${Number(inv.displayAmount).toFixed(2)} ج.م
-المدفوع نقداً: ${Number(inv.paidAmount || 0).toFixed(2)} ج.م
-المتبقي: ${Math.max(0, Number(inv.displayAmount) - Number(inv.paidAmount || 0)).toFixed(2)} ج.م
-================================
- شكراً لتعاملكم مع شركة الزيادى 
-================================`;
+        lines.push("--------------------------------");
+        lines.push(`الإجمالي الصافي: ${Number(inv.displayAmount).toFixed(2)} ج.م`);
+        lines.push(`المدفوع نقداً: ${Number(inv.paidAmount || 0).toFixed(2)} ج.م`);
+        lines.push(`المتبقي المالي: ${Math.max(0, Number(inv.displayAmount) - Number(inv.paidAmount || 0)).toFixed(2)} ج.م`);
+        lines.push("================================");
+        lines.push("   فاتورة جاهزة للطباعة والمراجعة  ");
+        lines.push("================================");
+
+        const thermalTemplate = lines.join('\n');
 
         if (navigator.share) {
             navigator.share({
@@ -318,7 +314,7 @@ ${items.map(item => {
             }).catch(console.error);
         } else {
             navigator.clipboard.writeText(thermalTemplate).then(() => {
-                alert("تم توليد الفاتورة الحرارية 80mm ونسخها للحافظة بنجاح ✅ جاهزة للصق في الواتساب");
+                alert("تم نسخ الفاتورة الجاهزة للطباعة (80mm) بصيغة السالب للمرتجعات بنجاح ✅ جاهزة للصق");
             });
         }
     };
@@ -365,14 +361,15 @@ ${items.map(item => {
 
         allInvoices.forEach(inv => {
             const supplierName = suppliersNames[inv.supplierId] || "";
-            // تعديل عمود الحركة: بناءً على اختيار علامة المرتجع
-            const motionType = inv.isReturn ? "مرتجع" : "شراء";
 
-            // 1. إضافة تفاصيل الأصناف المباشرة بالفاتورة
             if (Array.isArray(inv.items) && inv.items.length > 0) {
                 inv.items.forEach(item => {
                     const unit = item.unitName || "كرتونة";
                     let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
+
+                    // تحديد نوع الحركة: إذا كان معلماً كمرتجع يكتب "بيع" وإلا "شراء"
+                    const isItemReturn = item.returnQty > 0 || inv.isReturn;
+                    const motionType = isItemReturn ? "بيع" : "شراء";
 
                     if (unit === "قطعة") {
                         qtyPcs = item.qty || item.returnQty || 0;
@@ -395,7 +392,7 @@ ${items.map(item => {
                 });
             }
 
-            // 2. تحديث السداد النقدي: فحص خانة السداد (المبلغ المدفوع) وكتابته كسطر منفصل إذا وجد
+            // فحص خانة السداد لكتابة قيد سداد مستقل
             const currentPaid = Number(inv.paidAmount || 0);
             if (currentPaid > 0) {
                 excelData.push([
@@ -403,10 +400,10 @@ ${items.map(item => {
                     "سداد له نقدى",
                     supplierName,
                     "سداد نقدى",
-                    "",         // عدد قطعة فارغ
-                    1,          // عمود عدد كرتونة يكتب فيه 1
-                    "",         // سعر قطعة فارغ
-                    currentPaid // عمود سعر كرتونة يكتب فيه المبلغ بالكامل
+                    "",         
+                    1,          
+                    "",         
+                    currentPaid 
                 ]);
             }
         });
