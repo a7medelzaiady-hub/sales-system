@@ -74,12 +74,38 @@
         .btn-save:active { transform: scale(0.98); opacity: 0.9; }
 
         .badge-status { font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; }
+
+        /* أزرار الإملاء الصوتي الذكي */
+        .voice-fab {
+            position: fixed; bottom: 85px; left: 20px;
+            width: 60px; height: 60px; border-radius: 50%;
+            background: #dc3545; color: white; border: none;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+            z-index: 1050; font-size: 24px; display: flex;
+            align-items: center; justify-content: center;
+            transition: 0.3s ease;
+        }
+        .voice-fab.listening {
+            animation: pulse 1.5s infinite;
+            background: #198754;
+            box-shadow: 0 4px 15px rgba(25, 135, 84, 0.4);
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
     </style>
 </head>
 <body>
 
 <datalist id="customersList"></datalist>
 <datalist id="inventoryList"></datalist>
+
+<!-- زر الإملاء الصوتي العائم -->
+<button class="voice-fab" id="voiceBtn" onclick="toggleVoiceRecognition()" title="املي الطلبية صوتياً بالكامل">
+    <i class="fas fa-microphone" id="voiceIcon"></i>
+</button>
 
 <div class="header">
     <a href="orders.html" class="text-white"><i class="fas fa-arrow-right"></i></a>
@@ -88,6 +114,11 @@
 </div>
 
 <div class="container mt-3">
+    <!-- تنبيه صوتي مؤقت -->
+    <div id="voiceStatusAlert" class="alert alert-dark text-center py-2 d-none" style="border-radius:12px; font-size:0.9rem;">
+        جاري الاستماع... تحدث بالطلبية كاملة الآن.
+    </div>
+
     <div class="glass-card">
         <div class="row">
             <div class="col-12">
@@ -140,6 +171,8 @@
     const editId = urlParams.get('edit');
     
     let customersDataMap = {};
+    let recognition = null;
+    let isListening = false;
 
     async function initPage() {
         try {
@@ -190,6 +223,10 @@
             } else {
                 addNewRow();
             }
+
+            // إعداد محرك التعرف على الصوت المدمج بالمتصفح
+            setupVoiceRecognition();
+
         } catch (e) {
             console.error("حدث خطأ أثناء تحميل البيانات: ", e);
         }
@@ -230,7 +267,6 @@
         const container = document.getElementById('itemsContainer');
         const rowId = Date.now() + Math.random();
         
-        // التعديل: تعديل الـ label الخاص بالسعر وإدراج كلمة (اختياري) بداخل الـ placeholder لضمان الاستواء التام
         const html = `
             <div class="order-item" id="row_${rowId}">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -259,6 +295,156 @@
         `;
         container.insertAdjacentHTML('beforeend', html);
     };
+
+    // ================= وظائف الذكاء الاصطناعي والتعرف الصوتي =================
+
+    function setupVoiceRecognition() {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            document.getElementById('voiceBtn').style.display = 'none';
+            console.log("المتصفح لا يدعم التعرف الصوتي المباشر.");
+            return;
+        }
+        recognition = new SpeechRecognition();
+        recognition.lang = 'ar-EG'; // تعيين اللهجة المصرية كمثال رئيسي أو العربية العامة
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+            isListening = true;
+            document.getElementById('voiceBtn').classList.add('listening');
+            document.getElementById('voiceIcon').className = "fas fa-stop";
+            document.getElementById('voiceStatusAlert').innerText = "جاري الاستماع... تحدث ببيانات الطلبية الآن بوضوح.";
+            document.getElementById('voiceStatusAlert').classList.remove('d-none');
+        };
+
+        recognition.onend = () => {
+            isListening = false;
+            document.getElementById('voiceBtn').classList.remove('listening');
+            document.getElementById('voiceIcon').className = "fas fa-microphone";
+        };
+
+        recognition.onerror = (event) => {
+            console.error("Voice error: ", event.error);
+            document.getElementById('voiceStatusAlert').classList.add('d-none');
+            alert("حدث خطأ في التقاط الصوت، يرجى المحاولة مرة أخرى.");
+        };
+
+        recognition.onresult = async (event) => {
+            const speechToText = event.results[0][0].transcript;
+            document.getElementById('voiceStatusAlert').innerText = "جاري تحليل وفهم الكلام بالذكاء الاصطناعي...";
+            await processTextWithAI(speechToText);
+        };
+    }
+
+    window.toggleVoiceRecognition = () => {
+        if (!recognition) return alert("التعرف الصوتي غير مدعوم في متصفحك الحالي.");
+        if (isListening) {
+            recognition.stop();
+        } else {
+            recognition.start();
+        }
+    };
+
+    // إرسال النص إلى ذكاء Gemini الاصطناعي لتحليله واستخراج الخانات كـ JSON
+    async function processTextWithAI(text) {
+        // تنويه: يفضل حماية الـ API Key في البيئات الإنتاجية عبر Backend الخاص بك
+        const GEMINI_API_KEY = "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls"; 
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+        
+        const systemPrompt = `
+        أنت مساعد مبيعات ذكي ومسؤول إدخال بيانات لشركة مبيعات وتوزيع تسمى "شركة الزيادي". 
+        مهمتك هي تحليل النص العربي المأخوذ من الإملاء الصوتي لطلب عميل، واستخراج البيانات منه بدقة على شكل كود JSON فقط دون أي نصوص ترحيبية أو تفسيرية أخرى.
+        
+        يجب أن يكون الرد عبارة عن كود JSON صالح تماماً بالبنية التالية:
+        {
+          "customerName": "اسم العميل المذكور بالنص أو حقل فارغ إذا لم يذكر",
+          "note": "أي ملاحظات إضافية ذكرت في النص بخصوص الصلاحية أو التوصيل أو حقل فارغ",
+          "items": [
+             { "name": "اسم المنتج", "cartonQty": 0, "pieceQty": 0, "price": 0 }
+          ]
+        }
+
+        قواعد هامة:
+        1. استخرج اسم المنتج بدقة كما نطق.
+        2. حوّل الكلمات العددية إلى أرقام (مثال: خمسة كراتين تعني "cartonQty": 5، قطعتين تعني "pieceQty": 2). إذا لم يذكر نوع الكمية اعتبرها كرتونة أو قطعة حسب السياق الطبيعي.
+        3. السعر استخرجه كرقم إذا ذُكر، وإذا لم يذكر ضعه 0.
+        4. لا تضع أي علامات \`\`\`json أو نصوص خارج نطاق الـ JSON نفسه.
+        
+        النص المراد تحليله هو: "${text}"
+        `;
+
+        try {
+            const response = await fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ contents: [{ parts: [{ text: systemPrompt }] }] })
+            });
+
+            const resData = await response.json();
+            let aiText = resData.candidates[0].content.parts[0].text.trim();
+            
+            // تنظيف النص من علامات الـ Markdown إن وجدت
+            aiText = aiText.replace(/```json/g, "").replace(/
+```/g, "").trim();
+            
+            const parsedData = JSON.parse(aiText);
+            
+            // تعبئة البيانات المستخرجة في الصفحة تلقائياً
+            applyAiDataToFields(parsedData);
+            
+            document.getElementById('voiceStatusAlert').classList.add('d-none');
+            alert("تم تحليل الكلام وتعبئة الطلبية بنجاح!");
+            
+        } catch (error) {
+            console.error("AI Analysis error:", error);
+            document.getElementById('voiceStatusAlert').classList.add('d-none');
+            alert("فشل الذكاء الاصطناعي في تحليل النص بشكل صحيح، يرجى المحاولة مرة أخرى أو الإدخال يدوياً.");
+        }
+    }
+
+    function applyAiDataToFields(data) {
+        // 1. محاولة مطابقة اسم العميل
+        if (data.customerName) {
+            const input = document.getElementById('customerInput');
+            const searchName = data.customerName.trim();
+            
+            // ابحث عن أقرب اسم عميل يطابق الاسم المستخرج
+            let foundMatch = false;
+            for (let name in customersDataMap) {
+                if (name.includes(searchName) || searchName.includes(name)) {
+                    input.value = name;
+                    document.getElementById('customerSelect').value = customersDataMap[name];
+                    input.classList.add('is-valid-customer');
+                    foundMatch = true;
+                    break;
+                }
+            }
+            if(!foundMatch) {
+                input.value = data.customerName; // ضعه كما هو ليبحث عنه المستخدم يدوياً
+            }
+        }
+
+        // 2. تعبئة الملاحظات
+        if (data.note) {
+            document.getElementById('orderNote').value = data.note;
+        }
+
+        // 3. مسح الأسطر الفارغة الافتراضية وتعبئة الأصناف
+        if (data.items && data.items.length > 0) {
+            document.getElementById('itemsContainer').innerHTML = '';
+            data.items.forEach(item => {
+                addNewRow({
+                    name: item.name,
+                    cartonQty: item.cartonQty || '',
+                    pieceQty: item.pieceQty || '',
+                    price: item.price || ''
+                });
+            });
+        }
+    }
+
+    // =========================================================================
 
     window.saveOrder = async () => {
         const btn = document.getElementById('btnSave');
