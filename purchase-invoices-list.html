@@ -18,6 +18,7 @@
             --danger: #d90429;
             --info: #0077b6;
             --success: #2d6a4f;
+            --text-muted: #707b7c;
         }
 
         body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 50px; }
@@ -52,10 +53,11 @@
         .invoice-card { 
             background: var(--white); border: 1px solid var(--border); 
             border-radius: 20px; padding: 16px; margin: 0 15px 12px 15px; 
-            transition: 0.3s; cursor: pointer; position: relative;
+            transition: 0.3s; position: relative;
             box-shadow: 0 4px 10px rgba(0,0,0,0.02);
         }
-        .invoice-card:active { transform: scale(0.98); }
+        .invoice-card-clickable { cursor: pointer; }
+        .invoice-card-clickable:active { transform: scale(0.98); }
 
         /* Status Colors */
         .purchase-style { border-right: 5px solid var(--accent); }
@@ -75,8 +77,13 @@
         .price-label { font-size: 0.6rem; color: var(--text-muted); font-weight: 700; }
 
         .info-label { font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
-
         .back-btn { color: white; text-decoration: none; font-size: 1.2rem; }
+
+        .share-btn-icon {
+            background: #f4f7f6; color: var(--accent); border: 1px solid var(--border);
+            padding: 8px 12px; border-radius: 10px; font-size: 0.9rem; transition: 0.2s;
+        }
+        .share-btn-icon:hover { background: var(--accent); color: white; }
     </style>
 </head>
 <body>
@@ -84,57 +91,44 @@
 <div class="header">
     <a href="purchase-mgmt.html" class="back-btn"><i class="fas fa-arrow-right"></i></a>
     <h6 class="m-0 fw-bold">سجل فواتير المشتريات</h6>
-    <i class="fas fa-sync-alt" onclick="init()" style="cursor:pointer; font-size: 1.1rem;"></i>
+    <i class="fas fa-sync-alt" onclick="init()" style="cursor:pointer; font-size: 1.1rem;" title="تحديث البيانات"></i>
 </div>
 
 <div class="container-fluid mt-2 p-0">
     <div class="stats-grid">
-    <div class="stat-card">
-        <span class="stat-label">صافي الشراء</span>
-        <span class="stat-val" style="color: var(--info)" id="totalPurchase">0</span>
+        <div class="stat-card">
+            <span class="stat-label">صافي الشراء</span>
+            <span class="stat-val" style="color: var(--info)" id="totalPurchase">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">المدفوع</span>
+            <span class="stat-val" style="color: var(--success)" id="totalPaid">0</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-label">المتبقي</span>
+            <span class="stat-val" style="color: var(--danger)" id="totalPending">0</span>
+        </div>
     </div>
 
-    <div class="stat-card">
-        <span class="stat-label">المدفوع</span>
-        <span class="stat-val" style="color: var(--success)" id="totalPaid">0</span>
-    </div>
-
-    <div class="stat-card">
-        <span class="stat-label">المتبقي</span>
-        <span class="stat-val" style="color: var(--danger)" id="totalPending">0</span>
-    </div>
-</div>
-
-<!-- أزرار التحكم -->
-<div class="d-flex gap-2 px-3 mb-3">
-        <!-- أزرار التحكم -->
-<div class="d-flex gap-2 px-3 mb-3">
-
-    <!-- الرئيسية -->
-    <a href="index1.html"
-       class="btn flex-fill text-white fw-bold"
-       style="background:#0b5e3d; border-radius:12px;">
-        <i class="fas fa-home me-1"></i>
-        الرئيسية
-    </a>
-
-    <!-- حذف الكل -->
-    <button onclick="deleteAllInvoices()"
-            class="btn flex-fill fw-bold text-white"
-            style="background:#dc3545; border-radius:12px;">
-        <i class="fas fa-trash me-1"></i>
-        حذف الكل
-    </button>
-
-    <!-- Excel -->
-    <button onclick="exportToExcel()"
-            class="btn flex-fill fw-bold text-white"
-            style="background:#198754; border-radius:12px;">
-        <i class="fas fa-file-excel me-1"></i>
-        Excel
-    </button>
-
-</div>
+    <!-- أزرار التحكم -->
+    <div class="px-3 mb-3">
+        <div class="row g-2">
+            <div class="col-4">
+                <a href="index.html" class="btn w-100 text-white fw-bold d-flex align-items-center justify-content-center gap-1" style="background:#0b5e3d; border-radius:12px; padding: 10px 5px; font-size: 0.85rem;">
+                    <i class="fas fa-home"></i> الرئيسية
+                </a>
+            </div>
+            <div class="col-4">
+                <button onclick="exportToExcel()" class="btn w-100 fw-bold text-white d-flex align-items-center justify-content-center gap-1" style="background:#198754; border-radius:12px; padding: 10px 5px; font-size: 0.85rem;">
+                    <i class="fas fa-file-excel"></i> Excel
+                </button>
+            </div>
+            <div class="col-4">
+                <button onclick="deleteAllInvoices()" class="btn w-100 fw-bold text-white d-flex align-items-center justify-content-center gap-1" style="background:#dc3545; border-radius:12px; padding: 10px 5px; font-size: 0.85rem;">
+                    <i class="fas fa-trash"></i> حذف الكل
+                </button>
+            </div>
+        </div>
     </div>
 
     <div class="search-box">
@@ -146,32 +140,23 @@
         <div class="text-center mt-5"><div class="spinner-border text-success" role="status"></div></div>
     </div>
 </div>
+
 <!-- مكتبة Excel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
 <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, getDocs, query, orderBy, where, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-
-import {
-    getFirestore,
-    collection,
-    getDocs,
-    query,
-    orderBy,
-    where,
-    deleteDoc,
-    doc
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-  measurementId: "G-WE04GK5XZZ"
-};
+    const firebaseConfig = {
+        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+        authDomain: "ahmedelzaiady.firebaseapp.com",
+        projectId: "ahmedelzaiady",
+        storageBucket: "ahmedelzaiady.firebasestorage.app",
+        messagingSenderId: "300306825071",
+        appId: "1:300306825071:web:0426ddde56280fa090329a",
+        measurementId: "G-WE04GK5XZZ"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -182,6 +167,7 @@ const firebaseConfig = {
     window.init = async function() {
         try {
             const supSnap = await getDocs(collection(db, "suppliers"));
+            suppliersNames = {};
             supSnap.forEach(d => suppliersNames[d.id] = d.data().name);
 
             const [transSnap, voucherSnap] = await Promise.all([
@@ -190,100 +176,44 @@ const firebaseConfig = {
             ]);
             
             allInvoices = [];
+            let totalPurchaseSum = 0;
+            let totalReturnSum = 0;
+            let totalCashInvoices = 0;
+            let totalVoucherPayments = 0;
 
-let totalPurchaseSum = 0;
-let totalReturnSum = 0;
+            transSnap.forEach(doc => {
+                const data = { id: doc.id, ...doc.data() };
+                const amt = Number(data.total) || Number(data.amount) || 0;
 
-let totalCashInvoices = 0;
-let totalVoucherPayments = 0;
+                if (data.type === "شراء" || data.type === "فاتورة شراء") {
+                    data.displayAmount = amt;
+                    data.isReturn = false;
+                    allInvoices.push(data);
+                    totalPurchaseSum += amt;
 
-transSnap.forEach(doc => {
+                    if (data.paymentType === "cash") {
+                        totalCashInvoices += amt;
+                    }
+                } else if (data.type === "مرتجع شراء") {
+                    data.displayAmount = amt;
+                    data.isReturn = true;
+                    allInvoices.push(data);
+                    totalReturnSum += amt;
+                }
+            });
 
-    const data = { id: doc.id, ...doc.data() };
+            voucherSnap.forEach(v => {
+                totalVoucherPayments += Number(v.data().amount || 0);
+            });
 
-    const amt =
-        Number(data.total) ||
-        Number(data.amount) ||
-        0;
+            const netPurchase = totalPurchaseSum - totalReturnSum;
+            const totalPaid = totalCashInvoices + totalVoucherPayments;
+            const finalPending = netPurchase - totalPaid;
 
-    // =========================
-    // فواتير الشراء
-    // =========================
-    if (
-        data.type === "شراء" ||
-        data.type === "فاتورة شراء"
-    ) {
-
-        data.displayAmount = amt;
-        data.isReturn = false;
-
-        allInvoices.push(data);
-
-        totalPurchaseSum += amt;
-
-        // الفواتير النقدي تعتبر مدفوعة
-        if (data.paymentType === "cash") {
-
-            totalCashInvoices += amt;
-
-        }
-
-    }
-
-    // =========================
-    // مرتجع شراء
-    // =========================
-    else if (data.type === "مرتجع شراء") {
-
-        data.displayAmount = amt;
-        data.isReturn = true;
-
-        allInvoices.push(data);
-
-        totalReturnSum += amt;
-    }
-
-});
-
-// =========================
-// سندات الصرف
-// =========================
-voucherSnap.forEach(v => {
-
-    const amount =
-        Number(v.data().amount || 0);
-
-    totalVoucherPayments += amount;
-
-});
-
-// =========================
-// الحسابات النهائية
-// =========================
-
-// صافي الشراء
-const netPurchase =
-    totalPurchaseSum - totalReturnSum;
-
-// المدفوع = النقدي + سندات الصرف
-const totalPaid =
-    totalCashInvoices + totalVoucherPayments;
-
-// المتبقي
-const finalPending =
-    netPurchase - totalPaid;
-
-// =========================
-// عرض النتائج
-// =========================
-document.getElementById('totalPurchase').innerText =
-    netPurchase.toLocaleString();
-
-document.getElementById('totalPaid').innerText =
-    totalPaid.toLocaleString();
-
-document.getElementById('totalPending').innerText =
-    Math.max(0, finalPending).toLocaleString();
+            document.getElementById('totalPurchase').innerText = netPurchase.toLocaleString();
+            document.getElementById('totalPaid').innerText = totalPaid.toLocaleString();
+            document.getElementById('totalPending').innerText = Math.max(0, finalPending).toLocaleString();
+            
             renderInvoices(allInvoices);
         } catch (error) {
             document.getElementById('invoicesContainer').innerHTML = '<div class="text-danger text-center p-4">حدث خطأ في جلب البيانات</div>';
@@ -297,11 +227,13 @@ document.getElementById('totalPending').innerText =
             return;
         }
 
-        container.innerHTML = dataList.map(inv => `
-            <div class="invoice-card ${inv.isReturn ? 'return-style' : 'purchase-style'}" onclick="window.location.href='new-purchase-invoice.html?edit=${inv.id}'">
-                <div class="inv-header">
+        container.innerHTML = dataList.map(inv => {
+            const supplierName = suppliersNames[inv.supplierId] || 'مورد غير معروف';
+            return `
+            <div class="invoice-card ${inv.isReturn ? 'return-style' : 'purchase-style'}">
+                <div class="inv-header invoice-card-clickable" onclick="window.location.href='new-purchase-invoice.html?edit=${inv.id}'">
                     <div>
-                        <p class="sup-name">${suppliersNames[inv.supplierId] || 'مورد غير معروف'}</p>
+                        <p class="sup-name">${supplierName}</p>
                         <span class="inv-date"><i class="far fa-calendar-alt me-1"></i> ${inv.date || 'بلا تاريخ'}</span>
                     </div>
                     <span class="inv-badge ${inv.isReturn ? 'type-return' : (inv.paymentType === 'cash' ? 'type-cash' : 'type-credit')}">
@@ -310,11 +242,16 @@ document.getElementById('totalPending').innerText =
                 </div>
                 
                 <div class="d-flex justify-content-between align-items-end mt-3">
-                    <div class="info-label">
-                         <i class="fas fa-file-invoice"></i>
-                         <span>عرض التفاصيل</span>
+                    <div class="d-flex gap-2 align-items-center">
+                        <div class="info-label invoice-card-clickable" onclick="window.location.href='new-purchase-invoice.html?edit=${inv.id}'">
+                             <i class="fas fa-file-invoice"></i>
+                             <span>تعديل التفاصيل</span>
+                        </div>
+                        <button class="btn share-btn-icon" onclick="shareInvoice('${inv.id}', '${supplierName}', '${inv.date}', ${inv.displayAmount}, ${inv.isReturn})" title="مشاركة الفاتورة">
+                            <i class="fas fa-share-alt"></i>
+                        </button>
                     </div>
-                    <div class="price-tag">
+                    <div class="price-tag invoice-card-clickable" onclick="window.location.href='new-purchase-invoice.html?edit=${inv.id}'">
                         <span class="price-label">المبلغ</span>
                         <span class="price-val" style="color: ${inv.isReturn ? 'var(--danger)' : 'var(--accent)'}">
                             ${inv.isReturn ? '-' : ''}${Number(inv.displayAmount).toLocaleString()}
@@ -323,8 +260,21 @@ document.getElementById('totalPending').innerText =
                     </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     }
+
+    window.shareInvoice = (id, supplier, date, amount, isReturn) => {
+        const typeText = isReturn ? "مرتجع شراء ↩️" : "فاتورة شراء 🧾";
+        const textToShare = `شركة الزيادى للتجارة\n--------------------\nالحركة: ${typeText}\nالمورد: ${supplier}\nالتاريخ: ${date}\nالقيمة: ${amount} ج.م\n--------------------\nتم الإرسال عبر النظام الذكي للمشتريات.`;
+        
+        if (navigator.share) {
+            navigator.share({ title: 'فاتورة شراء', text: textToShare }).catch(console.error);
+        } else {
+            navigator.clipboard.writeText(textToShare).then(() => {
+                alert("تم نسخ تفاصيل الفاتورة إلى الحافظة لمشاركتها يدوياً!");
+            });
+        }
+    };
 
     window.searchInvoices = () => {
         const term = document.getElementById('searchInput').value.toLowerCase();
@@ -334,170 +284,92 @@ document.getElementById('totalPending').innerText =
         });
         renderInvoices(filtered);
     };
-window.deleteAllInvoices = async () => {
 
-    if (!confirm("⚠️ هل تريد حذف جميع فواتير المشتريات؟")) return;
-
-    try {
-
-        const snap = await getDocs(collection(db, "supplier_transactions"));
-
-        if (snap.empty) {
-            return alert("لا توجد فواتير");
+    window.deleteAllInvoices = async () => {
+        if (!confirm("⚠️ هل تريد حذف جميع فواتير المشتريات؟")) return;
+        try {
+            const snap = await getDocs(collection(db, "supplier_transactions"));
+            if (snap.empty) return alert("لا توجد فواتير لحذفها");
+            
+            for (const d of snap.docs) {
+                await deleteDoc(doc(db, "supplier_transactions", d.id));
+            }
+            alert("تم حذف جميع الفواتير بنجاح ✅");
+            init();
+        } catch (e) {
+            alert("خطأ: " + e.message);
         }
+    };
 
-        for (const d of snap.docs) {
+    window.exportToExcel = () => {
+        if (allInvoices.length === 0) return alert("لا توجد بيانات للتصدير");
 
-            await deleteDoc(doc(db, "supplier_transactions", d.id));
+        let excelData = [];
+        excelData.push([
+            "التاريخ",
+            "الحركة",
+            "اسم العميل/المورد",
+            "اسم الصنف",
+            "عدد قطعة",
+            "عدد كرتونة",
+            "سعر قطعة",
+            "سعر كرتونة"
+        ]);
 
-        }
+        allInvoices.forEach(inv => {
+            const supplierName = suppliersNames[inv.supplierId] || "";
+            const motionType = inv.isReturn ? "بيع" : "شراء";
 
-        alert("تم حذف جميع الفواتير بنجاح ✅");
+            if (Array.isArray(inv.items) && inv.items.length > 0) {
+                inv.items.forEach(item => {
+                    const unit = item.unitName || "كرتونة";
+                    let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
 
-        init();
+                    if (unit === "قطعة") {
+                        qtyPcs = item.qty || item.returnQty || 0;
+                        pricePcs = item.buy || 0;
+                    } else {
+                        qtyCrt = item.qty || item.returnQty || 0;
+                        priceCrt = item.buy || 0;
+                    }
 
-    } catch (e) {
+                    excelData.push([
+                        inv.date || "",
+                        motionType,
+                        supplierName,
+                        item.name || item.productName || item.itemName || "",
+                        qtyPcs,
+                        qtyCrt,
+                        pricePcs,
+                        priceCrt
+                    ]);
+                });
+            }
 
-        alert("خطأ: " + e.message);
-
-    }
-
-};
-
-window.exportToExcel = () => {
-
-    if (allInvoices.length === 0) {
-        return alert("لا توجد بيانات");
-    }
-
-    let excelData = [];
-
-    // العناوين
-    excelData.push([
-        "التاريخ",
-        "الحركة",
-        "اسم العميل",
-        "اسم الصنف",
-        "عدد جركن",
-        "عدد كرتونة",
-        "سعر جركن",
-        "سعر كرتونة"
-    ]);
-
-    allInvoices.forEach(inv => {
-
-        const supplierName =
-            suppliersNames[inv.supplierId] || "";
-
-        // ===============================
-        // الأصناف
-        // ===============================
-        if (Array.isArray(inv.items) && inv.items.length > 0) {
-
-            inv.items.forEach(item => {
-
+            if (inv.paymentType === "cash") {
                 excelData.push([
-
                     inv.date || "",
-
-                    inv.isReturn
-                        ? "مرتجع شراء"
-                        : "شراء",
-
+                    "سداد له نقدى",
                     supplierName,
-
-                    item.name ||
-                    item.productName ||
-                    item.itemName ||
+                    "سداد نقدى كاش",
                     "",
-
-                    // عدد جركن
-                    item.qtyGallons ||
-                    item.gallons ||
                     "",
-
-                    // عدد كرتونة
-                    item.qtyCartons ||
-                    item.cartons ||
-                    item.qty ||
-                    0,
-
-                    // سعر جركن
-                    item.gallonPrice ||
-                    item.price1 ||
                     "",
-// سعر كرتونة = سعر شراء الوحدة
-item.buy || item.cartonPrice || item.price || 0,
-
+                    Number(inv.displayAmount || 0)
                 ]);
+            }
+        });
 
-            });
+        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+        worksheet['!cols'] = [
+            { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 30 },
+            { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
+        ];
 
-        }
-
-        // ===============================
-        // السداد النقدي
-        // ===============================
-        if (inv.paymentType === "cash") {
-
-            excelData.push([
-
-                inv.date || "",
-
-                "سداد له نقدى",
-
-                supplierName,
-
-                "سداد نقدى",
-
-                "",
-
-                1,
-
-                "",
-
-                Number(inv.displayAmount || 0)
-
-            ]);
-
-        }
-
-    });
-
-    // إنشاء الشيت
-    const worksheet =
-        XLSX.utils.aoa_to_sheet(excelData);
-
-    // عرض الأعمدة
-    worksheet['!cols'] = [
-        { wch: 15 },
-        { wch: 18 },
-        { wch: 25 },
-        { wch: 30 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 18 }
-    ];
-
-    // إنشاء الملف
-    const workbook =
-        XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        "المشتريات"
-    );
-
-    XLSX.writeFile(
-        workbook,
-        "تقرير_المشتريات.xlsx"
-    );
-
-};
-
-
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "المشتريات");
+        XLSX.writeFile(workbook, "تقرير_المشتريات.xlsx");
+    };
 
     init();
 </script>
