@@ -18,7 +18,7 @@
             --text-muted: #707b7c;
         }
 
-        body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 140px; }
+        body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 180px; }
         
         .header { 
             background: var(--header-bg); padding: 15px 20px; display: flex; 
@@ -66,17 +66,25 @@
         }
         .add-item-btn:hover { background: var(--accent); color: white; }
 
+        /* تعديل شريط الحفظ والجمالي ليصبح عائماً ومنظماً بشكل رأسي جميل */
         .invoice-footer { 
-            position: fixed; bottom: 0; left: 0; right: 0; 
-            background: white; padding: 15px 20px; 
-            border-top: 1px solid var(--border); display: flex; 
-            justify-content: space-between; align-items: center; z-index: 1000;
-            box-shadow: 0 -5px 20px rgba(0,0,0,0.05);
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.95); padding: 15px 25px; 
+            border: 1px solid var(--border); display: flex; 
+            flex-direction: column; align-items: center; gap: 10px; z-index: 1050;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            border-radius: 24px; width: 90%; max-width: 500px;
+            backdrop-filter: blur(10px);
         }
 
-        .amount { font-size: 1.4rem; font-weight: 800; color: var(--accent); font-family: 'Consolas', monospace; }
-        .amount.net { color: #0b5e3d; font-size: 1.6rem; }
-        .btn-save { background: var(--accent); color: #fff; border: none; padding: 12px 35px; border-radius: 15px; font-weight: 700; }
+        .total-container {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 100%; padding: 4px 10px; border-bottom: 1px dashed var(--border);
+        }
+
+        .amount.net { color: var(--accent); font-size: 1.8rem; font-weight: 900; font-family: 'Consolas', monospace; }
+        .btn-save { background: var(--accent); color: #fff; border: none; padding: 12px 0; border-radius: 15px; font-weight: 700; width: 100%; box-shadow: 0 4px 12px rgba(11, 94, 61, 0.3); transition: 0.2s; }
+        .btn-save:hover { background: #08442c; transform: translateY(-2px); }
         
         label { font-size: 0.8rem; margin-bottom: 8px; color: var(--accent); font-weight: 700; display: flex; align-items: center; gap: 4px; }
         
@@ -148,12 +156,11 @@
     </button>
 </div>
 
-<div class="invoice-footer flex-wrap gap-2">
-    <div class="d-flex gap-4">
-        <div class="total-info">
-            <span class="d-block small text-muted fw-bold">الصافي الإجمالي النهائي</span>
-            <span class="amount net" id="netTotal">0.00</span>
-        </div>
+<!-- تصميم الفوتر العائم الجديد -->
+<div class="invoice-footer">
+    <div class="total-container">
+        <span class="small text-muted fw-bold">الصافي الإجمالي النهائي:</span>
+        <span class="amount net" id="netTotal">0.00</span>
     </div>
     <button class="btn-save" id="btnSaveInvoice">حفظ وترحيل الفاتورة</button>
 </div>
@@ -247,6 +254,55 @@
                 el.addEventListener('input', () => { isDataChanged = true; });
             });
         }, 1000);
+    }
+
+    async function loadInvoiceForEdit() {
+        document.getElementById('mainTitle').innerText = "تعديل الفاتورة";
+        document.getElementById('statusBadge').innerText = "تعديل";
+        document.getElementById('statusBadge').className = "badge-new bg-warning text-dark";
+
+        const invRef = doc(db, "supplier_transactions", editId);
+        const invSnap = await getDoc(invRef);
+
+        if (invSnap.exists()) {
+            const data = invSnap.data();
+            document.getElementById('supplierSelect').value = data.supplierId;
+            document.getElementById('invDate').value = data.date;
+            document.getElementById('paymentType').value = data.paymentType || 'credit';
+            document.getElementById('paidAmount').value = data.paidAmount || '0.00';
+            
+            document.getElementById('itemsList').innerHTML = ""; 
+            
+            // حل مشكلة تحميل الأصناف السليم أثناء وضع التعديل
+            if (data.items && data.items.length > 0) {
+                data.items.forEach(item => { 
+                    addNewItemRow(item); 
+                });
+            }
+            window.calculateTotal();
+        }
+    }
+
+    async function loadOrderData(id) {
+        try {
+            const orderSnap = await getDoc(doc(db, "purchase_orders", id));
+            if (orderSnap.exists()) {
+                const data = orderSnap.data();
+                document.getElementById('supplierSelect').value = data.supplierId;
+                document.getElementById('itemsList').innerHTML = ""; 
+                
+                data.items.forEach(item => {
+                    addNewItemRow({
+                        name: item.name,
+                        qty: item.qty,
+                        returnQty: item.returnQty || 0,
+                        buy: item.buy || 0,
+                        unitName: item.unitName || 'كرتونة'
+                    });
+                });
+                window.calculateTotal();
+            }
+        } catch (e) { console.error(e); }
     }
 
     window.addNewItemRow = (itemData = null) => {
