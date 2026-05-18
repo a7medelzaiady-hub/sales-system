@@ -112,6 +112,10 @@
         <button class="btn-add-item mt-2" onclick="addNewRow()">
             <i class="fas fa-plus-circle me-1"></i> إضافة صنف للطلبية
         </button>
+      <button class="btn btn-success mt-2 w-100" onclick="startVoiceInput()">
+    <i class="fas fa-microphone"></i>
+    تسجيل الطلبية بالصوت
+</button>  
     </div>
 </div>
 
@@ -323,7 +327,255 @@
             btn.innerText = editId ? "تحديث البيانات" : "حفظ وإرسال الطلبية";
         }
     };
+// ===============================
+// تحويل الصوت إلى نص
+// ===============================
+window.startVoiceInput = () => {
 
+    const SpeechRecognition =
+        window.SpeechRecognition ||
+        window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+        alert("المتصفح لا يدعم التسجيل الصوتي");
+        return;
+    }
+
+    const recognition = new SpeechRecognition();
+
+    recognition.lang = "ar-EG";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.start();
+
+    const btn = document.querySelector(".btn-success");
+
+    btn.innerHTML =
+        '<i class="fas fa-microphone-slash"></i> جاري الاستماع...';
+
+    recognition.onresult = (event) => {
+
+        const text =
+            event.results[0][0].transcript;
+
+        console.log(text);
+
+        analyzeVoiceOrder(text);
+
+        btn.innerHTML =
+            '<i class="fas fa-microphone"></i> تسجيل الطلبية بالصوت';
+    };
+
+    recognition.onerror = () => {
+
+        btn.innerHTML =
+            '<i class="fas fa-microphone"></i> تسجيل الطلبية بالصوت';
+
+        alert("حدث خطأ أثناء التسجيل");
+    };
+};
+
+
+// ===============================
+// تحليل نص الطلبية
+// ===============================
+function analyzeVoiceOrder(text) {
+
+    text = text.replace(/أ/g, "ا")
+               .replace(/إ/g, "ا")
+               .replace(/ة/g, "ه");
+
+    console.log("النص بعد التنظيف:", text);
+
+    // ==================================
+    // استخراج اسم العميل
+    // ==================================
+    const customerPatterns = [
+        /العميل\s+([^\s]+)/,
+        /عميل\s+([^\s]+)/,
+        /للاستاذ\s+([^\s]+)/,
+        /للعميل\s+([^\s]+)/
+    ];
+
+    for (const pattern of customerPatterns) {
+
+        const match = text.match(pattern);
+
+        if (match) {
+
+            const customerName =
+                match[1].trim();
+
+            document.getElementById("customerInput").value =
+                customerName;
+
+            if (customersDataMap[customerName]) {
+
+                document.getElementById("customerSelect").value =
+                    customersDataMap[customerName];
+
+                document.getElementById("customerInput")
+                    .classList.add("is-valid-customer");
+            }
+
+            break;
+        }
+    }
+
+
+    // ==================================
+    // استخراج التاريخ
+    // ==================================
+    const daysMap = {
+        "السبت": 6,
+        "الاحد": 0,
+        "الاحد القادم": 0,
+        "الاثنين": 1,
+        "الثلاثاء": 2,
+        "الاربعاء": 3,
+        "الخميس": 4,
+        "الجمعه": 5
+    };
+
+    for (const day in daysMap) {
+
+        if (text.includes(day)) {
+
+            const targetDay = daysMap[day];
+
+            let date = new Date();
+
+            while (date.getDay() !== targetDay) {
+                date.setDate(date.getDate() + 1);
+            }
+
+            document.getElementById("requiredDate").value =
+                date.toISOString().split("T")[0];
+
+            break;
+        }
+    }
+
+
+    // ==================================
+    // تقسيم الأصناف
+    // ==================================
+    const itemParts =
+        text.split(/وكمان|و ايضا|وايضا|ثم|,/);
+
+
+    itemParts.forEach(part => {
+
+        let itemName = "";
+        let cartonQty = 0;
+        let pieceQty = 0;
+        let price = 0;
+
+
+        // =========================
+        // استخراج الكراتين
+        // =========================
+        const cartonMatch =
+            part.match(/(\d+)\s*(كرتونه|كرتون|كراتين)/);
+
+        if (cartonMatch) {
+            cartonQty =
+                Number(cartonMatch[1]);
+        }
+
+
+        // =========================
+        // استخراج القطع
+        // =========================
+        const pieceMatch =
+            part.match(/(\d+)\s*(قطعه|قطع)/);
+
+        if (pieceMatch) {
+            pieceQty =
+                Number(pieceMatch[1]);
+        }
+
+
+        // =========================
+        // استخراج السعر
+        // =========================
+        const pricePatterns = [
+            /بسعر\s*(\d+)/,
+            /السعر\s*(\d+)/,
+            /ب\s*(\d+)\s*جنيه/
+        ];
+
+        for (const pattern of pricePatterns) {
+
+            const match = part.match(pattern);
+
+            if (match) {
+
+                price = Number(match[1]);
+                break;
+            }
+        }
+
+
+        // =========================
+        // استخراج اسم الصنف
+        // =========================
+        let cleaned = part;
+
+        cleaned = cleaned
+            .replace(/بسعر\s*\d+/g, "")
+            .replace(/السعر\s*\d+/g, "")
+            .replace(/ب\s*\d+\s*جنيه/g, "")
+            .replace(/\d+\s*(كرتونه|كرتون|كراتين)/g, "")
+            .replace(/\d+\s*(قطعه|قطع)/g, "")
+            .replace(/عباره عن/g, "")
+            .replace(/طلب/g, "")
+            .replace(/طلبيه/g, "")
+            .replace(/العميل/g, "")
+            .replace(/يوم\s+\S+/g, "")
+            .trim();
+
+        itemName = cleaned;
+
+
+        // =========================
+        // إضافة الصنف
+        // =========================
+        if (
+            itemName &&
+            (cartonQty > 0 || pieceQty > 0)
+        ) {
+
+            addNewRow({
+                name: itemName,
+                cartonQty,
+                pieceQty,
+                price
+            });
+
+            const rows =
+                document.querySelectorAll(".order-item");
+
+            const lastRow =
+                rows[rows.length - 1];
+
+            lastRow.querySelector(".item-name").value =
+                itemName;
+
+            lastRow.querySelector(".item-carton").value =
+                cartonQty;
+
+            lastRow.querySelector(".item-piece").value =
+                pieceQty;
+
+            lastRow.querySelector(".item-price").value =
+                price;
+        }
+    });
+
+    alert("تم تحليل الطلبية الصوتية بنجاح");
+}
     initPage();
 </script>
 </body>
