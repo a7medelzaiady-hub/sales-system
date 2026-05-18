@@ -54,6 +54,7 @@
             border: 2px dashed var(--accent); color: var(--accent); 
             background: #f0f6f3; width: 100%; padding: 12px; 
             border-radius: 15px; transition: 0.3s; font-weight: 700;
+            cursor: pointer;
         }
         .btn-add-item:hover { background: var(--accent); color: white; }
 
@@ -70,12 +71,12 @@
             width: 100%; padding: 12px; border-radius: 15px; 
             font-weight: bold; font-size: 1.1rem; 
             transition: 0.3s;
+            cursor: pointer;
         }
         .btn-save:active { transform: scale(0.98); opacity: 0.9; }
 
         .badge-status { font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; }
 
-        /* تعديلات أزرار الإملاء الصوتي */
         .voice-fab {
             position: fixed; bottom: 85px; left: 20px;
             width: 60px; height: 60px; border-radius: 50%;
@@ -103,8 +104,8 @@
 <datalist id="customersList"></datalist>
 <datalist id="inventoryList"></datalist>
 
-<!-- زر الإملاء الصوتي العائم -->
-<button class="voice-fab" id="voiceBtn" onclick="toggleVoiceRecognition()" title="املي الطلبية صوتياً بالكامل">
+<!-- زر الإملاء الصوتي العائم ذو استدعاء آمن -->
+<button class="voice-fab" id="voiceBtn" title="املي الطلبية صوتياً بالكامل">
     <i class="fas fa-microphone" id="voiceIcon"></i>
 </button>
 
@@ -115,7 +116,6 @@
 </div>
 
 <div class="container mt-3">
-    <!-- حالة التنبيه الصوتي المحدثة -->
     <div id="voiceStatusAlert" class="alert alert-dark text-center py-2 d-none" style="border-radius:12px; font-size:0.9rem;">
         جاري الاستماع... تحدث بالطلبية كاملة الآن.
     </div>
@@ -141,14 +141,14 @@
     <div class="glass-card">
         <h6 class="mb-3 fw-bold"><i class="fas fa-shopping-basket me-2 text-success"></i> تفاصيل الأصناف</h6>
         <div id="itemsContainer"></div>
-        <button class="btn-add-item mt-2" onclick="addNewRow()">
+        <button class="btn-add-item mt-2" id="addItemBtn">
             <i class="fas fa-plus-circle me-1"></i> إضافة صنف للطلبية
         </button>
     </div>
 </div>
 
 <div class="footer-action">
-    <button class="btn-save" id="btnSave" onclick="saveOrder()">حفظ وإرسال الطلبية</button>
+    <button class="btn-save" id="btnSave">حفظ وإرسال الطلبية</button>
 </div>
 
 <script type="module">
@@ -174,6 +174,45 @@
     let customersDataMap = {};
     let recognition = null;
     let isListening = false;
+
+    // تم تصدير الدالة لنطاق الويندوز العالمي لضمان عمل أزرار الحذف الديناميكية بنجاح
+    window.removeRow = (id) => {
+        const row = document.getElementById(id);
+        if (row) row.remove();
+    };
+
+    window.addNewRow = (item = null) => {
+        const container = document.getElementById('itemsContainer');
+        const rowId = 'row_' + Date.now() + Math.floor(Math.random() * 1000);
+        
+        const html = `
+            <div class="order-item" id="${rowId}">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="small fw-bold text-muted"><i class="fas fa-tag me-1"></i> بيانات المنتج</span>
+                    <button class="btn btn-sm text-danger border-0 p-0" onclick="window.removeRow('${rowId}')">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </div>
+                <input type="text" class="form-control item-name" list="inventoryList" 
+                       value="${item ? item.name : ''}" placeholder="ابحث أو اكتب اسم الصنف...">
+                <div class="row g-2">
+                    <div class="col-4">
+                        <label>كمية كرتونة</label>
+                        <input type="number" class="form-control item-carton" value="${item ? (item.cartonQty || '') : ''}" placeholder="0" min="0">
+                    </div>
+                    <div class="col-4">
+                        <label>كمية قطعة</label>
+                        <input type="number" class="form-control item-piece" value="${item ? (item.pieceQty || '') : ''}" placeholder="0" min="0">
+                    </div>
+                    <div class="col-4">
+                        <label>السعر</label>
+                        <input type="number" class="form-control item-price" value="${item ? (item.price || '') : ''}" placeholder="0.00 (اختياري)" min="0" step="0.01">
+                    </div>
+                </div>
+            </div>
+        `;
+        container.insertAdjacentHTML('beforeend', html);
+    };
 
     async function initPage() {
         try {
@@ -222,15 +261,29 @@
             if (editId) {
                 await loadOrderData();
             } else {
-                addNewRow();
+                window.addNewRow();
             }
 
-            // تهيئة إعدادات الصوت
             setupVoiceRecognition();
+            bindActionButtons();
 
         } catch (e) {
             console.error("حدث خطأ أثناء تحميل البيانات: ", e);
         }
+    }
+
+    function bindActionButtons() {
+        document.getElementById('addItemBtn').addEventListener('click', () => {
+            window.addNewRow();
+        });
+
+        document.getElementById('btnSave').addEventListener('click', () => {
+            saveOrder();
+        });
+
+        document.getElementById('voiceBtn').addEventListener('click', () => {
+            toggleVoiceRecognition();
+        });
     }
 
     async function loadOrderData() {
@@ -260,49 +313,14 @@
             }
             
             document.getElementById('itemsContainer').innerHTML = '';
-            data.items.forEach(item => addNewRow(item));
+            data.items.forEach(item => window.addNewRow(item));
         }
     }
-
-    window.addNewRow = (item = null) => {
-        const container = document.getElementById('itemsContainer');
-        const rowId = Date.now() + Math.random();
-        
-        const html = `
-            <div class="order-item" id="row_${rowId}">
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span class="small fw-bold text-muted"><i class="fas fa-tag me-1"></i> بيانات المنتج</span>
-                    <button class="btn btn-sm text-danger border-0 p-0" onclick="document.getElementById('row_${rowId}').remove()">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
-                </div>
-                <input type="text" class="form-control item-name" list="inventoryList" 
-                       value="${item ? item.name : ''}" placeholder="ابحث أو اكتب اسم الصنف...">
-                <div class="row g-2">
-                    <div class="col-4">
-                        <label>كمية كرتونة</label>
-                        <input type="number" class="form-control item-carton" value="${item ? (item.cartonQty || '') : ''}" placeholder="0" min="0">
-                    </div>
-                    <div class="col-4">
-                        <label>كمية قطعة</label>
-                        <input type="number" class="form-control item-piece" value="${item ? (item.pieceQty || '') : ''}" placeholder="0" min="0">
-                    </div>
-                    <div class="col-4">
-                        <label>السعر</label>
-                        <input type="number" class="form-control item-price" value="${item ? (item.price || '') : ''}" placeholder="0.00 (اختياري)" min="0" step="0.01">
-                    </div>
-                </div>
-            </div>
-        `;
-        container.insertAdjacentHTML('beforeend', html);
-    };
-
-    // ================= وظائف الذكاء الاصطناعي والتعرف الصوتي المصلحة =================
 
     function setupVoiceRecognition() {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            console.log("المتصفح الحالي لا يدعم التعرف على الصوت المباشر بشكل افتراضي.");
+            console.log("التعرف الصوتي غير مدعوم في هذا المتصفح.");
             return;
         }
         
@@ -326,58 +344,49 @@
         };
 
         recognition.onerror = (event) => {
-            console.error("Voice recognition error: ", event.error);
+            console.error("خطأ الميكروفون: ", event.error);
             document.getElementById('voiceStatusAlert').classList.add('d-none');
-            if(event.error === 'not-allowed') {
-                alert("يرجى تفعيل صلاحية الميكروفون من إعدادات المتصفح لتتمكن من استخدام الإملاء الصوتي.");
+            if (event.error === 'not-allowed') {
+                alert("يرجى التأكد من تشغيل الصفحة عبر رابط آمن (HTTPS) والموافقة على صلاحية الميكروفون.");
             } else {
-                alert("تعذر التقاط الصوت بوضوح، يرجى المحاولة مرة أخرى.");
+                alert("لم يتم التقاط الصوت، حاول التحدث مجدداً بوضوح.");
             }
         };
 
         recognition.onresult = async (event) => {
             const speechToText = event.results[0][0].transcript;
-            document.getElementById('voiceStatusAlert').innerText = "جاري تحليل وفهم الكلام بالذكاء الاصطناعي...";
+            document.getElementById('voiceStatusAlert').innerText = "جاري تعبئة الخانات عبر الذكاء الاصطناعي...";
             await processTextWithAI(speechToText);
         };
     }
 
-    // ربط الدالة بـ window لجعل الـ HTML يراها من وسم الموديول
-    window.toggleVoiceRecognition = () => {
+    function toggleVoiceRecognition() {
         if (!recognition) {
-            return alert("التعرف الصوتي غير مدعوم في متصفحك أو يحتاج إلى متصفح Google Chrome.");
+            return alert("التعرف الصوتي يتطلب متصفح مدمج مثل Google Chrome وأن تعمل الصفحة عبر خادم آمن HTTPS وليس بروتوكول File:// المحلي.");
         }
         if (isListening) {
             recognition.stop();
         } else {
             recognition.start();
         }
-    };
+    }
 
     async function processTextWithAI(text) {
         const GEMINI_API_KEY = "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls"; 
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
         
         const systemPrompt = `
-        أنت مساعد مبيعات ذكي ومسؤول إدخال بيانات لشركة مبيعات وتوزيع تسمى "شركة الزيادي". 
-        مهمتك هي تحليل النص العربي المأخوذ من الإملاء الصوتي لطلب عميل، واستخراج البيانات منه بدقة على شكل كود JSON فقط دون أي نصوص ترحيبية أو تفسيرية أخرى.
-        
-        يجب أن يكون الرد عبارة عن كود JSON صالح تماماً بالبنية التالية:
+        أنت مساعد مبيعات ذكي لـ "شركة الزيادي". حلل النص المستخرج من الصوت لطلب العميل، واستخرج البيانات منه على شكل كود JSON فقط دون أي نصوص خارجية ترحيبية أو نقاط.
+        البنية المطلوبة بدقة:
         {
-          "customerName": "اسم العميل المذكور بالنص أو حقل فارغ إذا لم يذكر",
-          "note": "أي ملاحظات إضافية ذكرت في النص بخصوص الصلاحية أو التوصيل أو حقل فارغ",
+          "customerName": "اسم العميل المذكور بالنص أو حقل فارغ",
+          "note": "أي ملاحظات إضافية ذكرت أو حقل فارغ",
           "items": [
              { "name": "اسم المنتج", "cartonQty": 0, "pieceQty": 0, "price": 0 }
           ]
         }
-
-        قواعد هامة:
-        1. استخرج اسم المنتج بدقة كما نطق.
-        2. حوّل الكلمات العددية إلى أرقام (مثال: خمسة كراتين تعني "cartonQty": 5، قطعتين تعني "pieceQty": 2). إذا لم يذكر نوع الكمية اعتبرها كرتونة أو قطعة حسب السياق الطبيعي.
-        3. السعر استخرجه كرقم إذا ذُكر، وإذا لم يذكر ضعه 0.
-        4. لا تضع أي علامات \`\`\`json أو نصوص خارج نطاق الـ JSON نفسه.
-        
-        النص المراد تحليله هو: "${text}"
+        قواعد: حوّل الأعداد الحرفية لأرقام (خمسة تعني 5)، إن لم يحدد نوع الكمية خمنها طبيعياً، السعر صفر إن لم يذكر.
+        النص: "${text}"
         `;
 
         try {
@@ -397,9 +406,9 @@
             document.getElementById('voiceStatusAlert').classList.add('d-none');
             
         } catch (error) {
-            console.error("AI Analysis error:", error);
+            console.error("AI Error:", error);
             document.getElementById('voiceStatusAlert').classList.add('d-none');
-            alert("فشل الذكاء الاصطناعي في تحليل النص بشكل صحيح، يرجى المحاولة مرة أخرى أو الإدخال يدوياً.");
+            alert("حدث خطأ أثناء معالجة النص بالذكاء الاصطناعي، يرجى المحاولة يدوياً.");
         }
     }
 
@@ -407,7 +416,6 @@
         if (data.customerName) {
             const input = document.getElementById('customerInput');
             const searchName = data.customerName.trim();
-            
             let foundMatch = false;
             for (let name in customersDataMap) {
                 if (name.includes(searchName) || searchName.includes(name)) {
@@ -418,19 +426,15 @@
                     break;
                 }
             }
-            if(!foundMatch) {
-                input.value = data.customerName;
-            }
+            if(!foundMatch) input.value = data.customerName;
         }
 
-        if (data.note) {
-            document.getElementById('orderNote').value = data.note;
-        }
+        if (data.note) document.getElementById('orderNote').value = data.note;
 
         if (data.items && data.items.length > 0) {
             document.getElementById('itemsContainer').innerHTML = '';
             data.items.forEach(item => {
-                addNewRow({
+                window.addNewRow({
                     name: item.name,
                     cartonQty: item.cartonQty || '',
                     pieceQty: item.pieceQty || '',
@@ -440,9 +444,7 @@
         }
     }
 
-    // =========================================================================
-
-    window.saveOrder = async () => {
+    async function saveOrder() {
         const btn = document.getElementById('btnSave');
         const custId = document.getElementById('customerSelect').value;
         const requiredDate = document.getElementById('requiredDate').value;
@@ -504,7 +506,7 @@
             btn.disabled = false;
             btn.innerText = editId ? "تحديث البيانات" : "حفظ وإرسال الطلبية";
         }
-    };
+    }
 
     initPage();
 </script>
