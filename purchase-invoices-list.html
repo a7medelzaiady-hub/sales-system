@@ -84,6 +84,21 @@
             padding: 8px 14px; border-radius: 10px; font-size: 1rem; transition: 0.2s;
         }
         .share-btn-icon:hover { background: var(--accent); color: white; }
+
+        /* تصميم الفاتورة الحرارية المخفية المخصصة للتصوير */
+        #thermalInvoiceContainer {
+            position: absolute; left: -9999px; top: -9999px;
+            width: 80mm; background: #fff; color: #000; font-family: 'Cairo', sans-serif;
+            padding: 15px; box-sizing: border-box; font-size: 14px; direction: rtl;
+        }
+        .thermal-header { text-align: center; font-weight: bold; margin-bottom: 10px; }
+        .thermal-title { font-size: 18px; margin: 0; font-weight: 700; }
+        .thermal-meta { font-size: 12px; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 8px; }
+        .thermal-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .thermal-table th { border-bottom: 1px dashed #000; padding: 4px 0; text-align: right; font-weight: 700; }
+        .thermal-table td { padding: 6px 0; border-bottom: 1px dotted #ccc; }
+        .thermal-totals { margin-top: 10px; border-top: 1px dashed #000; padding-top: 8px; font-size: 13px; }
+        .total-row { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 4px; }
     </style>
 </head>
 <body>
@@ -141,8 +156,12 @@
     </div>
 </div>
 
-<!-- مكتبة Excel -->
+<!-- الحاوية الوهمية لتوليد الصورة الحرارية 80mm -->
+<div id="thermalInvoiceContainer"></div>
+
+<!-- مكتبات الخارجيّة لمعالجة الإكسيل والتقاط الصور -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -247,7 +266,7 @@
                              <i class="fas fa-file-invoice"></i>
                              <span>تعديل التفاصيل</span>
                         </div>
-                        <button class="btn share-btn-icon" onclick="shareThermalInvoice('${inv.id}')" title="مشاركة">
+                        <button class="btn share-btn-icon" onclick="shareAsThermalImage('${inv.id}')" title="مشاركة الفاتورة">
                             <i class="fas fa-share-alt"></i>
                         </button>
                     </div>
@@ -263,59 +282,111 @@
         `}).join('');
     }
 
-    window.shareThermalInvoice = (invoiceId) => {
+    // توليد صورة الفاتورة الحرارية الحقيقية 80mm ومشاركتها فوراً كصورة
+    window.shareAsThermalImage = async (invoiceId) => {
         const inv = allInvoices.find(i => i.id === invoiceId);
         if(!inv) return;
 
         const supName = suppliersNames[inv.supplierId] || 'مورد غير معروف';
         const items = inv.items || [];
-        
-        let lines = [];
-        lines.push("================================");
-        lines.push("       شركة الزيادى للتجارة     ");
-        lines.push("================================");
-        lines.push(`المورد: ${supName}`);
-        lines.push(`التاريخ: ${inv.date || 'بلا تاريخ'}`);
-        lines.push("--------------------------------");
-        lines.push("الصنف                  الإجمالي");
-        lines.push("--------------------------------");
+        const thermalContainer = document.getElementById('thermalInvoiceContainer');
 
+        // بناء الهيكل المرئي الحقيقي للفاتورة الكاشير
+        let rowsHtml = "";
         items.forEach(item => {
             const isItemReturn = item.returnQty > 0 || inv.isReturn;
             const qty = item.qty || item.returnQty || 0;
-            const unit = item.unitName || 'وحدة';
+            const unit = item.unitName || 'كرتونة';
             const price = item.buy || 0;
             const subtotal = qty * price;
 
-            // تطبيق قاعدة السالب للمرتجع لتنزل جاهزة ومطروحة بالطباعة
-            const qtyStr = isItemReturn ? `-${qty}` : `${qty}`;
-            const priceStr = isItemReturn ? `-${price.toFixed(2)}` : `${price.toFixed(2)}`;
-            const subtotalStr = isItemReturn ? `-${subtotal.toFixed(2)}` : `${subtotal.toFixed(2)}`;
+            // تطبيق الإشارة السالبة لتظهر واضحة للمرتجعات وتطرح من الإجمالي
+            const displayQty = isItemReturn ? `-${qty}` : `${qty}`;
+            const displayPrice = isItemReturn ? `-${price.toFixed(2)}` : `${price.toFixed(2)}`;
+            const displaySubtotal = isItemReturn ? `-${subtotal.toFixed(2)}` : `${subtotal.toFixed(2)}`;
 
-            const rowStr = `${item.name} (${qtyStr} ${unit} × ${priceStr})`;
-            const spaceCount = Math.max(1, 32 - (rowStr.length + subtotalStr.length));
-            lines.push(`${rowStr}${" ".repeat(spaceCount)}${subtotalStr}`);
+            rowsHtml += `
+                <tr>
+                    <td style="padding: 5px 0;">${item.name}<br><small>${displayQty} ${unit} × ${displayPrice}</small></td>
+                    <td style="text-align: left; padding: 5px 0; font-family:'Consolas', monospace;">${displaySubtotal}</td>
+                </tr>
+            `;
         });
 
-        lines.push("--------------------------------");
-        lines.push(`الإجمالي الصافي: ${Number(inv.displayAmount).toFixed(2)} ج.م`);
-        lines.push(`المدفوع نقداً: ${Number(inv.paidAmount || 0).toFixed(2)} ج.م`);
-        lines.push(`المتبقي المالي: ${Math.max(0, Number(inv.displayAmount) - Number(inv.paidAmount || 0)).toFixed(2)} ج.م`);
-        lines.push("================================");
-        lines.push("   فاتورة جاهزة للطباعة والمراجعة  ");
-        lines.push("================================");
+        const finalTotal = Number(inv.displayAmount);
+        const paidVal = Number(inv.paidAmount || 0);
+        const remainingVal = Math.max(0, finalTotal - paidVal);
 
-        const thermalTemplate = lines.join('\n');
+        thermalContainer.innerHTML = `
+            <div class="thermal-header">
+                <p class="thermal-title">شركة الزيادى للتجارة</p>
+                <small>مبيعات - مشتريات - توريدات عمومية</small>
+            </div>
+            <div class="thermal-meta">
+                <div><b>نوع الفاتورة:</b> ${inv.isReturn ? 'مرتجع شراء' : 'فاتورة شراء'}</div>
+                <div><b>المورد:</b> ${supName}</div>
+                <div><b>التاريخ:</b> ${inv.date || 'بلا تاريخ'}</div>
+            </div>
+            <table class="thermal-table">
+                <thead>
+                    <tr>
+                        <th>الصنف والبيان</th>
+                        <th style="text-align: left;">الإجمالي</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+            <div class="thermal-totals">
+                <div class="total-row">
+                    <span>الإجمالي الصافي:</span>
+                    <span style="font-family:'Consolas', monospace;">${inv.isReturn ? '-' : ''}${finalTotal.toFixed(2)} ج.م</span>
+                </div>
+                <div class="total-row">
+                    <span>المدفوع:</span>
+                    <span style="font-family:'Consolas', monospace;">${paidVal.toFixed(2)} ج.م</span>
+                </div>
+                <div class="total-row" style="border-top: 1px dotted #000; padding-top:4px;">
+                    <span>المتبقي:</span>
+                    <span style="font-family:'Consolas', monospace;">${remainingVal.toFixed(2)} ج.م</span>
+                </div>
+            </div>
+            <div style="text-align:center; margin-top:15px; font-size:11px; border-top:1px dashed #000; padding-top:8px;">
+                شكراً لتعاملكم مع شركة الزيادى تورتنا دائماً
+            </div>
+        `;
 
-        if (navigator.share) {
-            navigator.share({
-                title: `فاتورة حرارية - ${supName}`,
-                text: thermalTemplate
-            }).catch(console.error);
-        } else {
-            navigator.clipboard.writeText(thermalTemplate).then(() => {
-                alert("تم نسخ الفاتورة الجاهزة للطباعة (80mm) بصيغة السالب للمرتجعات بنجاح ✅ جاهزة للصق");
+        try {
+            // التقاط الحاوية وتحويلها إلى صورة بلحظة واحدة
+            const canvas = await html2canvas(thermalContainer, {
+                scale: 2, // جودة ممتازة وسلسة للخطوط والأرقام
+                backgroundColor: "#ffffff",
+                useCORS: true
             });
+
+            canvas.toBlob(async (blob) => {
+                if (!blob) return alert("فشل توليد صورة الفاتورة");
+                const file = new File([blob], `invoice_${invoiceId}.png`, { type: "image/png" });
+
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: `فاتورة شركة الزيادى - ${supName}`
+                    });
+                } else {
+                    // حل بديل في حال عدم دعم المتصفح لمشاركة الملفات مباشرة
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `فاتورة_${supName}.png`;
+                    a.click();
+                    alert("تم تحميل صورة الفاتورة الحرارية بنجاح لجهازك جاهزة للإرسال والمشاركة 💾");
+                }
+            }, "image/png");
+
+        } catch (error) {
+            alert("حدث خطأ أثناء تصدير صورة الفاتورة: " + error.message);
         }
     };
 
@@ -367,7 +438,7 @@
                     const unit = item.unitName || "كرتونة";
                     let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
 
-                    // تحديد نوع الحركة: إذا كان معلماً كمرتجع يكتب "بيع" وإلا "شراء"
+                    // عند اختيار علامة المرتجع تكتب الحركة "بيع"
                     const isItemReturn = item.returnQty > 0 || inv.isReturn;
                     const motionType = isItemReturn ? "بيع" : "شراء";
 
@@ -392,7 +463,7 @@
                 });
             }
 
-            // فحص خانة السداد لكتابة قيد سداد مستقل
+            // فحص السداد لتوليد قيد السداد المستقل
             const currentPaid = Number(inv.paidAmount || 0);
             if (currentPaid > 0) {
                 excelData.push([
