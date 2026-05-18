@@ -8,15 +8,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root { --accent: #0b5e3d; --header-bg: #0b5e3d; --bg-light: #f4f7f6; --text-primary: #1b2e26; --border: #dce3de; --white: #ffffff; }
-        body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 120px; }
-        .header { background: var(--header-bg); padding: 15px 20px; color: white; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        .glass-card { background: var(--white); border: 1px solid var(--border); border-radius: 20px; padding: 20px; margin-bottom: 15px; }
-        .btn-voice { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; border-radius: 50%; border: none; background: #dc3545; color: white; font-size: 1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 2000; }
+        :root { --accent: #0b5e3d; --header-bg: #0b5e3d; --bg-light: #f4f7f6; --text-primary: #1b2e26; --border: #dce3de; --white: #ffffff; --text-muted: #707b7c; }
+        body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 150px; }
+        .header { background: var(--header-bg); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 10px rgba(0,0,0,0.1); color: white; position: sticky; top: 0; z-index: 1000; }
+        .glass-card { background: var(--white); border: 1px solid var(--border); border-radius: 20px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        .order-item { background: #f8faf9; border: 1px solid var(--border); border-radius: 15px; padding: 15px; margin-bottom: 12px; border-right: 5px solid var(--accent); position: relative; }
+        label { font-weight: 600; font-size: 0.85rem; margin-bottom: 5px; color: var(--accent); }
+        input { background: var(--white) !important; border: 1px solid var(--border) !important; border-radius: 12px !important; padding: 10px !important; font-weight: 600; }
+        .btn-add-item { border: 2px dashed var(--accent); color: var(--accent); background: #f0f6f3; width: 100%; padding: 12px; border-radius: 15px; font-weight: 700; }
+        .btn-voice { position: fixed; bottom: 80px; right: 20px; width: 60px; height: 60px; border-radius: 50%; border: none; background: #dc3545; color: white; font-size: 1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 2000; transition: 0.3s; }
         .btn-voice.active { background: #198754; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
-        .footer-action { position: fixed; bottom: 0; left: 0; right: 0; padding: 15px; background: white; border-top: 1px solid var(--border); z-index: 1000; }
-        .btn-save { background: var(--accent); color: white; width: 100%; padding: 12px; border-radius: 15px; border: none; font-weight: bold; }
+        .footer-action { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; border-top: 1px solid var(--border); z-index: 1000; }
+        .btn-save { background: var(--accent); color: #fff; border: none; width: 100%; padding: 12px; border-radius: 15px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -24,107 +28,87 @@
 <datalist id="customersList"></datalist>
 <datalist id="inventoryList"></datalist>
 
-<div class="header d-flex justify-content-between align-items-center">
-    <h6 class="m-0 fw-bold">طلبية جديدة</h6>
-    <span id="voiceStatus" class="badge bg-light text-dark">الميكروفون جاهز</span>
+<div class="header">
+    <a href="orders.html" class="text-white"><i class="fas fa-arrow-right"></i></a>
+    <h6 class="m-0 fw-bold" id="pageTitle">طلبية عميل جديدة</h6>
+    <span id="statusLabel" class="badge bg-light text-success">جديدة</span>
 </div>
 
 <div class="container mt-3">
     <div class="glass-card">
-        <label>العميل</label>
+        <label>العميل المستهدف</label>
         <input type="text" id="customerInput" class="form-control" list="customersList">
         <input type="hidden" id="customerSelect">
-        <label class="mt-2">ملاحظات</label>
+        <label class="mt-2">ملاحظات الطلبية</label>
         <input type="text" id="orderNote" class="form-control">
     </div>
-    <div id="itemsContainer"></div>
-    <button class="btn btn-outline-success w-100 mt-2" onclick="addNewRow()">+ إضافة صنف</button>
+
+    <div class="glass-card">
+        <div id="itemsContainer"></div>
+        <button class="btn-add-item mt-2" onclick="addNewRow()"><i class="fas fa-plus"></i> إضافة صنف</button>
+    </div>
 </div>
 
-<button id="voiceBtn" class="btn-voice" onclick="toggleVoice()">
+<!-- زر الميكروفون المضاف -->
+<button class="btn-voice" id="voiceBtn" onclick="toggleVoice()">
     <i class="fas fa-microphone"></i>
 </button>
 
 <div class="footer-action">
-    <button class="btn-save" onclick="saveOrder()">حفظ وإرسال الطلبية</button>
+    <button class="btn-save" id="btnSave" onclick="saveOrder()">حفظ وإرسال الطلبية</button>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, addDoc, doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // ... (نفس إعدادات Firebase الخاصة بك)
-    const db = getFirestore(initializeApp({/* بياناتك هنا */}));
-    let customersDataMap = {}, inventoryItemsList = [];
-
-    // إعداد التعرف على الصوت
+    // إعدادات الصوت
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognition.lang = 'ar-EG';
-    recognition.continuous = true; // استمرار التسجيل حتى توقفه يدوياً
-    recognition.interimResults = true;
-
+    recognition.continuous = true;
     let isListening = false;
 
     window.toggleVoice = () => {
-        const btn = document.getElementById('voiceBtn');
-        const status = document.getElementById('voiceStatus');
         if (!isListening) {
             recognition.start();
             isListening = true;
-            btn.classList.add('active');
-            status.innerText = "جاري الاستماع... اضغط للإيقاف";
+            document.getElementById('voiceBtn').classList.add('active');
         } else {
             recognition.stop();
             isListening = false;
-            btn.classList.remove('active');
-            status.innerText = "تم إيقاف التسجيل";
+            document.getElementById('voiceBtn').classList.remove('active');
         }
     };
 
     recognition.onresult = (event) => {
-        let fullText = "";
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            fullText += event.results[i][0].transcript;
-        }
-        analyzeText(fullText);
+        let transcript = event.results[event.results.length - 1][0].transcript;
+        processVoiceCommand(transcript);
     };
 
-    function analyzeText(text) {
-        // 1. العميل
+    function processVoiceCommand(text) {
+        // تحليل العميل
         for (let name in customersDataMap) {
             if (text.includes(name)) {
                 document.getElementById('customerInput').value = name;
                 document.getElementById('customerSelect').value = customersDataMap[name];
             }
         }
-
-        // 2. تحليل الأصناف (نمط: [كمية] [كرتونة/قطعة] [اسم صنف] [سعر])
-        // هذا النمط يسمح بقول مثلا: "5 كرتونة شيبسي بسعر 100"
+        // تحليل الأصناف (نمط: [كمية] [وحدة] [اسم] بسعر [رقم])
         const regex = /(\d+)\s*(كرتونة|كرتون|قطعة|قطع)?\s*([^\d\s]+)(?:\s+بسعر\s+(\d+))?/g;
         let match;
-        
         while ((match = regex.exec(text)) !== null) {
-            const qty = match[1], unit = match[2], itemName = match[3], price = match[4];
-            
-            inventoryItemsList.forEach(invName => {
-                if (invName.includes(itemName)) {
-                    const rowId = Date.now() + Math.random();
-                    document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', `
-                        <div class="order-item p-3 mb-2 bg-white border rounded" id="row_${rowId}">
-                            <input type="text" class="form-control item-name" value="${invName}">
-                            <div class="row g-2 mt-1">
-                                <div class="col-4"><input type="number" class="form-control item-carton" value="${unit?.includes('كرتون')?qty:''}"></div>
-                                <div class="col-4"><input type="number" class="form-control item-piece" value="${!unit?.includes('كرتون')?qty:''}"></div>
-                                <div class="col-4"><input type="number" class="form-control item-price" value="${price||''}"></div>
-                            </div>
-                        </div>`);
-                }
+            addNewRow({
+                name: match[3],
+                cartonQty: match[2]?.includes('كرتون') ? match[1] : 0,
+                pieceQty: !match[2]?.includes('كرتون') ? match[1] : 0,
+                price: match[4] || 0
             });
         }
     }
 
-    // ... (باقي دوال الإضافة والحفظ)
+    // ... (باقي كود الـ Firebase والـ addNewRow و saveOrder الخاص بك كما هو تماماً)
+    // ملاحظة: تأكد من تعريف customersDataMap في بداية السكربت لتتمكن دالة الصوت من الوصول إليها.
 </script>
 </body>
 </html>
