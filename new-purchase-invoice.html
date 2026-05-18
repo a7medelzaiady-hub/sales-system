@@ -39,12 +39,18 @@
             padding: 12px; font-size: 0.9rem; font-weight: 600;
         }
         .form-control:focus { border-color: var(--accent) !important; box-shadow: 0 0 8px rgba(11, 94, 61, 0.1) !important; }
-        
+        .form-control:disabled { background: #e9ecef !important; color: #707b7c !important; }
+
         .item-row { 
             background: var(--white); border: 1px solid var(--border); 
             border-radius: 20px; padding: 22px; margin-bottom: 20px; 
             position: relative; box-shadow: 0 4px 10px rgba(0,0,0,0.02);
             border-right: 5px solid var(--accent);
+            transition: all 0.3s ease;
+        }
+        .item-row.is-return {
+            border-right: 5px solid #dc3545;
+            background: #fdf2f2;
         }
         
         .btn-remove { 
@@ -81,6 +87,12 @@
         .badge-new { background: white; color: var(--accent); padding: 5px 12px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; }
         .clickable-icon { cursor: pointer; transition: transform 0.2s; }
         .clickable-icon:hover { transform: scale(1.1); }
+
+        .return-check-container {
+            display: flex; align-items: center; justify-content: center;
+            background: #fff3f3; padding: 10px; border-radius: 12px; border: 1px solid #f5c2c2;
+            height: calc(100% - 28px); margin-top: auto;
+        }
     </style>
 </head>
 <body>
@@ -97,7 +109,7 @@
 </div>
 
 <div class="container mt-2">
-    <!-- بيانات المورد الرئيسي الفاتورة -->
+    <!-- بيانات المورد -->
     <div class="data-card">
         <div class="row g-4">
             <div class="col-12 col-md-4">
@@ -122,13 +134,13 @@
     <div class="data-card bg-light border-primary-subtle">
         <div class="row g-3">
             <div class="col-12">
-                <label class="text-primary fw-bold"><i class="fas fa-money-bill-wave"></i> المبلغ المدفوع الآن للمورد (السداد)</label>
+                <label class="text-primary fw-bold" id="paidLabel"><i class="fas fa-money-bill-wave"></i> المبلغ المدفوع الآن للمورد (السداد)</label>
                 <input type="number" step="0.01" id="paidAmount" class="form-control border-primary" value="0.00" placeholder="0.00">
             </div>
         </div>
     </div>
 
-    <!-- قائمة الأصناف المشحونة -->
+    <!-- قائمة الأصناف -->
     <div id="itemsList" class="mt-4"></div>
 
     <button type="button" class="add-item-btn mt-2" id="addItemBtn">
@@ -193,6 +205,19 @@
     document.getElementById('btnBack').addEventListener('click', () => safeNavigate(null, true));
     document.getElementById('btnHome').addEventListener('click', () => safeNavigate('index.html'));
 
+    // التحكم في حقل السداد بناء على طريقة الدفع
+    const paymentSelect = document.getElementById('paymentType');
+    const paidInput = document.getElementById('paidAmount');
+    
+    paymentSelect.addEventListener('change', () => {
+        if (paymentSelect.value === 'cash') {
+            paidInput.disabled = true;
+            paidInput.value = document.getElementById('netTotal').innerText;
+        } else {
+            paidInput.disabled = false;
+        }
+    });
+
     async function loadData() {
         const supSelect = document.getElementById('supplierSelect');
         const supSnap = await getDocs(collection(db, "suppliers"));
@@ -225,69 +250,25 @@
         }, 1000);
     }
 
-    async function loadOrderData(id) {
-        try {
-            const orderSnap = await getDoc(doc(db, "purchase_orders", id));
-            if (orderSnap.exists()) {
-                const data = orderSnap.data();
-                document.getElementById('supplierSelect').value = data.supplierId;
-                document.getElementById('itemsList').innerHTML = ""; 
-                
-                data.items.forEach(item => {
-                    const invItem = allInventory.find(p => p.name === item.name);
-                    addNewItemRow({
-                        name: item.name,
-                        qty: item.qty,
-                        returnQty: item.returnQty || 0,
-                        buy: invItem ? invItem.buy : 0,
-                        unitName: invItem ? invItem.unitName : 'كرتونة',
-                        unitFactor: invItem ? invItem.unitFactor : 1
-                    });
-                });
-                window.calculateTotal();
-            }
-        } catch (e) { console.error(e); }
-    }
-
-    async function loadInvoiceForEdit() {
-        document.getElementById('mainTitle').innerText = "تعديل الفاتورة";
-        document.getElementById('statusBadge').innerText = "تعديل";
-        document.getElementById('statusBadge').className = "badge-new bg-warning text-dark";
-
-        const invRef = doc(db, "supplier_transactions", editId);
-        const invSnap = await getDoc(invRef);
-
-        if (invSnap.exists()) {
-            const data = invSnap.data();
-            document.getElementById('supplierSelect').value = data.supplierId;
-            document.getElementById('invDate').value = data.date;
-            document.getElementById('paymentType').value = data.paymentType || 'credit';
-            document.getElementById('paidAmount').value = data.paidAmount || '0.00';
-            
-            document.getElementById('itemsList').innerHTML = ""; 
-            data.items.forEach(item => { addNewItemRow(item); });
-            window.calculateTotal();
-        }
-    }
-
     window.addNewItemRow = (itemData = null) => {
         const id = Date.now() + Math.random();
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
+        const isReturnChecked = itemData && itemData.returnQty > 0;
         isDataChanged = true;
 
         const html = `
-            <div class="item-row" id="row_${id}">
+            <div class="item-row ${isReturnChecked ? 'is-return' : ''}" id="row_${id}">
                 <div class="btn-remove" onclick="this.parentElement.remove(); window.calculateTotal();">
                     <i class="fas fa-times"></i>
                 </div>
                 
                 <div class="row g-3">
-                    <div class="col-12 col-md-6">
-                        <label>اسم الصنف المشترى</label>
+                    <div class="col-12 col-md-5">
+                        <label>اسم الصنف</label>
                         <input type="text" list="productsData" class="form-control item-name" value="${itemData ? itemData.name : ''}" placeholder="ابحث أو اكتب اسم صنف">
                     </div>
 
-                    <div class="col-6 col-md-3">
+                    <div class="col-6 col-md-2">
                         <label>نوع الوحدة</label>
                         <select class="form-select item-unit">
                             <option value="كرتونة" ${currentUnit === 'كرتونة' ? 'selected' : ''}>كرتونة</option>
@@ -295,29 +276,33 @@
                         </select>
                     </div>
 
-                    <div class="col-6 col-md-3">
-                        <label>المعامل (قطع داخل الكرتونة)</label>
+                    <div class="col-6 col-md-2">
+                        <label>المعامل (قطع بالداخل)</label>
                         <input type="number" class="form-control item-factor" value="${itemData ? (itemData.unitFactor || '1') : '1'}" ${currentUnit === 'قطعة' ? 'disabled' : ''}>
+                    </div>
+
+                    <div class="col-12 col-md-3 d-flex flex-column justify-content-end">
+                        <div class="return-check-container">
+                            <div class="form-check form-switch m-0 d-flex align-items-center gap-2">
+                                <input class="form-check-input item-is-return" type="checkbox" id="check_${id}" ${isReturnChecked ? 'checked' : ''}>
+                                <label class="form-check-label text-danger fw-bold m-0" for="check_${id}">تحديد كمرتجع ↩️</label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
                 <div class="row g-3 mt-1">
-                    <div class="col-6 col-md-3">
-                        <label class="text-success">الكمية المطلوبة</label>
-                        <input type="number" step="0.01" class="form-control item-qty" value="${itemData ? itemData.qty : '1'}">
-                    </div>
-                    
-                    <div class="col-6 col-md-3">
-                        <label class="text-danger">كمية المرتجع</label>
-                        <input type="number" step="0.01" class="form-control item-return-qty" value="${itemData ? (itemData.returnQty || '0') : '0'}">
+                    <div class="col-6 col-md-4">
+                        <label class="text-success fw-bold" id="label_qty_${id}">العدد الحالي (${currentUnit})</label>
+                        <input type="number" step="0.01" class="form-control item-qty" value="${itemData ? (isReturnChecked ? itemData.returnQty : itemData.qty) : '1'}">
                     </div>
 
-                    <div class="col-6 col-md-3">
-                        <label>سعر الشراء للوحدة المختارة</label>
-                        <input type="number" step="0.01" class="form-control item-buy" value="${itemData ? (itemData.buy || '') : ''}" placeholder="0.00">
+                    <div class="col-6 col-md-4">
+                        <label>سعر شراء الـ (${currentUnit})</label>
+                        <input type="number" step="0.01" class="form-control item-buy" value="${itemData ? itemData.buy : ''}" placeholder="0.00">
                     </div>
 
-                    <div class="col-6 col-md-3 d-flex flex-column justify-content-end align-items-end">
+                    <div class="col-12 col-md-4 d-flex flex-column justify-content-end align-items-end">
                         <label class="w-100 text-start">الصافي الفرعي</label>
                         <div class="subtotal-display w-100 text-center">
                             <input type="text" class="item-subtotal border-0 bg-transparent text-success fw-bold text-center w-100" style="outline: none;" readonly value="0.00">
@@ -335,10 +320,23 @@
         const nameInput = row.querySelector('.item-name');
         const unitSelect = row.querySelector('.item-unit');
         const factorInput = row.querySelector('.item-factor');
+        const returnCheck = row.querySelector('.item-is-return');
 
-        // قفل المعامل تلقائياً وجعله 1 إذا تم اختيار "قطعة"
+        // عند تفعيل السويتش الخاص بالمرتجع
+        returnCheck.addEventListener('change', (e) => {
+            if(e.target.checked) {
+                row.classList.add('is-return');
+            } else {
+                row.classList.remove('is-return');
+            }
+            window.calculateTotal();
+        });
+
         unitSelect.addEventListener('change', (e) => {
-            if (e.target.value === 'قطعة') {
+            const val = e.target.value;
+            document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (${val})`;
+            
+            if (val === 'قطعة') {
                 factorInput.value = 1;
                 factorInput.disabled = true;
             } else {
@@ -353,13 +351,7 @@
                 row.querySelector('.item-buy').value = found.buy || 0;
                 unitSelect.value = found.unitName || "كرتونة";
                 factorInput.value = found.unitFactor || 1;
-                
-                if (unitSelect.value === 'قطعة') {
-                    factorInput.value = 1;
-                    factorInput.disabled = true;
-                } else {
-                    factorInput.disabled = false;
-                }
+                unitSelect.dispatchEvent(new Event('change'));
             }
             window.calculateTotal();
         });
@@ -374,18 +366,23 @@
         let netTotal = 0;
         document.querySelectorAll('.item-row').forEach(row => {
             const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
-            const returnQty = parseFloat(row.querySelector('.item-return-qty').value) || 0;
             const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
+            const isReturn = row.querySelector('.item-is-return').checked;
             
-            // الحساب: (الكمية - المرتجع) × سعر وحدة الشراء المحددة (قطعة أو كرتونة)
-            const effectiveQty = qty - returnQty;
-            const sub = effectiveQty * buy;
+            // إذا كان مرتجع تكون القيمة بالسالب لكي تخصم من الإجمالي النهائي للفاتورة
+            const factorMultiplier = isReturn ? -1 : 1;
+            const sub = qty * buy * factorMultiplier;
             
             row.querySelector('.item-subtotal').value = sub.toFixed(2);
             netTotal += sub;
         });
         
         document.getElementById('netTotal').innerText = netTotal.toFixed(2);
+        
+        // إذا كان الدفع كاش يتم مساواة المدفوع بالصافي تلقائياً وحمايته
+        if (paymentSelect.value === 'cash') {
+            paidInput.value = netTotal.toFixed(2);
+        }
     };
 
     document.getElementById('paidAmount').addEventListener('input', window.calculateTotal);
@@ -408,15 +405,18 @@
 
             for (const row of rows) {
                 const name = row.querySelector('.item-name').value;
-                const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
-                const returnQty = parseFloat(row.querySelector('.item-return-qty').value) || 0;
+                const qtyInput = parseFloat(row.querySelector('.item-qty').value) || 0;
                 const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
                 const unitName = row.querySelector('.item-unit').value;
                 const unitFactor = parseInt(row.querySelector('.item-factor').value) || 1;
+                const isReturn = row.querySelector('.item-is-return').checked;
 
-                const finalQty = qty - returnQty;
-                // الحساب الفردي للقطع لترحيلها بدقة للمخزن
-                const totalPiecesInThisRow = finalQty * unitFactor;
+                // فرز وحفظ البيانات بناء على اختيار نوع الحركة (شراء أو مرتجع)
+                let qty = isReturn ? 0 : qtyInput;
+                let returnQty = isReturn ? qtyInput : 0;
+
+                const finalQtyModifier = isReturn ? -qtyInput : qtyInput;
+                const totalPiecesInThisRow = finalQtyModifier * unitFactor;
                 
                 items.push({ name, qty, returnQty, buy, unitName, unitFactor, totalPieces: totalPiecesInThisRow });
 
@@ -426,7 +426,7 @@
                 if(!qSnap.empty) {
                     const dRef = doc(db, "inventory", qSnap.docs[0].id);
                     await updateDoc(dRef, {
-                        qty: increment(finalQty), 
+                        qty: increment(finalQtyModifier), 
                         totalPcs: increment(totalPiecesInThisRow), 
                         buy: buy,
                         unitName: unitName,
@@ -435,7 +435,7 @@
                     });
                 } else {
                     await addDoc(collection(db, "inventory"), {
-                        name, qty: finalQty, totalPcs: totalPiecesInThisRow, buy, 
+                        name, qty: finalQtyModifier, totalPcs: totalPiecesInThisRow, buy, 
                         unitName: unitName || "قطعة", unitFactor: unitFactor || 1,
                         sell: buy * 1.2, min: 3, category: "عام", timestamp: serverTimestamp()
                     });
@@ -447,10 +447,6 @@
                 date: document.getElementById('invDate').value,
                 timestamp: serverTimestamp()
             };
-
-            if (orderId) {
-                await updateDoc(doc(db, "purchase_orders", orderId), { status: 'received' });
-            }
 
             if (editId) {
                 await updateDoc(doc(db, "supplier_transactions", editId), invoiceObj);
@@ -477,7 +473,6 @@
     });
 
     document.getElementById('invDate').valueAsDate = new Date();
-    document.getElementById('addItemBtn').addEventListener('click', () => addNewItemRow());
     loadData();
 </script>
 </body>
