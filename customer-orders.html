@@ -230,7 +230,7 @@
         const container = document.getElementById('itemsContainer');
         const rowId = Date.now() + Math.random();
         
-        // التعديل هنا: تم جعل حقل الكمية وحقل السعر متساويين (col-6 لكل منهما) وجنب بعضهما تماماً
+        // التعديل: تم توزيع الأسطر هندسياً بنسبة متساوية (col-4) لخانة كرتونة، قطعة، والسعر بجانب بعضهم البعض تماماً
         const html = `
             <div class="order-item" id="row_${rowId}">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -242,11 +242,15 @@
                 <input type="text" class="form-control item-name" list="inventoryList" 
                        value="${item ? item.name : ''}" placeholder="ابحث أو اكتب اسم الصنف...">
                 <div class="row g-2">
-                    <div class="col-6">
-                        <label>الكمية</label>
-                        <input type="number" class="form-control item-qty" value="${item ? (item.qty || '') : ''}" placeholder="0" min="1" required>
+                    <div class="col-4">
+                        <label>كمية كرتونة</label>
+                        <input type="number" class="form-control item-carton" value="${item ? (item.cartonQty || '') : ''}" placeholder="0" min="0">
                     </div>
-                    <div class="col-6">
+                    <div class="col-4">
+                        <label>كمية قطعة</label>
+                        <input type="number" class="form-control item-piece" value="${item ? (item.pieceQty || '') : ''}" placeholder="0" min="0">
+                    </div>
+                    <div class="col-4">
                         <label>السعر (اختياري)</label>
                         <input type="number" class="form-control item-price" value="${item ? (item.price || '') : ''}" placeholder="0.00" min="0" step="0.01">
                     </div>
@@ -273,20 +277,22 @@
         const items = [];
         rows.forEach(row => {
             const name = row.querySelector('.item-name').value.trim();
-            const qty = row.querySelector('.item-qty').value;
+            const cartonQty = row.querySelector('.item-carton').value;
+            const pieceQty = row.querySelector('.item-piece').value;
             const price = row.querySelector('.item-price').value;
             
-            if(name && qty) {
+            if(name && (cartonQty || pieceQty)) {
                 items.push({ 
                     name, 
-                    qty: Number(qty), 
+                    cartonQty: Number(cartonQty || 0), 
+                    pieceQty: Number(pieceQty || 0), 
                     price: Number(price || 0) 
                 });
             }
         });
 
         if(items.length === 0) {
-            alert("برجاء ملء بيانات الصنف وتحديد الكمية بشكل صحيح");
+            alert("برجاء ملء بيانات الصنف وتحديد كمية الكرتونة أو القطعة بشكل صحيح");
             btn.disabled = false;
             btn.innerText = editId ? "تحديث البيانات" : "حفظ وإرسال الطلبية";
             return;
