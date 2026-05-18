@@ -9,18 +9,14 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { --accent: #0b5e3d; --header-bg: #0b5e3d; --bg-light: #f4f7f6; --text-primary: #1b2e26; --border: #dce3de; --white: #ffffff; }
-        body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 110px; }
-        .header { background: var(--header-bg); padding: 15px 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 10px rgba(0,0,0,0.1); color: white; position: sticky; top: 0; z-index: 1000; }
-        .glass-card { background: var(--white); border: 1px solid var(--border); border-radius: 20px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 15px; }
-        .order-item { background: #f8faf9; border: 1px solid var(--border); border-radius: 15px; padding: 15px; margin-bottom: 12px; border-right: 5px solid var(--accent); }
-        label { font-weight: 600; font-size: 0.85rem; color: var(--accent); }
-        input { background: var(--white) !important; border: 1px solid var(--border) !important; border-radius: 12px !important; padding: 10px !important; }
-        .btn-add-item { border: 2px dashed var(--accent); color: var(--accent); background: #f0f6f3; width: 100%; padding: 12px; border-radius: 15px; font-weight: 700; }
-        .btn-voice { background: #dc3545; color: white; border: none; width: 55px; height: 55px; border-radius: 50%; font-size: 1.4rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(220, 53, 69, 0.3); }
-        .btn-voice.listening { animation: pulse 1.2s infinite; background: #28a745; }
-        @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); } }
-        .footer-action { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; display: flex; gap: 10px; border-top: 1px solid var(--border); z-index: 1000; }
-        .btn-save { background: var(--accent); color: #fff; border: none; flex-grow: 1; padding: 12px; border-radius: 15px; font-weight: bold; }
+        body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 120px; }
+        .header { background: var(--header-bg); padding: 15px 20px; color: white; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .glass-card { background: var(--white); border: 1px solid var(--border); border-radius: 20px; padding: 20px; margin-bottom: 15px; }
+        .btn-voice { position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px; border-radius: 50%; border: none; background: #dc3545; color: white; font-size: 1.5rem; box-shadow: 0 4px 15px rgba(0,0,0,0.2); z-index: 2000; }
+        .btn-voice.active { background: #198754; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        .footer-action { position: fixed; bottom: 0; left: 0; right: 0; padding: 15px; background: white; border-top: 1px solid var(--border); z-index: 1000; }
+        .btn-save { background: var(--accent); color: white; width: 100%; padding: 12px; border-radius: 15px; border: none; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -28,107 +24,107 @@
 <datalist id="customersList"></datalist>
 <datalist id="inventoryList"></datalist>
 
-<div class="header">
-    <a href="orders.html" class="text-white"><i class="fas fa-arrow-right"></i></a>
-    <h6 class="m-0 fw-bold" id="pageTitle">طلبية عميل جديدة</h6>
+<div class="header d-flex justify-content-between align-items-center">
+    <h6 class="m-0 fw-bold">طلبية جديدة</h6>
+    <span id="voiceStatus" class="badge bg-light text-dark">الميكروفون جاهز</span>
 </div>
 
 <div class="container mt-3">
-    <div id="voiceStatusCard" class="alert alert-info d-none text-center fw-bold text-dark" style="border-radius: 15px;">
-        <i class="fas fa-microphone fa-spin me-2 text-danger"></i> جاري التحليل: <span id="voiceText">...</span>
-    </div>
     <div class="glass-card">
-        <label>العميل المستهدف</label>
+        <label>العميل</label>
         <input type="text" id="customerInput" class="form-control" list="customersList">
         <input type="hidden" id="customerSelect">
-        <label class="mt-2">التاريخ</label>
-        <input type="date" id="requiredDate" class="form-control">
         <label class="mt-2">ملاحظات</label>
         <input type="text" id="orderNote" class="form-control">
     </div>
-    <div class="glass-card">
-        <div id="itemsContainer"></div>
-        <button class="btn-add-item" onclick="addNewRow()"><i class="fas fa-plus-circle"></i> إضافة صنف</button>
-    </div>
+    <div id="itemsContainer"></div>
+    <button class="btn btn-outline-success w-100 mt-2" onclick="addNewRow()">+ إضافة صنف</button>
 </div>
 
+<button id="voiceBtn" class="btn-voice" onclick="toggleVoice()">
+    <i class="fas fa-microphone"></i>
+</button>
+
 <div class="footer-action">
-    <button type="button" class="btn-voice" id="voiceBtn" onclick="toggleVoiceRecognition()"><i class="fas fa-microphone" id="micIcon"></i></button>
-    <button class="btn-save" id="btnSave" onclick="saveOrder()">حفظ الطلبية</button>
+    <button class="btn-save" onclick="saveOrder()">حفظ وإرسال الطلبية</button>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    const firebaseConfig = { /* بياناتك هنا */ };
-    const db = getFirestore(initializeApp(firebaseConfig));
+    // ... (نفس إعدادات Firebase الخاصة بك)
+    const db = getFirestore(initializeApp({/* بياناتك هنا */}));
     let customersDataMap = {}, inventoryItemsList = [];
 
-    async function initPage() {
-        const custSnap = await getDocs(collection(db, "customers"));
-        custSnap.forEach(d => { customersDataMap[d.data().name.trim()] = d.id; document.getElementById('customersList').innerHTML += `<option value="${d.data().name.trim()}">`; });
-        const invSnap = await getDocs(collection(db, "inventory"));
-        invSnap.forEach(d => { const n = (d.data().name || d.data().itemName).trim(); inventoryItemsList.push(n); document.getElementById('inventoryList').innerHTML += `<option value="${n}">`; });
-        document.getElementById('requiredDate').value = new Date().toISOString().split('T')[0];
-        addNewRow();
-    }
+    // إعداد التعرف على الصوت
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'ar-EG';
+    recognition.continuous = true; // استمرار التسجيل حتى توقفه يدوياً
+    recognition.interimResults = true;
 
-    window.addNewRow = (item = null) => {
-        const rowId = Date.now();
-        document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', `
-            <div class="order-item" id="row_${rowId}">
-                <input type="text" class="form-control item-name" list="inventoryList" value="${item?.name || ''}" placeholder="اسم الصنف">
-                <div class="row g-2 mt-1">
-                    <div class="col-6"><input type="number" class="form-control item-carton" value="${item?.cartonQty || ''}" placeholder="كرتونة"></div>
-                    <div class="col-6"><input type="number" class="form-control item-piece" value="${item?.pieceQty || ''}" placeholder="قطعة"></div>
-                </div>
-            </div>`);
-        return rowId;
-    };
+    let isListening = false;
 
-    let recognition;
-    window.toggleVoiceRecognition = () => {
-        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if(!recognition) {
-            recognition = new SR();
-            recognition.lang = 'ar-EG';
-            recognition.onstart = () => { document.getElementById('voiceStatusCard').classList.remove('d-none'); document.getElementById('voiceBtn').classList.add('listening'); };
-            recognition.onresult = (e) => {
-                const text = e.results[0][0].transcript;
-                document.getElementById('voiceText').innerText = text;
-                parseVoiceText(text);
-            };
-            recognition.onend = () => { document.getElementById('voiceBtn').classList.remove('listening'); setTimeout(()=>document.getElementById('voiceStatusCard').classList.add('d-none'), 2000); };
+    window.toggleVoice = () => {
+        const btn = document.getElementById('voiceBtn');
+        const status = document.getElementById('voiceStatus');
+        if (!isListening) {
+            recognition.start();
+            isListening = true;
+            btn.classList.add('active');
+            status.innerText = "جاري الاستماع... اضغط للإيقاف";
+        } else {
+            recognition.stop();
+            isListening = false;
+            btn.classList.remove('active');
+            status.innerText = "تم إيقاف التسجيل";
         }
-        recognition.start();
     };
 
-    function parseVoiceText(text) {
+    recognition.onresult = (event) => {
+        let fullText = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            fullText += event.results[i][0].transcript;
+        }
+        analyzeText(fullText);
+    };
+
+    function analyzeText(text) {
         // 1. العميل
-        for(let name in customersDataMap) { if(text.includes(name)) { document.getElementById('customerInput').value = name; document.getElementById('customerSelect').value = customersDataMap[name]; } }
-        // 2. الملاحظات
-        const noteMatch = text.match(/(?:ملاحظة|ملاحظات)\s+(.+)/);
-        if(noteMatch) document.getElementById('orderNote').value = noteMatch[1];
-        // 3. الأصناف (نمط: [رقم] [كرتونة/قطعة] [اسم])
-        const regex = /(\d+)\s*(كرتونة|كرتون|قطعة|قطع)?\s*([^\d\s]+)/g;
+        for (let name in customersDataMap) {
+            if (text.includes(name)) {
+                document.getElementById('customerInput').value = name;
+                document.getElementById('customerSelect').value = customersDataMap[name];
+            }
+        }
+
+        // 2. تحليل الأصناف (نمط: [كمية] [كرتونة/قطعة] [اسم صنف] [سعر])
+        // هذا النمط يسمح بقول مثلا: "5 كرتونة شيبسي بسعر 100"
+        const regex = /(\d+)\s*(كرتونة|كرتون|قطعة|قطع)?\s*([^\d\s]+)(?:\s+بسعر\s+(\d+))?/g;
         let match;
-        while((match = regex.exec(text)) !== null) {
-            const qty = match[1], unit = match[2] || '', namePart = match[3];
+        
+        while ((match = regex.exec(text)) !== null) {
+            const qty = match[1], unit = match[2], itemName = match[3], price = match[4];
+            
             inventoryItemsList.forEach(invName => {
-                if(invName.includes(namePart)) {
-                    const id = addNewRow();
-                    const row = document.getElementById(`row_${id}`);
-                    row.querySelector('.item-name').value = invName;
-                    if(unit.includes('كرتون')) row.querySelector('.item-carton').value = qty;
-                    else row.querySelector('.item-piece').value = qty;
+                if (invName.includes(itemName)) {
+                    const rowId = Date.now() + Math.random();
+                    document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', `
+                        <div class="order-item p-3 mb-2 bg-white border rounded" id="row_${rowId}">
+                            <input type="text" class="form-control item-name" value="${invName}">
+                            <div class="row g-2 mt-1">
+                                <div class="col-4"><input type="number" class="form-control item-carton" value="${unit?.includes('كرتون')?qty:''}"></div>
+                                <div class="col-4"><input type="number" class="form-control item-piece" value="${!unit?.includes('كرتون')?qty:''}"></div>
+                                <div class="col-4"><input type="number" class="form-control item-price" value="${price||''}"></div>
+                            </div>
+                        </div>`);
                 }
             });
         }
     }
 
-    window.saveOrder = async () => { /* كود الحفظ المعتاد الخاص بك */ };
-    initPage();
+    // ... (باقي دوال الإضافة والحفظ)
 </script>
 </body>
 </html>
