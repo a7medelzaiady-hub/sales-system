@@ -93,6 +93,7 @@
             <div class="col-12">
                 <label id="customerLabel">العميل المستهدف</label>
                 <input type="text" id="customerInput" class="form-control" list="customersList" placeholder="اكتب اسم العميل للبحث...">
+                <input type="hidden" id="customerSelect">
             </div>
             <div class="col-12 mt-2">
                 <label>التاريخ المطلوب للطلبية</label>
@@ -101,9 +102,6 @@
             <div class="col-12 mt-2">
                 <label>ملاحظات الطلبية</label>
                 <input type="text" id="orderNote" class="form-control" placeholder="مثال: يرجى التأكد من تاريخ الصلاحية...">
-            </div>
-            <div class="col-12 mt-2">
-                <button class="btn btn-primary" onclick="startSpeechRecognition()">تفعيل الميكروفون</button>
             </div>
         </div>
     </div>
@@ -228,40 +226,11 @@
         }
     }
 
-    // دالة التعرف على الصوت
-    function startSpeechRecognition() {
-        const recognition = new (window.SpeechRecognition || window.webkit.SpeechRecognition)();
-        recognition.lang = 'ar-SA'; // اللغة العربية
-        recognition.interimResults = false;
-
-        recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            distributeSpeechToFields(transcript);
-        };
-
-        recognition.onerror = (event) => {
-            console.error('خطأ في التعرف على الصوت: ', event.error);
-        };
-
-        recognition.start();
-    }
-
-    // دالة لتوزيع النص المدخل على الحقول
-    function distributeSpeechToFields(transcript) {
-        const parts = transcript.split('،'); // افترض أن المستخدم سيستخدم الفاصلة لفصل المدخلات
-        if (parts.length >= 3) {
-            document.getElementById('customerInput').value = parts[0].trim();
-            document.getElementById('requiredDate').value = parts[1].trim();
-            document.getElementById('orderNote').value = parts[2].trim();
-        } else {
-            alert("يرجى إدخال جميع المعلومات: اسم العميل، التاريخ، والملاحظات مفصولة بفاصلة.");
-        }
-    }
-
     window.addNewRow = (item = null) => {
         const container = document.getElementById('itemsContainer');
         const rowId = Date.now() + Math.random();
         
+        // التعديل: تعديل الـ label الخاص بالسعر وإدراج كلمة (اختياري) بداخل الـ placeholder لضمان الاستواء التام
         const html = `
             <div class="order-item" id="row_${rowId}">
                 <div class="d-flex justify-content-between align-items-center mb-2">
