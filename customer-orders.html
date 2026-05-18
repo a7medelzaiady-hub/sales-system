@@ -41,18 +41,13 @@
             font-size: 18px;
         }
 
-        /* تصميم متناسق ومحاذي تماماً لسطر الأصناف */
+        /* تنسيق الأسطر لتصبح متساوية وعلى مستوى واحد */
         .item-row {
             background: #f8faf9;
             border-radius: 12px;
             padding: 12px;
             margin-bottom: 12px;
             border: 1px solid #e2e8e5;
-            transition: all 0.2s ease;
-        }
-        .item-row:hover {
-            border-color: #0b5e3d;
-            background: #f1f5f3;
         }
 
         .form-label {
@@ -66,8 +61,8 @@
             border-radius: 10px;
             padding: 10px;
             font-size: 14px;
-            border: 1px solid #ced4da;
         }
+        
         .form-control:focus, .form-select:focus {
             border-color: #0b5e3d;
             box-shadow: 0 0 0 0.25rem rgba(11, 94, 61, 0.15);
@@ -79,9 +74,9 @@
             font-weight: bold;
         }
         
+        /* ضبط ارتفاع زر الحذف لمحاذاة الخانات بدقة */
         .btn-remove {
             height: 43px;
-            margin-top: 29px; /* لمحاذاة زر الحذف تماماً مع مستوى الخانات */
             border-radius: 10px;
         }
     </style>
@@ -113,7 +108,7 @@
                 </div>
             </div>
 
-            <!-- قسم تفاصيل الأصناف (الخانات المتساوية) -->
+            <!-- قسم تفاصيل الأصناف -->
             <div class="section-title d-flex justify-content-between align-items-center">
                 <span>📦 محتويات الطلبية</span>
                 <button type="button" class="btn btn-sm btn-outline-success fw-bold" onclick="addItemRow()">
@@ -128,7 +123,7 @@
             <div class="row g-3 mt-2">
                 <div class="col-md-8">
                     <label class="form-label">📝 ملاحظات إضافية</label>
-                    <textarea id="orderNote" class="form-control" rows="2" placeholder="اكتب أي ملاحظات أو شروط خاصة بالطلب هنا..."></textarea>
+                    <textarea id="orderNote" class="form-control" rows="2" placeholder="اكتب أي ملاحظات خاصة بالطلب هنا..."></textarea>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">⚙️ حالة الطلب</label>
@@ -170,11 +165,10 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // استخراج الـ ID إذا كانت الصفحة في وضع التعديل
     const urlParams = new URLSearchParams(window.location.search);
     const editOrderId = urlParams.get('edit');
 
-    // دالة إنشاء سطر صنف جديد متساوي ومحاذي تماماً على سطر واحد
+    // دالة إنشاء سطر صنف بنظام الحقول المتساوية (اسم الصنف، الكمية الموحدة، السعر)
     window.addItemRow = function(data = {}) {
         const container = document.getElementById('itemsContainer');
         const rowId = 'row_' + Date.now() + Math.random().toString(36).substr(2, 5);
@@ -183,27 +177,21 @@
         div.className = 'item-row';
         div.id = rowId;
 
+        // التقسيم الهندسي: اسم الصنف (50%)، الكمية (20%)، السعر (20%)، الزر (10%) لتكون متراصة تماماً
         div.innerHTML = `
             <div class="row g-2 align-items-center">
-                <div class="col-md-4">
-                    <label class="form-label d-md-none">اسم الصنف</label>
+                <div class="col-md-5">
                     <input type="text" class="form-control item-name" value="${data.name || ''}" placeholder="اسم الصنف / المنتج" required>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label d-md-none">الكمية (كرتونة)</label>
-                    <input type="number" class="form-control item-carton" value="${data.cartonQty || ''}" placeholder="عدد الكراتين" min="0">
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label d-md-none">الكمية (قطعة)</label>
-                    <input type="number" class="form-control item-piece" value="${data.pieceQty || ''}" placeholder="عدد القطع" min="0">
+                    <input type="number" class="form-control item-qty" value="${data.qty || ''}" placeholder="الكمية" min="1" required>
                 </div>
                 <div class="col-md-3">
-                    <label class="form-label d-md-none">السعر (ج.م)</label>
-                    <input type="number" class="form-control item-price" value="${data.price || ''}" placeholder="السعر الإجمالي أو الفردي" min="0" step="0.01">
+                    <input type="number" class="form-control item-price" value="${data.price || ''}" placeholder="السعر (ج.م)" min="0" step="0.01">
                 </div>
-                <div class="col-md-1 text-center">
-                    <button type="button" class="btn btn-danger btn-remove w-100" onclick="document.getElementById('${rowId}').remove()" title="حذف هذا الصنف">
-                        <i class="fas fa-trash-alt"></i>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-danger btn-remove w-100" onclick="document.getElementById('${rowId}').remove()" title="حذف">
+                        <i class="fas fa-trash-alt me-1"></i> حذف
                     </button>
                 </div>
             </div>
@@ -211,7 +199,6 @@
         container.appendChild(div);
     }
 
-    // تحميل قائمة العملاء بالسلكت
     async function loadCustomers() {
         const select = document.getElementById('customerSelect');
         try {
@@ -225,7 +212,6 @@
         }
     }
 
-    // بدء تشغيل وتحميل الصفحة وتعبئتها لو كانت في وضع التعديل
     async function initPage() {
         await loadCustomers();
 
@@ -247,27 +233,24 @@
                     }
                 }
             } catch (e) {
-                alert("حدث خطأ أثناء جلب تفاصيل الطلبية القديمة");
+                alert("حدث خطأ أثناء جلب تفاصيل الطلبية");
             }
         } else {
-            // سطر افتراضي أول عند إضافة طلب جديد تماماً
             addItemRow();
         }
     }
 
-    // حفظ البيانات (إضافة أو تعديل)
     document.getElementById('orderForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
         const items = [];
         document.querySelectorAll('.item-row').forEach(row => {
             const name = row.querySelector('.item-name').value.trim();
-            const cartonQty = parseInt(row.querySelector('.item-carton').value) || 0;
-            const pieceQty = parseInt(row.querySelector('.item-piece').value) || 0;
+            const qty = parseInt(row.querySelector('.item-qty').value) || 0;
             const price = parseFloat(row.querySelector('.item-price').value) || 0;
 
             if (name) {
-                items.push({ name, cartonQty, pieceQty, price });
+                items.push({ name, qty, price });
             }
         });
 
@@ -292,11 +275,11 @@
             } else {
                 orderPayload.createdAt = new Date().toISOString();
                 await addDoc(collection(db, "customer_orders"), orderPayload);
-                alert("تم حفظ الطلبية الجديدة بنجax!");
+                alert("تم حفظ الطلبية الجديدة بنجاح!");
             }
-            location.href = 'all-orders.html'; // العودة لجدول العرض
+            location.href = 'all-orders.html';
         } catch (err) {
-            alert("حدث خطأ أثناء حفظ البيانات، يرجى المحاولة مرة أخرى.");
+            alert("حدث خطأ أثناء حفظ البيانات.");
         }
     });
 
