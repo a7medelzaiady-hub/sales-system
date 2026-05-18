@@ -79,6 +79,8 @@
             border: 1px solid var(--border); color: var(--accent); font-weight: 800;
         }
         .badge-new { background: white; color: var(--accent); padding: 5px 12px; border-radius: 8px; font-weight: 700; font-size: 0.75rem; }
+        .clickable-icon { cursor: pointer; transition: transform 0.2s; }
+        .clickable-icon:hover { transform: scale(1.1); }
     </style>
 </head>
 <body>
@@ -87,15 +89,15 @@
 
 <div class="header">
     <div class="d-flex align-items-center gap-3">
-        <a href="purchase-record.html" class="text-white" title="رجوع للخلف"><i class="fas fa-arrow-right"></i></a>
-        <a href="index.html" class="text-white" title="الصفحة الرئيسية"><i class="fas fa-home"></i></a>
+        <i class="fas fa-arrow-right clickable-icon text-white" id="btnBack" title="رجوع للصفحة السابقة"></i>
+        <i class="fas fa-home clickable-icon text-white" id="btnHome" title="الصفحة الرئيسية"></i>
     </div>
     <h6 class="m-0 fw-bold" id="mainTitle">فاتورة شراء</h6>
     <div id="statusBadge" class="badge-new">جديدة</div>
 </div>
 
 <div class="container mt-2">
-    <!-- بيانات المورد والفرع -->
+    <!-- بيانات المورد -->
     <div class="data-card">
         <div class="row g-3">
             <div class="col-12">
@@ -116,15 +118,11 @@
         </div>
     </div>
 
-    <!-- ماليات الفاتورة (المرتجع والسداد) -->
+    <!-- السداد المالي المدفوع فقط -->
     <div class="data-card bg-light">
         <div class="row g-3">
-            <div class="col-6">
-                <label class="text-danger"><i class="fas fa-undo"></i> قيمة المرتجع العام</label>
-                <input type="number" step="0.01" id="returnAmount" class="form-control border-danger" value="0.00">
-            </div>
-            <div class="col-6">
-                <label class="text-primary"><i class="fas fa-money-bill-wave"></i> المبلغ المدفوع (السداد)</label>
+            <div class="col-12">
+                <label class="text-primary"><i class="fas fa-money-bill-wave"></i> المبلغ المدفوع الحالي (السداد نقداً)</label>
                 <input type="number" step="0.01" id="paidAmount" class="form-control border-primary" value="0.00">
             </div>
         </div>
@@ -140,11 +138,7 @@
 <div class="invoice-footer flex-wrap gap-2">
     <div class="d-flex gap-4">
         <div class="total-info">
-            <span class="d-block small text-muted">إجمالي الأصناف</span>
-            <span class="amount" id="finalTotal">0.00</span>
-        </div>
-        <div class="total-info border-start ps-3">
-            <span class="d-block small text-muted">الصافي النهائي</span>
+            <span class="d-block small text-muted">الصافي النهائي الفعلي</span>
             <span class="amount net" id="netTotal">0.00</span>
         </div>
     </div>
@@ -173,6 +167,32 @@
     const orderId = urlParams.get('orderId'); 
 
     let allInventory = [];
+    let isDataChanged = false; // لمتابعة أي تغيير لحماية البيانات قبل الخروج
+    let isSubmitting = false; 
+
+    // حماية الخروج العشوائي من المتصفح
+    window.addEventListener('beforeunload', (e) => {
+        if (isDataChanged && !isSubmitting) {
+            e.preventDefault();
+            e.returnValue = "هل تريد الخروج قبل الحفظ؟ ستخسر كل المدخلات الحالية.";
+        }
+    });
+
+    // دالة فحص التنقل الداخلي (لأزرار الهيدر)
+    function safeNavigate(targetUrl, useHistory = false) {
+        if (isDataChanged) {
+            const confirmLeave = confirm("هل تريد الخروج قبل الحفظ؟ ستخسر كل المدخلات.");
+            if (!confirmLeave) return;
+        }
+        if (useHistory) {
+            window.history.back();
+        } else {
+            window.location.href = targetUrl;
+        }
+    }
+
+    document.getElementById('btnBack').addEventListener('click', () => safeNavigate(null, true));
+    document.getElementById('btnHome').addEventListener('click', () => safeNavigate('index.html'));
 
     async function loadData() {
         const supSelect = document.getElementById('supplierSelect');
@@ -197,6 +217,14 @@
         } else { 
             addNewItemRow(); 
         }
+
+        // تفعيل تتبع التغيير بعد التحميل البدئي للبيانات
+        setTimeout(() => {
+            document.querySelectorAll('input, select').forEach(el => {
+                el.addEventListener('change', () => { isDataChanged = true; });
+                el.addEventListener('input', () => { isDataChanged = true; });
+            });
+        }, 1000);
     }
 
     async function loadOrderData(id) {
@@ -212,6 +240,7 @@
                     addNewItemRow({
                         name: item.name,
                         qty: item.qty,
+                        returnQty: item.returnQty || 0,
                         buy: invItem ? invItem.buy : 0,
                         unitName: invItem ? invItem.unitName : 'كرتونة',
                         unitFactor: invItem ? invItem.unitFactor : 1
@@ -235,7 +264,6 @@
             document.getElementById('supplierSelect').value = data.supplierId;
             document.getElementById('invDate').value = data.date;
             document.getElementById('paymentType').value = data.paymentType || 'credit';
-            document.getElementById('returnAmount').value = data.returnAmount || '0.00';
             document.getElementById('paidAmount').value = data.paidAmount || '0.00';
             
             document.getElementById('itemsList').innerHTML = ""; 
@@ -247,7 +275,8 @@
     window.addNewItemRow = (itemData = null) => {
         const id = Date.now() + Math.random();
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
-        
+        isDataChanged = true;
+
         const html = `
             <div class="item-row" id="row_${id}">
                 <div class="btn-remove" onclick="this.parentElement.remove(); window.calculateTotal();">
@@ -261,8 +290,12 @@
                     </div>
 
                     <div class="col-4">
-                        <label>الكمية</label>
+                        <label class="text-success">الكمية المشتراة</label>
                         <input type="number" step="0.01" class="form-control item-qty" value="${itemData ? itemData.qty : '1'}">
+                    </div>
+                    <div class="col-4">
+                        <label class="text-danger">كمية المرتجع (بالوحدة)</label>
+                        <input type="number" step="0.01" class="form-control item-return-qty" value="${itemData ? (itemData.returnQty || '0') : '0'}">
                     </div>
                     <div class="col-4">
                         <label>نوع الوحدة</label>
@@ -272,17 +305,17 @@
                             <option value="قطعة" ${currentUnit === 'قطعة' ? 'selected' : ''}>قطعة</option>
                         </select>
                     </div>
+
                     <div class="col-4">
-                        <label>المعامل (عدد القطع داحلها)</label>
+                        <label>المعامل (القطع داخلها)</label>
                         <input type="number" class="form-control item-factor" value="${itemData ? (itemData.unitFactor || '1') : '1'}">
                     </div>
-
-                    <div class="col-6">
+                    <div class="col-4">
                         <label>سعر شراء الوحدة</label>
                         <input type="number" step="0.01" class="form-control item-buy" value="${itemData ? (itemData.buy || '') : ''}" placeholder="0.00">
                     </div>
-                    <div class="col-6 d-flex flex-column justify-content-end align-items-end">
-                        <label>الإجمالي الفرعي</label>
+                    <div class="col-4 d-flex flex-column justify-content-end align-items-end">
+                        <label>الصافي الفرعي</label>
                         <div class="subtotal-display">
                             <input type="text" class="item-subtotal border-0 bg-transparent text-success fw-bold text-center" style="width: 80px; outline: none;" readonly value="0.00">
                         </div>
@@ -315,36 +348,33 @@
     }
 
     window.calculateTotal = () => {
-        let total = 0;
+        let netTotal = 0;
         document.querySelectorAll('.item-row').forEach(row => {
             const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+            const returnQty = parseFloat(row.querySelector('.item-return-qty').value) || 0;
             const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
-            const sub = qty * buy;
+            
+            // الحساب الفعلي: (الكمية المشتراة - كمية المرتجع للصنف) × سعر الشراء
+            const effectiveQty = qty - returnQty;
+            const sub = effectiveQty * buy;
+            
             row.querySelector('.item-subtotal').value = sub.toFixed(2);
-            total += sub;
+            netTotal += sub;
         });
         
-        const returnAmt = parseFloat(document.getElementById('returnAmount').value) || 0;
-        const netTotal = total - returnAmt;
-
-        document.getElementById('finalTotal').innerText = total.toFixed(2);
         document.getElementById('netTotal').innerText = netTotal.toFixed(2);
     };
 
-    // ربط الحسابات التلقائية عند تغيير قيم المدفوع أو المرتجع
-    document.getElementById('returnAmount').addEventListener('input', window.calculateTotal);
     document.getElementById('paidAmount').addEventListener('input', window.calculateTotal);
 
     document.getElementById('btnSaveInvoice').addEventListener('click', async () => {
         const btn = document.getElementById('btnSaveInvoice');
         const supplierId = document.getElementById('supplierSelect').value;
-        const total = parseFloat(document.getElementById('finalTotal').innerText);
         const netTotal = parseFloat(document.getElementById('netTotal').innerText);
-        const returnAmount = parseFloat(document.getElementById('returnAmount').value) || 0;
         const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
         const paymentType = document.getElementById('paymentType').value;
         
-        if(!supplierId || total <= 0) return alert("برجاء إكمال بيانات الفاتورة وإضافة أصناف");
+        if(!supplierId || document.querySelectorAll('.item-row').length === 0) return alert("برجاء إكمال بيانات الفاتورة وإضافة أصناف");
 
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل...';
@@ -355,13 +385,17 @@
 
             for (const row of rows) {
                 const name = row.querySelector('.item-name').value;
-                const qty = parseFloat(row.querySelector('.item-qty').value);
-                const buy = parseFloat(row.querySelector('.item-buy').value);
+                const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+                const returnQty = parseFloat(row.querySelector('.item-return-qty').value) || 0;
+                const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
                 const unitName = row.querySelector('.item-unit').value;
                 const unitFactor = parseInt(row.querySelector('.item-factor').value) || 1;
 
-                const totalPiecesInThisRow = qty * unitFactor;
-                items.push({ name, qty, buy, unitName, unitFactor, totalPieces: totalPiecesInThisRow });
+                // الصافي المضاف للمخزن هو (المشترى - المرتجع)
+                const finalQty = qty - returnQty;
+                const totalPiecesInThisRow = finalQty * unitFactor;
+                
+                items.push({ name, qty, returnQty, buy, unitName, unitFactor, totalPieces: totalPiecesInThisRow });
 
                 const q = query(collection(db, "inventory"), where("name", "==", name));
                 const qSnap = await getDocs(q);
@@ -369,7 +403,7 @@
                 if(!qSnap.empty) {
                     const dRef = doc(db, "inventory", qSnap.docs[0].id);
                     await updateDoc(dRef, {
-                        qty: increment(qty), 
+                        qty: increment(finalQty), 
                         totalPcs: increment(totalPiecesInThisRow), 
                         buy: buy,
                         unitName: unitName,
@@ -378,7 +412,7 @@
                     });
                 } else {
                     await addDoc(collection(db, "inventory"), {
-                        name, qty, totalPcs: totalPiecesInThisRow, buy, 
+                        name, qty: finalQty, totalPcs: totalPiecesInThisRow, buy, 
                         unitName: unitName || "قطعة", unitFactor: unitFactor || 1,
                         sell: buy * 1.2, min: 3, category: "عام", timestamp: serverTimestamp()
                     });
@@ -386,7 +420,7 @@
             }
 
             const invoiceObj = {
-                supplierId, total, returnAmount, paidAmount, netTotal, items, type: "شراء", paymentType,
+                supplierId, total: netTotal, paidAmount, netTotal, items, type: "شراء", paymentType,
                 date: document.getElementById('invDate').value,
                 timestamp: serverTimestamp()
             };
@@ -400,7 +434,7 @@
             } else {
                 await addDoc(collection(db, "supplier_transactions"), invoiceObj);
                 
-                // حساب مديونية المورد بناءً على الصافي والمدفوع
+                // حساب مديونية المورد (الصافي - المدفوع سداداً)
                 if(paymentType === 'credit') {
                     const finalDebt = netTotal - paidAmount; 
                     if (finalDebt !== 0) {
@@ -409,6 +443,7 @@
                 }
             }
 
+            isSubmitting = true; // السماح بالخروج والتحويل دون إظهار نافذة التحذير
             alert("تم الترحيل وتحديث المخزن والطلبية وحسابات المورد بنجاح ✅");
             window.location.href = "purchase-invoices-list.html";
 
