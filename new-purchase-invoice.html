@@ -205,7 +205,6 @@
     document.getElementById('btnBack').addEventListener('click', () => safeNavigate(null, true));
     document.getElementById('btnHome').addEventListener('click', () => safeNavigate('index.html'));
 
-    // التحكم في حقل السداد بناء على طريقة الدفع
     const paymentSelect = document.getElementById('paymentType');
     const paidInput = document.getElementById('paidAmount');
     
@@ -263,12 +262,12 @@
                 </div>
                 
                 <div class="row g-3">
-                    <div class="col-12 col-md-5">
+                    <div class="col-12 col-md-6">
                         <label>اسم الصنف</label>
                         <input type="text" list="productsData" class="form-control item-name" value="${itemData ? itemData.name : ''}" placeholder="ابحث أو اكتب اسم صنف">
                     </div>
 
-                    <div class="col-6 col-md-2">
+                    <div class="col-6 col-md-3">
                         <label>نوع الوحدة</label>
                         <select class="form-select item-unit">
                             <option value="كرتونة" ${currentUnit === 'كرتونة' ? 'selected' : ''}>كرتونة</option>
@@ -276,12 +275,7 @@
                         </select>
                     </div>
 
-                    <div class="col-6 col-md-2">
-                        <label>المعامل (قطع بالداخل)</label>
-                        <input type="number" class="form-control item-factor" value="${itemData ? (itemData.unitFactor || '1') : '1'}" ${currentUnit === 'قطعة' ? 'disabled' : ''}>
-                    </div>
-
-                    <div class="col-12 col-md-3 d-flex flex-column justify-content-end">
+                    <div class="col-6 col-md-3 d-flex flex-column justify-content-end">
                         <div class="return-check-container">
                             <div class="form-check form-switch m-0 d-flex align-items-center gap-2">
                                 <input class="form-check-input item-is-return" type="checkbox" id="check_${id}" ${isReturnChecked ? 'checked' : ''}>
@@ -298,7 +292,7 @@
                     </div>
 
                     <div class="col-6 col-md-4">
-                        <label>سعر شراء الـ (${currentUnit})</label>
+                        <label id="label_price_${id}">سعر شراء الـ (${currentUnit})</label>
                         <input type="number" step="0.01" class="form-control item-buy" value="${itemData ? itemData.buy : ''}" placeholder="0.00">
                     </div>
 
@@ -319,10 +313,8 @@
         const row = document.getElementById(`row_${id}`);
         const nameInput = row.querySelector('.item-name');
         const unitSelect = row.querySelector('.item-unit');
-        const factorInput = row.querySelector('.item-factor');
         const returnCheck = row.querySelector('.item-is-return');
 
-        // عند تفعيل السويتش الخاص بالمرتجع
         returnCheck.addEventListener('change', (e) => {
             if(e.target.checked) {
                 row.classList.add('is-return');
@@ -335,13 +327,7 @@
         unitSelect.addEventListener('change', (e) => {
             const val = e.target.value;
             document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (${val})`;
-            
-            if (val === 'قطعة') {
-                factorInput.value = 1;
-                factorInput.disabled = true;
-            } else {
-                factorInput.disabled = false;
-            }
+            document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (${val})`;
             window.calculateTotal();
         });
 
@@ -350,7 +336,6 @@
             if(found) {
                 row.querySelector('.item-buy').value = found.buy || 0;
                 unitSelect.value = found.unitName || "كرتونة";
-                factorInput.value = found.unitFactor || 1;
                 unitSelect.dispatchEvent(new Event('change'));
             }
             window.calculateTotal();
@@ -369,7 +354,6 @@
             const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
             const isReturn = row.querySelector('.item-is-return').checked;
             
-            // إذا كان مرتجع تكون القيمة بالسالب لكي تخصم من الإجمالي النهائي للفاتورة
             const factorMultiplier = isReturn ? -1 : 1;
             const sub = qty * buy * factorMultiplier;
             
@@ -379,7 +363,6 @@
         
         document.getElementById('netTotal').innerText = netTotal.toFixed(2);
         
-        // إذا كان الدفع كاش يتم مساواة المدفوع بالصافي تلقائياً وحمايته
         if (paymentSelect.value === 'cash') {
             paidInput.value = netTotal.toFixed(2);
         }
@@ -408,17 +391,14 @@
                 const qtyInput = parseFloat(row.querySelector('.item-qty').value) || 0;
                 const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
                 const unitName = row.querySelector('.item-unit').value;
-                const unitFactor = parseInt(row.querySelector('.item-factor').value) || 1;
                 const isReturn = row.querySelector('.item-is-return').checked;
 
-                // فرز وحفظ البيانات بناء على اختيار نوع الحركة (شراء أو مرتجع)
                 let qty = isReturn ? 0 : qtyInput;
                 let returnQty = isReturn ? qtyInput : 0;
 
                 const finalQtyModifier = isReturn ? -qtyInput : qtyInput;
-                const totalPiecesInThisRow = finalQtyModifier * unitFactor;
                 
-                items.push({ name, qty, returnQty, buy, unitName, unitFactor, totalPieces: totalPiecesInThisRow });
+                items.push({ name, qty, returnQty, buy, unitName, unitFactor: 1, totalPieces: finalQtyModifier });
 
                 const q = query(collection(db, "inventory"), where("name", "==", name));
                 const qSnap = await getDocs(q);
@@ -427,16 +407,16 @@
                     const dRef = doc(db, "inventory", qSnap.docs[0].id);
                     await updateDoc(dRef, {
                         qty: increment(finalQtyModifier), 
-                        totalPcs: increment(totalPiecesInThisRow), 
+                        totalPcs: increment(finalQtyModifier), 
                         buy: buy,
                         unitName: unitName,
-                        unitFactor: unitFactor,
+                        unitFactor: 1,
                         lastUpdate: serverTimestamp()
                     });
                 } else {
                     await addDoc(collection(db, "inventory"), {
-                        name, qty: finalQtyModifier, totalPcs: totalPiecesInThisRow, buy, 
-                        unitName: unitName || "قطعة", unitFactor: unitFactor || 1,
+                        name, qty: finalQtyModifier, totalPcs: finalQtyModifier, buy, 
+                        unitName: unitName || "قطعة", unitFactor: 1,
                         sell: buy * 1.2, min: 3, category: "عام", timestamp: serverTimestamp()
                     });
                 }
@@ -470,6 +450,10 @@
             btn.disabled = false;
             btn.innerText = "حفظ وترحيل الفاتورة";
         }
+    });
+
+    document.getElementById('addItemBtn').addEventListener('click', () => {
+        window.addNewItemRow();
     });
 
     document.getElementById('invDate').valueAsDate = new Date();
