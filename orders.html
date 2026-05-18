@@ -77,6 +77,12 @@
             margin-top: 50px;
             color: #888;
         }
+
+        /* تنسيق مخصص للتواريخ العاجلة جداً */
+        .urgent-delivery {
+            color: #dc3545 !important;
+            font-weight: 700;
+        }
     </style>
 </head>
 
@@ -120,13 +126,10 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    // تفعيل الكاش المحلي لتوفير قراءات الفايربيس والإنترنت
     const db = initializeFirestore(app, { localCache: persistentLocalCache() });
 
-    // ذاكرة مؤقتة لحفظ أسماء العملاء المعروضين لعدم تكرار جلب الاسم من فايربيس
     let cachedCustomerNames = {};
 
-    // دالة مساعدة سريعة لجلب اسم العميل بناءً على الـ ID الخاص به
     async function getCustomerName(customerId) {
         if (!customerId) return "عميل غير معروف";
         if (cachedCustomerNames[customerId]) return cachedCustomerNames[customerId];
@@ -141,20 +144,46 @@
         return "عميل غير معروف";
     }
 
+    // دالة ذكية لحساب الفارق الزمني وتوليد النص المناسب مع تحديد درجة خطورة الميعاد
+    function getRemainingDaysText(requiredDateStr) {
+        if (!requiredDateStr) return { text: "غير محدد", isUrgent: false };
+        
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const targetDate = new Date(requiredDateStr);
+        targetDate.setHours(0, 0, 0, 0);
+        
+        const diffTime = targetDate - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 0) {
+            return { text: "اليوم", isUrgent: true };
+        } else if (diffDays === 1) {
+            return { text: "غداً", isUrgent: true };
+        } else if (diffDays === 2) {
+            return { text: "بعد يومين", isUrgent: false };
+        } else if (diffDays > 2) {
+            return { text: `بعد ${diffDays} أيام`, isUrgent: false };
+        } else if (diffDays === -1) {
+            return { text: "منذ أمس (متأخر)", isUrgent: true };
+        } else {
+            return { text: `متأخر منذ ${Math.abs(diffDays)} أيام`, isUrgent: true };
+        }
+    }
+
     /* 1. فحص وعرض التذكيرات بالطلبيات القريبة */
     async function checkUpcomingOrders() {
         try {
             const today = new Date();
             const dateStrings = [];
             
-            // حساب تواريخ (اليوم، غداً، بعد غد)
             for(let i = 0; i < 3; i++) {
                 const d = new Date();
                 d.setDate(today.getDate() + i);
                 dateStrings.push(d.toISOString().split('T')[0]);
             }
 
-            // استعلام ذكي وموفر يجلب فقط الطلبيات المعلقة القريبة جداً
             const q = query(
                 collection(db, "customer_orders"),
                 where("status", "==", "pending"),
@@ -174,15 +203,18 @@
             for (const orderDoc of snap.docs) {
                 const orderData = orderDoc.data();
                 const custName = await getCustomerName(orderData.customerId);
+                const timing = getRemainingDaysText(orderData.requiredDate);
 
                 listHtml += `
                     <div class="reminder-item">
                         <div>
                             <strong class="text-dark">👤 ${custName}</strong>
-                            <div class="text-muted small mt-1"><i class="far fa-calendar-alt text-danger me-1"></i> موعد التسليم: ${orderData.requiredDate || "غير محدد"}</div>
+                            <div class="small mt-1 ${timing.isUrgent ? 'urgent-delivery' : 'text-muted'}">
+                                <i class="far fa-calendar-alt me-1"></i> موعد التسليم: ${timing.text}
+                            </div>
                         </div>
-                        <a href="add-order.html?edit=${orderDoc.id}" class="btn btn-sm btn-warning text-dark fw-bold px-3" style="border-radius:8px; font-size:12px;">
-                            <i class="fas fa-eye me-1"></i> عرض وتعديل
+                        <a href="new-order.html?edit=${orderDoc.id}" class="btn btn-sm btn-warning text-dark fw-bold px-3" style="border-radius:8px; font-size:12px;">
+                            <i class="fas fa-edit me-1"></i> تعديل
                         </a>
                     </div>
                 `;
@@ -201,7 +233,6 @@
         const container = document.getElementById("ordersContainer");
         container.innerHTML = `<div class="text-center mt-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i> جاري تحميل كل الطلبات...</div>`;
 
-        // تشغيل فحص التذكيرات بالتوازي
         checkUpcomingOrders();
 
         try {
@@ -224,40 +255,45 @@
 
                 if (order.items && Array.isArray(order.items)) {
                     order.items.forEach(item => {
+                        // دعم الحقول المنفصلة (كرتونة وقطعة) التي قمنا بتعديلها سابقاً بشكل ديناميكي مريح للعين
+                        let qtyDetails = [];
+                        if(item.cartonQty) qtyDetails.push(`<b>${item.cartonQty}</b> كرتونة`);
+                        if(item.pieceQty) qtyDetails.push(`<b>${item.pieceQty}</b> قطعة`);
+                        if(!item.cartonQty && !item.pieceQty && item.qty) qtyDetails.push(`<b>${item.qty}</b> وحدة`);
+
                         itemsHTML += `
                             <div class="item">
-                                📦 ${item.name} — الكمية: <b>${item.qty}</b> ${item.price ? `— السعر: <b>${item.price} ج.م</b>` : ''}
+                                📦 ${item.name} — الكمية: [ ${qtyDetails.join(' و ')} ] ${item.price ? `— السعر: <b>${item.price} ج.م</b>` : ''}
                             </div>
                         `;
                     });
                 }
 
-                // جلب اسم العميل بطريقة موفرة
                 const displayCustomerName = await getCustomerName(order.customerId);
+                const timing = getRemainingDaysText(order.requiredDate);
 
                 const div = document.createElement("div");
                 div.className = "order-card";
                 
-                // تلوين الحافة بناءً على الحالة
                 if(order.status === 'pending') div.style.borderRightColor = '#ff9800';
 
                 div.innerHTML = `
                     <div class="d-flex justify-content-between align-items-start">
                         <div>
                             <h5 class="fw-bold mb-1" style="color: #0b5e3d;">${displayCustomerName}</h5>
-                            <small class="text-muted fw-bold">
-                                📅 مطلوب في: ${order.requiredDate || "غير محدد"}
+                            <small class="fw-bold ${timing.isUrgent ? 'urgent-delivery' : 'text-muted'}">
+                                📅 موعد التسليم: ${timing.text}
                             </small>
                         </div>
                         <div class="d-flex gap-2 align-items-center">
                             <span class="status" style="background: ${order.status === 'pending' ? '#ff9800' : '#0b5e3d'}">
                                 ${order.status === 'pending' ? 'قيد الانتظار' : order.status}
                             </span>
-                            <a href="add-order.html?edit=${d.id}" class="btn btn-outline-secondary btn-sm" title="تعديل">
-                                ✏️
+                            <a href="new-order.html?edit=${d.id}" class="btn btn-outline-secondary btn-sm d-flex align-items-center justify-content-center" style="width:32px; height:32px;" title="تعديل">
+                                <i class="fas fa-pencil-alt" style="font-size:12px;"></i>
                             </a>
-                            <button class="btn btn-danger btn-sm" onclick="deleteOrder('${d.id}')" title="حذف">
-                                🗑️
+                            <button class="btn btn-danger btn-sm d-flex align-items-center justify-content-center" style="width:32px; height:32px;" onclick="deleteOrder('${d.id}')" title="حذف">
+                                <i class="fas fa-trash-alt" style="font-size:12px;"></i>
                             </button>
                         </div>
                     </div>
@@ -276,7 +312,6 @@
         }
     }
 
-    // نافذة الحذف المباشر
     window.deleteOrder = async (id) => {
         const ok = confirm("هل تريد حذف هذا الطلب نهائياً؟");
         if(!ok) return;
@@ -294,7 +329,6 @@
         window.location.href = "index.html";
     };
 
-    // تشغيل الصفحة
     loadOrders();
 </script>
 
