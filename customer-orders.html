@@ -121,7 +121,7 @@
 <div class="voice-overlay" id="voiceOverlay">
     <div class="voice-panel">
         <h6 class="fw-bold mb-2">جاري الاستماع... تحدّث الآن</h6>
-        <p class="text-muted small mb-3">طريقة التحدث: "العميل [اسم العميل] صنف [اسم المنتج] كرتونة [رقم] قطعة [رقم] سعر [رقم] ملاحظة [الكلام]"</p>
+        <p class="text-muted small mb-3">طريقة التحدث المفضلة: "العميل [الاسم] صنف [المنتج] كرتونة [رقم] قطعة [رقم] سعر [رقم] ملاحظة [نص]"</p>
         
         <div class="live-text-box" id="liveTextBox">ابدأ التحدث ليظهر النص هنا...</div>
         
@@ -374,7 +374,7 @@
         }
     };
 
-    // --- محرك الإدخال الصوتي الذكي والمصحح بالكامل ---
+    // --- محرك الإدخال الصوتي الذكي المطور كلياً كخانات منفصلة مستقلة عن الترتيب ---
     const voiceBtn = document.getElementById('voiceBtn');
     const stopVoiceBtn = document.getElementById('stopVoiceBtn');
     const cancelVoiceBtn = document.getElementById('cancelVoiceBtn');
@@ -464,46 +464,59 @@
         return modifiedText;
     }
 
-    // دالة الفرز المفككة والآمنة لمنع تجميع النص بالكامل في خانة واحدة
+    // دالة الفرز الجديدة الكلية المبنية على الكلمات الدلالية والأرقام الحرة المحيطة بها
     function parseVoiceOrder(text) {
         let normalizedText = convertArabicWordsToNumbers(text.toLowerCase().trim());
         normalizedText = normalizedText.replace(/\s+/g, ' '); 
 
-        console.log("النص الجاري معالجته: ", normalizedText);
+        console.log("النص بعد تنظيف الأرقام: ", normalizedText);
 
-        // 1. استخراج اسم العميل بشكل آمن ومحصور بين الكلمات المفتاحية
-        let customerName = "";
-        const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(?:صنف|الصنف|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه|$))/);
-        if (customerMatch) {
-            customerName = customerMatch[1].trim();
-        }
+        // 1. استخراج الأرقام بشكل حر دقيق (سواء سبقت الكلمة أو لحقتها)
+        let cartonQty = '';
+        let pieceQty = '';
+        let priceVal = '';
 
-        // 2. استخراج الصنف بشكل آمن ومحصور
-        let itemName = "";
-        const itemMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|عميل|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه|$))/);
-        if (itemMatch) {
-            itemName = itemMatch[1].trim();
-        }
+        // كرتونة
+        const cMatch1 = normalizedText.match(/(?:كرتونة|كرتونه|كراتين)\s*(\d+)/);
+        const cMatch2 = normalizedText.match(/(\d+)\s*(?:كرتونة|كرtونه|كراتين)/);
+        cartonQty = cMatch1 ? cMatch1[1] : (cMatch2 ? cMatch2[1] : '');
 
-        // 3. استخراج الملاحظة بشكل آمن ومحصور
+        // قطعة
+        const piMatch1 = normalizedText.match(/(?:قطعة|قطعه|قطع)\s*(\d+)/);
+        const piMatch2 = normalizedText.match(/(\d+)\s*(?:قطعة|قطعه|قطع)/);
+        pieceQty = piMatch1 ? piMatch1[1] : (piMatch2 ? piMatch2[1] : '');
+
+        // سعر
+        const prMatch1 = normalizedText.match(/(?:سعر|سعره)\s*(\d+(?:\.\d+)?)/);
+        const prMatch2 = normalizedText.match(/(\d+(?:\.\d+)?)\s*(?:سعر|سعره)/);
+        priceVal = prMatch1 ? prMatch1[1] : (prMatch2 ? prMatch2[1] : '');
+
+        // 2. استخراج الملاحظة بدقة وإزالتها من النص الرئيسي
         let orderNote = "";
-        const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|عميل|صنف|الصنف|كرتونة|كرتونه|قطعة|قطعه|سعر|$))/);
+        const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+(.+)$/);
         if (noteMatch) {
             orderNote = noteMatch[1].trim();
+            normalizedText = normalizedText.replace(noteMatch[0], ""); 
         }
 
-        // 4. استخراج الأرقام (الكميات والأسعار)
-        const cartonMatch = normalizedText.match(/(?:كرتونة|كرتونه|كراتين)\s*(\d+)/);
-        const pieceMatch = normalizedText.match(/(?:قطعة|قطعه|قطع)\s*(\d+)/);
-        const priceMatch = normalizedText.match(/(?:سعر)\s*(\d+(?:\.\d+)?)/);
+        // 3. استخراج اسم العميل واسم الصنف عن طريق تفكيك الأجزاء النصية المتبقية
+        let customerName = "";
+        let itemName = "";
 
-        const cartonQty = cartonMatch ? cartonMatch[1] : '';
-        const pieceQty = pieceMatch ? pieceMatch[1] : '';
-        const priceVal = priceMatch ? priceMatch[1] : '';
+        // الفرز من خلال البحث عن الكلمات المفتاحية (العميل / صنف)
+        const custMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=(?:صنف|الصنف|كرتونة|قطعة|سعر|\d+|$))/);
+        if (custMatch) customerName = custMatch[1].trim();
 
-        // --- توزيع البيانات الحقيقية في الخانات ---
+        const itmMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s]+?)(?=(?:العميل|عميل|كرتونة|قطعة|سعر|\d+|$))/);
+        if (itmMatch) itemName = itmMatch[1].trim();
+
+        // تنظيف أسماء النصوص من أي بقايا كلمات دلالية زائدة
+        if (customerName) customerName = customerName.replace(/(العميل|عميل|صنف|الصنف)/g, "").trim();
+        if (itemName) itemName = itemName.replace(/(العميل|عميل|صنف|الصنف)/g, "").trim();
+
+        // --- توزيع البيانات الحقيقية المفرزة داخل عناصر واجهة المستخدم ---
         
-        // توزيع خانة العميل والتأكد من مطابقتها في الـ Firebase داتاليست
+        // أ. تعبئة خانة العميل والمطابقة الذكية
         if (customerName) {
             const inputCustomer = document.getElementById('customerInput');
             inputCustomer.value = customerName;
@@ -524,12 +537,12 @@
             }
         }
 
-        // توزيع الملاحظة
+        // ب. تعبئة الملاحظة
         if (orderNote) {
             document.getElementById('orderNote').value = orderNote;
         }
 
-        // توزيع تفاصيل الصنف والكمية والسعر
+        // ج. تعبئة الصنف والكمية والسعر في جدول المنتجات
         if (itemName || cartonQty || pieceQty || priceVal) {
             let rows = document.querySelectorAll('.order-item');
             if (rows.length === 0) {
@@ -544,7 +557,7 @@
             if (priceVal) targetRow.querySelector('.item-price').value = priceVal;
         }
 
-        alert("تم تسجيل الطلبية بنجاح وتوزيع البيانات على الخانات الخاصة بها!");
+        alert("تمت معالجة النص وتوزيعه بنجاح على الخانات الخاصة به!");
     }
                 
     initPage();
