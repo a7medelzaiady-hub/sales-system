@@ -374,7 +374,7 @@
         }
     };
 
-// --- محرك الإدخال الصوتي المستمر الذكي (WhatsApp Style) - نسخة منع الإغلاق التلقائي ---
+// --- محرك الإدخال الصوتي المبسط والمضمون (حل مشكلة عدم الكتابة والتكرار) ---
 
 const voiceBtn = document.getElementById('voiceBtn');
 const stopVoiceBtn = document.getElementById('stopVoiceBtn');
@@ -390,68 +390,67 @@ if (!SpeechRecognition) {
 } else {
     const recognition = new SpeechRecognition();
     recognition.lang = 'ar-EG';
-    recognition.interimResults = true; // عرض الكلام أثناء النطق
-    recognition.continuous = true;     // تفعيل الاستماع المستمر (يمنع الإغلاق التلقائي أثناء الكلام)
+    recognition.interimResults = false; // إلغاء المعالجة المؤقتة المسببة للبطء وعدم الكتابة
+    recognition.continuous = true;     // استمرار الاستماع حتى يضغط المستخدم إيقاف
 
-    let finalTranscript = ''; // تخزين النص النهائي الثابت لمنع التكرار
+    let fullSpeechText = '';
 
     voiceBtn.addEventListener('click', () => {
-        finalTranscript = '';
-        liveTextBox.innerText = 'ابدأ التحدث الآن...';
+        fullSpeechText = '';
+        liveTextBox.innerText = 'تحدث الآن... جاري الاستماع لصوتك (سيظهر النص بالكامل عند الضغط على إيقاف)';
         voiceOverlay.classList.add('active');
-        recognition.start();
+        try {
+            recognition.start();
+        } catch(e) {
+            console.log("المايك يعمل بالفعل");
+        }
     });
 
     recognition.onresult = (event) => {
-        let interimTranscript = '';
-        
-        // فصل الكلمات المؤكدة عن الكلمات الجاري نطقها لمنع التكرار والبطء
+        // تجميع النص النهائي بالكامل بشكل مباشر وآمن
+        let currentResult = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
-                finalTranscript += event.results[i][0].transcript + ' ';
-            } else {
-                interimTranscript += event.results[i][0].transcript;
+                currentResult += event.results[i][0].transcript + ' ';
             }
         }
-        
-        // تحديث المربع فوراً بدون أي تكرار للكلام القديم
-        liveTextBox.innerText = finalTranscript + interimTranscript;
+        if(currentResult) {
+            fullSpeechText += currentResult;
+            liveTextBox.innerText = fullSpeechText;
+        }
     };
 
-    // تم إلغاء حدث onspeechend لضمان عدم إغلاق المايكروفون تلقائياً تحت أي ظرف
-
-    // التسجيل يتوقف ويوزع النصوص *فقط* عند الضغط على الزر الأحمر (مثل الواتساب)
+    // عند الضغط على زر الإيقاف الأحمر - يتم إنهاء التسجيل وتوزيع النصوص فوراً
     stopVoiceBtn.addEventListener('click', () => {
         recognition.stop();
         voiceOverlay.classList.remove('active');
         
+        // التحقق من النص وتوزيعه
         const textToParse = liveTextBox.innerText;
-        if (textToParse && textToParse !== 'ابدأ التحدث الآن...') {
+        if (textToParse && !textToParse.includes('جاري الاستماع')) {
             parseVoiceOrder(textToParse);
         }
     });
 
-    // عند الضغط على إلغاء التسجيل
+    // عند إلغاء التسجيل
     cancelVoiceBtn.addEventListener('click', () => {
         recognition.stop();
         voiceOverlay.classList.remove('active');
     });
 
     recognition.onerror = (event) => {
-        console.error("خطأ في التعرف على الصوت: ", event.error);
-        // إعادة التشغيل تلقائياً إذا انقطع الاتصال بسبب صمت طويل ولم يضغط المستخدم إلغاء
-        if (event.error === 'no-speech' && voiceOverlay.classList.contains('active')) {
-            try { recognition.start(); } catch(e) {}
+        console.error("خطأ المايكروفون: ", event.error);
+        if(event.error === 'no-speech') {
+            liveTextBox.innerText = "لم يتم سماع صوت. تأكد من التحدث بجانب المايكروفون ثم اضغط إيقاف.";
         }
     };
 }
 
 // دالة التحليل الذكي وتوزيع النصوص على الخانات المحددة بدقة وسرعة
 function parseVoiceOrder(text) {
-    // تنظيف النص وتحويله لمعايير موحدة للبحث
+    // تنظيف وتوحيد النص
     const normalizedText = text.trim().replace(/\s+/g, ' ');
-
-    console.log("النص النهائي الجاري توزيعه: ", normalizedText);
+    console.log("النص المكتوب الذي سيتم توزيعه: ", normalizedText);
 
     // 1. استخراج اسم العميل
     const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(صنف|أصناف|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه|$))/);
