@@ -74,6 +74,38 @@
         .btn-save:active { transform: scale(0.98); opacity: 0.9; }
 
         .badge-status { font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; }
+
+        /* تأثيرات لوحة التسجيل الصوتي مثل الواتساب */
+        .voice-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); display: none; z-index: 2000;
+            align-items: flex-end;
+        }
+        .voice-panel {
+            background: white; border-top-left-radius: 25px; border-top-right-radius: 25px;
+            width: 100%; padding: 25px 20px; box-shadow: 0 -5px 25px rgba(0,0,0,0.2);
+            text-align: center; transform: translateY(100%); transition: transform 0.3s ease-out;
+        }
+        .voice-overlay.active { display: flex; }
+        .voice-overlay.active .voice-panel { transform: translateY(0); }
+        
+        .pulse-mic {
+            width: 70px; height: 70px; background: #dc3545; color: white;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-size: 1.8rem; margin: 0 auto 15px; border: none;
+            box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+            animation: pulse-anim 1.5s infinite;
+        }
+        @keyframes pulse-anim {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(220, 53, 69, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+        }
+        .live-text-box {
+            background: #f0f2f1; min-height: 80px; max-height: 120px; overflow-y: auto;
+            border-radius: 12px; padding: 12px; border: 1px solid var(--border);
+            margin-bottom: 15px; font-weight: 600; color: var(--text-primary); text-align: right;
+        }
     </style>
 </head>
 <body>
@@ -84,15 +116,26 @@
 <div class="header">
     <a href="orders.html" class="text-white"><i class="fas fa-arrow-right"></i></a>
     <h6 class="m-0 fw-bold" id="pageTitle">طلبية عميل جديدة</h6>
-    <span id="statusLabel" class="badge-status bg-white text-success fw-bold">جديدة</span>
+    <div class="d-flex align-items-center">
+        <button id="voiceBtn" class="btn btn-sm btn-light text-success rounded-circle ms-2" style="width: 40px; height: 40px;">
+            <i class="fas fa-microphone"></i>
+        </button>
+        <span id="statusLabel" class="badge-status bg-white text-success fw-bold">جديدة</span>
+    </div>
 </div>
-    <a href="orders.html" class="text-white"><i class="fas fa-arrow-right"></i></a>
-    <h6 class="m-0 fw-bold" id="pageTitle">طلبية عميل جديدة</h6>
-    <!-- الزر الجديد للميكروفون -->
-    <button id="voiceBtn" class="btn btn-sm btn-light text-success rounded-circle ms-2" style="width: 40px; height: 40px;">
-        <i class="fas fa-microphone"></i>
-    </button>
-    <span id="statusLabel" class="badge-status bg-white text-success fw-bold">جديدة</span>
+
+<div class="voice-overlay" id="voiceOverlay">
+    <div class="voice-panel">
+        <h6 class="fw-bold mb-2">جاري الاستماع... تحدّث الآن</h6>
+        <p class="text-muted small mb-3">مثال: "العميل شركة النور صنف جبنة كرتونة 5 قطعة 10 ملاحظة التوصيل صباحاً"</p>
+        
+        <div class="live-text-box" id="liveTextBox">ابدأ التحدث ليظهر النص هنا...</div>
+        
+        <button class="pulse-mic" id="stopVoiceBtn">
+            <i class="fas fa-stop"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-secondary w-100 rounded-3" id="cancelVoiceBtn">إلغاء التسجيل</button>
+    </div>
 </div>
 
 <div class="container mt-3">
@@ -238,7 +281,6 @@
         const container = document.getElementById('itemsContainer');
         const rowId = Date.now() + Math.random();
         
-        // التعديل: تعديل الـ label الخاص بالسعر وإدراج كلمة (اختياري) بداخل الـ placeholder لضمان الاستواء التام
         const html = `
             <div class="order-item" id="row_${rowId}">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -331,64 +373,81 @@
             btn.innerText = editId ? "تحديث البيانات" : "حفظ وإرسال الطلبية";
         }
     };
-// --- كود المحرك الصوتي وتحليل البيانات تلقائياً ---
+
+// --- محرك الإدخال الصوتي المطور والذكي (WhatsApp Style) ---
 
 const voiceBtn = document.getElementById('voiceBtn');
+const stopVoiceBtn = document.getElementById('stopVoiceBtn');
+const cancelVoiceBtn = document.getElementById('cancelVoiceBtn');
+const voiceOverlay = document.getElementById('voiceOverlay');
+const liveTextBox = document.getElementById('liveTextBox');
+
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 if (!SpeechRecognition) {
-    voiceBtn.style.display = 'none'; // إخفاء الزر إذا كان المتصفح لا يدعم الميزة
+    voiceBtn.style.display = 'none';
     console.log("المتصفح لا يدعم خاصية التعرف على الصوت");
 } else {
     const recognition = new SpeechRecognition();
-    recognition.lang = 'ar-EG'; // تعيين اللغة للعربية (اللهجة المصرية أو العامة)
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    recognition.lang = 'ar-EG';
+    recognition.interimResults = true; // تفعيل إظهار الكلام أثناء النطق فورياً كالكيبورد
+    recognition.continuous = true;     // استمرار التسجيل دون توقف تلقائي مفاجئ
+
+    let finalTranscript = '';
 
     voiceBtn.addEventListener('click', () => {
+        finalTranscript = '';
+        liveTextBox.innerText = 'ابدأ التحدث الآن...';
+        voiceOverlay.classList.add('active');
         recognition.start();
-        voiceBtn.className = "btn btn-sm btn-danger text-white rounded-circle ms-2 animate-pulse";
-        voiceBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
     });
 
     recognition.onresult = (event) => {
-        const speechToText = event.results[0][0].transcript;
-        console.log("النص المسموع: ", speechToText);
-        
-        // استدعاء دالة تحليل النص وتوزيع الحقول
-        parseVoiceOrder(speechToText);
+        let interimTranscript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+                finalTranscript += event.results[i][0].transcript + ' ';
+            } else {
+                interimTranscript += event.results[i][0].transcript;
+            }
+        }
+        // عرض النص في اللوحة مباشرة أثناء الكلام
+        liveTextBox.innerText = finalTranscript + interimTranscript;
     };
 
-    recognition.onspeechend = () => {
+    // عند الضغط على زر الإيقاف (إنهاء وتوزيع النصوص)
+    stopVoiceBtn.addEventListener('click', () => {
         recognition.stop();
-        resetVoiceButton();
-    };
+        voiceOverlay.classList.remove('active');
+        if(finalTranscript.trim() || liveTextBox.innerText.trim()) {
+            parseVoiceOrder(liveTextBox.innerText);
+        }
+    });
+
+    // عند الضغط على إلغاء
+    cancelVoiceBtn.addEventListener('click', () => {
+        recognition.stop();
+        voiceOverlay.classList.remove('active');
+    });
 
     recognition.onerror = (event) => {
         console.error("خطأ في التعرف على الصوت: ", event.error);
-        resetVoiceButton();
-        alert("لم يتم سماع الصوت بشكل واضح، يرجى المحاولة مرة أخرى.");
+        voiceOverlay.classList.remove('active');
+        alert("حدث خطأ أثناء الاتصال بالمايكروفون، يرجى المحاولة مرة أخرى.");
     };
-
-    function resetVoiceButton() {
-        voiceBtn.className = "btn btn-sm btn-light text-success rounded-circle ms-2";
-        voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
-    }
 }
 
-// دالة تحليل النص وتعبئة النموذج
+// دالة التحليل الذكي وتوزيع النصوص على الخانات المحددة
 function parseVoiceOrder(text) {
-    // تنظيف النص لسهولة البحث
-    const normalizedText = text.toLowerCase();
+    const normalizedText = text.toLowerCase().trim();
 
-    // 1. استخراج العميل
+    // 1. استخراج اسم العميل
     const customerMatch = normalizedText.match(/العميل\s+([\u0600-\u06FF\s]+?)(?=\s+(صنف|كرتونة|قطعة|سعر|ملاحظة|$))/);
     if (customerMatch && customerMatch[1]) {
         const customerName = customerMatch[1].trim();
         const inputCustomer = document.getElementById('customerInput');
         inputCustomer.value = customerName;
-        // إطلاق حدث التغيير ليتفاعل مع الـ datalist المخزن لديك مسبقاً
-        inputCustomer.dispatchEvent(new Event('input'));
+        inputCustomer.dispatchEvent(new Event('input')); // لتنشيط الداتاليس وربط الـ ID
     }
 
     // 2. استخراج الملاحظة
@@ -397,13 +456,13 @@ function parseVoiceOrder(text) {
         document.getElementById('orderNote').value = noteMatch[1].trim();
     }
 
-    // 3. استخراج بيانات الصنف (اسم الصنف، الكرتونة، القطعة، السعر)
+    // 3. استخراج بيانات الأصناف والكميات
     const itemMatch = normalizedText.match(/صنف\s+([\u0600-\u06FF\s\d]+?)(?=\s+(العميل|كرتونة|قطعة|سعر|ملاحظة|$))/);
     
     if (itemMatch && itemMatch[1]) {
         const itemName = itemMatch[1].trim();
         
-        // استخراج الأرقام الخاصة بالكميات والأسعار
+        // استخراج الأرقام المرافقة
         const cartonMatch = normalizedText.match(/كرتونة\s+(\d+)/);
         const pieceMatch = normalizedText.match(/قطعة\s+(\d+)/);
         const priceMatch = normalizedText.match(/سعر\s+(\d+)/);
@@ -412,18 +471,17 @@ function parseVoiceOrder(text) {
         const pieceQty = pieceMatch ? pieceMatch[1] : '';
         const priceVal = priceMatch ? priceMatch[1] : '';
 
-        // الحصول على آخر سطر أصناف متاح أو إنشاء واحد جديد إذا كان فارغاً
         let rows = document.querySelectorAll('.order-item');
         let targetRow;
 
+        // إذا كان السطر الحالي ممتلئاً ببيانات أخرى، ننشئ سطراً جديداً للأ صناف الجديدة
         if (rows.length === 0) {
             window.addNewRow();
             rows = document.querySelectorAll('.order-item');
         }
         
-        targetRow = rows[rows.length - 1]; // استهداف آخر سطر تم إنشاؤه
+        targetRow = rows[rows.length - 1];
 
-        // تعبئة البيانات في السطر المستهدف دون التأثير على البنية الأساسية للمشروع
         const nameInput = targetRow.querySelector('.item-name');
         const cartonInput = targetRow.querySelector('.item-carton');
         const pieceInput = targetRow.querySelector('.item-piece');
