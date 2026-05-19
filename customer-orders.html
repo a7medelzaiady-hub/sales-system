@@ -374,8 +374,7 @@
         }
     };
 
-        
-// --- محرك الإدخال الصوتي الذكي والمصحح بالكامل (WhatsApp Style) ---
+        // --- محرك الإدخال الصوتي الذكي والمقاوم للانقطاع التلقائي (WhatsApp Style) ---
 
 const voiceBtn = document.getElementById('voiceBtn');
 const stopVoiceBtn = document.getElementById('stopVoiceBtn');
@@ -391,12 +390,14 @@ if (!SpeechRecognition) {
 } else {
     const recognition = new SpeechRecognition();
     recognition.lang = 'ar-EG';
-    recognition.interimResults = true; // تفعيل العرض اللحظي أثناء النطق
-    recognition.continuous = true;     // استمرار الاستماع دون انقطاع مفاجئ
+    recognition.interimResults = true; // تفعيل العرض اللحظي المباشر للكلام
+    recognition.continuous = true;     // محاولة الإبقاء على الاتصال مستمراً
 
     let finalTranscript = '';
+    let userStoppedRecording = false; // المتغير الذكي للتحكم في الإيقاف اليدوي
 
     voiceBtn.addEventListener('click', () => {
+        userStoppedRecording = false; // إعادة تعيين المتغير عند بدء التسجيل
         finalTranscript = '';
         liveTextBox.innerText = 'ابدأ التحدث الآن...';
         voiceOverlay.classList.add('active');
@@ -417,31 +418,50 @@ if (!SpeechRecognition) {
         liveTextBox.innerText = finalTranscript + interimTranscript;
     };
 
-    // حل مشكلة الـ Asynchronous: معالجة البيانات فقط بعد إغلاق المايكروفون تماماً
+    // عند ضغط المستخدم بنفسه على زر الإيقاف الأحمر
     stopVoiceBtn.addEventListener('click', () => {
+        userStoppedRecording = true;
         recognition.stop();
     });
 
+    // معالجة الحدث عند إغلاق المايكروفون (سواء يدوياً أو بسبب انقطاع المتصفح التلقائي)
     recognition.onend = () => {
+        // [تعديلك العبقري]: لو المايك اتقفل لوحده من المتصفح بدون ضغط المستخدم.. أعد تشغيله فوراً
+        if (!userStoppedRecording) {
+            try {
+                recognition.start();
+            } catch(e) { console.log("فشل إعادة التشغيل التلقائي"); }
+            return; // اخرج من الدالة ولا تقم بتوزيع النصوص الآن
+        }
+
+        // إذا وصلنا هنا، فهذا يعني أن المستخدم ضغط إيقاف بنفسه بنجاح ✅
         voiceOverlay.classList.remove('active');
         const textToParse = liveTextBox.innerText.trim();
         
         if (textToParse && textToParse !== 'ابدأ التحدث الآن...') {
             parseVoiceOrder(textToParse);
         }
+        
+        userStoppedRecording = false; // إعادة التصفير للدورة القادمة
     };
 
+    // إلغاء التسجيل بالكامل بدون حفظ
     cancelVoiceBtn.addEventListener('click', () => {
+        userStoppedRecording = true; // نعتبره إيقاف متعمد لمنع الـ Auto-Restart
         recognition.stop();
         voiceOverlay.classList.remove('active');
     });
 
     recognition.onerror = (event) => {
-        console.error("خطأ المايكروفون: ", event.error);
+        console.error("إشارة خطأ من المايكروفون: ", event.error);
+        // في حالة حدوث خطأ مثل السكون الطويل (no-speech)، لا تدع المايك يموت واجعله يستمر
+        if (event.error === 'no-speech' && !userStoppedRecording) {
+            try { recognition.start(); } catch(e) {}
+        }
     };
 }
 
-// دالة ذكية لتحويل الأرقام المنطوقة باللغة العربية إلى أرقام نصية حسابية ليفهمها الـ Regex
+// دالة تحويل الأرقام المنطوقة باللغة العربية إلى أرقام نصية حسابية لنجاح الـ Regex
 function convertArabicWordsToNumbers(text) {
     const wordsMap = {
         'واحد': '1', 'اتنين': '2', 'اثنين': '2', 'تلاتة': '3', 'ثلاثة': '3',
@@ -459,16 +479,16 @@ function convertArabicWordsToNumbers(text) {
     return modifiedText;
 }
 
-// دالة التحليل المحدثة بالكامل بناءً على إصلاحات الـ Regex والبحث المرن للعميل
+// دالة التحليل الذكي وتوزيع النصوص المصححة بالكامل بفضل تعديلات الـ Regex
 function parseVoiceOrder(text) {
-    // 1. تحويل الكلمات الرقمية العربية إلى أرقام حسابية لتفادي فشل الـ Regex
+    // معالجة الأرقام وتنظيف الفراغات المتكررة
     let normalizedText = convertArabicWordsToNumbers(text.toLowerCase().trim());
     normalizedText = normalizedText.replace(/\s+/g, ' '); 
 
-    console.log("النص بعد معالجة الأرقام والتهيئة: ", normalizedText);
+    console.log("النص النهائي الجاري معالجته وتوزيعه: ", normalizedText);
 
-    // 2. استخراج العميل المصلح (استخدام المجموعات غير الالتقاطية والـ OR الخارجي للـ $)
-    const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(?:صنف|أصناف|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
+    // 1. استخراج وتوزيع العميل بالـ Regex المصحح والمجموعات غير الالتقاطية للـ $
+    const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(?:صنف|أصناف|كرتونة|كرtونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
     if (customerMatch && customerMatch[1]) {
         const customerName = customerMatch[1].trim();
         const inputCustomer = document.getElementById('customerInput');
@@ -476,12 +496,12 @@ function parseVoiceOrder(text) {
         if (inputCustomer) {
             inputCustomer.value = customerName;
             
-            // تطبيق البحث المرن والمحسن للعميل (الاحتواء بدلاً من التطابق الحرفي الصارم)
+            // البحث المرن عن العميل بالـ الاحتواء (Includes) لمنع مشاكل عدم التطابق الحرفي
             let selectedId = '';
             for (let name in customersDataMap) {
                 if (name.includes(customerName) || customerName.includes(name)) {
                     selectedId = customersDataMap[name];
-                    inputCustomer.value = name; // إكمال الاسم تلقائياً للاسم الصحيح المسجل
+                    inputCustomer.value = name; // إكمال الاسم تلقائياً للاسم المسجل في قاعدة البيانات
                     break;
                 }
             }
@@ -496,21 +516,20 @@ function parseVoiceOrder(text) {
         }
     }
 
-    // 3. استخراج الملاحظة المصلح
-    const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|صنف|كرتونة|كرتونه|قطعة|قطعه|سعر)|$)/);
+    // 2. استخراج وتوزيع الملاحظة بالـ Regex المصحح
+    const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|صنف|كرتونة|كرtونه|قطعة|قطعه|سعر)|$)/);
     if (noteMatch && noteMatch[1]) {
         const noteElement = document.getElementById('orderNote');
         if (noteElement) noteElement.value = noteMatch[1].trim();
     }
 
-    // 4. استخراج بيانات الأصناف والكميات المصحح
-    const itemMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
+    // 3. استخراج وتوزيع الأصناف والكميات بالـ Regex المصحح
+    const itemMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|كرتونة|كرtونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
     
     if (itemMatch && itemMatch[1]) {
         const itemName = itemMatch[1].trim();
         
-        // الآن الـ \d+ ستنجح دائماً بفضل دالة التحويل المسبق للكلمات الرقمية
-        const cartonMatch = normalizedText.match(/(?:كرتونة|كرتونه)\s+(\d+)/);
+        const cartonMatch = normalizedText.match(/(?:كرتونة|كرtونه)\s+(\d+)/);
         const pieceMatch = normalizedText.match(/(?:قطعة|قطعه)\s+(\d+)/);
         const priceMatch = normalizedText.match(/(?:سعر)\s+(\d+(?:\.\d+)?)/);
 
@@ -538,6 +557,7 @@ function parseVoiceOrder(text) {
     }
 }
 
+                
     initPage();
 </script>
 </body>
