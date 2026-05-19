@@ -374,7 +374,7 @@
         }
     };
 
-    // --- محرك الإدخال الصوتي الذكي المطور (حل مشكلة التكرار وعدم التوزيع) ---
+    // --- محرك الإدخال الصوتي الذكي والمصحح بالكامل ---
     const voiceBtn = document.getElementById('voiceBtn');
     const stopVoiceBtn = document.getElementById('stopVoiceBtn');
     const cancelVoiceBtn = document.getElementById('cancelVoiceBtn');
@@ -390,7 +390,7 @@
     } else {
         const recognition = new SpeechRecognition();
         recognition.lang = 'ar-EG';
-        recognition.interimResults = false; // إلغاء Interim لمنع تكرار النص المزدوج نهائياً
+        recognition.interimResults = false; 
         recognition.continuous = true;     
 
         let finalTranscript = '';
@@ -420,7 +420,6 @@
             recognition.stop();
         });
 
-        // عند الضغط على زر نفذ
         executeVoiceBtn.addEventListener('click', () => {
             userStoppedRecording = true;
             recognition.stop();
@@ -436,9 +435,7 @@
 
         recognition.onend = () => {
             if (!userStoppedRecording) {
-                try {
-                    recognition.start();
-                } catch(e) { console.log("فشل إعادة التشغيل التلقائي"); }
+                try { recognition.start(); } catch(e) {}
                 return; 
             }
         };
@@ -448,12 +445,6 @@
             recognition.stop();
             voiceOverlay.classList.remove('active');
         });
-
-        recognition.onerror = (event) => {
-            if (event.error === 'no-speech' && !userStoppedRecording) {
-                try { recognition.start(); } catch(e) {}
-            }
-        };
     }
 
     function convertArabicWordsToNumbers(text) {
@@ -473,26 +464,46 @@
         return modifiedText;
     }
 
-    // دالة الفرز الذكية المرنة والمقاومة للأخطاء اللفظية
+    // دالة الفرز المفككة والآمنة لمنع تجميع النص بالكامل في خانة واحدة
     function parseVoiceOrder(text) {
         let normalizedText = convertArabicWordsToNumbers(text.toLowerCase().trim());
         normalizedText = normalizedText.replace(/\s+/g, ' '); 
 
-        console.log("جاري تحليل النص التالي بالتفكيك المرن: ", normalizedText);
+        console.log("النص الجاري معالجته: ", normalizedText);
 
-        // 1. استخراج اسم العميل بشكل مرن جداً
+        // 1. استخراج اسم العميل بشكل آمن ومحصور بين الكلمات المفتاحية
         let customerName = "";
-        const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(?:صنف|أصناف|كرتونة|كرtونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
+        const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(?:صنف|الصنف|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه|$))/);
         if (customerMatch) {
             customerName = customerMatch[1].trim();
-        } else {
-            // محاولة بديلة إذا لم يقل كلمة "العميل" مباشرة في البداية
-            let splitText = normalizedText.split(/(صنف|كرتونة|قطعة|سعر|ملاحظة)/);
-            if(splitText[0]) {
-                customerName = splitText[0].replace(/(العميل|عميل)/, "").trim();
-            }
         }
 
+        // 2. استخراج الصنف بشكل آمن ومحصور
+        let itemName = "";
+        const itemMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|عميل|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه|$))/);
+        if (itemMatch) {
+            itemName = itemMatch[1].trim();
+        }
+
+        // 3. استخراج الملاحظة بشكل آمن ومحصور
+        let orderNote = "";
+        const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|عميل|صنف|الصنف|كرتونة|كرتونه|قطعة|قطعه|سعر|$))/);
+        if (noteMatch) {
+            orderNote = noteMatch[1].trim();
+        }
+
+        // 4. استخراج الأرقام (الكميات والأسعار)
+        const cartonMatch = normalizedText.match(/(?:كرتونة|كرتونه|كراتين)\s*(\d+)/);
+        const pieceMatch = normalizedText.match(/(?:قطعة|قطعه|قطع)\s*(\d+)/);
+        const priceMatch = normalizedText.match(/(?:سعر)\s*(\d+(?:\.\d+)?)/);
+
+        const cartonQty = cartonMatch ? cartonMatch[1] : '';
+        const pieceQty = pieceMatch ? pieceMatch[1] : '';
+        const priceVal = priceMatch ? priceMatch[1] : '';
+
+        // --- توزيع البيانات الحقيقية في الخانات ---
+        
+        // توزيع خانة العميل والتأكد من مطابقتها في الـ Firebase داتاليست
         if (customerName) {
             const inputCustomer = document.getElementById('customerInput');
             inputCustomer.value = customerName;
@@ -513,33 +524,12 @@
             }
         }
 
-        // 2. استخراج الملاحظة
-        const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|صنف|كرتونة|قطعة|سعر)|$)/);
-        if (noteMatch && noteMatch[1]) {
-            document.getElementById('orderNote').value = noteMatch[1].trim();
+        // توزيع الملاحظة
+        if (orderNote) {
+            document.getElementById('orderNote').value = orderNote;
         }
 
-        // 3. استخراج الصنف والأرقام بطريقة تفكيك مرنة مستقلة عن الترتيب
-        let itemName = "";
-        const itemMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|كرتونة|كرtونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
-        if (itemMatch) {
-            itemName = itemMatch[1].trim();
-        } else {
-            // محاولة ذكية: إذا وجدنا نص يقع بين كلمة "العميل" وأول كلمة كمية، نعتبره هو الصنف
-            let fallbackItem = normalizedText.match(/(?:العميل|عميل)\s+.*?\s+(?:صنف|الصنف)?\s*([\u0600-\u06FF\s]+?)\s+(?:كرتونة|قطعة|سعر)/);
-            if (fallbackItem) itemName = fallbackItem[1].trim();
-        }
-
-        // استخراج الأرقام بشكل منفصل تماماً ومضمون
-        const cartonMatch = normalizedText.match(/(?:كرتونة|كرتونه|كراتين)\s*(\d+)/);
-        const pieceMatch = normalizedText.match(/(?:قطعة|قطعه|قطع)\s*(\d+)/);
-        const priceMatch = normalizedText.match(/(?:سعر|باف المجموع)\s*(\d+(?:\.\d+)?)/);
-
-        const cartonQty = cartonMatch ? cartonMatch[1] : '';
-        const pieceQty = pieceMatch ? pieceMatch[1] : '';
-        const priceVal = priceMatch ? priceMatch[1] : '';
-
-        // إذا تم العثور على صنف أو أي كميات، نقوم بملئها فوراً بالخانة
+        // توزيع تفاصيل الصنف والكمية والسعر
         if (itemName || cartonQty || pieceQty || priceVal) {
             let rows = document.querySelectorAll('.order-item');
             if (rows.length === 0) {
