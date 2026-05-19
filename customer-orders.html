@@ -374,7 +374,8 @@
         }
     };
 
-// --- محرك الإدخال الصوتي المبسط والمضمون (حل مشكلة عدم الكتابة والتكرار) ---
+        
+// --- محرك الإدخال الصوتي الذكي والمصحح بالكامل (WhatsApp Style) ---
 
 const voiceBtn = document.getElementById('voiceBtn');
 const stopVoiceBtn = document.getElementById('stopVoiceBtn');
@@ -390,49 +391,46 @@ if (!SpeechRecognition) {
 } else {
     const recognition = new SpeechRecognition();
     recognition.lang = 'ar-EG';
-    recognition.interimResults = false; // إلغاء المعالجة المؤقتة المسببة للبطء وعدم الكتابة
-    recognition.continuous = true;     // استمرار الاستماع حتى يضغط المستخدم إيقاف
+    recognition.interimResults = true; // تفعيل العرض اللحظي أثناء النطق
+    recognition.continuous = true;     // استمرار الاستماع دون انقطاع مفاجئ
 
-    let fullSpeechText = '';
+    let finalTranscript = '';
 
     voiceBtn.addEventListener('click', () => {
-        fullSpeechText = '';
-        liveTextBox.innerText = 'تحدث الآن... جاري الاستماع لصوتك (سيظهر النص بالكامل عند الضغط على إيقاف)';
+        finalTranscript = '';
+        liveTextBox.innerText = 'ابدأ التحدث الآن...';
         voiceOverlay.classList.add('active');
         try {
             recognition.start();
-        } catch(e) {
-            console.log("المايك يعمل بالفعل");
-        }
+        } catch(e) { console.log("المايك يعمل بالفعل"); }
     });
 
     recognition.onresult = (event) => {
-        // تجميع النص النهائي بالكامل بشكل مباشر وآمن
-        let currentResult = '';
+        let interimTranscript = '';
         for (let i = event.resultIndex; i < event.results.length; ++i) {
             if (event.results[i].isFinal) {
-                currentResult += event.results[i][0].transcript + ' ';
+                finalTranscript += event.results[i][0].transcript + ' ';
+            } else {
+                interimTranscript += event.results[i][0].transcript;
             }
         }
-        if(currentResult) {
-            fullSpeechText += currentResult;
-            liveTextBox.innerText = fullSpeechText;
+        liveTextBox.innerText = finalTranscript + interimTranscript;
+    };
+
+    // حل مشكلة الـ Asynchronous: معالجة البيانات فقط بعد إغلاق المايكروفون تماماً
+    stopVoiceBtn.addEventListener('click', () => {
+        recognition.stop();
+    });
+
+    recognition.onend = () => {
+        voiceOverlay.classList.remove('active');
+        const textToParse = liveTextBox.innerText.trim();
+        
+        if (textToParse && textToParse !== 'ابدأ التحدث الآن...') {
+            parseVoiceOrder(textToParse);
         }
     };
 
-    // عند الضغط على زر الإيقاف الأحمر - يتم إنهاء التسجيل وتوزيع النصوص فوراً
-    stopVoiceBtn.addEventListener('click', () => {
-        recognition.stop();
-        voiceOverlay.classList.remove('active');
-        
-        // التحقق من النص وتوزيعه
-        const textToParse = liveTextBox.innerText;
-        if (textToParse && !textToParse.includes('جاري الاستماع')) {
-            parseVoiceOrder(textToParse);
-        }
-    });
-
-    // عند إلغاء التسجيل
     cancelVoiceBtn.addEventListener('click', () => {
         recognition.stop();
         voiceOverlay.classList.remove('active');
@@ -440,42 +438,78 @@ if (!SpeechRecognition) {
 
     recognition.onerror = (event) => {
         console.error("خطأ المايكروفون: ", event.error);
-        if(event.error === 'no-speech') {
-            liveTextBox.innerText = "لم يتم سماع صوت. تأكد من التحدث بجانب المايكروفون ثم اضغط إيقاف.";
-        }
     };
 }
 
-// دالة التحليل الذكي وتوزيع النصوص على الخانات المحددة بدقة وسرعة
-function parseVoiceOrder(text) {
-    // تنظيف وتوحيد النص
-    const normalizedText = text.trim().replace(/\s+/g, ' ');
-    console.log("النص المكتوب الذي سيتم توزيعه: ", normalizedText);
+// دالة ذكية لتحويل الأرقام المنطوقة باللغة العربية إلى أرقام نصية حسابية ليفهمها الـ Regex
+function convertArabicWordsToNumbers(text) {
+    const wordsMap = {
+        'واحد': '1', 'اتنين': '2', 'اثنين': '2', 'تلاتة': '3', 'ثلاثة': '3',
+        'اربعة': '4', 'أربعة': '4', 'خمسة': '5', 'خمسه': '5', 'ستة': '6', 'سته': '6',
+        'سبعة': '7', 'سبعه': '7', 'تمانية': '8', 'ثمانية': '8', 'تسعة': '9', 'تسعه': '9',
+        'عشرة': '10', 'عشره': '10', 'حداشر': '11', 'اثنا عشر': '12', 'اتناشر': '12',
+        'عشرين': '20', 'ثلاثين': '30', 'اربعين': '40', 'خمسين': '50'
+    };
+    
+    let modifiedText = text;
+    for (let word in wordsMap) {
+        const regex = new RegExp('\\b' + word + '\\b', 'g');
+        modifiedText = modifiedText.replace(regex, wordsMap[word]);
+    }
+    return modifiedText;
+}
 
-    // 1. استخراج اسم العميل
-    const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(صنف|أصناف|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه|$))/);
+// دالة التحليل المحدثة بالكامل بناءً على إصلاحات الـ Regex والبحث المرن للعميل
+function parseVoiceOrder(text) {
+    // 1. تحويل الكلمات الرقمية العربية إلى أرقام حسابية لتفادي فشل الـ Regex
+    let normalizedText = convertArabicWordsToNumbers(text.toLowerCase().trim());
+    normalizedText = normalizedText.replace(/\s+/g, ' '); 
+
+    console.log("النص بعد معالجة الأرقام والتهيئة: ", normalizedText);
+
+    // 2. استخراج العميل المصلح (استخدام المجموعات غير الالتقاطية والـ OR الخارجي للـ $)
+    const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(?:صنف|أصناف|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
     if (customerMatch && customerMatch[1]) {
         const customerName = customerMatch[1].trim();
         const inputCustomer = document.getElementById('customerInput');
+        
         if (inputCustomer) {
             inputCustomer.value = customerName;
-            inputCustomer.dispatchEvent(new Event('input')); 
+            
+            // تطبيق البحث المرن والمحسن للعميل (الاحتواء بدلاً من التطابق الحرفي الصارم)
+            let selectedId = '';
+            for (let name in customersDataMap) {
+                if (name.includes(customerName) || customerName.includes(name)) {
+                    selectedId = customersDataMap[name];
+                    inputCustomer.value = name; // إكمال الاسم تلقائياً للاسم الصحيح المسجل
+                    break;
+                }
+            }
+            
+            if (selectedId) {
+                document.getElementById('customerSelect').value = selectedId;
+                inputCustomer.classList.add('is-valid-customer');
+            } else {
+                document.getElementById('customerSelect').value = '';
+                inputCustomer.classList.remove('is-valid-customer');
+            }
         }
     }
 
-    // 2. استخراج الملاحظة
-    const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(العميل|صنف|كرتونة|كرتونه|قطعة|قطعه|سعر|$))/);
+    // 3. استخراج الملاحظة المصلح
+    const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|صنف|كرتونة|كرتونه|قطعة|قطعه|سعر)|$)/);
     if (noteMatch && noteMatch[1]) {
         const noteElement = document.getElementById('orderNote');
         if (noteElement) noteElement.value = noteMatch[1].trim();
     }
 
-    // 3. استخراج بيانات الأصناف والكميات
-    const itemMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(العميل|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه|$))/);
+    // 4. استخراج بيانات الأصناف والكميات المصحح
+    const itemMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
     
     if (itemMatch && itemMatch[1]) {
         const itemName = itemMatch[1].trim();
         
+        // الآن الـ \d+ ستنجح دائماً بفضل دالة التحويل المسبق للكلمات الرقمية
         const cartonMatch = normalizedText.match(/(?:كرتونة|كرتونه)\s+(\d+)/);
         const pieceMatch = normalizedText.match(/(?:قطعة|قطعه)\s+(\d+)/);
         const priceMatch = normalizedText.match(/(?:سعر)\s+(\d+(?:\.\d+)?)/);
@@ -485,7 +519,6 @@ function parseVoiceOrder(text) {
         const priceVal = priceMatch ? priceMatch[1] : '';
 
         let rows = document.querySelectorAll('.order-item');
-        
         if (rows.length === 0) {
             window.addNewRow();
             rows = document.querySelectorAll('.order-item');
