@@ -106,6 +106,14 @@
             border-radius: 12px; padding: 12px; border: 1px solid var(--border);
             margin-bottom: 15px; font-weight: 600; color: var(--text-primary); text-align: right;
         }
+
+        /* تنسيق زر نفذ الجديد */
+        .btn-execute {
+            background: var(--accent); color: white; border: none; padding: 12px 20px;
+            border-radius: 15px; font-weight: bold; width: 100%; margin-bottom: 12px;
+            font-size: 1.1rem; transition: 0.3s;
+        }
+        .btn-execute:hover { background: #08432b; }
     </style>
 </head>
 <body>
@@ -127,14 +135,21 @@
 <div class="voice-overlay" id="voiceOverlay">
     <div class="voice-panel">
         <h6 class="fw-bold mb-2">جاري الاستماع... تحدّث الآن</h6>
-        <p class="text-muted small mb-3">مثال: "العميل شركة النور صنف جبنة كرتونة 5 قطعة 10 ملاحظة التوصيل صباحاً"</p>
+        <p class="text-muted small mb-3">مثال: "العميل شركة النور صنف جبنة كرتونة 5 قطعة 10 سعر 150 ملاحظة التوصيل صباحاً"</p>
         
         <div class="live-text-box" id="liveTextBox">ابدأ التحدث ليظهر النص هنا...</div>
         
-        <button class="pulse-mic" id="stopVoiceBtn">
-            <i class="fas fa-stop"></i>
+        <!-- زر نفذ وتوزيع النص المطلـوب -->
+        <button class="btn-execute" id="executeVoiceBtn">
+            <i class="fas fa-magic me-1"></i> نَفِّذْ وتوزيع النص
         </button>
-        <button class="btn btn-sm btn-outline-secondary w-100 rounded-3" id="cancelVoiceBtn">إلغاء التسجيل</button>
+
+        <div class="d-flex gap-2">
+            <button class="btn btn-danger w-50 rounded-3" id="stopVoiceBtn">
+                <i class="fas fa-stop me-1"></i> إيقاف
+            </button>
+            <button class="btn btn-outline-secondary w-50 rounded-3" id="cancelVoiceBtn">إلغاء</button>
+        </div>
     </div>
 </div>
 
@@ -302,7 +317,7 @@
                     </div>
                     <div class="col-4">
                         <label>السعر</label>
-                        <input type="number" class="form-control item-price" value="${item ? (item.price || '') : ''}" placeholder="0.00 (اختياري)" min="0" step="0.01">
+                        <input type="number" class="form-control item-price" value="${item ? (item.price || '') : ''}" placeholder="0.00" min="0" step="0.01">
                     </div>
                 </div>
             </div>
@@ -374,189 +389,183 @@
         }
     };
 
-        // --- محرك الإدخال الصوتي الذكي والمقاوم للانقطاع التلقائي (WhatsApp Style) ---
+    // --- محرك الإدخال الصوتي الذكي وتوزيع النصوص المصحح بالكامل ---
+    const voiceBtn = document.getElementById('voiceBtn');
+    const stopVoiceBtn = document.getElementById('stopVoiceBtn');
+    const cancelVoiceBtn = document.getElementById('cancelVoiceBtn');
+    const executeVoiceBtn = document.getElementById('executeVoiceBtn');
+    const voiceOverlay = document.getElementById('voiceOverlay');
+    const liveTextBox = document.getElementById('liveTextBox');
 
-const voiceBtn = document.getElementById('voiceBtn');
-const stopVoiceBtn = document.getElementById('stopVoiceBtn');
-const cancelVoiceBtn = document.getElementById('cancelVoiceBtn');
-const voiceOverlay = document.getElementById('voiceOverlay');
-const liveTextBox = document.getElementById('liveTextBox');
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        voiceBtn.style.display = 'none';
+        console.log("المتصفح لا يدعم خاصية التعرف على الصوت");
+    } else {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ar-EG';
+        recognition.interimResults = true; 
+        recognition.continuous = true;     
 
-if (!SpeechRecognition) {
-    voiceBtn.style.display = 'none';
-    console.log("المتصفح لا يدعم خاصية التعرف على الصوت");
-} else {
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'ar-EG';
-    recognition.interimResults = true; // تفعيل العرض اللحظي المباشر للكلام
-    recognition.continuous = true;     // محاولة الإبقاء على الاتصال مستمراً
+        let finalTranscript = '';
+        let userStoppedRecording = false; 
 
-    let finalTranscript = '';
-    let userStoppedRecording = false; // المتغير الذكي للتحكم في الإيقاف اليدوي
-
-    voiceBtn.addEventListener('click', () => {
-        userStoppedRecording = false; // إعادة تعيين المتغير عند بدء التسجيل
-        finalTranscript = '';
-        liveTextBox.innerText = 'ابدأ التحدث الآن...';
-        voiceOverlay.classList.add('active');
-        try {
-            recognition.start();
-        } catch(e) { console.log("المايك يعمل بالفعل"); }
-    });
-
-    recognition.onresult = (event) => {
-        let interimTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-                finalTranscript += event.results[i][0].transcript + ' ';
-            } else {
-                interimTranscript += event.results[i][0].transcript;
-            }
-        }
-        liveTextBox.innerText = finalTranscript + interimTranscript;
-    };
-
-    // عند ضغط المستخدم بنفسه على زر الإيقاف الأحمر
-    stopVoiceBtn.addEventListener('click', () => {
-        userStoppedRecording = true;
-        recognition.stop();
-    });
-
-    // معالجة الحدث عند إغلاق المايكروفون (سواء يدوياً أو بسبب انقطاع المتصفح التلقائي)
-    recognition.onend = () => {
-        // [تعديلك العبقري]: لو المايك اتقفل لوحده من المتصفح بدون ضغط المستخدم.. أعد تشغيله فوراً
-        if (!userStoppedRecording) {
+        voiceBtn.addEventListener('click', () => {
+            userStoppedRecording = false; 
+            finalTranscript = '';
+            liveTextBox.innerText = 'ابدأ التحدث الآن...';
+            voiceOverlay.classList.add('active');
             try {
                 recognition.start();
-            } catch(e) { console.log("فشل إعادة التشغيل التلقائي"); }
-            return; // اخرج من الدالة ولا تقم بتوزيع النصوص الآن
-        }
+            } catch(e) { console.log("المايك يعمل بالفعل"); }
+        });
 
-        // إذا وصلنا هنا، فهذا يعني أن المستخدم ضغط إيقاف بنفسه بنجاح ✅
-        voiceOverlay.classList.remove('active');
-        const textToParse = liveTextBox.innerText.trim();
-        
-        if (textToParse && textToParse !== 'ابدأ التحدث الآن...') {
-            parseVoiceOrder(textToParse);
-        }
-        
-        userStoppedRecording = false; // إعادة التصفير للدورة القادمة
-    };
-
-    // إلغاء التسجيل بالكامل بدون حفظ
-    cancelVoiceBtn.addEventListener('click', () => {
-        userStoppedRecording = true; // نعتبره إيقاف متعمد لمنع الـ Auto-Restart
-        recognition.stop();
-        voiceOverlay.classList.remove('active');
-    });
-
-    recognition.onerror = (event) => {
-        console.error("إشارة خطأ من المايكروفون: ", event.error);
-        // في حالة حدوث خطأ مثل السكون الطويل (no-speech)، لا تدع المايك يموت واجعله يستمر
-        if (event.error === 'no-speech' && !userStoppedRecording) {
-            try { recognition.start(); } catch(e) {}
-        }
-    };
-}
-
-// دالة تحويل الأرقام المنطوقة باللغة العربية إلى أرقام نصية حسابية لنجاح الـ Regex
-function convertArabicWordsToNumbers(text) {
-    const wordsMap = {
-        'واحد': '1', 'اتنين': '2', 'اثنين': '2', 'تلاتة': '3', 'ثلاثة': '3',
-        'اربعة': '4', 'أربعة': '4', 'خمسة': '5', 'خمسه': '5', 'ستة': '6', 'سته': '6',
-        'سبعة': '7', 'سبعه': '7', 'تمانية': '8', 'ثمانية': '8', 'تسعة': '9', 'تسعه': '9',
-        'عشرة': '10', 'عشره': '10', 'حداشر': '11', 'اثنا عشر': '12', 'اتناشر': '12',
-        'عشرين': '20', 'ثلاثين': '30', 'اربعين': '40', 'خمسين': '50'
-    };
-    
-    let modifiedText = text;
-    for (let word in wordsMap) {
-        const regex = new RegExp('\\b' + word + '\\b', 'g');
-        modifiedText = modifiedText.replace(regex, wordsMap[word]);
-    }
-    return modifiedText;
-}
-
-// دالة التحليل الذكي وتوزيع النصوص المصححة بالكامل بفضل تعديلات الـ Regex
-function parseVoiceOrder(text) {
-    // معالجة الأرقام وتنظيف الفراغات المتكررة
-    let normalizedText = convertArabicWordsToNumbers(text.toLowerCase().trim());
-    normalizedText = normalizedText.replace(/\s+/g, ' '); 
-
-    console.log("النص النهائي الجاري معالجته وتوزيعه: ", normalizedText);
-
-    // 1. استخراج وتوزيع العميل بالـ Regex المصحح والمجموعات غير الالتقاطية للـ $
-    const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(?:صنف|أصناف|كرتونة|كرtونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
-    if (customerMatch && customerMatch[1]) {
-        const customerName = customerMatch[1].trim();
-        const inputCustomer = document.getElementById('customerInput');
-        
-        if (inputCustomer) {
-            inputCustomer.value = customerName;
-            
-            // البحث المرن عن العميل بالـ الاحتواء (Includes) لمنع مشاكل عدم التطابق الحرفي
-            let selectedId = '';
-            for (let name in customersDataMap) {
-                if (name.includes(customerName) || customerName.includes(name)) {
-                    selectedId = customersDataMap[name];
-                    inputCustomer.value = name; // إكمال الاسم تلقائياً للاسم المسجل في قاعدة البيانات
-                    break;
+        recognition.onresult = (event) => {
+            let interimTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript + ' ';
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
                 }
             }
+            liveTextBox.innerText = finalTranscript + interimTranscript;
+        };
+
+        stopVoiceBtn.addEventListener('click', () => {
+            userStoppedRecording = true;
+            recognition.stop();
+        });
+
+        // تشغيل حدث زر "نفذ وتوزيع النص" الجديد بالكامل
+        executeVoiceBtn.addEventListener('click', () => {
+            userStoppedRecording = true;
+            recognition.stop();
+            voiceOverlay.classList.remove('active');
             
-            if (selectedId) {
-                document.getElementById('customerSelect').value = selectedId;
-                inputCustomer.classList.add('is-valid-customer');
-            } else {
-                document.getElementById('customerSelect').value = '';
-                inputCustomer.classList.remove('is-valid-customer');
+            const textToParse = liveTextBox.innerText.trim();
+            if (textToParse && textToParse !== 'ابدأ التحدث الآن...') {
+                parseVoiceOrder(textToParse);
+            }
+        });
+
+        recognition.onend = () => {
+            if (!userStoppedRecording) {
+                try {
+                    recognition.start();
+                } catch(e) { console.log("فشل إعادة التشغيل التلقائي"); }
+                return; 
+            }
+        };
+
+        cancelVoiceBtn.addEventListener('click', () => {
+            userStoppedRecording = true; 
+            recognition.stop();
+            voiceOverlay.classList.remove('active');
+        });
+
+        recognition.onerror = (event) => {
+            if (event.error === 'no-speech' && !userStoppedRecording) {
+                try { recognition.start(); } catch(e) {}
+            }
+        };
+    }
+
+    function convertArabicWordsToNumbers(text) {
+        const wordsMap = {
+            'واحد': '1', 'اتنين': '2', 'اثنين': '2', 'تلاتة': '3', 'ثلاثة': '3',
+            'اربعة': '4', 'أربعة': '4', 'خمسة': '5', 'خمسه': '5', 'ستة': '6', 'سته': '6',
+            'سبعة': '7', 'سبعه': '7', 'تمانية': '8', 'ثمانية': '8', 'تسعة': '9', 'تسعه': '9',
+            'عشرة': '10', 'عشره': '10', 'حداشر': '11', 'اثنا عشر': '12', 'اتناشر': '12',
+            'عشرين': '20', 'ثلاثين': '30', 'اربعين': '40', 'خمسين': '50'
+        };
+        
+        let modifiedText = text;
+        for (let word in wordsMap) {
+            const regex = new RegExp('\\b' + word + '\\b', 'g');
+            modifiedText = modifiedText.replace(regex, wordsMap[word]);
+        }
+        return modifiedText;
+    }
+
+    function parseVoiceOrder(text) {
+        let normalizedText = convertArabicWordsToNumbers(text.toLowerCase().trim());
+        normalizedText = normalizedText.replace(/\s+/g, ' '); 
+
+        console.log("النص النهائي الجاري معالجته وتوزيعه: ", normalizedText);
+
+        // 1. استخراج وتوزيع العميل
+        const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(?:صنف|أصناف|كرتونة|كرtونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
+        if (customerMatch && customerMatch[1]) {
+            const customerName = customerMatch[1].trim();
+            const inputCustomer = document.getElementById('customerInput');
+            
+            if (inputCustomer) {
+                inputCustomer.value = customerName;
+                
+                let selectedId = '';
+                for (let name in customersDataMap) {
+                    if (name.includes(customerName) || customerName.includes(name)) {
+                        selectedId = customersDataMap[name];
+                        inputCustomer.value = name; 
+                        break;
+                    }
+                }
+                
+                if (selectedId) {
+                    document.getElementById('customerSelect').value = selectedId;
+                    inputCustomer.classList.add('is-valid-customer');
+                } else {
+                    document.getElementById('customerSelect').value = '';
+                    inputCustomer.classList.remove('is-valid-customer');
+                }
             }
         }
-    }
 
-    // 2. استخراج وتوزيع الملاحظة بالـ Regex المصحح
-    const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|صنف|كرتونة|كرtونه|قطعة|قطعه|سعر)|$)/);
-    if (noteMatch && noteMatch[1]) {
-        const noteElement = document.getElementById('orderNote');
-        if (noteElement) noteElement.value = noteMatch[1].trim();
-    }
-
-    // 3. استخراج وتوزيع الأصناف والكميات بالـ Regex المصحح
-    const itemMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|كرتونة|كرtونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
-    
-    if (itemMatch && itemMatch[1]) {
-        const itemName = itemMatch[1].trim();
-        
-        const cartonMatch = normalizedText.match(/(?:كرتونة|كرtونه)\s+(\d+)/);
-        const pieceMatch = normalizedText.match(/(?:قطعة|قطعه)\s+(\d+)/);
-        const priceMatch = normalizedText.match(/(?:سعر)\s+(\d+(?:\.\d+)?)/);
-
-        const cartonQty = cartonMatch ? cartonMatch[1] : '';
-        const pieceQty = pieceMatch ? pieceMatch[1] : '';
-        const priceVal = priceMatch ? priceMatch[1] : '';
-
-        let rows = document.querySelectorAll('.order-item');
-        if (rows.length === 0) {
-            window.addNewRow();
-            rows = document.querySelectorAll('.order-item');
+        // 2. استخراج وتوزيع الملاحظة
+        const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|صنف|كرتونة|كرtونه|قطعة|قطعه|سعر)|$)/);
+        if (noteMatch && noteMatch[1]) {
+            const noteElement = document.getElementById('orderNote');
+            if (noteElement) noteElement.value = noteMatch[1].trim();
         }
+
+        // 3. استخراج وتوزيع الأصناف والكميات والأسعار داخل الخانات بدقة
+        const itemMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|كرتونة|كرtونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
         
-        const targetRow = rows[rows.length - 1];
+        if (itemMatch && itemMatch[1]) {
+            const itemName = itemMatch[1].trim();
+            
+            const cartonMatch = normalizedText.match(/(?:كرتونة|كرtونه)\s+(\d+)/);
+            const pieceMatch = normalizedText.match(/(?:قطعة|قطعه)\s+(\d+)/);
+            const priceMatch = normalizedText.match(/(?:سعر)\s+(\d+(?:\.\d+)?)/);
 
-        const nameInput = targetRow.querySelector('.item-name');
-        const cartonInput = targetRow.querySelector('.item-carton');
-        const pieceInput = targetRow.querySelector('.item-piece');
-        const priceInput = targetRow.querySelector('.item-price');
+            const cartonQty = cartonMatch ? cartonMatch[1] : '';
+            const pieceQty = pieceMatch ? pieceMatch[1] : '';
+            const priceVal = priceMatch ? priceMatch[1] : '';
 
-        if (nameInput) nameInput.value = itemName;
-        if (cartonInput && cartonQty) cartonInput.value = cartonQty;
-        if (pieceInput && pieceQty) pieceInput.value = pieceQty;
-        if (priceInput && priceVal) priceInput.value = priceVal;
+            let rows = document.querySelectorAll('.order-item');
+            if (rows.length === 0) {
+                window.addNewRow();
+                rows = document.querySelectorAll('.order-item');
+            }
+            
+            const targetRow = rows[rows.length - 1];
+
+            const nameInput = targetRow.querySelector('.item-name');
+            const cartonInput = targetRow.querySelector('.item-carton');
+            const pieceInput = targetRow.querySelector('.item-piece');
+            const priceInput = targetRow.querySelector('.item-price');
+
+            if (nameInput) nameInput.value = itemName;
+            if (cartonInput && cartonQty) cartonInput.value = cartonQty;
+            if (pieceInput && pieceQty) pieceInput.value = pieceQty;
+            if (priceInput && priceVal) priceInput.value = priceVal;
+        }
+
+        // إرسال رسالة تأكيد النجاح المطلوبة فورًا بعد التوزيع
+        alert("تم تسجيل الطلبية بنجاح وتوزيع البيانات على الخانات الخاصة بها!");
     }
-}
-
                 
     initPage();
 </script>
