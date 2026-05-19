@@ -376,6 +376,8 @@
 
 // --- محرك الإدخال الصوتي المطور والذكي (WhatsApp Style) ---
 
+// --- محرك الإدخال الصوتي المطور والذكي (WhatsApp Style) - نسخة معالجة التكرار والبطء ---
+
 const voiceBtn = document.getElementById('voiceBtn');
 const stopVoiceBtn = document.getElementById('stopVoiceBtn');
 const cancelVoiceBtn = document.getElementById('cancelVoiceBtn');
@@ -390,41 +392,50 @@ if (!SpeechRecognition) {
 } else {
     const recognition = new SpeechRecognition();
     recognition.lang = 'ar-EG';
-    recognition.interimResults = true; // تفعيل إظهار الكلام أثناء النطق فورياً كالكيبورد
-    recognition.continuous = true;     // استمرار التسجيل دون توقف تلقائي مفاجئ
-
-    let finalTranscript = '';
+    recognition.interimResults = true; // تفعيل العرض اللحظي
+    recognition.continuous = false;    // جعلها false يمنع التكرار وينهي التسجيل بمجرد السكوت تلقائياً
 
     voiceBtn.addEventListener('click', () => {
-        finalTranscript = '';
         liveTextBox.innerText = 'ابدأ التحدث الآن...';
         voiceOverlay.classList.add('active');
         recognition.start();
     });
 
     recognition.onresult = (event) => {
-        let interimTranscript = '';
+        let speechToText = '';
+        
+        // تجميع النص بدون تكرار
         for (let i = event.resultIndex; i < event.results.length; ++i) {
-            if (event.results[i].isFinal) {
-                finalTranscript += event.results[i][0].transcript + ' ';
-            } else {
-                interimTranscript += event.results[i][0].transcript;
-            }
+            speechToText += event.results[i][0].transcript;
         }
-        // عرض النص في اللوحة مباشرة أثناء الكلام
-        liveTextBox.innerText = finalTranscript + interimTranscript;
+        
+        // عرض النص فوراً في المربع
+        liveTextBox.innerText = speechToText;
     };
 
-    // عند الضغط على زر الإيقاف (إنهاء وتوزيع النصوص)
+    // معالجة التوزيع التلقائي الفوري عند انتهاء التحدث الطبيعي
+    recognition.onspeechend = () => {
+        setTimeout(() => {
+            recognition.stop();
+            const textToParse = liveTextBox.innerText;
+            if (textToParse && textToParse !== 'ابدأ التحدث الآن...') {
+                parseVoiceOrder(textToParse);
+            }
+            voiceOverlay.classList.remove('active');
+        }, 500); // تأخير بسيط لضمان التقاط آخر كلمة
+    };
+
+    // عند الضغط اليدوي على زر الإيقاف الأحمر
     stopVoiceBtn.addEventListener('click', () => {
         recognition.stop();
-        voiceOverlay.classList.remove('active');
-        if(finalTranscript.trim() || liveTextBox.innerText.trim()) {
-            parseVoiceOrder(liveTextBox.innerText);
+        const textToParse = liveTextBox.innerText;
+        if (textToParse && textToParse !== 'ابدأ التحدث الآن...') {
+            parseVoiceOrder(textToParse);
         }
+        voiceOverlay.classList.remove('active');
     });
 
-    // عند الضغط على إلغاء
+    // عند إلغاء التسجيل
     cancelVoiceBtn.addEventListener('click', () => {
         recognition.stop();
         voiceOverlay.classList.remove('active');
@@ -433,54 +444,59 @@ if (!SpeechRecognition) {
     recognition.onerror = (event) => {
         console.error("خطأ في التعرف على الصوت: ", event.error);
         voiceOverlay.classList.remove('active');
-        alert("حدث خطأ أثناء الاتصال بالمايكروفون، يرجى المحاولة مرة أخرى.");
     };
 }
 
-// دالة التحليل الذكي وتوزيع النصوص على الخانات المحددة
+// دالة التحليل الذكي وتوزيع النصوص على الخانات المحددة بدقة وسرعة
 function parseVoiceOrder(text) {
-    const normalizedText = text.toLowerCase().trim();
+    // تنظيف النص وتحويله لمعايير موحدة للبحث
+    const normalizedText = text.trim().replace(/\s+/g, ' ');
 
-    // 1. استخراج اسم العميل
-    const customerMatch = normalizedText.match(/العميل\s+([\u0600-\u06FF\s]+?)(?=\s+(صنف|كرتونة|قطعة|سعر|ملاحظة|$))/);
+    console.log("النص النهائي الجاري توزيعه: ", normalizedText);
+
+    // 1. استخراج اسم العميل (يبحث عن الكلمة بعد "العميل")
+    const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(صنف|أصناف|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه|$))/);
     if (customerMatch && customerMatch[1]) {
         const customerName = customerMatch[1].trim();
         const inputCustomer = document.getElementById('customerInput');
-        inputCustomer.value = customerName;
-        inputCustomer.dispatchEvent(new Event('input')); // لتنشيط الداتاليس وربط الـ ID
+        if (inputCustomer) {
+            inputCustomer.value = customerName;
+            inputCustomer.dispatchEvent(new Event('input')); // تفعيل البحث التلقائي في القائمة
+        }
     }
 
-    // 2. استخراج الملاحظة
-    const noteMatch = normalizedText.match(/ملاحظة\s+([\u0600-\u06FF\s\d]+?)(?=\s+(العميل|صنف|كرتونة|قطعة|سعر|$))/);
+    // 2. استخراج الملاحظة (يبحث عن الكلمة بعد "ملاحظة" أو "ملاحظه")
+    const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(العميل|صنف|كرتونة|كرتونه|قطعة|قطعه|سعر|$))/);
     if (noteMatch && noteMatch[1]) {
-        document.getElementById('orderNote').value = noteMatch[1].trim();
+        const noteElement = document.getElementById('orderNote');
+        if (noteElement) noteElement.value = noteMatch[1].trim();
     }
 
     // 3. استخراج بيانات الأصناف والكميات
-    const itemMatch = normalizedText.match(/صنف\s+([\u0600-\u06FF\s\d]+?)(?=\s+(العميل|كرتونة|قطعة|سعر|ملاحظة|$))/);
+    const itemMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(العميل|كرتونة|كرتونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه|$))/);
     
     if (itemMatch && itemMatch[1]) {
         const itemName = itemMatch[1].trim();
         
-        // استخراج الأرقام المرافقة
-        const cartonMatch = normalizedText.match(/كرتونة\s+(\d+)/);
-        const pieceMatch = normalizedText.match(/قطعة\s+(\d+)/);
-        const priceMatch = normalizedText.match(/سعر\s+(\d+)/);
+        // استخراج الأرقام بدقة (يدعم "كرتونة" أو "كرتونه")
+        const cartonMatch = normalizedText.match(/(?:كرتونة|كرتونه)\s+(\d+)/);
+        const pieceMatch = normalizedText.match(/(?:قطعة|قطعه)\s+(\d+)/);
+        const priceMatch = normalizedText.match(/(?:سعر)\s+(\d+(?:\.\d+)?)/);
 
         const cartonQty = cartonMatch ? cartonMatch[1] : '';
         const pieceQty = pieceMatch ? pieceMatch[1] : '';
         const priceVal = priceMatch ? priceMatch[1] : '';
 
         let rows = document.querySelectorAll('.order-item');
-        let targetRow;
-
-        // إذا كان السطر الحالي ممتلئاً ببيانات أخرى، ننشئ سطراً جديداً للأ صناف الجديدة
+        
+        // تأكيد وجود سطر واحد على الأقل أو إنشائه
         if (rows.length === 0) {
             window.addNewRow();
             rows = document.querySelectorAll('.order-item');
         }
         
-        targetRow = rows[rows.length - 1];
+        // استهداف آخر سطر تم إنشاؤه وتعبئته بالبيانات المستخرجة فوراً
+        const targetRow = rows[rows.length - 1];
 
         const nameInput = targetRow.querySelector('.item-name');
         const cartonInput = targetRow.querySelector('.item-carton');
