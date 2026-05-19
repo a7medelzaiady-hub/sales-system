@@ -75,7 +75,6 @@
 
         .badge-status { font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; }
 
-        /* تأثيرات لوحة التسجيل الصوتي مثل الواتساب */
         .voice-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.5); display: none; z-index: 2000;
@@ -89,25 +88,12 @@
         .voice-overlay.active { display: flex; }
         .voice-overlay.active .voice-panel { transform: translateY(0); }
         
-        .pulse-mic {
-            width: 70px; height: 70px; background: #dc3545; color: white;
-            border-radius: 50%; display: flex; align-items: center; justify-content: center;
-            font-size: 1.8rem; margin: 0 auto 15px; border: none;
-            box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
-            animation: pulse-anim 1.5s infinite;
-        }
-        @keyframes pulse-anim {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 15px rgba(220, 53, 69, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
-        }
         .live-text-box {
             background: #f0f2f1; min-height: 80px; max-height: 120px; overflow-y: auto;
             border-radius: 12px; padding: 12px; border: 1px solid var(--border);
             margin-bottom: 15px; font-weight: 600; color: var(--text-primary); text-align: right;
         }
 
-        /* تنسيق زر نفذ الجديد */
         .btn-execute {
             background: var(--accent); color: white; border: none; padding: 12px 20px;
             border-radius: 15px; font-weight: bold; width: 100%; margin-bottom: 12px;
@@ -135,18 +121,17 @@
 <div class="voice-overlay" id="voiceOverlay">
     <div class="voice-panel">
         <h6 class="fw-bold mb-2">جاري الاستماع... تحدّث الآن</h6>
-        <p class="text-muted small mb-3">مثال: "العميل شركة النور صنف جبنة كرتونة 5 قطعة 10 سعر 150 ملاحظة التوصيل صباحاً"</p>
+        <p class="text-muted small mb-3">طريقة التحدث: "العميل [اسم العميل] صنف [اسم المنتج] كرتونة [رقم] قطعة [رقم] سعر [رقم] ملاحظة [الكلام]"</p>
         
         <div class="live-text-box" id="liveTextBox">ابدأ التحدث ليظهر النص هنا...</div>
         
-        <!-- زر نفذ وتوزيع النص المطلـوب -->
         <button class="btn-execute" id="executeVoiceBtn">
             <i class="fas fa-magic me-1"></i> نَفِّذْ وتوزيع النص
         </button>
 
         <div class="d-flex gap-2">
             <button class="btn btn-danger w-50 rounded-3" id="stopVoiceBtn">
-                <i class="fas fa-stop me-1"></i> إيقاف
+                <i class="fas fa-stop me-1"></i> إيقاف مؤقت
             </button>
             <button class="btn btn-outline-secondary w-50 rounded-3" id="cancelVoiceBtn">إلغاء</button>
         </div>
@@ -389,7 +374,7 @@
         }
     };
 
-    // --- محرك الإدخال الصوتي الذكي وتوزيع النصوص المصحح بالكامل ---
+    // --- محرك الإدخال الصوتي الذكي المطور (حل مشكلة التكرار وعدم التوزيع) ---
     const voiceBtn = document.getElementById('voiceBtn');
     const stopVoiceBtn = document.getElementById('stopVoiceBtn');
     const cancelVoiceBtn = document.getElementById('cancelVoiceBtn');
@@ -405,7 +390,7 @@
     } else {
         const recognition = new SpeechRecognition();
         recognition.lang = 'ar-EG';
-        recognition.interimResults = true; 
+        recognition.interimResults = false; // إلغاء Interim لمنع تكرار النص المزدوج نهائياً
         recognition.continuous = true;     
 
         let finalTranscript = '';
@@ -422,15 +407,12 @@
         });
 
         recognition.onresult = (event) => {
-            let interimTranscript = '';
             for (let i = event.resultIndex; i < event.results.length; ++i) {
                 if (event.results[i].isFinal) {
                     finalTranscript += event.results[i][0].transcript + ' ';
-                } else {
-                    interimTranscript += event.results[i][0].transcript;
                 }
             }
-            liveTextBox.innerText = finalTranscript + interimTranscript;
+            liveTextBox.innerText = finalTranscript.trim();
         };
 
         stopVoiceBtn.addEventListener('click', () => {
@@ -438,7 +420,7 @@
             recognition.stop();
         });
 
-        // تشغيل حدث زر "نفذ وتوزيع النص" الجديد بالكامل
+        // عند الضغط على زر نفذ
         executeVoiceBtn.addEventListener('click', () => {
             userStoppedRecording = true;
             recognition.stop();
@@ -447,6 +429,8 @@
             const textToParse = liveTextBox.innerText.trim();
             if (textToParse && textToParse !== 'ابدأ التحدث الآن...') {
                 parseVoiceOrder(textToParse);
+            } else {
+                alert("لم يتم التعرف على أي نص، يرجى إعادة المحاولة.");
             }
         });
 
@@ -483,87 +467,93 @@
         
         let modifiedText = text;
         for (let word in wordsMap) {
-            const regex = new RegExp('\\b' + word + '\\b', 'g');
+            const regex = new RegExp(word, 'g');
             modifiedText = modifiedText.replace(regex, wordsMap[word]);
         }
         return modifiedText;
     }
 
+    // دالة الفرز الذكية المرنة والمقاومة للأخطاء اللفظية
     function parseVoiceOrder(text) {
         let normalizedText = convertArabicWordsToNumbers(text.toLowerCase().trim());
         normalizedText = normalizedText.replace(/\s+/g, ' '); 
 
-        console.log("النص النهائي الجاري معالجته وتوزيعه: ", normalizedText);
+        console.log("جاري تحليل النص التالي بالتفكيك المرن: ", normalizedText);
 
-        // 1. استخراج وتوزيع العميل
+        // 1. استخراج اسم العميل بشكل مرن جداً
+        let customerName = "";
         const customerMatch = normalizedText.match(/(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=\s+(?:صنف|أصناف|كرتونة|كرtونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
-        if (customerMatch && customerMatch[1]) {
-            const customerName = customerMatch[1].trim();
-            const inputCustomer = document.getElementById('customerInput');
-            
-            if (inputCustomer) {
-                inputCustomer.value = customerName;
-                
-                let selectedId = '';
-                for (let name in customersDataMap) {
-                    if (name.includes(customerName) || customerName.includes(name)) {
-                        selectedId = customersDataMap[name];
-                        inputCustomer.value = name; 
-                        break;
-                    }
-                }
-                
-                if (selectedId) {
-                    document.getElementById('customerSelect').value = selectedId;
-                    inputCustomer.classList.add('is-valid-customer');
-                } else {
-                    document.getElementById('customerSelect').value = '';
-                    inputCustomer.classList.remove('is-valid-customer');
-                }
+        if (customerMatch) {
+            customerName = customerMatch[1].trim();
+        } else {
+            // محاولة بديلة إذا لم يقل كلمة "العميل" مباشرة في البداية
+            let splitText = normalizedText.split(/(صنف|كرتونة|قطعة|سعر|ملاحظة)/);
+            if(splitText[0]) {
+                customerName = splitText[0].replace(/(العميل|عميل)/, "").trim();
             }
         }
 
-        // 2. استخراج وتوزيع الملاحظة
-        const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|صنف|كرتونة|كرtونه|قطعة|قطعه|سعر)|$)/);
-        if (noteMatch && noteMatch[1]) {
-            const noteElement = document.getElementById('orderNote');
-            if (noteElement) noteElement.value = noteMatch[1].trim();
+        if (customerName) {
+            const inputCustomer = document.getElementById('customerInput');
+            inputCustomer.value = customerName;
+            let selectedId = '';
+            for (let name in customersDataMap) {
+                if (name.includes(customerName) || customerName.includes(name)) {
+                    selectedId = customersDataMap[name];
+                    inputCustomer.value = name; 
+                    break;
+                }
+            }
+            if (selectedId) {
+                document.getElementById('customerSelect').value = selectedId;
+                inputCustomer.classList.add('is-valid-customer');
+            } else {
+                document.getElementById('customerSelect').value = '';
+                inputCustomer.classList.remove('is-valid-customer');
+            }
         }
 
-        // 3. استخراج وتوزيع الأصناف والكميات والأسعار داخل الخانات بدقة
+        // 2. استخراج الملاحظة
+        const noteMatch = normalizedText.match(/(?:ملاحظة|ملاحظه)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|صنف|كرتونة|قطعة|سعر)|$)/);
+        if (noteMatch && noteMatch[1]) {
+            document.getElementById('orderNote').value = noteMatch[1].trim();
+        }
+
+        // 3. استخراج الصنف والأرقام بطريقة تفكيك مرنة مستقلة عن الترتيب
+        let itemName = "";
         const itemMatch = normalizedText.match(/(?:صنف|الصنف)\s+([\u0600-\u06FF\s\d]+?)(?=\s+(?:العميل|كرتونة|كرtونه|قطعة|قطعه|سعر|ملاحظة|ملاحظه)|$)/);
-        
-        if (itemMatch && itemMatch[1]) {
-            const itemName = itemMatch[1].trim();
-            
-            const cartonMatch = normalizedText.match(/(?:كرتونة|كرtونه)\s+(\d+)/);
-            const pieceMatch = normalizedText.match(/(?:قطعة|قطعه)\s+(\d+)/);
-            const priceMatch = normalizedText.match(/(?:سعر)\s+(\d+(?:\.\d+)?)/);
+        if (itemMatch) {
+            itemName = itemMatch[1].trim();
+        } else {
+            // محاولة ذكية: إذا وجدنا نص يقع بين كلمة "العميل" وأول كلمة كمية، نعتبره هو الصنف
+            let fallbackItem = normalizedText.match(/(?:العميل|عميل)\s+.*?\s+(?:صنف|الصنف)?\s*([\u0600-\u06FF\s]+?)\s+(?:كرتونة|قطعة|سعر)/);
+            if (fallbackItem) itemName = fallbackItem[1].trim();
+        }
 
-            const cartonQty = cartonMatch ? cartonMatch[1] : '';
-            const pieceQty = pieceMatch ? pieceMatch[1] : '';
-            const priceVal = priceMatch ? priceMatch[1] : '';
+        // استخراج الأرقام بشكل منفصل تماماً ومضمون
+        const cartonMatch = normalizedText.match(/(?:كرتونة|كرتونه|كراتين)\s*(\d+)/);
+        const pieceMatch = normalizedText.match(/(?:قطعة|قطعه|قطع)\s*(\d+)/);
+        const priceMatch = normalizedText.match(/(?:سعر|باف المجموع)\s*(\d+(?:\.\d+)?)/);
 
+        const cartonQty = cartonMatch ? cartonMatch[1] : '';
+        const pieceQty = pieceMatch ? pieceMatch[1] : '';
+        const priceVal = priceMatch ? priceMatch[1] : '';
+
+        // إذا تم العثور على صنف أو أي كميات، نقوم بملئها فوراً بالخانة
+        if (itemName || cartonQty || pieceQty || priceVal) {
             let rows = document.querySelectorAll('.order-item');
             if (rows.length === 0) {
                 window.addNewRow();
                 rows = document.querySelectorAll('.order-item');
             }
-            
             const targetRow = rows[rows.length - 1];
 
-            const nameInput = targetRow.querySelector('.item-name');
-            const cartonInput = targetRow.querySelector('.item-carton');
-            const pieceInput = targetRow.querySelector('.item-piece');
-            const priceInput = targetRow.querySelector('.item-price');
-
-            if (nameInput) nameInput.value = itemName;
-            if (cartonInput && cartonQty) cartonInput.value = cartonQty;
-            if (pieceInput && pieceQty) pieceInput.value = pieceQty;
-            if (priceInput && priceVal) priceInput.value = priceVal;
+            if (itemName) targetRow.querySelector('.item-name').value = itemName;
+            if (cartonQty) targetRow.querySelector('.item-carton').value = cartonQty;
+            if (pieceQty) targetRow.querySelector('.item-piece').value = pieceQty;
+            if (priceVal) targetRow.querySelector('.item-price').value = priceVal;
         }
 
-        // إرسال رسالة تأكيد النجاح المطلوبة فورًا بعد التوزيع
         alert("تم تسجيل الطلبية بنجاح وتوزيع البيانات على الخانات الخاصة بها!");
     }
                 
