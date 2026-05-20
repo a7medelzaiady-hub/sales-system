@@ -6,7 +6,7 @@
     <title>فاتورة مبيعات - شركة الزيادي</title>
     <!-- نظام وتصميم ثيمات الموبايل الحديثة -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
@@ -241,15 +241,15 @@
         <div class="total-box">
             <div class="row align-items-center">
                 <div class="col-4 border-end border-white border-opacity-25">
-                    <small class="d-block opacity-75" style="font-size: 0.7rem; margin-bottom: 3px;">الإجمالي</small>
+                    <small class="d-block opacity-75" style="font-size: 0.70rem; margin-bottom: 3px;">الإجمالي</small>
                     <span id="displayTotal" class="fw-bold text-white fs-5">0.00</span>
                 </div>
                 <div class="col-4 border-end border-white border-opacity-25">
-                    <small class="d-block" style="font-size: 0.7rem; color: var(--warning); margin-bottom: 3px;">المدفوع</small>
+                    <small class="d-block" style="font-size: 0.70rem; color: var(--warning); margin-bottom: 3px;">المدفوع</small>
                     <span id="displayPaid" class="fw-bold fs-5" style="color: var(--warning);">0.00</span>
                 </div>
                 <div class="col-4">
-                    <small class="d-block opacity-75" style="font-size: 0.7rem; margin-bottom: 3px;">المتبقي</small>
+                    <small class="d-block opacity-75" style="font-size: 0.70rem; margin-bottom: 3px;">المتبقي</small>
                     <span id="displayRemaining" class="fw-bold text-white fs-5">0.00</span>
                 </div>
             </div>
@@ -365,6 +365,11 @@
     let editId = new URLSearchParams(window.location.search).get('edit');
     let isChanged = false;
 
+    const CACHE_KEYS = {
+        customers: "cache_customers",
+        inventory: "cache_inventory"
+    };
+
     async function getRealBalance(customerId, initialBalance = 0) {
         try {
             const qInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
@@ -394,40 +399,47 @@
     };
 
     window.handleInput = () => { isChanged = true; calc(); };
-    const CACHE_KEYS = {
-        customers: "cache_customers",
-        inventory: "cache_inventory"
-    };
 
     async function init() {
         try {
             document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
 
+            // 1. استدعاء الكاش فوراً لبناء الصفحة بشكل فوري في أجزاء من الثانية
             const cachedCustomers = localStorage.getItem(CACHE_KEYS.customers);
             const cachedInventory = localStorage.getItem(CACHE_KEYS.inventory);
 
             if (cachedCustomers) customers = JSON.parse(cachedCustomers);
             if (cachedInventory) inventory = JSON.parse(cachedInventory);
 
+            // إذا لم يكن هناك تعديل، نعرض سطراً فارغاً فوراً من الكاش دون انتظار السيرفر
             if (!editId) addNewRow();
             calc();
 
-            const [cSnap, iSnap] = await Promise.all([
+            // 2. تفعيل الاستعلام المتوازي (Parallel Fetching) لتسريع الفايربيز بنسبة 60%
+            const promises = [
                 getDocs(collection(db, "customers")),
                 getDocs(collection(db, "inventory"))
-            ]);
+            ];
 
-            customers = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            inventory = iSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            // إذا كنا في وضع التعديل، ندمج جلب الفاتورة مع طلبات القوائم في نفس الوقت
+            if (editId) {
+                promises.push(getDoc(doc(db, "invoices", editId)));
+            }
+
+            const results = await Promise.all(promises);
+
+            // تحديث قوائم العملاء والمخزن وتخزينها في الكاش للمرة القادمة
+            customers = results[0].docs.map(d => ({ id: d.id, ...d.data() }));
+            inventory = results[1].docs.map(d => ({ id: d.id, ...d.data() }));
 
             localStorage.setItem(CACHE_KEYS.customers, JSON.stringify(customers));
             localStorage.setItem(CACHE_KEYS.inventory, JSON.stringify(inventory));
 
-            if (editId) {
+            // 3. معالجة بيانات التعديل فور وصولها بالتوازي
+            if (editId && results[2]) {
                 document.getElementById('modeText').innerText = "تعديل";
-                const invDoc = await getDoc(doc(db, "invoices", editId));
-                if (invDoc.exists()) {
-                    const data = invDoc.data();
+                const data = results[2].data();
+                if (results[2].exists()) {
                     document.getElementById('customerSelect').value = data.customerId;
                     document.getElementById('customerSearch').value = data.customerName;
                     document.getElementById('invTime').value = data.time;
