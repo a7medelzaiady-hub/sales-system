@@ -18,7 +18,7 @@
             --text-muted: #707b7c;
         }
 
-        body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 180px; }
+        body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 120px; }
         
         .header { 
             background: var(--header-bg); padding: 15px 20px; display: flex; 
@@ -66,25 +66,50 @@
         }
         .add-item-btn:hover { background: var(--accent); color: white; }
 
-        /* تعديل شريط الحفظ والجمالي ليصبح عائماً ومنظماً بشكل رأسي جميل */
+        /* تعديل زر الحفظ والإجمالي ليصبح عائماً أسفل يمين الشاشة بحجم مصغر وأنيق */
         .invoice-footer { 
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.95); padding: 15px 25px; 
-            border: 1px solid var(--border); display: flex; 
-            flex-direction: column; align-items: center; gap: 10px; z-index: 1050;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-            border-radius: 24px; width: 90%; max-width: 500px;
+            position: fixed; 
+            bottom: 20px; 
+            right: 20px; 
+            left: auto; 
+            transform: none;
+            background: rgba(255, 255, 255, 0.97); 
+            padding: 12px 18px; 
+            border: 1px solid var(--border); 
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px; 
+            z-index: 1050;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+            border-radius: 16px; 
+            width: 280px;
             backdrop-filter: blur(10px);
         }
 
         .total-container {
-            display: flex; justify-content: space-between; align-items: center;
-            width: 100%; padding: 4px 10px; border-bottom: 1px dashed var(--border);
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            width: 100%; 
+            padding: 2px 0;
+            border-bottom: 1px dashed var(--border);
         }
 
-        .amount.net { color: var(--accent); font-size: 1.8rem; font-weight: 900; font-family: 'Consolas', monospace; }
-        .btn-save { background: var(--accent); color: #fff; border: none; padding: 12px 0; border-radius: 15px; font-weight: 700; width: 100%; box-shadow: 0 4px 12px rgba(11, 94, 61, 0.3); transition: 0.2s; }
-        .btn-save:hover { background: #08442c; transform: translateY(-2px); }
+        .amount.net { color: var(--accent); font-size: 1.4rem; font-weight: 900; font-family: 'Consolas', monospace; }
+        
+        .btn-save { 
+            background: var(--accent); 
+            color: #fff; 
+            border: none; 
+            padding: 9px 0; 
+            border-radius: 10px; 
+            font-weight: 700; 
+            font-size: 0.9rem;
+            width: 100%; 
+            box-shadow: 0 4px 10px rgba(11, 94, 61, 0.2); 
+            transition: 0.2s; 
+        }
+        .btn-save:hover { background: #08442c; transform: translateY(-1px); }
         
         label { font-size: 0.8rem; margin-bottom: 8px; color: var(--accent); font-weight: 700; display: flex; align-items: center; gap: 4px; }
         
@@ -117,7 +142,6 @@
 </div>
 
 <div class="container mt-2">
-    <!-- بيانات المورد -->
     <div class="data-card">
         <div class="row g-4">
             <div class="col-12 col-md-4">
@@ -138,7 +162,6 @@
         </div>
     </div>
 
-    <!-- السداد المالي المدفوع نقداً -->
     <div class="data-card bg-light border-primary-subtle">
         <div class="row g-3">
             <div class="col-12">
@@ -148,7 +171,6 @@
         </div>
     </div>
 
-    <!-- قائمة الأصناف -->
     <div id="itemsList" class="mt-4"></div>
 
     <button type="button" class="add-item-btn mt-2" id="addItemBtn">
@@ -156,21 +178,17 @@
     </button>
 </div>
 
-<!-- تصميم الفوتر العائم الجديد -->
-
 <div class="invoice-footer">
-    <div class="d-flex justify-content-between w-100 mb-2">
-        <div>
-            <span class="small text-muted fw-bold">عدد البنود:</span>
-            <span class="fw-bold" id="itemsCount">0</span>
-        </div>
-        <div>
-            <span class="small text-muted fw-bold">الصافي الإجمالي النهائي:</span>
+    <div class="d-flex justify-content-between align-items-center w-100">
+        <span class="small text-muted fw-bold">الجدول: <span class="text-dark" id="itemsCount">0</span> بنود</span>
+        <div class="text-end">
+            <span class="d-block small text-muted fw-bold" style="font-size: 0.75rem; line-height: 1;">الصافي النهائي:</span>
             <span class="amount net" id="netTotal">0.00</span>
         </div>
     </div>
     <button class="btn-save" id="btnSaveInvoice">حفظ وترحيل الفاتورة</button>
 </div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, getDocs, addDoc, doc, getDoc, updateDoc, increment, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -279,7 +297,6 @@
             
             document.getElementById('itemsList').innerHTML = ""; 
             
-            // حل مشكلة تحميل الأصناف السليم أثناء وضع التعديل
             if (data.items && data.items.length > 0) {
                 data.items.forEach(item => { 
                     addNewItemRow(item); 
@@ -296,8 +313,7 @@
                 const data = orderSnap.data();
                 document.getElementById('supplierSelect').value = data.supplierId;
                 document.getElementById('itemsList').innerHTML = ""; 
-                // تحديث عدد البنود
-document.getElementById('itemsCount').innerText = document.querySelectorAll('.item-row').length;
+                document.getElementById('itemsCount').innerText = document.querySelectorAll('.item-row').length;
                 data.items.forEach(item => {
                     addNewItemRow({
                         name: item.name,
@@ -412,7 +428,9 @@ document.getElementById('itemsCount').innerText = document.querySelectorAll('.it
 
     window.calculateTotal = () => {
         let netTotal = 0;
+        let count = 0;
         document.querySelectorAll('.item-row').forEach(row => {
+            count++;
             const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
             const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
             const isReturn = row.querySelector('.item-is-return').checked;
@@ -424,6 +442,7 @@ document.getElementById('itemsCount').innerText = document.querySelectorAll('.it
             netTotal += sub;
         });
         
+        document.getElementById('itemsCount').innerText = count;
         document.getElementById('netTotal').innerText = netTotal.toFixed(2);
         
         if (paymentSelect.value === 'cash') {
@@ -437,90 +456,4 @@ document.getElementById('itemsCount').innerText = document.querySelectorAll('.it
         const btn = document.getElementById('btnSaveInvoice');
         const supplierId = document.getElementById('supplierSelect').value;
         const netTotal = parseFloat(document.getElementById('netTotal').innerText);
-        const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
-        const paymentType = document.getElementById('paymentType').value;
-        
-        if(!supplierId || document.querySelectorAll('.item-row').length === 0) return alert("برجاء إكمال بيانات الفاتورة وإضافة أصناف");
-
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل...';
-
-        try {
-            const items = [];
-            const rows = document.querySelectorAll('.item-row');
-
-            for (const row of rows) {
-                const name = row.querySelector('.item-name').value;
-                const qtyInput = parseFloat(row.querySelector('.item-qty').value) || 0;
-                const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
-                const unitName = row.querySelector('.item-unit').value;
-                const isReturn = row.querySelector('.item-is-return').checked;
-
-                let qty = isReturn ? 0 : qtyInput;
-                let returnQty = isReturn ? qtyInput : 0;
-
-                const finalQtyModifier = isReturn ? -qtyInput : qtyInput;
-                
-                items.push({ name, qty, returnQty, buy, unitName, unitFactor: 1, totalPieces: finalQtyModifier });
-
-                const q = query(collection(db, "inventory"), where("name", "==", name));
-                const qSnap = await getDocs(q);
-
-                if(!qSnap.empty) {
-                    const dRef = doc(db, "inventory", qSnap.docs[0].id);
-                    await updateDoc(dRef, {
-                        qty: increment(finalQtyModifier), 
-                        totalPcs: increment(finalQtyModifier), 
-                        buy: buy,
-                        unitName: unitName,
-                        unitFactor: 1,
-                        lastUpdate: serverTimestamp()
-                    });
-                } else {
-                    await addDoc(collection(db, "inventory"), {
-                        name, qty: finalQtyModifier, totalPcs: finalQtyModifier, buy, 
-                        unitName: unitName || "قطعة", unitFactor: 1,
-                        sell: buy * 1.2, min: 3, category: "عام", timestamp: serverTimestamp()
-                    });
-                }
-            }
-
-            const invoiceObj = {
-                supplierId, total: netTotal, paidAmount, netTotal, items, type: "شراء", paymentType,
-                date: document.getElementById('invDate').value,
-                timestamp: serverTimestamp()
-            };
-
-            if (editId) {
-                await updateDoc(doc(db, "supplier_transactions", editId), invoiceObj);
-            } else {
-                await addDoc(collection(db, "supplier_transactions"), invoiceObj);
-                
-                if(paymentType === 'credit') {
-                    const finalDebt = netTotal - paidAmount; 
-                    if (finalDebt !== 0) {
-                        await updateDoc(doc(db, "suppliers", supplierId), { currentBalance: increment(finalDebt) });
-                    }
-                }
-            }
-
-            isSubmitting = true; 
-            alert("تم حفظ الفاتورة بنجاح وتحديث حسابات المورد والمخازن ✅");
-            window.location.href = "purchase-invoices-list.html";
-
-        } catch (e) {
-            alert("حدث خطأ أثناء الحفظ");
-            btn.disabled = false;
-            btn.innerText = "حفظ وترحيل الفاتورة";
-        }
-    });
-
-    document.getElementById('addItemBtn').addEventListener('click', () => {
-        window.addNewItemRow();
-    });
-
-    document.getElementById('invDate').valueAsDate = new Date();
-    loadData();
-</script>
-</body>
-</html>
+        const paidAmount = parseFloat(document.getElementById('
