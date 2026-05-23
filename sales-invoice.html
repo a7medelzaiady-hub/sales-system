@@ -223,6 +223,13 @@
         </button>
 
         <div class="payment-box">
+            <!-- إضافة حقل الرصيد السابق داخل payment-box -->
+<div class="row g-2 mb-3">
+    <div class="col-12">
+        <label class="sub-lbl"><i class="fas fa-wallet me-1"></i> الرصيد السابق</label>
+        <input type="number" id="prevBalance" class="form-control" value="0" readonly>
+    </div>
+</div>
             <div class="row g-2">
                 <div class="col-6">
                     <label class="sub-lbl">طريقة الدفع</label>
@@ -282,6 +289,11 @@
 <!-- 🖨️ ترويسة الفاتورة الحرارية (تظل باللون الأبيض والأسود للطباعة) -->
 <!-- ===================================================================== -->
 <div id="thermalReceiptContainer" style="position: absolute; left: -9999px; top: -9999px;">
+    <!-- تعديل الفاتورة الحرارية لإضافة الرصيد السابق -->
+<div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #222;">
+    <span>الرصيد السابق:</span>
+    <span id="recPrevBalance">0.00</span>
+</div>
     <div id="thermalReceipt" style="width: 380px; background: #fff; color: #000; padding: 30px 25px; font-family: 'Cairo', sans-serif; direction: rtl; font-size: 14px; line-height: 1.7;">
         
         <div style="text-align: center; margin-bottom: 25px; border-bottom: 3px double #000; padding-bottom: 15px; width: 100%;">
@@ -469,21 +481,24 @@
         resultsDiv.style.display = filtered.length > 0 ? 'block' : 'none';
     };
 
-    window.selectCustomer = async (id, name, initialBalance) => {
-        document.getElementById('customerSearch').value = name;
-        document.getElementById('customerSelect').value = id;
-        document.getElementById('customerResults').style.display = 'none';
-        
-        const balanceDiv = document.getElementById('customerBalanceInfo');
-        const balanceSpan = document.getElementById('curBalanceVal');
-        balanceDiv.style.display = 'block';
-        balanceSpan.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
+    
+// عند اختيار العميل يتم تحديث الرصيد السابق تلقائيًا
+window.selectCustomer = async (id, name, initialBalance) => {
+    document.getElementById('customerSearch').value = name;
+    document.getElementById('customerSelect').value = id;
+    document.getElementById('customerResults').style.display = 'none';
+    
+    const balanceDiv = document.getElementById('customerBalanceInfo');
+    const balanceSpan = document.getElementById('curBalanceVal');
+    balanceDiv.style.display = 'block';
+    balanceSpan.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
 
-        const realDebt = await getRealBalance(id, initialBalance);
-        showBalance(realDebt);
-        isChanged = true;
-    };
+    const realDebt = await getRealBalance(id, initialBalance);
+    document.getElementById('prevBalance').value = realDebt.toFixed(2);
+    balanceSpan.innerText = realDebt.toFixed(2);
 
+    calc(); // إعادة حساب الفاتورة بعد تحديث الرصيد
+};
     function showBalance(balance) {
         const balanceDiv = document.getElementById('customerBalanceInfo');
         document.getElementById('curBalanceVal').innerText = parseFloat(balance).toFixed(2);
@@ -557,15 +572,38 @@
         }
     };
 
-    window.calc = () => {
-        let total = 0;
-        document.querySelectorAll('.product-row').forEach(r => {
-            const qty = parseFloat(r.querySelector('.p-qty').value) || 0;
-            const price = parseFloat(r.querySelector('.p-price').value) || 0;
-            const sub = qty * price;
-            r.querySelector('.p-subtotal').value = sub.toFixed(2);
-            total += sub;
-        });
+    // تعديل دالة calc لتضمين الرصيد السابق
+window.calc = () => {
+    let total = 0;
+    document.querySelectorAll('.product-row').forEach(r => {
+        const qty = parseFloat(r.querySelector('.p-qty').value) || 0;
+        const price = parseFloat(r.querySelector('.p-price').value) || 0;
+        const sub = qty * price;
+        r.querySelector('.p-subtotal').value = sub.toFixed(2);
+        total += sub;
+    });
+
+    const prevBalance = parseFloat(document.getElementById('prevBalance')?.value) || 0;
+    const paid = parseFloat(document.getElementById('paidAmount')?.value) || 0;
+
+    const finalTotal = total + prevBalance;
+    const remaining = finalTotal - paid;
+
+    // تحديث واجهة الفاتورة
+    document.getElementById('displayTotal').innerText = finalTotal.toFixed(2);
+    document.getElementById('displayPaid').innerText = paid.toFixed(2);
+    document.getElementById('displayRemaining').innerText = remaining.toFixed(2);
+
+    // تحديث الفاتورة الحرارية
+    const recPrev = document.getElementById('recPrevBalance');
+    if (recPrev) recPrev.innerText = prevBalance.toFixed(2);
+    const recTotal = document.getElementById('recTotal');
+    if (recTotal) recTotal.innerText = finalTotal.toFixed(2);
+    const recPaid = document.getElementById('recPaid');
+    if (recPaid) recPaid.innerText = paid.toFixed(2);
+    const recRemaining = document.getElementById('recRemaining');
+    if (recRemaining) recRemaining.innerText = remaining.toFixed(2);
+};
         const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
         document.getElementById('displayTotal').innerText = total.toLocaleString('en-US', {minimumFractionDigits: 2});
         document.getElementById('displayPaid').innerText = paid.toLocaleString('en-US', {minimumFractionDigits: 2});
