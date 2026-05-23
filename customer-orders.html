@@ -15,6 +15,7 @@
             --text-primary: #1b2e26;
             --border: #dce3de;
             --white: #ffffff;
+            --text-muted: #707b7c;
         }
 
         body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 110px; }
@@ -67,37 +68,12 @@
         .btn-save { 
             background: var(--accent); color: #fff; border: none; 
             width: 100%; padding: 12px; border-radius: 15px; 
-            font-weight: bold; font-size: 1.1rem; transition: 0.3s;
+            font-weight: bold; font-size: 1.1rem; 
+            transition: 0.3s;
         }
+        .btn-save:active { transform: scale(0.98); opacity: 0.9; }
 
         .badge-status { font-size: 0.75rem; padding: 5px 12px; border-radius: 8px; }
-
-        /* تصميم واجهة ميكروفون تشبه تطبيقات المحادثة */
-        .voice-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.4); display: none; z-index: 2000;
-            align-items: flex-end;
-        }
-        .voice-panel {
-            background: white; border-top-left-radius: 25px; border-top-right-radius: 25px;
-            width: 100%; padding: 25px 20px; box-shadow: 0 -5px 25px rgba(0,0,0,0.15);
-            text-align: center; transform: translateY(100%); transition: transform 0.2s ease-out;
-        }
-        .voice-overlay.active { display: flex; }
-        .voice-overlay.active .voice-panel { transform: translateY(0); }
-        
-        .live-text-box {
-            background: #f1f3f4; min-height: 90px; max-height: 140px; overflow-y: auto;
-            border-radius: 16px; padding: 15px; border: 1px solid #e0e0e0;
-            margin-bottom: 20px; font-weight: 600; color: #202124; text-align: right;
-            font-size: 1.05rem; line-height: 1.6;
-        }
-
-        .btn-execute {
-            background: var(--accent); color: white; border: none; padding: 14px;
-            border-radius: 16px; font-weight: bold; width: 100%; margin-bottom: 12px;
-            font-size: 1.1rem; box-shadow: 0 4px 10px rgba(11, 94, 61, 0.2);
-        }
     </style>
 </head>
 <body>
@@ -108,29 +84,15 @@
 <div class="header">
     <a href="orders.html" class="text-white"><i class="fas fa-arrow-right"></i></a>
     <h6 class="m-0 fw-bold" id="pageTitle">طلبية عميل جديدة</h6>
-    <div class="d-flex align-items-center">
-        <button id="voiceBtn" class="btn btn-sm btn-light text-success rounded-circle ms-2" style="width: 42px; height: 42px;">
-            <i class="fas fa-microphone" style="font-size: 1.2rem;"></i>
-        </button>
-        <span id="statusLabel" class="badge-status bg-white text-success fw-bold">جديدة</span>
-    </div>
+    <span id="statusLabel" class="badge-status bg-white text-success fw-bold">جديدة</span>
 </div>
-
-<!-- واجهة الاستماع اللحظي المستوحاة من كيبورد الواتساب والماسنجر -->
-<div class="voice-overlay" id="voiceOverlay">
-    <div class="voice-panel">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <span class="fw-bold text-success"><i class="fas fa-circle-notch fa-spin me-1"></i> جاري الكتابة صوتياً...</span>
-            <button class="btn-close" id="closeVoiceBtn"></button>
-        </div>
-        
-        <!-- هنا يظهر النص فوراً كلمة بكلمة أثناء التحدث -->
-        <div class="live-text-box" id="liveTextBox">ابدأ التحدث الآن...</div>
-        
-        <button class="btn-execute" id="executeVoiceBtn">
-            <i class="fas fa-check-circle me-1"></i> إنهاء وتوزيع البيانات تلقائياً
-        </button>
-    </div>
+    <a href="orders.html" class="text-white"><i class="fas fa-arrow-right"></i></a>
+    <h6 class="m-0 fw-bold" id="pageTitle">طلبية عميل جديدة</h6>
+    <!-- الزر الجديد للميكروفون -->
+    <button id="voiceBtn" class="btn btn-sm btn-light text-success rounded-circle ms-2" style="width: 40px; height: 40px;">
+        <i class="fas fa-microphone"></i>
+    </button>
+    <span id="statusLabel" class="badge-status bg-white text-success fw-bold">جديدة</span>
 </div>
 
 <div class="container mt-3">
@@ -147,7 +109,7 @@
             </div>
             <div class="col-12 mt-2">
                 <label>ملاحظات الطلبية</label>
-                <input type="text" id="orderNote" class="form-control" placeholder="مثال: يرجى تسليم الطلب صباحاً...">
+                <input type="text" id="orderNote" class="form-control" placeholder="مثال: يرجى التأكد من تاريخ الصلاحية...">
             </div>
         </div>
     </div>
@@ -207,6 +169,7 @@
             customerInput.addEventListener('input', function() {
                 const inputValue = this.value.trim();
                 const selectedId = customersDataMap[inputValue];
+                
                 if (selectedId) {
                     document.getElementById('customerSelect').value = selectedId;
                     this.classList.add('is-valid-customer');
@@ -251,6 +214,7 @@
 
         if (snap.exists()) {
             const data = snap.data();
+            
             document.getElementById('customerSelect').value = data.customerId;
             for (let name in customersDataMap) {
                 if (customersDataMap[name] === data.customerId) {
@@ -259,8 +223,12 @@
                     break;
                 }
             }
+            
             document.getElementById('orderNote').value = data.note || "";
-            if(data.requiredDate) document.getElementById('requiredDate').value = data.requiredDate;
+            if(data.requiredDate) {
+                document.getElementById('requiredDate').value = data.requiredDate;
+            }
+            
             document.getElementById('itemsContainer').innerHTML = '';
             data.items.forEach(item => addNewRow(item));
         }
@@ -270,6 +238,7 @@
         const container = document.getElementById('itemsContainer');
         const rowId = Date.now() + Math.random();
         
+        // التعديل: تعديل الـ label الخاص بالسعر وإدراج كلمة (اختياري) بداخل الـ placeholder لضمان الاستواء التام
         const html = `
             <div class="order-item" id="row_${rowId}">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -291,7 +260,7 @@
                     </div>
                     <div class="col-4">
                         <label>السعر</label>
-                        <input type="number" class="form-control item-price" value="${item ? (item.price || '') : ''}" placeholder="0.00" min="0" step="0.01">
+                        <input type="number" class="form-control item-price" value="${item ? (item.price || '') : ''}" placeholder="0.00 (اختياري)" min="0" step="0.01">
                     </div>
                 </div>
             </div>
@@ -362,161 +331,111 @@
             btn.innerText = editId ? "تحديث البيانات" : "حفظ وإرسال الطلبية";
         }
     };
+// --- كود المحرك الصوتي وتحليل البيانات تلقائياً ---
 
-    // --- نظام التعرف الصوتي المباشر واللحظي (الكتابة الفورية السريعة للواتساب) ---
-    const voiceBtn = document.getElementById('voiceBtn');
-    const closeVoiceBtn = document.getElementById('closeVoiceBtn');
-    const executeVoiceBtn = document.getElementById('executeVoiceBtn');
-    const voiceOverlay = document.getElementById('voiceOverlay');
-    const liveTextBox = document.getElementById('liveTextBox');
+const voiceBtn = document.getElementById('voiceBtn');
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SpeechRecognition) {
+    voiceBtn.style.display = 'none'; // إخفاء الزر إذا كان المتصفح لا يدعم الميزة
+    console.log("المتصفح لا يدعم خاصية التعرف على الصوت");
+} else {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'ar-EG'; // تعيين اللغة للعربية (اللهجة المصرية أو العامة)
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
 
-    if (!SpeechRecognition) {
-        voiceBtn.style.display = 'none';
-    } else {
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'ar-EG';
-        // تفعيل النتائج اللحظية (Interim Results) لتظهر الكلمات فور نطقها دون تأخير
-        recognition.interimResults = true; 
-        recognition.continuous = true;     
+    voiceBtn.addEventListener('click', () => {
+        recognition.start();
+        voiceBtn.className = "btn btn-sm btn-danger text-white rounded-circle ms-2 animate-pulse";
+        voiceBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    });
 
-        let lastConfirmedText = '';
+    recognition.onresult = (event) => {
+        const speechToText = event.results[0][0].transcript;
+        console.log("النص المسموع: ", speechToText);
+        
+        // استدعاء دالة تحليل النص وتوزيع الحقول
+        parseVoiceOrder(speechToText);
+    };
 
-        voiceBtn.addEventListener('click', () => {
-            lastConfirmedText = '';
-            liveTextBox.innerText = 'تحدث الآن، جاري الاستماع اللحظي...';
-            voiceOverlay.classList.add('active');
-            try { recognition.start(); } catch(e) {}
-        });
+    recognition.onspeechend = () => {
+        recognition.stop();
+        resetVoiceButton();
+    };
 
-        // محاكاة سريعة ومباشرة كيبورد الهاتف
-        recognition.onresult = (event) => {
-            let interimTranscript = '';
-            let finalTranscript = '';
+    recognition.onerror = (event) => {
+        console.error("خطأ في التعرف على الصوت: ", event.error);
+        resetVoiceButton();
+        alert("لم يتم سماع الصوت بشكل واضح، يرجى المحاولة مرة أخرى.");
+    };
 
-            for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript + ' ';
-                } else {
-                    interimTranscript += event.results[i][0].transcript;
-                }
-            }
-            
-            if(finalTranscript) lastConfirmedText += finalTranscript;
-            // عرض النص النهائي مضافاً إليه الكلمة التي تنطقها الآن حالياً
-            liveTextBox.innerText = (lastConfirmedText + interimTranscript).trim();
-        };
+    function resetVoiceButton() {
+        voiceBtn.className = "btn btn-sm btn-light text-success rounded-circle ms-2";
+        voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+    }
+}
 
-        const stopAndProcess = () => {
-            recognition.stop();
-            voiceOverlay.classList.remove('active');
-            const textToParse = liveTextBox.innerText.trim();
-            if (textToParse && !textToParse.includes('تحدث الآن')) {
-                parseVoiceOrder(textToParse);
-            }
-        };
+// دالة تحليل النص وتعبئة النموذج
+function parseVoiceOrder(text) {
+    // تنظيف النص لسهولة البحث
+    const normalizedText = text.toLowerCase();
 
-        executeVoiceBtn.addEventListener('click', stopAndProcess);
-        closeVoiceBtn.addEventListener('click', () => {
-            recognition.stop();
-            voiceOverlay.classList.remove('active');
-        });
+    // 1. استخراج العميل
+    const customerMatch = normalizedText.match(/العميل\s+([\u0600-\u06FF\s]+?)(?=\s+(صنف|كرتونة|قطعة|سعر|ملاحظة|$))/);
+    if (customerMatch && customerMatch[1]) {
+        const customerName = customerMatch[1].trim();
+        const inputCustomer = document.getElementById('customerInput');
+        inputCustomer.value = customerName;
+        // إطلاق حدث التغيير ليتفاعل مع الـ datalist المخزن لديك مسبقاً
+        inputCustomer.dispatchEvent(new Event('input'));
     }
 
-    function convertArabicWordsToNumbers(text) {
-        const wordsMap = {
-            'واحد': '1', 'اتنين': '2', 'اثنين': '2', 'تلاتة': '3', 'ثلاثة': '3',
-            'اربعة': '4', 'أربعة': '4', 'خمسة': '5', 'خمسه': '5', 'ستة': '6', 'سته': '6',
-            'سبعة': '7', 'سبعه': '7', 'تمانية': '8', 'ثمانية': '8', 'تسعة': '9', 'تسعه': '9',
-            'عشرة': '10', 'عشره': '10', 'مية': '100', 'مائة': '100', 'ميه': '100'
-        };
-        let modifiedText = text;
-        for (let word in wordsMap) {
-            modifiedText = modifiedText.replace(new RegExp(word, 'g'), wordsMap[word]);
-        }
-        return modifiedText;
+    // 2. استخراج الملاحظة
+    const noteMatch = normalizedText.match(/ملاحظة\s+([\u0600-\u06FF\s\d]+?)(?=\s+(العميل|صنف|كرتونة|قطعة|سعر|$))/);
+    if (noteMatch && noteMatch[1]) {
+        document.getElementById('orderNote').value = noteMatch[1].trim();
     }
 
-    // محرك الفرز الذكي اللحظي الكلي - يبحث عن التوكينات المجاورة للكلمات المفتاحية أينما وردت
-    function parseVoiceOrder(text) {
-        let cleanText = convertArabicWordsToNumbers(text.toLowerCase().trim()).replace(/\s+/g, ' ');
-        console.log("التحليل الذكي للنص: ", cleanText);
+    // 3. استخراج بيانات الصنف (اسم الصنف، الكرتونة، القطعة، السعر)
+    const itemMatch = normalizedText.match(/صنف\s+([\u0600-\u06FF\s\d]+?)(?=\s+(العميل|كرتونة|قطعة|سعر|ملاحظة|$))/);
+    
+    if (itemMatch && itemMatch[1]) {
+        const itemName = itemMatch[1].trim();
+        
+        // استخراج الأرقام الخاصة بالكميات والأسعار
+        const cartonMatch = normalizedText.match(/كرتونة\s+(\d+)/);
+        const pieceMatch = normalizedText.match(/قطعة\s+(\d+)/);
+        const priceMatch = normalizedText.match(/سعر\s+(\d+)/);
 
-        let customerName = "";
-        let itemName = "";
-        let cartonQty = "";
-        let pieceQty = "";
-        let priceVal = "";
-        let orderNote = "";
+        const cartonQty = cartonMatch ? cartonMatch[1] : '';
+        const pieceQty = pieceMatch ? pieceMatch[1] : '';
+        const priceVal = priceMatch ? priceMatch[1] : '';
 
-        // 1. التقاط الأرقام المرتبطة بالكلمات الدلالية أينما وجدت في الجملة
-        const cartonMatch = cleanText.match(/(?:كرتونة|كرتونه|كراتين)\s*(\d+)/) || cleanText.match(/(\d+)\s*(?:كرتونة|كرتونه|كراتين)/);
-        if (cartonMatch) cartonQty = cartonMatch[1];
+        // الحصول على آخر سطر أصناف متاح أو إنشاء واحد جديد إذا كان فارغاً
+        let rows = document.querySelectorAll('.order-item');
+        let targetRow;
 
-        const pieceMatch = cleanText.match(/(?:قطعة|قطعه|قطع)\s*(\d+)/) || cleanText.match(/(\d+)\s*(?:قطعة|قطعه|قطع)/);
-        if (pieceMatch) pieceQty = pieceMatch[1];
-
-        const priceMatch = cleanText.match(/(?:سعر|سعره|بسعر)\s*(\d+(?:\.\d+)?)/) || cleanText.match(/(\d+(?:\.\d+)?)\s*(?:سعر|سعره|بسعر)/);
-        if (priceMatch) priceVal = priceMatch[1];
-
-        // 2. التقاط الملاحظة
-        const noteMatch = cleanText.match(/(?:ملاحظة|ملاحظه|الملاحظة)\s+(.+)$/);
-        if (noteMatch) {
-            orderNote = noteMatch[1].trim();
-            cleanText = cleanText.replace(noteMatch[0], ""); // إزالتها حتى لا تتداخل مع العميل والصنف
+        if (rows.length === 0) {
+            window.addNewRow();
+            rows = document.querySelectorAll('.order-item');
         }
+        
+        targetRow = rows[rows.length - 1]; // استهداف آخر سطر تم إنشاؤه
 
-        // 3. الفرز الذكي للعميل والصنف بناءً على أقرب كلمات محيطة
-        const customerRegex = /(?:العميل|عميل)\s+([\u0600-\u06FF\s]+?)(?=(?:صنف|الصنف|كرتونة|قطعة|سعر|\d+|$))/;
-        const custMatch = cleanText.match(customerRegex);
-        if (custMatch) customerName = custMatch[1].trim();
+        // تعبئة البيانات في السطر المستهدف دون التأثير على البنية الأساسية للمشروع
+        const nameInput = targetRow.querySelector('.item-name');
+        const cartonInput = targetRow.querySelector('.item-carton');
+        const pieceInput = targetRow.querySelector('.item-piece');
+        const priceInput = targetRow.querySelector('.item-price');
 
-        const itemRegex = /(?:صنف|الصنف)\s+([\u0600-\u06FF\s]+?)(?=(?:العميل|عميل|كرتونة|قطعة|سعر|\d+|$))/;
-        const itmMatch = cleanText.match(itemRegex);
-        if (itmMatch) itemName = itmMatch[1].trim();
-
-        // تنظيف النصوص من بقايا الكلمات الدلالية الزائدة
-        if (customerName) customerName = customerName.replace(/(العميل|عميل|صنف|الصنف)/g, "").trim();
-        if (itemName) itemName = itemName.replace(/(العميل|عميل|صنف|الصنف)/g, "").trim();
-
-        // --- توزيع البيانات مباشرة على الخانات بدون تعقيد ---
-        if (customerName) {
-            const inputCustomer = document.getElementById('customerInput');
-            inputCustomer.value = customerName;
-            let selectedId = '';
-            for (let name in customersDataMap) {
-                if (name.includes(customerName) || customerName.includes(name)) {
-                    selectedId = customersDataMap[name];
-                    inputCustomer.value = name; 
-                    break;
-                }
-            }
-            if (selectedId) {
-                document.getElementById('customerSelect').value = selectedId;
-                inputCustomer.classList.add('is-valid-customer');
-            }
-        }
-
-        if (orderNote) {
-            document.getElementById('orderNote').value = orderNote;
-        }
-
-        if (itemName || cartonQty || pieceQty || priceVal) {
-            let rows = document.querySelectorAll('.order-item');
-            if (rows.length === 0) {
-                window.addNewRow();
-                rows = document.querySelectorAll('.order-item');
-            }
-            const targetRow = rows[rows.length - 1];
-
-            if (itemName) targetRow.querySelector('.item-name').value = itemName;
-            if (cartonQty) targetRow.querySelector('.item-carton').value = cartonQty;
-            if (pieceQty) targetRow.querySelector('.item-piece').value = pieceQty;
-            if (priceVal) targetRow.querySelector('.item-price').value = priceVal;
-        }
+        if (nameInput) nameInput.value = itemName;
+        if (cartonInput && cartonQty) cartonInput.value = cartonQty;
+        if (pieceInput && pieceQty) pieceInput.value = pieceQty;
+        if (priceInput && priceVal) priceInput.value = priceVal;
     }
-                
+}
+
     initPage();
 </script>
 </body>
