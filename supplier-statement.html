@@ -63,6 +63,14 @@
         }
         .btn-action:hover { background: #fff; color: var(--accent); }
 
+        /* زر الحذف السريع داخل الجدول */
+        .btn-delete-row {
+            background: none; border: none; color: #e63946; padding: 4px 8px; border-radius: 6px; transition: 0.2s;
+        }
+        .btn-delete-row:hover {
+            background: #ffe3e5; color: var(--danger);
+        }
+
         #print-area { display: none; }
         @media print {
             body { background: #fff !important; }
@@ -109,14 +117,15 @@
             <table class="statement-table" id="myTable">
                 <thead>
                     <tr>
-                        <th style="width: 20%;">التاريخ</th>
-                        <th style="width: 40%;">البيان والتفاصيل</th>
+                        <th style="width: 15%;">التاريخ</th>
+                        <th style="width: 35%;">البيان والتفاصيل</th>
                         <th style="width: 20%;">مدين (+)</th>
                         <th style="width: 20%;">دائن (-)</th>
+                        <th style="width: 10%;">حذف</th>
                     </tr>
                 </thead>
                 <tbody id="statementBody">
-                    <tr><td colspan="4" class="text-center py-5">
+                    <tr><td colspan="5" class="text-center py-5">
                         <div class="spinner-border spinner-border-sm text-success"></div> جاري مراجعة القيود...
                     </td></tr>
                 </tbody>
@@ -154,17 +163,17 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, query, where, getDocs, doc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-  const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-  measurementId: "G-WE04GK5XZZ"
-};
+    const firebaseConfig = {
+        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+        authDomain: "ahmedelzaiady.firebaseapp.com",
+        projectId: "ahmedelzaiady",
+        storageBucket: "ahmedelzaiady.firebasestorage.app",
+        messagingSenderId: "300306825071",
+        appId: "1:300306825071:web:0426ddde56280fa090329a",
+        measurementId: "G-WE04GK5XZZ"
+    };
     
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -174,6 +183,7 @@
 
     async function loadStatement() {
         if(!supId) return;
+        const tbody = document.getElementById('statementBody');
 
         try {
             let combinedData = [];
@@ -189,6 +199,8 @@
                 const initial = Number(data.openingBalance) || 0;
                 if(initial !== 0) {
                     combinedData.push({
+                        id: 'opening',
+                        collectionName: 'suppliers',
                         date: "---", 
                         type: "رصيد افتتاحى",
                         amount: Math.abs(initial),
@@ -203,9 +215,11 @@
                 getDocs(query(collection(db, "supplier_transactions"), where("supplierId", "==", supId)))
             ]);
 
-            transSnap.forEach(doc => {
-                const d = doc.data();
+            transSnap.forEach(documentDoc => {
+                const d = documentDoc.data();
                 combinedData.push({ 
+                    id: documentDoc.id,
+                    collectionName: 'transactions',
                     date: d.date, 
                     type: d.type, 
                     amount: Number(d.amount || 0), 
@@ -213,9 +227,11 @@
                 });
             });
 
-            invSnap.forEach(doc => {
-                const d = doc.data();
+            invSnap.forEach(documentDoc => {
+                const d = documentDoc.data();
                 combinedData.push({ 
+                    id: documentDoc.id,
+                    collectionName: 'supplier_transactions',
                     date: d.date, 
                     type: d.type || 'فاتورة شراء', 
                     amount: Number(d.total || d.amount || 0), 
@@ -225,7 +241,6 @@
 
             combinedData.sort((a, b) => new Date(b.date) - new Date(a.date));
             
-            const tbody = document.getElementById('statementBody');
             const pbody = document.getElementById('printBody');
             tbody.innerHTML = ''; pbody.innerHTML = '';
 
@@ -241,6 +256,9 @@
 
                 const amtFormatted = t.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2});
                 
+                // زر السلة للحذف - يختفي لو كانت الحركة هي الرصيد الافتتاحي
+                const deleteBtn = t.isOpening ? '-' : `<button class="btn-delete-row" onclick="deleteTransaction('${t.collectionName}', '${t.id}')"><i class="fas fa-trash-alt"></i></button>`;
+
                 tbody.innerHTML += `
                     <tr>
                         <td><span class="date-badge">${t.date}</span></td>
@@ -250,6 +268,7 @@
                         </td>
                         <td class="${isDebit ? 'val-plus' : ''}">${isDebit ? amtFormatted : '-'}</td>
                         <td class="${isCredit ? 'val-minus' : ''}">${isCredit ? amtFormatted : '-'}</td>
+                        <td>${deleteBtn}</td>
                     </tr>`;
 
                 pbody.innerHTML += `<tr><td>${t.date}</td><td>${t.type} - ${t.notes || ''}</td><td>${isDebit ? amtFormatted : '-'}</td><td>${isCredit ? amtFormatted : '-'}</td></tr>`;
@@ -275,9 +294,23 @@
             document.getElementById('p-balance').innerText = Math.abs(finalBalance).toLocaleString('ar-EG') + ' ج.م';
 
         } catch (err) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-danger py-5">حدث خطأ في جلب البيانات</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-danger py-5">حدث خطأ في جلب البيانات</td></tr>';
         }
     }
+
+    // دالة حذف الحركة من الفايربيس
+    window.deleteTransaction = async (collectionName, docId) => {
+        if(confirm("هل أنت متأكد من رغبتك في حذف هذه الحركة نهائياً؟")) {
+            try {
+                await deleteDoc(doc(db, collectionName, docId));
+                alert("تم حذف الحركة بنجاح.");
+                loadStatement(); // إعادة تحميل الجدول لتحديث الأرقام
+            } catch (error) {
+                console.error("Error deleting document: ", error);
+                alert("عذراً، فشل حذف الحركة.");
+            }
+        }
+    };
 
     window.generatePDF = () => {
         const element = document.getElementById('print-area');
