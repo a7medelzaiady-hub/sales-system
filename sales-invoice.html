@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>فاتورة مبيعات - شركة الزيادي</title>
-    <!-- نظام وتصميم ثيمات الموبايل الحديثة -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -30,7 +29,7 @@
             background: var(--bg-light); 
             font-family: 'Cairo', sans-serif; 
             color: var(--text-primary); 
-            padding-bottom: 60px;
+            padding-bottom: 80px; /* مسافة أمان سفلي للزر العائم */
             -webkit-tap-highlight-color: transparent;
         }
 
@@ -173,6 +172,34 @@
         .sub-lbl { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; display: block; font-weight: 700; padding-right: 4px;}
         .unit-info-area { font-size: 0.75rem; margin-top: 8px; color: var(--accent); font-weight: 700; }
 
+        /* تنسيق زر العداد العائم المحسّن لضمان الظهور فوق كل شيء */
+        .floating-items-badge {
+            position: fixed !important;
+            bottom: 25px !important;
+            right: 25px !important;
+            z-index: 99999 !important; /* أعلى درجة ظهور ممكنة في الصفحة */
+            background: #4a0012 !important; /* لون نبيتي داكن صريح */
+            color: #ffffff !important;
+            padding: 10px 16px !important;
+            border-radius: 30px !important;
+            font-weight: 700 !important;
+            font-size: 0.85rem !important;
+            box-shadow: 0 6px 20px rgba(74, 0, 18, 0.4) !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            border: 2px solid #ffb703 !important; /* إطار ذهبي فخم وواضح */
+            pointer-events: none; /* لمنع حجب الأزرار التي تقع خلفه */
+        }
+        .floating-items-badge .count-number {
+            background: #ffb703 !important; /* لون ذهبي دافئ للرقم */
+            color: #4a0012 !important;
+            padding: 2px 10px !important;
+            border-radius: 20px !important;
+            font-size: 0.9rem !important;
+            font-weight: 800 !important;
+        }
+
         @keyframes scaleUp {
             from { transform: scale(0.85); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
@@ -180,6 +207,12 @@
     </style>
 </head>
 <body>
+
+<div class="floating-items-badge" id="floatingItemsCount">
+    <i class="fas fa-boxes"></i>
+    <span>عدد الأصناف:</span>
+    <span class="count-number" id="itemsBadgeVal">0</span>
+</div>
 
 <div class="header-nav">
     <div class="d-flex align-items-center gap-3">
@@ -259,14 +292,13 @@
     </div>
 </div>
 
-<!-- مـودال الواتساب المتناسق -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(5px);">
     <div style="background: white; width: 88%; max-width: 380px; padding: 25px; border-radius: var(--card-radius); text-align: center; box-shadow: 0 15px 35px rgba(0,0,0,0.2); animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);">
         <div style="width: 70px; height: 70px; background: #fbebf0; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px;">
             <i class="fab fa-whatsapp" style="color: #25D366; font-size: 2.6rem;"></i>
         </div>
         <h5 style="font-weight: 700; color: #2b000b; margin-bottom: 8px;">تم الحفظ بنجاح! 🎉</h5>
-        <p style="color: #555; font-size: 0.88rem; margin-bottom: 22px; line-height: 1.5;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل؟</p>
+        <p style="color: #555; font-size: 0.88rem; margin-bottom: 22px; line-height: 1.5;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل?</p>
         <div style="display: flex; flex-direction: column; gap: 10px;">
             <button id="confirmShareBtn" style="background: #25D366; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: 0.2s;">
                 <i class="fab fa-whatsapp"></i> مشاركة الفاتورة كصورة
@@ -278,9 +310,6 @@
     </div>
 </div>
 
-<!-- ===================================================================== -->
-<!-- 🖨️ ترويسة الفاتورة الحرارية (تظل باللون الأبيض والأسود للطباعة) -->
-<!-- ===================================================================== -->
 <div id="thermalReceiptContainer" style="position: absolute; left: -9999px; top: -9999px;">
     <div id="thermalReceipt" style="width: 380px; background: #fff; color: #000; padding: 30px 25px; font-family: 'Cairo', sans-serif; direction: rtl; font-size: 14px; line-height: 1.7;">
         
@@ -317,8 +346,7 @@
                 </tr>
             </thead>
             <tbody id="recItems">
-                <!-- ديناميكي -->
-            </tbody>
+                </tbody>
         </table>
 
         <div style="border-top: 1px dashed #000; padding-top: 15px; font-size: 15px; line-height: 1.9;">
@@ -556,6 +584,7 @@
             calc();
         }
     };
+
     window.calc = () => {
         let total = 0;
         document.querySelectorAll('.product-row').forEach(r => {
@@ -570,16 +599,14 @@
         document.getElementById('displayPaid').innerText = paid.toLocaleString('en-US', {minimumFractionDigits: 2});
         document.getElementById('displayRemaining').innerText = (total - paid).toLocaleString('en-US', {minimumFractionDigits: 2});
         
-        // السطر الجديد الذي ستضيفه بيدك هنا لربط العداد العائم بالفاتورة تلقائياً:
+        // تعديل الأمان الذكي لتحديث العداد العائم فورياً وبأمان كامل
         const badge = document.getElementById('itemsBadgeVal');
-if (badge) {
-    badge.innerText = document.querySelectorAll('.product-row').length;
-}
-
+        if (badge) {
+            badge.innerText = document.querySelectorAll('.product-row').length;
+        }
 
         return { total, paid, remaining: total - paid };
     };
-
 
     window.togglePayLogic = () => {
         const method = document.getElementById('payMethod').value;
@@ -732,4 +759,4 @@ if (badge) {
 </script>
 
 </body>
-</html> 
+</html>
