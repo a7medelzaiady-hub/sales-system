@@ -30,7 +30,7 @@
             background: var(--bg-light); 
             font-family: 'Cairo', sans-serif; 
             color: var(--text-primary); 
-            padding-bottom: 80px; /* زيادة البادينج السفلي لعدم تغطية المحتوى بالزِر العائم */
+            padding-bottom: 80px; /* مسافة أمان سفلي */
             -webkit-tap-highlight-color: transparent;
         }
 
@@ -173,12 +173,12 @@
         .sub-lbl { font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px; display: block; font-weight: 700; padding-right: 4px;}
         .unit-info-area { font-size: 0.75rem; margin-top: 8px; color: var(--accent); font-weight: 700; }
 
-        /* خانة عدد البنود العائمة المتناسقة مع الثيم النبيتي */
+        /* تصميم زر العداد العائم المتناسق */
         .floating-items-badge {
             position: fixed;
             bottom: 20px;
             right: 20px;
-            z-index: 1040;
+            z-index: 1050;
             background: var(--header-bg);
             color: var(--white);
             padding: 8px 14px;
@@ -210,7 +210,7 @@
 </head>
 <body>
 
-<!-- خانة عدد البنود العائمة الذكية -->
+<!-- خانة عدد البنود العائمة -->
 <div class="floating-items-badge" id="floatingItemsCount">
     <i class="fas fa-boxes"></i>
     <span>عدد الأصناف:</span>
@@ -277,7 +277,7 @@
         <div class="total-box">
             <div class="row align-items-center">
                 <div class="col-4 border-end border-white border-opacity-25">
-                    <small class="d-block opacity-75" style="font-size: 0.7 rrem; margin-bottom: 3px;">الإجمالي</small>
+                    <small class="d-block opacity-75" style="font-size: 0.7rem; margin-bottom: 3px;">الإجمالي</small>
                     <span id="displayTotal" class="fw-bold text-white fs-5">0.00</span>
                 </div>
                 <div class="col-4 border-end border-white border-opacity-25">
@@ -302,7 +302,7 @@
             <i class="fab fa-whatsapp" style="color: #25D366; font-size: 2.6rem;"></i>
         </div>
         <h5 style="font-weight: 700; color: #2b000b; margin-bottom: 8px;">تم الحفظ بنجاح! 🎉</h5>
-        <p style="color: #555; font-size: 0.88rem; margin-bottom: 22px; line-height: 1.5;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل?</p>
+        <p style="color: #555; font-size: 0.88rem; margin-bottom: 22px; line-height: 1.5;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل؟</p>
         <div style="display: flex; flex-direction: column; gap: 10px;">
             <button id="confirmShareBtn" style="background: #25D366; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: 0.2s;">
                 <i class="fab fa-whatsapp"></i> مشاركة الفاتورة كصورة
@@ -401,19 +401,12 @@
     let editId = new URLSearchParams(window.location.search).get('edit');
     let isChanged = false;
 
-    // دالة لتحديث العداد العائم تلقائياً بناءً على عدد الحاويات الحالية للأصناف
-    function updateFloatingCounter() {
-        const rowCount = document.querySelectorAll('#itemsContainer .product-row').length;
-        document.getElementById('itemsBadgeVal').innerText = rowCount;
+    // دالة لتحديث قيمة العداد بناءً على عدد عناصر الأسطر الفعلي بالصفحة
+    function refreshBadgeCount() {
+        const rows = document.querySelectorAll('#itemsContainer .product-row');
+        const badge = document.getElementById('itemsBadgeVal');
+        if (badge) badge.innerText = rows.length;
     }
-
-    // تعديل دالة الحذف أو الإضافة لتشغيل دالة العداد العائم
-    const originalAddNewRow = window.addNewRow;
-    window.addNewRow = function() {
-        // منطق إضافة السطر (سيتم توليده ديناميكياً من بقية السكريبت الخاص بك)
-        // ...
-        setTimeout(updateFloatingCounter, 50);
-    };
 
     async function getRealBalance(customerId, initialBalance = 0) {
         try {
@@ -449,15 +442,6 @@
         inventory: "cache_inventory"
     };
 
-    // نراقب التغييرات في حاوية الأصناف لتحديث العداد دائماً
-    const containerObserver = new MutationObserver(() => {
-        updateFloatingCounter();
-    });
-    const containerTarget = document.getElementById('itemsContainer');
-    if (containerTarget) {
-        containerObserver.observe(containerTarget, { childList: true });
-    }
-
     async function init() {
         try {
             document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
@@ -486,11 +470,19 @@
                 document.getElementById('modeText').innerText = "تعديل";
                 const invDoc = await getDoc(doc(db, "invoices", editId));
                 if (invDoc.exists()) {
-                    // تكملة منطق التعديل الخاص بك...
+                     // كود جلب الفاتورة للتعديل
                 }
             }
-            updateFloatingCounter();
-        } catch(e) {
+            
+            // تحديث العداد عند بداية التشغيل
+            refreshBadgeCount();
+            
+            // مراقبة الحاوية لتحديث العداد فورياً عند إضافة أو حذف أي عنصر بأمان تام
+            const observer = new MutationObserver(refreshBadgeCount);
+            const target = document.getElementById('itemsContainer');
+            if(target) observer.observe(target, { childList: true });
+
+        } catch (e) {
             console.error(e);
         }
     }
