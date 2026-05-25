@@ -108,7 +108,7 @@
                 <tbody id="cashFlowTableBody">
                     <tr>
                         <td colspan="5" class="text-center text-muted py-4">
-                            <i class="fas fa-spinner fa-spin me-1"></i> جاري تحميل حركات النقدية والتحقق من الأسماء...
+                            <i class="fas fa-spinner fa-spin me-1"></i> جاري جلب ومطابقة جميع السندات والفواتير النقدية...
                         </td>
                     </tr>
                 </tbody>
@@ -120,7 +120,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, initializeFirestore, persistentLocalCache, collection, getDocs, orderBy, query } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, initializeFirestore, persistentLocalCache, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -138,27 +138,43 @@
     let masterCashArray = [];
     let currentTypeFilter = "all";
 
+    // دالة مساعدة لتأمين تحويل التاريخ لأرقام صالحة للترتيب بشكل قاطع
+    function parseDateToTimestamp(dateStr) {
+        if (!dateStr || typeof dateStr !== 'string') return 0;
+        try {
+            // تنظيف النص من أي مسافات أو أوقات زائدة واخذ الجزء الخاص بالتاريخ فقط YYYY-MM-DD أو DD/MM/YYYY
+            const clean = dateStr.split(' ')[0].replace(/\//g, '-');
+            const parts = clean.split('-');
+            if(parts.length === 3) {
+                // إذا كان السنة تبدأ أولاً
+                if(parts[0].length === 4) return new Date(clean).getTime() || 0;
+                // إذا كان اليوم يبدأ أولاً (تنسيق عربي شائع)
+                return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime() || 0;
+            }
+            return new Date(clean).getTime() || 0;
+        } catch(e) { return 0; }
+    }
+
     async function fetchCashFlow() {
         const tbody = document.getElementById('cashFlowTableBody');
         try {
             let namesCache = {};
             masterCashArray = [];
 
-            // 1. جلب الكاش الخاص بالأسماء (عملاء وموردين)
+            // 1. كاش الأسماء
             try {
                 const custSnap = await getDocs(collection(db, "customers"));
                 custSnap.forEach(cDoc => { namesCache[cDoc.id] = cDoc.data().name; });
-            } catch(e) { console.error(e); }
+            } catch(e) {}
 
             try {
                 const suppSnap = await getDocs(collection(db, "suppliers"));
                 suppSnap.forEach(sDoc => { namesCache[sDoc.id] = sDoc.data().name; });
-            } catch(e) { console.error(e); }
+            } catch(e) {}
 
-            // 2. قراءة السندات المالية الأساسية (قبض وصرف)
+            // 2. جلب السندات المالية (transactions)
             try {
-                const qTrans = query(collection(db, "transactions"));
-                const snapTrans = await getDocs(qTrans);
+                const snapTrans = await getDocs(collection(db, "transactions"));
                 snapTrans.forEach(doc => {
                     const data = doc.data();
                     let resolvedName = data.customerName || data.partyName || data.supplierName;
@@ -170,21 +186,23 @@
 
                     masterCashArray.push({
                         date: data.date || "---",
+                        timestamp: parseDateToTimestamp(data.date),
                         type: data.type || "قبض", 
                         customerName: resolvedName,
-                        notes: data.notes || "سند مالي",
+                        notes: data.notes || "سند مالي مباشر",
                         amount: Number(data.amount) || 0
                     });
                 });
-            } catch(e) { console.error("خطأ في السندات:", e); }
+            } catch(e) { console.error(e); }
 
-            // 3. قراءة فواتير البيع (الوارد النقدي)
+            // 3. جلب فواتير البيع (sales)
             try {
                 const snapSales = await getDocs(collection(db, "sales"));
                 snapSales.forEach(doc => {
                     const data = doc.data();
-                    // نأخذ المدفوع كاش فقط إذا كان أكبر من صفر
-                    const paidAmount = Number(data.paidAmount || data.paid) || 0;
+                    // فحص كافة الاحتمالات للمبلغ المدفوع داخل الفاتورة
+                    const paidAmount = Number(data.paidAmount) || Number(data.paid) || Number(data.cashPaid) || 0;
+                    
                     if (paidAmount > 0) {
                         let custName = data.customerName || "";
                         if(!custName && data.customerId && namesCache[data.customerId]) {
@@ -192,22 +210,24 @@
                         }
                         masterCashArray.push({
                             date: data.date || "---",
-                            type: "قبض", // نعتبرها وارد
-                            customerName: custName || "عميل نقدي (فاتورة)",
-                            notes: `فاتورة بيع رقم: ${data.invoiceNumber || doc.id.substring(0,6)}`,
+                            timestamp: parseDateToTimestamp(data.date),
+                            type: "قبض", 
+                            customerName: custName || "عميل نقدي (فاتورة بيع)",
+                            notes: `فاتورة بيع رقم: ${data.invoiceNumber || data.invNo || doc.id.substring(0,6)}`,
                             amount: paidAmount
                         });
                     }
                 });
-            } catch(e) { console.error("خطأ في فواتير البيع:", e); }
+            } catch(e) { console.error(e); }
 
-            // 4. قراءة فواتير الشراء (الصادر النقدي)
+            // 4. جلب فواتير الشراء (purchases)
             try {
                 const snapPurchases = await getDocs(collection(db, "purchases"));
                 snapPurchases.forEach(doc => {
                     const data = doc.data();
-                    // نأخذ المدفوع للمورد فقط إذا كان أكبر من صفر
-                    const paidAmount = Number(data.paidAmount || data.paid) || 0;
+                    // فحص كافة الاحتمالات للمبلغ المدفوع للمورد داخل الفاتورة
+                    const paidAmount = Number(data.paidAmount) || Number(data.paid) || Number(data.cashPaid) || 0;
+                    
                     if (paidAmount > 0) {
                         let suppName = data.supplierName || "";
                         if(!suppName && data.supplierId && namesCache[data.supplierId]) {
@@ -215,25 +235,24 @@
                         }
                         masterCashArray.push({
                             date: data.date || "---",
-                            type: "صرف", // نعتبرها صادر
-                            customerName: suppName || "مورد نقدي (فاتورة)",
-                            notes: `فاتورة شراء رقم: ${data.invoiceNumber || doc.id.substring(0,6)}`,
+                            timestamp: parseDateToTimestamp(data.date),
+                            type: "صرف", 
+                            customerName: suppName || "مورد نقدي (فاتورة شراء)",
+                            notes: `فاتورة شراء رقم: ${data.invoiceNumber || data.invNo || doc.id.substring(0,6)}`,
                             amount: paidAmount
                         });
                     }
                 });
-            } catch(e) { console.error("خطأ في فواتير الشراء:", e); }
+            } catch(e) { console.error(e); }
 
-            // 5. ترتيب المصفوفة بالكامل تنازلياً حسب التاريخ لخلط السندات مع الفواتير زمنياً
-            masterCashArray.sort((a, b) => {
-                return new Date(b.date.replace(/\//g, '-')) - new Date(a.date.replace(/\//g, '-'));
-            });
+            // 5. الترتيب الزمني الحقيقي المضمون (من الأحدث للأقدم) بالاعتماد على الـ Timestamp
+            masterCashArray.sort((a, b) => b.timestamp - a.timestamp);
 
             applyFilters();
 
         } catch (error) {
             console.error(error);
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">حدث خطأ أثناء تجميع حركة النقدية.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">حدث خطأ أثناء تحميل حركة النقدية.</td></tr>`;
         }
     }
 
@@ -267,7 +286,7 @@
         tbody.innerHTML = "";
         
         if(filteredData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">لا توجد نتائج مطابقة.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">لا توجد نتائج مطابقة للحسابات أو الفواتير.</td></tr>`;
         } else {
             filteredData.forEach(item => {
                 const isIncoming = item.type === "قبض";
