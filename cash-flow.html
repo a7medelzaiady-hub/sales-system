@@ -142,58 +142,98 @@
         const tbody = document.getElementById('cashFlowTableBody');
         try {
             let namesCache = {};
+            masterCashArray = [];
 
-            // 1. جلب أسماء العملاء وتخزينها في الكاش
+            // 1. جلب الكاش الخاص بالأسماء (عملاء وموردين)
             try {
                 const custSnap = await getDocs(collection(db, "customers"));
                 custSnap.forEach(cDoc => { namesCache[cDoc.id] = cDoc.data().name; });
-            } catch(e) { console.error("خطأ بكاش العملاء", e); }
+            } catch(e) { console.error(e); }
 
-            // 2. جلب أسماء الموردين وتخزينها في نفس الكاش لحل مشكلة الموردين تماماً
             try {
                 const suppSnap = await getDocs(collection(db, "suppliers"));
                 suppSnap.forEach(sDoc => { namesCache[sDoc.id] = sDoc.data().name; });
-            } catch(e) { console.error("خطأ بكاش الموردين", e); }
+            } catch(e) { console.error(e); }
 
-            // 3. جلب المعاملات المالية
-            const q = query(collection(db, "transactions"), orderBy("date", "desc"));
-            const snap = await getDocs(q);
-            
-            if (snap.empty) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">لا توجد حركات نقدية مسجلة.</td></tr>`;
-                return;
-            }
+            // 2. قراءة السندات المالية الأساسية (قبض وصرف)
+            try {
+                const qTrans = query(collection(db, "transactions"));
+                const snapTrans = await getDocs(qTrans);
+                snapTrans.forEach(doc => {
+                    const data = doc.data();
+                    let resolvedName = data.customerName || data.partyName || data.supplierName;
+                    let partyId = data.partyId || data.supplierId || "";
 
-            masterCashArray = [];
-            snap.forEach(doc => {
-                const data = doc.data();
-                let resolvedName = data.customerName || data.partyName || data.supplierName;
-                let partyId = data.partyId || data.supplierId || "";
-
-                // فحص الكاش الموحد (عملاء وموردين) إذا كان الاسم المسجل مبهم أو غير واضح
-                if (!resolvedName || resolvedName === "عميل غير مدرج الاسم" || resolvedName.includes("حركة عامة")) {
-                    if (partyId && namesCache[partyId]) {
-                        resolvedName = namesCache[partyId];
-                    } else {
-                        resolvedName = "حساب نقدي عام";
+                    if (!resolvedName || resolvedName === "عميل غير مدرج الاسم" || resolvedName.includes("حركة عامة")) {
+                        resolvedName = (partyId && namesCache[partyId]) ? namesCache[partyId] : "حساب نقدي عام";
                     }
-                }
 
-                masterCashArray.push({
-                    id: doc.id,
-                    date: data.date || "---",
-                    type: data.type || "قبض", 
-                    customerName: resolvedName,
-                    notes: data.notes || "---",
-                    amount: Number(data.amount) || 0
+                    masterCashArray.push({
+                        date: data.date || "---",
+                        type: data.type || "قبض", 
+                        customerName: resolvedName,
+                        notes: data.notes || "سند مالي",
+                        amount: Number(data.amount) || 0
+                    });
                 });
+            } catch(e) { console.error("خطأ في السندات:", e); }
+
+            // 3. قراءة فواتير البيع (الوارد النقدي)
+            try {
+                const snapSales = await getDocs(collection(db, "sales"));
+                snapSales.forEach(doc => {
+                    const data = doc.data();
+                    // نأخذ المدفوع كاش فقط إذا كان أكبر من صفر
+                    const paidAmount = Number(data.paidAmount || data.paid) || 0;
+                    if (paidAmount > 0) {
+                        let custName = data.customerName || "";
+                        if(!custName && data.customerId && namesCache[data.customerId]) {
+                            custName = namesCache[data.customerId];
+                        }
+                        masterCashArray.push({
+                            date: data.date || "---",
+                            type: "قبض", // نعتبرها وارد
+                            customerName: custName || "عميل نقدي (فاتورة)",
+                            notes: `فاتورة بيع رقم: ${data.invoiceNumber || doc.id.substring(0,6)}`,
+                            amount: paidAmount
+                        });
+                    }
+                });
+            } catch(e) { console.error("خطأ في فواتير البيع:", e); }
+
+            // 4. قراءة فواتير الشراء (الصادر النقدي)
+            try {
+                const snapPurchases = await getDocs(collection(db, "purchases"));
+                snapPurchases.forEach(doc => {
+                    const data = doc.data();
+                    // نأخذ المدفوع للمورد فقط إذا كان أكبر من صفر
+                    const paidAmount = Number(data.paidAmount || data.paid) || 0;
+                    if (paidAmount > 0) {
+                        let suppName = data.supplierName || "";
+                        if(!suppName && data.supplierId && namesCache[data.supplierId]) {
+                            suppName = namesCache[data.supplierId];
+                        }
+                        masterCashArray.push({
+                            date: data.date || "---",
+                            type: "صرف", // نعتبرها صادر
+                            customerName: suppName || "مورد نقدي (فاتورة)",
+                            notes: `فاتورة شراء رقم: ${data.invoiceNumber || doc.id.substring(0,6)}`,
+                            amount: paidAmount
+                        });
+                    }
+                });
+            } catch(e) { console.error("خطأ في فواتير الشراء:", e); }
+
+            // 5. ترتيب المصفوفة بالكامل تنازلياً حسب التاريخ لخلط السندات مع الفواتير زمنياً
+            masterCashArray.sort((a, b) => {
+                return new Date(b.date.replace(/\//g, '-')) - new Date(a.date.replace(/\//g, '-'));
             });
 
             applyFilters();
 
         } catch (error) {
             console.error(error);
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">حدث خطأ أثناء تحميل البيانات.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-4">حدث خطأ أثناء تجميع حركة النقدية.</td></tr>`;
         }
     }
 
