@@ -6,10 +6,7 @@
     <title>سجل المبيعات - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fo
-
-
-Ok0t-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -83,7 +80,6 @@ Ok0t-awesome/6.4.0/css/all.min.css">
 <body>
 
 <div class="header-nav">
-
     <!-- زر الرئيسية -->
     <a href="index.html" class="add-btn">
         <i class="fas fa-home"></i>
@@ -97,19 +93,13 @@ Ok0t-awesome/6.4.0/css/all.min.css">
 
     <!-- الأزرار -->
     <div class="d-flex align-items-center gap-2">
-
         <!-- تحديث -->
-        <i class="fas fa-sync-alt"
-           onclick="loadInvoices()"
-           style="cursor:pointer; opacity:0.8;"></i>
-
+        <i class="fas fa-sync-alt" onclick="loadInvoices()" style="cursor:pointer; opacity:0.8;"></i>
         <!-- إضافة فاتورة -->
         <a href="sales-invoice.html" class="add-btn">
             <i class="fas fa-plus"></i>
         </a>
-
     </div>
-
 </div>
 
 <div class="stats-container">
@@ -131,12 +121,9 @@ Ok0t-awesome/6.4.0/css/all.min.css">
     <button class="btn-export btn-excel" onclick="exportToExcel()">
         <i class="fas fa-file-excel"></i> تصدير Excel
     </button>
-    <button class="btn-export"
-style="background:#dc3545"
-onclick="deleteAllInvoices()">
-<i class="fas fa-trash"></i>
-حذف جميع الفواتير
-</button>
+    <button class="btn-export" style="background:#dc3545" onclick="deleteAllInvoices()">
+        <i class="fas fa-trash"></i> حذف جميع الفواتير
+    </button>
     <button class="btn-export btn-pdf-report" onclick="window.print()">
         <i class="fas fa-file-pdf"></i> طباعة PDF
     </button>
@@ -188,14 +175,14 @@ onclick="deleteAllInvoices()">
     import { getFirestore, collection, getDocs, getDoc, query, orderBy, doc, deleteDoc, updateDoc, increment, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-  measurementId: "G-WE04GK5XZZ"
-};
+        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+        authDomain: "ahmedelzaiady.firebaseapp.com",
+        projectId: "ahmedelzaiady",
+        storageBucket: "ahmedelzaiady.firebasestorage.app",
+        messagingSenderId: "300306825071",
+        appId: "1:300306825071:web:0426ddde56280fa090329a",
+        measurementId: "G-WE04GK5XZZ"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -220,94 +207,73 @@ onclick="deleteAllInvoices()">
             return Number(initialBalance) + invoiceDebt + transEffect;
         } catch (e) { return Number(initialBalance); }
     }
+
     function formatDateArabic(dateStr) {
-    const months = [
-        "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
-        "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
-    ];
-
-    const d = new Date(dateStr);
-    const day = d.getDate();
-    const month = months[d.getMonth()];
-
-    return `${day}-${month}`;
-}
-window.exportToExcel = () => {
-
-    if (allInvoices.length === 0) {
-        return alert("لا توجد بيانات للتصدير");
+        const months = [
+            "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+            "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
+        ];
+        const d = new Date(dateStr);
+        const day = d.getDate();
+        const month = months[d.getMonth()];
+        return `${day}-${month}`;
     }
 
-    let excelData = [];
+    window.exportToExcel = () => {
+        if (allInvoices.length === 0) {
+            return alert("لا توجد بيانات للتصدير");
+        }
 
-    // العناوين
-    excelData.push([
-        "التاريخ",
-        "الحركة",
-        "اسم العميل",
-        "اسم الصنف",
-        "عدد جركن",
-        "عدد كرتونة",
-        "سعر جركن",
-        "سعر كرتونة"
-    ]);
-allInvoices.forEach(inv => {
-
-    const total = Number(inv.total || 0);
-    const remaining = Number(inv.remaining || 0);
-    const paid = total - remaining;
-
-    const dateObj =
-        inv.timestamp?.toDate?.()
-        || inv.time
-        || new Date();
-
-    // أصناف الفاتورة
-    (inv.items || []).forEach(item => {
-
-        const isBox = item.unit === "box";
-
+        let excelData = [];
         excelData.push([
-            formatDateArabic(dateObj),
-            "بيع",
-            inv.customerName || "النقدي",
-            item.name || "",
-            !isBox ? (item.qty || 0) : 0,
-            isBox ? (item.qty || 0) : 0,
-            !isBox ? Math.round(item.price || 0) : 0,
-            isBox ? Math.round(item.price || 0) : 0
+            "التاريخ",
+            "الحركة",
+            "اسم العميل",
+            "اسم الصنف",
+            "عدد جركن",
+            "عدد كرتونة",
+            "سعر جركن",
+            "سعر كرتونة"
         ]);
 
-    });
+        allInvoices.forEach(inv => {
+            const total = Number(inv.total || 0);
+            const remaining = Number(inv.remaining || 0);
+            const paid = total - remaining;
+            const dateObj = inv.timestamp?.toDate?.() || inv.time || new Date();
 
-    // صف السداد النقدي
-    excelData.push([
-        formatDateArabic(dateObj),
-        "سداد منه نقدى",
-        inv.customerName || "النقدي",
-        "سداد نقدي",
-        0,
-        1,
-        0,
-        Math.round(paid)
-    ]);
+            (inv.items || []).forEach(item => {
+                const isBox = item.unit === "box";
+                excelData.push([
+                    formatDateArabic(dateObj),
+                    "بيع",
+                    inv.customerName || "النقدي",
+                    item.name || "",
+                    !isBox ? (item.qty || 0) : 0,
+                    isBox ? (item.qty || 0) : 0,
+                    !isBox ? Math.round(item.price || 0) : 0,
+                    isBox ? Math.round(item.price || 0) : 0
+                ]);
+            });
 
-});
-    
-    // إنشاء ملف Excel
-    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+            excelData.push([
+                formatDateArabic(dateObj),
+                "سداد منه نقدى",
+                inv.customerName || "النقدي",
+                "سداد نقدي",
+                0,
+                1,
+                0,
+                Math.round(paid)
+            ]);
+        });
+        
+        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
+        XLSX.writeFile(workbook, "المبيعات.xlsx");
+    };
 
-    const workbook = XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        "المبيعات"
-    );
-
-    XLSX.writeFile(workbook, "المبيعات.xlsx");
-
-};
     window.loadInvoices = async () => {
         try {
             const [invSnap, transSnap] = await Promise.all([
@@ -365,7 +331,6 @@ allInvoices.forEach(inv => {
         `).join('');
     }
 
-    // باقي الدوال (shareInv, printInv, showInv, deleteInv) بقيت كما هي تماماً دون تغيير
     window.shareInv = async (id, btn) => {
         const icon = btn.innerHTML;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
@@ -396,38 +361,28 @@ allInvoices.forEach(inv => {
         `;
 
         let rows = "";
-
-// ✅ النظام الجديد (الأصح)
-if (Array.isArray(inv.items) && inv.items.length > 0) {
-
-    inv.items.forEach(item => {
-        rows += `<tr>
-            <td style="text-align:right;">${item.name || ''}</td>
-            <td style="text-align:center;">${item.qty || 0}</td>
-            <td style="text-align:center;">${Math.round(item.price || 0)}</td>
-            <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0))}</td>
-        </tr>`;
-    });
-
-}
-
-// ❌ النظام القديم (اختياري احتياطي)
-else {
-
-    Object.keys(inv).forEach(k => {
-        if (!isNaN(k) && inv[k]) {
-
-            const item = inv[k];
-
-            rows += `<tr>
-                <td style="text-align:right;">${item.name || ''}</td>
-                <td style="text-align:center;">${item.qty || 0}</td>
-                <td style="text-align:center;">${Math.round(item.price || 0)}</td>
-                <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0))}</td>
-            </tr>`;
+        if (Array.isArray(inv.items) && inv.items.length > 0) {
+            inv.items.forEach(item => {
+                rows += `<tr>
+                    <td style="text-align:right;">${item.name || ''}</td>
+                    <td style="text-align:center;">${item.qty || 0}</td>
+                    <td style="text-align:center;">${Math.round(item.price || 0)}</td>
+                    <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0))}</td>
+                </tr>`;
+            });
+        } else {
+            Object.keys(inv).forEach(k => {
+                if (!isNaN(k) && inv[k]) {
+                    const item = inv[k];
+                    rows += `<tr>
+                        <td style="text-align:right;">${item.name || ''}</td>
+                        <td style="text-align:center;">${item.qty || 0}</td>
+                        <td style="text-align:center;">${Math.round(item.price || 0)}</td>
+                        <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0))}</td>
+                    </tr>`;
+                }
+            });
         }
-    });
-}
         document.getElementById('s-body').innerHTML = rows;
 
         try {
@@ -442,43 +397,29 @@ else {
         } catch (err) { console.error(err); shareContainer.style.display = 'none'; }
         btn.innerHTML = icon;
     };
-window.deleteAllInvoices = async () => {
 
-    if (!confirm("⚠️ هل تريد حذف جميع الفواتير نهائياً؟")) return;
-
-    try {
-
-        const snap = await getDocs(collection(db, "invoices"));
-
-        if (snap.empty) {
-            alert("لا توجد فواتير");
-            return;
+    window.deleteAllInvoices = async () => {
+        if (!confirm("⚠️ هل تريد حذف جميع الفواتير نهائياً؟")) return;
+        try {
+            const snap = await getDocs(collection(db, "invoices"));
+            if (snap.empty) {
+                alert("لا توجد فواتير");
+                return;
+            }
+            let deleted = 0;
+            for (const docSnap of snap.docs) {
+                await deleteDoc(doc(db, "invoices", docSnap.id));
+                deleted++;
+                console.log(`تم حذف ${deleted} / ${snap.docs.length}`);
+            }
+            alert(`تم حذف ${deleted} فاتورة بنجاح ✅`);
+            loadInvoices();
+        } catch (e) {
+            console.error(e);
+            alert("خطأ: " + e.message);
         }
+    };
 
-        let deleted = 0;
-
-        for (const docSnap of snap.docs) {
-
-            await deleteDoc(doc(db, "invoices", docSnap.id));
-
-            deleted++;
-
-            console.log(`تم حذف ${deleted} / ${snap.docs.length}`);
-
-        }
-
-        alert(`تم حذف ${deleted} فاتورة بنجاح ✅`);
-
-        loadInvoices();
-
-    } catch (e) {
-
-        console.error(e);
-        alert("خطأ: " + e.message);
-
-    }
-
-};
     window.printInv = async (id) => {
         const inv = allInvoices.find(i => i.id === id);
         let realDebt = 0;
@@ -490,35 +431,27 @@ window.deleteAllInvoices = async () => {
         let previousBalance = realDebt - (Number(inv.remaining) || 0);
 
         let rows = "";
-
-// 🔹 الحالة 1: لو عندك items (نظام جديد)
-if (inv.items && Array.isArray(inv.items)) {
-
-    inv.items.forEach(item => {
-        rows += `<tr>
-            <td style="text-align:right;">${item.name || ''}</td>
-            <td style="text-align:center;">${item.qty || 0}</td>
-            <td style="text-align:center;">${Math.round(item.price || 0).toLocaleString()}</td>
-            <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0)).toLocaleString()}</td>
-        </tr>`;
-    });
-
-// 🔹 الحالة 2: النظام القديم (0,1,2)
-} else {
-
-    Object.keys(inv).forEach(k => {
-
-        if (!isNaN(k) && inv[k]) {
-
-            rows += `<tr>
-                <td style="text-align:right;">${inv[k].name || ''}</td>
-                <td style="text-align:center;">${inv[k].qty || 0}</td>
-                <td style="text-align:center;">${Math.round(inv[k].price || 0).toLocaleString()}</td>
-                <td style="text-align:left;">${Math.round((inv[k].qty || 0) * (inv[k].price || 0)).toLocaleString()}</td>
-            </tr>`;
+        if (inv.items && Array.isArray(inv.items)) {
+            inv.items.forEach(item => {
+                rows += `<tr>
+                    <td style="text-align:right;">${item.name || ''}</td>
+                    <td style="text-align:center;">${item.qty || 0}</td>
+                    <td style="text-align:center;">${Math.round(item.price || 0).toLocaleString()}</td>
+                    <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0)).toLocaleString()}</td>
+                </tr>`;
+            });
+        } else {
+            Object.keys(inv).forEach(k => {
+                if (!isNaN(k) && inv[k]) {
+                    rows += `<tr>
+                        <td style="text-align:right;">${inv[k].name || ''}</td>
+                        <td style="text-align:center;">${inv[k].qty || 0}</td>
+                        <td style="text-align:center;">${Math.round(inv[k].price || 0).toLocaleString()}</td>
+                        <td style="text-align:left;">${Math.round((inv[k].qty || 0) * (inv[k].price || 0)).toLocaleString()}</td>
+                    </tr>`;
+                }
+            });
         }
-    });
-}
 
         const total = Number(inv.total || 0);
         const remaining = Number(inv.remaining || 0);
@@ -590,84 +523,38 @@ if (inv.items && Array.isArray(inv.items)) {
     window.editInv = (id) => window.location.href = `sales-invoice.html?edit=${id}`;
 
     window.deleteInv = async (id) => {
-
-    if (!confirm("⚠️ حذف الفاتورة؟ سيتم تعديل المخزون والمديونية تلقائياً.")) return;
-
-    const inv = allInvoices.find(i => i.id === id);
-
-    try {
-
-        // 🔹 رجوع الكمية للمخزون
-        for (const k of Object.keys(inv)) {
-
-            if (!isNaN(k)) {
-
-                const item = inv[k];
-
-                const qtyPcs =
-                    item.unit === "box"
-                    ? item.qty * (item.unitFactor || 1)
-                    : item.qty;
-
-                // تحديث المخزون لو موجود stockId
-                if (item.stockId) {
-
-                    try {
-
-                        await updateDoc(
-                            doc(db, "inventory", item.stockId),
-                            {
-                                totalPcs: increment(qtyPcs)
-                            }
-                        );
-
-                    } catch(err) {
-
-                        console.log("الصنف غير موجود بالمخزون");
-
+        if (!confirm("⚠️ حذف الفاتورة؟ سيتم تعديل المخزون والمديونية تلقائياً.")) return;
+        const inv = allInvoices.find(i => i.id === id);
+        try {
+            for (const k of Object.keys(inv)) {
+                if (!isNaN(k)) {
+                    const item = inv[k];
+                    const qtyPcs = item.unit === "box" ? item.qty * (item.unitFactor || 1) : item.qty;
+                    if (item.stockId) {
+                        try {
+                            await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(qtyPcs) });
+                        } catch(err) {
+                            console.log("الصنف غير موجود بالمخزون");
+                        }
                     }
-
                 }
-
             }
-
-        }
-
-        // 🔹 حذف الفاتورة
-        await deleteDoc(doc(db, "invoices", id));
-
-        // 🔹 تعديل مديونية العميل
-        if (inv.customerId && inv.remaining > 0) {
-
-            try {
-
-                await updateDoc(
-                    doc(db, "customers", inv.customerId),
-                    {
-                        currentBalance: increment(-inv.remaining)
-                    }
-                );
-
-            } catch(err) {
-
-                console.log("تعذر تعديل مديونية العميل");
-
+            await deleteDoc(doc(db, "invoices", id));
+            if (inv.customerId && inv.remaining > 0) {
+                try {
+                    await updateDoc(doc(db, "customers", inv.customerId), { currentBalance: increment(-inv.remaining) });
+                } catch(err) {
+                    console.log("تعذر تعديل مديونية العميل");
+                }
             }
-
+            alert("تم حذف الفاتورة وتعديل المخزون بنجاح ✅");
+            loadInvoices();
+        } catch (e) {
+            console.error(e);
+            alert("خطأ: " + e.message);
         }
+    };
 
-        alert("تم حذف الفاتورة وتعديل المخزون بنجاح ✅");
-
-        loadInvoices();
-
-    } catch (e) {
-
-        console.error(e);
-        alert("خطأ: " + e.message);
-
-    }
-
-};
     document.getElementById('searchInput').oninput = (e) => {
         const val = e.target.value.toLowerCase();
         document.querySelectorAll('.inv-card').forEach(card => {
