@@ -6,7 +6,10 @@
     <title>سجل المبيعات - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/fo
+
+
+Ok0t-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -128,6 +131,12 @@
     <button class="btn-export btn-excel" onclick="exportToExcel()">
         <i class="fas fa-file-excel"></i> تصدير Excel
     </button>
+    <button class="btn-export"
+style="background:#dc3545"
+onclick="deleteAllInvoices()">
+<i class="fas fa-trash"></i>
+حذف جميع الفواتير
+</button>
     <button class="btn-export btn-pdf-report" onclick="window.print()">
         <i class="fas fa-file-pdf"></i> طباعة PDF
     </button>
@@ -211,6 +220,18 @@
             return Number(initialBalance) + invoiceDebt + transEffect;
         } catch (e) { return Number(initialBalance); }
     }
+    function formatDateArabic(dateStr) {
+    const months = [
+        "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو",
+        "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"
+    ];
+
+    const d = new Date(dateStr);
+    const day = d.getDate();
+    const month = months[d.getMonth()];
+
+    return `${day}-${month}`;
+}
 window.exportToExcel = () => {
 
     if (allInvoices.length === 0) {
@@ -219,8 +240,10 @@ window.exportToExcel = () => {
 
     let excelData = [];
 
-    // الهيدر
+    // العناوين
     excelData.push([
+        "التاريخ",
+        "الحركة",
         "اسم العميل",
         "اسم الصنف",
         "عدد جركن",
@@ -228,44 +251,62 @@ window.exportToExcel = () => {
         "سعر جركن",
         "سعر كرتونة"
     ]);
+allInvoices.forEach(inv => {
 
-    allInvoices.forEach(inv => {
+    const total = Number(inv.total || 0);
+    const remaining = Number(inv.remaining || 0);
+    const paid = total - remaining;
 
-        Object.keys(inv).forEach(k => {
+    const dateObj =
+        inv.timestamp?.toDate?.()
+        || inv.time
+        || new Date();
 
-            if (!isNaN(k) && inv[k]) {
+    // أصناف الفاتورة
+    (inv.items || []).forEach(item => {
 
-                const item = inv[k];
+        const isBox = item.unit === "box";
 
-                const isBox = item.unit === "box";
-
-                const jerryQty = !isBox ? (item.qty || 0) : 0;
-                const boxQty = isBox ? (item.qty || 0) : 0;
-
-                // الأسعار (لو عندك نفس السعر للجميع هنحطه في الجركن فقط)
-                const jerryPrice = !isBox ? (item.price || 0) : 0;
-                const boxPrice = isBox ? (item.price || 0) : 0;
-
-                excelData.push([
-                    inv.customerName || "النقدى",
-                    item.name || "",
-                    jerryQty,
-                    boxQty,
-                    jerryPrice,
-                    boxPrice
-                ]);
-            }
-
-        });
+        excelData.push([
+            formatDateArabic(dateObj),
+            "بيع",
+            inv.customerName || "النقدي",
+            item.name || "",
+            !isBox ? (item.qty || 0) : 0,
+            isBox ? (item.qty || 0) : 0,
+            !isBox ? Math.round(item.price || 0) : 0,
+            isBox ? Math.round(item.price || 0) : 0
+        ]);
 
     });
 
+    // صف السداد النقدي
+    excelData.push([
+        formatDateArabic(dateObj),
+        "سداد منه نقدى",
+        inv.customerName || "النقدي",
+        "سداد نقدي",
+        0,
+        1,
+        0,
+        Math.round(paid)
+    ]);
+
+});
+    
+    // إنشاء ملف Excel
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
     const workbook = XLSX.utils.book_new();
 
-    XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
+    XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "المبيعات"
+    );
 
     XLSX.writeFile(workbook, "المبيعات.xlsx");
+
 };
     window.loadInvoices = async () => {
         try {
@@ -355,16 +396,38 @@ window.exportToExcel = () => {
         `;
 
         let rows = "";
-        Object.keys(inv).forEach(k => {
-            if(!isNaN(k)) {
-                rows += `<tr>
-                    <td style="text-align:right;">${inv[k].name}</td>
-                    <td style="text-align:center;">${inv[k].qty}</td>
-                    <td style="text-align:center;">${Math.round(inv[k].price).toLocaleString()}</td>
-                    <td style="text-align:left;">${Math.round(inv[k].qty * inv[k].price).toLocaleString()}</td>
-                </tr>`;
-            }
-        });
+
+// ✅ النظام الجديد (الأصح)
+if (Array.isArray(inv.items) && inv.items.length > 0) {
+
+    inv.items.forEach(item => {
+        rows += `<tr>
+            <td style="text-align:right;">${item.name || ''}</td>
+            <td style="text-align:center;">${item.qty || 0}</td>
+            <td style="text-align:center;">${Math.round(item.price || 0)}</td>
+            <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0))}</td>
+        </tr>`;
+    });
+
+}
+
+// ❌ النظام القديم (اختياري احتياطي)
+else {
+
+    Object.keys(inv).forEach(k => {
+        if (!isNaN(k) && inv[k]) {
+
+            const item = inv[k];
+
+            rows += `<tr>
+                <td style="text-align:right;">${item.name || ''}</td>
+                <td style="text-align:center;">${item.qty || 0}</td>
+                <td style="text-align:center;">${Math.round(item.price || 0)}</td>
+                <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0))}</td>
+            </tr>`;
+        }
+    });
+}
         document.getElementById('s-body').innerHTML = rows;
 
         try {
@@ -379,7 +442,43 @@ window.exportToExcel = () => {
         } catch (err) { console.error(err); shareContainer.style.display = 'none'; }
         btn.innerHTML = icon;
     };
+window.deleteAllInvoices = async () => {
 
+    if (!confirm("⚠️ هل تريد حذف جميع الفواتير نهائياً؟")) return;
+
+    try {
+
+        const snap = await getDocs(collection(db, "invoices"));
+
+        if (snap.empty) {
+            alert("لا توجد فواتير");
+            return;
+        }
+
+        let deleted = 0;
+
+        for (const docSnap of snap.docs) {
+
+            await deleteDoc(doc(db, "invoices", docSnap.id));
+
+            deleted++;
+
+            console.log(`تم حذف ${deleted} / ${snap.docs.length}`);
+
+        }
+
+        alert(`تم حذف ${deleted} فاتورة بنجاح ✅`);
+
+        loadInvoices();
+
+    } catch (e) {
+
+        console.error(e);
+        alert("خطأ: " + e.message);
+
+    }
+
+};
     window.printInv = async (id) => {
         const inv = allInvoices.find(i => i.id === id);
         let realDebt = 0;
@@ -391,16 +490,35 @@ window.exportToExcel = () => {
         let previousBalance = realDebt - (Number(inv.remaining) || 0);
 
         let rows = "";
-        Object.keys(inv).forEach(k => {
-            if(!isNaN(k)) {
-                rows += `<tr>
-                    <td style="text-align:right; padding:5px 0; border-bottom:1px dashed #eee;">${inv[k].name}</td>
-                    <td style="text-align:center;">${inv[k].qty}</td>
-                    <td style="text-align:center;">${Math.round(inv[k].price || 0).toLocaleString()}</td>
-                    <td style="text-align:left;">${Math.round(inv[k].qty * (inv[k].price || 0)).toLocaleString()}</td>
-                </tr>`;
-            }
-        });
+
+// 🔹 الحالة 1: لو عندك items (نظام جديد)
+if (inv.items && Array.isArray(inv.items)) {
+
+    inv.items.forEach(item => {
+        rows += `<tr>
+            <td style="text-align:right;">${item.name || ''}</td>
+            <td style="text-align:center;">${item.qty || 0}</td>
+            <td style="text-align:center;">${Math.round(item.price || 0).toLocaleString()}</td>
+            <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0)).toLocaleString()}</td>
+        </tr>`;
+    });
+
+// 🔹 الحالة 2: النظام القديم (0,1,2)
+} else {
+
+    Object.keys(inv).forEach(k => {
+
+        if (!isNaN(k) && inv[k]) {
+
+            rows += `<tr>
+                <td style="text-align:right;">${inv[k].name || ''}</td>
+                <td style="text-align:center;">${inv[k].qty || 0}</td>
+                <td style="text-align:center;">${Math.round(inv[k].price || 0).toLocaleString()}</td>
+                <td style="text-align:left;">${Math.round((inv[k].qty || 0) * (inv[k].price || 0)).toLocaleString()}</td>
+            </tr>`;
+        }
+    });
+}
 
         const total = Number(inv.total || 0);
         const remaining = Number(inv.remaining || 0);
