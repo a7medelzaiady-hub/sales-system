@@ -45,7 +45,6 @@
 </head>
 <body>
 
-<!-- الهيدر -->
 <div class="header-section">
     <a href="index.html" class="text-white"><i class="fas fa-home"></i></a>
     <h6 class="fw-bold">حركة النقدية (الخزينة)</h6>
@@ -54,7 +53,6 @@
 
 <div class="container mt-2">
     
-    <!-- كروت الإحصائيات المختصرة -->
     <div class="row g-2 mb-2">
         <div class="col-4">
             <div class="summary-card text-center">
@@ -76,7 +74,6 @@
         </div>
     </div>
 
-    <!-- أدوات الفلترة والبحث -->
     <div class="bg-white p-2 rounded-3 shadow-sm mb-2">
         <div class="d-flex justify-content-center gap-1 mb-2">
             <button class="btn btn-success filter-btn type-filter-btn" data-type="all" onclick="changeTypeFilter('all', this)">
@@ -92,7 +89,6 @@
         <input type="text" id="cashSearchBar" class="form-control search-input" placeholder="ابحث باسم العميل، المورد أو البيان...">
     </div>
 
-    <!-- جدول عرض النقدية المتناسق -->
     <div class="bg-white rounded-3 shadow-sm overflow-hidden">
         <div class="table-responsive">
             <table class="table cash-table table-hover m-0 text-center align-middle">
@@ -108,7 +104,7 @@
                 <tbody id="cashFlowTableBody">
                     <tr>
                         <td colspan="5" class="text-center text-muted py-4">
-                            <i class="fas fa-spinner fa-spin me-1"></i> جاري جلب ومطابقة جميع السندات والفواتير النقدية...
+                            <i class="fas fa-spinner fa-spin me-1"></i> جاري قراءة وتجميع الحركات النقدية...
                         </td>
                     </tr>
                 </tbody>
@@ -138,17 +134,33 @@
     let masterCashArray = [];
     let currentTypeFilter = "all";
 
-    // دالة مساعدة لتأمين تحويل التاريخ لأرقام صالحة للترتيب بشكل قاطع
+    // دالة مرنة للغاية لاستخراج المبلغ المدفوع كاش من مستندات الفاتورة مهما كان اسم الحقل
+    function extractPaidAmount(data) {
+        // فحص مباشر للحقول الشائعة
+        if (data.paidAmount !== undefined) return Number(data.paidAmount) || 0;
+        if (data.paid !== undefined) return Number(data.paid) || 0;
+        if (data.cashPaid !== undefined) return Number(data.cashPaid) || 0;
+        if (data.cash !== undefined) return Number(data.cash) || 0;
+        if (data.amountPaid !== undefined) return Number(data.amountPaid) || 0;
+        
+        // فحص ديناميكي ذكي لمفاتيح الحقول إذا اختلف الاسم تماماً
+        for (let key in data) {
+            const lowerKey = key.toLowerCase();
+            if (lowerKey.includes('paid') || lowerKey.includes('cash') || lowerKey.includes('مدفوع')) {
+                const val = Number(data[key]);
+                if (!isNaN(val) && val > 0) return val;
+            }
+        }
+        return 0;
+    }
+
     function parseDateToTimestamp(dateStr) {
         if (!dateStr || typeof dateStr !== 'string') return 0;
         try {
-            // تنظيف النص من أي مسافات أو أوقات زائدة واخذ الجزء الخاص بالتاريخ فقط YYYY-MM-DD أو DD/MM/YYYY
             const clean = dateStr.split(' ')[0].replace(/\//g, '-');
             const parts = clean.split('-');
             if(parts.length === 3) {
-                // إذا كان السنة تبدأ أولاً
                 if(parts[0].length === 4) return new Date(clean).getTime() || 0;
-                // إذا كان اليوم يبدأ أولاً (تنسيق عربي شائع)
                 return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime() || 0;
             }
             return new Date(clean).getTime() || 0;
@@ -161,16 +173,16 @@
             let namesCache = {};
             masterCashArray = [];
 
-            // 1. كاش الأسماء
+            // 1. جلب كاش أسماء العملاء والموردين
             try {
                 const custSnap = await getDocs(collection(db, "customers"));
                 custSnap.forEach(cDoc => { namesCache[cDoc.id] = cDoc.data().name; });
-            } catch(e) {}
+            } catch(e){}
 
             try {
                 const suppSnap = await getDocs(collection(db, "suppliers"));
                 suppSnap.forEach(sDoc => { namesCache[sDoc.id] = sDoc.data().name; });
-            } catch(e) {}
+            } catch(e){}
 
             // 2. جلب السندات المالية (transactions)
             try {
@@ -193,59 +205,59 @@
                         amount: Number(data.amount) || 0
                     });
                 });
-            } catch(e) { console.error(e); }
+            } catch(e) { console.error("خطأ بالسندات:", e); }
 
             // 3. جلب فواتير البيع (sales)
             try {
                 const snapSales = await getDocs(collection(db, "sales"));
                 snapSales.forEach(doc => {
                     const data = doc.data();
-                    // فحص كافة الاحتمالات للمبلغ المدفوع داخل الفاتورة
-                    const paidAmount = Number(data.paidAmount) || Number(data.paid) || Number(data.cashPaid) || 0;
+                    const paidAmount = extractPaidAmount(data);
                     
                     if (paidAmount > 0) {
-                        let custName = data.customerName || "";
-                        if(!custName && data.customerId && namesCache[data.customerId]) {
-                            custName = namesCache[data.customerId];
+                        let custName = data.customerName || data.partyName || "";
+                        let cId = data.customerId || data.partyId || "";
+                        if(!custName && cId && namesCache[cId]) {
+                            custName = namesCache[cId];
                         }
                         masterCashArray.push({
                             date: data.date || "---",
                             timestamp: parseDateToTimestamp(data.date),
-                            type: "قبض", 
+                            type: "قبض", // كاش داخل = وارد
                             customerName: custName || "عميل نقدي (فاتورة بيع)",
                             notes: `فاتورة بيع رقم: ${data.invoiceNumber || data.invNo || doc.id.substring(0,6)}`,
                             amount: paidAmount
                         });
                     }
                 });
-            } catch(e) { console.error(e); }
+            } catch(e) { console.error("خطأ بفواتير البيع:", e); }
 
             // 4. جلب فواتير الشراء (purchases)
             try {
                 const snapPurchases = await getDocs(collection(db, "purchases"));
                 snapPurchases.forEach(doc => {
                     const data = doc.data();
-                    // فحص كافة الاحتمالات للمبلغ المدفوع للمورد داخل الفاتورة
-                    const paidAmount = Number(data.paidAmount) || Number(data.paid) || Number(data.cashPaid) || 0;
+                    const paidAmount = extractPaidAmount(data);
                     
                     if (paidAmount > 0) {
-                        let suppName = data.supplierName || "";
-                        if(!suppName && data.supplierId && namesCache[data.supplierId]) {
-                            suppName = namesCache[data.supplierId];
+                        let suppName = data.supplierName || data.partyName || "";
+                        let sId = data.supplierId || data.partyId || "";
+                        if(!suppName && sId && namesCache[sId]) {
+                            suppName = namesCache[sId];
                         }
                         masterCashArray.push({
                             date: data.date || "---",
                             timestamp: parseDateToTimestamp(data.date),
-                            type: "صرف", 
+                            type: "صرف", // كاش خارج = صادر
                             customerName: suppName || "مورد نقدي (فاتورة شراء)",
                             notes: `فاتورة شراء رقم: ${data.invoiceNumber || data.invNo || doc.id.substring(0,6)}`,
                             amount: paidAmount
                         });
                     }
                 });
-            } catch(e) { console.error(e); }
+            } catch(e) { console.error("خطأ بفواتير الشراء:", e); }
 
-            // 5. الترتيب الزمني الحقيقي المضمون (من الأحدث للأقدم) بالاعتماد على الـ Timestamp
+            // 5. ترتيب مصفوفة النقدية تنازلياً
             masterCashArray.sort((a, b) => b.timestamp - a.timestamp);
 
             applyFilters();
