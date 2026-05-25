@@ -1,1 +1,544 @@
 
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>شركة الزيادي | نظام إدارة المخازن المتعددة</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-deep: #f4f7f6;
+            --bg-card: #ffffff;
+            --glass: rgba(11, 94, 61, 0.06);
+            --accent: #0b5e3d;         
+            --accent-light: #128256;
+            --header-bg: #0b5e3d;      
+            --text-primary: #1b2e26;
+            --text-secondary: #61736b;
+            --danger: #e41e3f;
+            --success: #2dbe57;
+            --gold: #dfa100;
+            --border: #e2e9e5;
+            --shadow: 0 8px 24px rgba(11, 94, 61, 0.04);
+            --radius-lg: 20px;
+            --radius-md: 14px;
+        }
+
+        body.dark-mode {
+            --bg-deep: #090d0b;
+            --bg-card: #121815;
+            --glass: rgba(29, 138, 90, 0.1);
+            --accent: #1d8a5a;
+            --accent-light: #28b377;
+            --header-bg: #0b110e;
+            --text-primary: #f0f6f3;
+            --text-secondary: #87948e;
+            --border: #1f2924;
+            --shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: var(--bg-deep);
+            margin: 0;
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+        /* --- Header --- */
+        header.top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 24px;
+            background: var(--header-bg);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-icons { display: flex; gap: 18px; align-items: center; }
+        .nav-icons i { 
+            font-size: 20px; 
+            color: #ffffff; 
+            cursor: pointer; 
+            transition: transform 0.2s, opacity 0.2s; 
+            opacity: 0.9;
+        }
+        .nav-icons i:hover { transform: scale(1.1); opacity: 1; }
+
+        .app-title { font-size: 20px; font-weight: 800; color: #ffffff; letter-spacing: 0.5px; }
+        .app-title span { color: #ffce31; text-shadow: 0 2px 4px rgba(0,0,0,0.15); } 
+
+        .logout-btn {
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            transition: 0.2s;
+        }
+        .logout-btn:hover { background: rgba(228, 30, 63, 0.2); border-color: var(--danger); }
+
+        /* --- Welcome Banner --- */
+        .welcome-banner {
+            padding: 25px 20px 5px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .welcome-banner h1 { font-size: 22px; font-weight: 800; margin: 0; color: var(--text-primary); }
+        .welcome-banner p { font-size: 13px; color: var(--text-secondary); margin: 5px 0 0; font-weight: 600; }
+
+        /* --- Search Section --- */
+        .search-section {
+            max-width: 1200px;
+            margin: 20px auto 0;
+            padding: 0 20px;
+        }
+        .search-box-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            padding: 12px 20px;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .search-box-wrapper i {
+            color: var(--text-secondary);
+            font-size: 18px;
+        }
+        .search-box-wrapper input {
+            border: none;
+            background: transparent;
+            width: 100%;
+            font-family: 'Cairo', sans-serif;
+            font-size: 16px;
+            color: var(--text-primary);
+            outline: none;
+        }
+
+        /* --- Search Results --- */
+        .results-section {
+            max-width: 1200px;
+            margin: 15px auto 0;
+            padding: 0 20px;
+            display: none;
+        }
+        .results-section.active { display: block; }
+        .results-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+        .results-title {
+            font-size: 14px;
+            font-weight: 800;
+            color: var(--accent);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: right;
+            font-size: 14px;
+        }
+        .results-table th, .results-table td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        .results-table th { font-weight: 800; color: var(--text-secondary); }
+        .results-table td { font-weight: 700; }
+        .badge-warehouse {
+            background: var(--glass);
+            color: var(--accent);
+            padding: 4px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+        }
+
+        /* --- Dashboard Grid --- */
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+            padding: 20px;
+            margin-bottom: 120px;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        @media (min-width: 768px) {
+            .dashboard { grid-template-columns: repeat(4, 1fr); padding: 25px 20px; }
+        }
+
+        .card-link { text-decoration: none; color: inherit; display: block; }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            padding: 26px 15px;
+            text-align: center;
+            border: 1px solid var(--border);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 4px;
+            background: transparent;
+            transition: 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-6px);
+            border-color: transparent;
+            box-shadow: 0 12px 30px rgba(11, 94, 61, 0.08);
+        }
+        body.dark-mode .card:hover { box-shadow: 0 12px 30px rgba(0,0,0,0.5); border-color: var(--accent); }
+
+        .card:hover::before { background: var(--accent); }
+        .card:active { transform: scale(0.96); }
+
+        .icon-box {
+            width: 56px;
+            height: 56px;
+            background: var(--glass);
+            border-radius: var(--radius-md); 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 18px;
+            color: var(--accent);
+            font-size: 24px;
+            transition: 0.3s;
+        }
+        .card:hover .icon-box { background: var(--accent); color: #fff; transform: rotate(-5deg); }
+
+        /* ستايل مخصص لكارت البحث وكروت التعديل */
+        .search-card::before { background: #007bff !important; }
+        .search-card .icon-box { color: #007bff; background: rgba(0, 123, 255, 0.08); }
+        .search-card:hover .icon-box { background: #007bff; color: #fff; }
+
+        .card p { margin: 0; font-size: 15px; font-weight: 700; color: var(--text-primary); transition: 0.2s; }
+        
+        .edit-name-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-family: 'Cairo', sans-serif;
+            font-weight: 600;
+        }
+        .edit-name-btn:hover { color: var(--gold); }
+
+        /* --- Sidebar --- */
+        .sidebar {
+            position: fixed;
+            top: 0; right: -100%;
+            width: 85%; max-width: 310px; height: 100%;
+            background: var(--bg-card);
+            z-index: 2000;
+            transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: -10px 0 40px rgba(0,0,0,0.15);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar.active { right: 0; }
+
+        .sidebar-user {
+            padding: 40px 24px;
+            background: linear-gradient(135deg, var(--accent), var(--accent-light));
+            color: white;
+            text-align: center;
+            border-bottom-left-radius: 25px;
+        }
+        .sidebar-user h5 { margin: 10px 0 2px; font-size: 18px; color: white; font-weight: 800; }
+        .sidebar-user span { font-size: 12px; color: rgba(255,255,255,0.85); font-weight: 600; background: rgba(0,0,0,0.15); padding: 3px 10px; border-radius: 20px; display: inline-block; margin-top: 5px; }
+
+        .menu-list { padding: 20px; flex-grow: 1; overflow-y: auto; }
+        .menu-label { font-size: 12px; color: var(--accent); font-weight: 800; text-transform: uppercase; margin: 20px 10px 10px; display: block; letter-spacing: 0.5px; }
+
+        .menu-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            text-decoration: none;
+            margin-bottom: 6px;
+            transition: 0.2s;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .menu-item i { width: 32px; font-size: 18px; color: var(--text-secondary); transition: 0.2s; }
+        .menu-item:hover { background: var(--glass); color: var(--accent); }
+        .menu-item:hover i { color: var(--accent); }
+
+        .overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            display: none; z-index: 1500;
+            backdrop-filter: blur(4px);
+            transition: 0.3s;
+        }
+        .overlay.active { display: block; }
+    </style>
+</head>
+<body>
+
+    <div class="overlay" id="overlay"></div>
+
+    <header class="top-nav">
+        <div class="nav-icons">
+            <i class="fas fa-bars" onclick="toggleMenu()"></i>
+            <i class="fas fa-circle-half-stroke" onclick="toggleTheme()" style="margin-right: 12px;"></i>
+        </div>
+        <div class="app-title">شركة <span>الزيادى للمخازن</span></div>
+        <div class="nav-icons">
+            <a href="#" class="logout-btn">
+                <i class="fas fa-power-off"></i>
+                خروج
+            </a>
+        </div>
+    </header>
+
+    <div class="welcome-banner">
+        <h1 id="welcome-text">مرحباً بك، مدير النظام</h1>
+        <p>لوحة التحكم الفورية وإدارة العهد والمخازن الستة الرئيسية.</p>
+    </div>
+
+    <div class="search-section">
+        <div class="search-box-wrapper">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="text" id="searchInput" oninput="searchItems()" placeholder="اكتب اسم الصنف هنا للبحث الفوري عن موقعه وسعره...">
+        </div>
+    </div>
+
+    <div class="results-section" id="resultsSection">
+        <div class="results-card">
+            <div class="results-title">
+                <i class="fas fa-list-check"></i> نتائج البحث المطابقة:
+            </div>
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>اسم الصنف</th>
+                        <th>سعر الشراء</th>
+                        <th>اسم المخزن</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        
+        <div class="card">
+            <div class="icon-box"><i class="fas fa-warehouse"></i></div>
+            <p id="wh-text-1">المخزن الرئيسي</p>
+            <button class="edit-name-btn" onclick="renameWarehouse(1)"><i class="fas fa-pen"></i> تعديل الاسم</button>
+        </div>
+
+        <div class="card">
+            <div class="icon-box"><i class="fas fa-warehouse"></i></div>
+            <p id="wh-text-2">مخزن المواد الخام</p>
+            <button class="edit-name-btn" onclick="renameWarehouse(2)"><i class="fas fa-pen"></i> تعديل الاسم</button>
+        </div>
+
+        <div class="card">
+            <div class="icon-box"><i class="fas fa-warehouse"></i></div>
+            <p id="wh-text-3">مخزن التعبئة والتغليف</p>
+            <button class="edit-name-btn" onclick="renameWarehouse(3)"><i class="fas fa-pen"></i> تعديل الاسم</button>
+        </div>
+
+        <div class="card">
+            <div class="icon-box"><i class="fas fa-warehouse"></i></div>
+            <p id="wh-text-4">مخزن المنتجات الجاهزة</p>
+            <button class="edit-name-btn" onclick="renameWarehouse(4)"><i class="fas fa-pen"></i> تعديل الاسم</button>
+        </div>
+
+        <div class="card">
+            <div class="icon-box"><i class="fas fa-warehouse"></i></div>
+            <p id="wh-text-5">مخزن العوازل والقطع</p>
+            <button class="edit-name-btn" onclick="renameWarehouse(5)"><i class="fas fa-pen"></i> تعديل الاسم</button>
+        </div>
+
+        <div class="card">
+            <div class="icon-box"><i class="fas fa-warehouse"></i></div>
+            <p id="wh-text-6">مخزن الهوالك والرجوع</p>
+            <button class="edit-name-btn" onclick="renameWarehouse(6)"><i class="fas fa-pen"></i> تعديل الاسم</button>
+        </div>
+
+        <a href="#searchInput" class="card-link" onclick="document.getElementById('searchInput').focus();">
+            <div class="card search-card">
+                <div class="icon-box"><i class="fas fa-search"></i></div>
+                <p>كارت البحث السريع</p>
+                <span style="font-size: 11px; color: var(--text-secondary); display:block; margin-top:5px;">اضغط للبحث عن صنف</span>
+            </div>
+        </a>
+
+    </div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-user">
+            <i class="fas fa-user-circle" style="font-size: 50px; margin-bottom: 5px;"></i>
+            <h5> شركة الزيادى </h5>
+            <span>مدير النظام</span>
+        </div>
+        <div class="menu-list">
+            <span class="menu-label">إدارة المخازن</span>
+            <a href="#" class="menu-item"><i class="fas fa-house"></i> الرئيسية</a>
+            <a href="#" class="menu-item"><i class="fas fa-box-open"></i> الجرد الفوري</a>
+            <a href="#" class="menu-item"><i class="fas fa-gears"></i> الإعدادات</a>
+        </div>
+    </aside>
+
+    <script>
+        // مصفوفة بيانات الأصناف (قاعدة بيانات تجريبية لمحاكاة البحث)
+        // يمكنك تغيير هذه الأصناف وتوزيعها على المخازن بحرية
+        const itemsDatabase = [
+            { id: 1, name: "شاشة كمبيوتر 24 بوصة", price: "4500 ج.م", whId: 1 },
+            { id: 2, name: "لوحة مفاتيح لاسلكية", price: "350 ج.م", whId: 1 },
+            { id: 3, name: "كابل طاقة نحاسي 5 متر", price: "120 ج.م", whId: 2 },
+            { id: 4, name: "كرتونة تغليف حجم كبير", price: "25 ج.م", whId: 3 },
+            { id: 5, name: "أكياس فقاعات هوائية شحن", price: "85 ج.م", whId: 3 },
+            { id: 6, name: "حاسوب محمول Core i7", price: "28000 ج.م", whId: 4 },
+            { id: 7, name: "شاحن سريع طاقة 65 واط", price: "600 ج.م", whId: 4 },
+            { id: 8, name: "شريط لاصق عازل رول", price: "40 ج.م", whId: 5 },
+            { id: 9, name: "بوردة هاتف تالفة للتخريد", price: "150 ج.م", whId: 6 }
+        ];
+
+        // أسماء المخازن الافتراضية
+        const defaultWarehouses = {
+            1: "المخزن الرئيسي",
+            2: "مخزن المواد الخام",
+            3: "مخزن التعبئة والتغليف",
+            4: "مخزن المنتجات الجاهزة",
+            5: "مخزن العوازل والقطع",
+            6: "مخزن الهوالك والرجوع"
+        };
+
+        // وظيفة لتسمية المخازن وحفظها بالمتصفح بشكل دائم
+        function renameWarehouse(id) {
+            const currentName = document.getElementById(`wh-text-${id}`).innerText;
+            const newName = prompt(`أدخل الاسم الجديد للمخزن رقم (${id}):`, currentName);
+            if (newName && newName.trim() !== "") {
+                document.getElementById(`wh-text-${id}`).innerText = newName.trim();
+                localStorage.setItem(`warehouse-name-${id}`, newName.trim());
+                // إعادة تشغيل البحث لتحديث الأسماء في جدول النتائج إذا كان البحث نشطاً
+                searchItems();
+            }
+        }
+
+        // تحميل الأسماء المحفوظة عند فتح البرنامج
+        function loadWarehouseNames() {
+            for (let i = 1; i <= 6; i++) {
+                const savedName = localStorage.getItem(`warehouse-name-${i}`);
+                if (savedName) {
+                    document.getElementById(`wh-text-${i}`).innerText = savedName;
+                } else {
+                    document.getElementById(`wh-text-${i}`).innerText = defaultWarehouses[i];
+                }
+            }
+        }
+
+        // محرك وميزة البحث المطلوب (الاسم، السعر، اسم المخزن الفعلي)
+        function searchItems() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const resultsSection = document.getElementById('resultsSection');
+            const resultsBody = document.getElementById('resultsBody');
+            
+            if (query === "") {
+                resultsSection.classList.remove('active');
+                return;
+            }
+
+            // تصفية النتائج بناء على نص البحث
+            const filteredItems = itemsDatabase.filter(item => item.name.toLowerCase().includes(query));
+
+            resultsBody.innerHTML = "";
+
+            if (filteredItems.length > 0) {
+                filteredItems.forEach(item => {
+                    // جلب اسم المخزن الحالي (سواء الافتراضي أو المعدل من الشاشة)
+                    const warehouseName = document.getElementById(`wh-text-${item.whId}`).innerText;
+                    
+                    const row = `
+                        <tr>
+                            <td><i class="fas fa-box" style="color:var(--accent-light); margin-left:8px;"></i>${item.name}</td>
+                            <td style="color:var(--danger);">${item.price}</td>
+                            <td><span class="badge-warehouse"><i class="fas fa-warehouse" style="margin-left:5px;"></i>${warehouseName}</span></td>
+                        </tr>
+                    `;
+                    resultsBody.innerHTML += row;
+                });
+                resultsSection.classList.add('active');
+            } else {
+                resultsBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-secondary);">لم يتم العثور على أصناف مطابقة للبحث...</td></tr>`;
+                resultsSection.classList.add('active');
+            }
+        }
+
+        // التحكم بالقائمة الجانبية والمظهر الداكن (من كودك الأصلي)
+        function toggleMenu() {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.getElementById('overlay').classList.toggle('active');
+        }
+        document.getElementById('overlay').onclick = toggleMenu;
+
+        function toggleTheme() {
+            const body = document.body;
+            body.classList.toggle('dark-mode');
+            const isDark = body.classList.contains('dark-mode');
+            localStorage.setItem('sanad-theme', isDark ? 'dark' : 'light');
+        }
+
+        window.onload = () => {
+            loadWarehouseNames();
+            if (localStorage.getItem('sanad-theme') === 'dark') {
+                document.body.classList.add('dark-mode');
+            }
+        };
+    </script>
+</body>
+</html>
