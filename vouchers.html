@@ -65,21 +65,6 @@
 
         .btn-delete-row { background: none; border: none; color: #e63946; padding: 4px 8px; border-radius: 6px; transition: 0.2s; }
         .btn-delete-row:hover { background: #ffe3e5; color: var(--danger); }
-
-        /* تنسيقات صندوق البحث والاختيار الذكي الجديد */
-        .search-dropdown-container { position: relative; }
-        .search-results-box {
-            position: absolute; top: 100%; left: 0; right: 0; background: white;
-            border: 1px solid var(--border); border-radius: 10px; max-height: 200px;
-            overflow-y: auto; z-index: 1050; box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            display: none; padding: 5px 0;
-        }
-        .search-result-item {
-            padding: 8px 12px; font-size: 0.85rem; cursor: pointer; transition: 0.2s;
-            text-align: right; color: var(--text-primary);
-        }
-        .search-result-item:hover { background-color: #edf7f4; color: var(--accent); font-weight: 600; }
-        .search-result-no-data { padding: 8px 12px; font-size: 0.85rem; color: #888; text-align: center; }
     </style>
 </head>
 <body>
@@ -119,17 +104,12 @@
                         <option value="مورد">مورد</option>
                     </select>
                 </div>
-                
-                <!-- حقل البحث الذكي المستبدل -->
-                <div class="col-md-3 search-dropdown-container">
-                    <label class="form-label small fw-bold">اسم الشخص / الشركة (ابحث واكتب هنا)</label>
-                    <input type="text" class="form-control form-control-sm" id="partySearchInput" placeholder="اكتب للبحث..." autocomplete="off" required>
-                    <!-- الحقل المخفي للاحتفاظ بـ الـ ID المعتمد لإرساله للـ Firebase -->
-                    <input type="hidden" id="partyId" required>
-                    <!-- قائمة نتائج البحث المتطايرة -->
-                    <div class="search-results-box" id="searchResultsBox"></div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">اسم الشخص / الشركة</label>
+                    <select class="form-select form-select-sm" id="partyId" required>
+                        <option value="">جاري تحميل الأسماء...</option>
+                    </select>
                 </div>
-
                 <div class="col-md-2">
                     <label class="form-label small fw-bold">التاريخ</label>
                     <input type="date" class="form-control form-control-sm" id="vDate" required>
@@ -210,90 +190,42 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // مصفوفات لحفظ البيانات محلياً للفلترة السريعة
     let allVouchers = [];
-    let partiesMap = {}; 
+    let partiesMap = {}; // لربط معرف الشخص باسمه
 
+    // تعيين تاريخ اليوم كقيمة افتراضية في الحقل
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
 
-    // تحميل قائمة الأسماء وحفظها بالـ Map كاملاً
+    // تحميل قائمة العملاء والموردين لملء شاشة الاختيار
     async function loadParties() {
+        const partySelect = document.getElementById('partyId');
+        const pType = document.getElementById('partyType').value;
+        partySelect.innerHTML = '<option value="">اختر الاسم...</option>';
+
         try {
+            // جلب الموردين والعملاء معاً لبناء الخريطة التعريفية للأسماء
             const [supSnap, custSnap] = await Promise.all([
                 getDocs(collection(db, "suppliers")),
-                getDocs(collection(db, "customers"))
+                getDocs(collection(db, "customers")) // بافتراض وجود مجمع للعملاء باسم customers
             ]);
 
-            partiesMap = {}; // تفريغ لإعادة البناء الصحيح
             supSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'مورد' }; });
             custSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'عميل' }; });
 
-            // تصفير الخانات عند تفعيل الصفحة
-            resetSearchInput();
+            // تعبئة حقل الاختيار بناءً على النوع المحدد في الفورم (عميل أو مورد)
+            for (let id in partiesMap) {
+                if (partiesMap[id].type === pType) {
+                    partySelect.innerHTML += `<option value="${id}">${partiesMap[id].name}</option>`;
+                }
+            }
         } catch (err) {
             console.error("Error loading names: ", err);
         }
     }
 
-    // تصفير حقول البحث والاختيار المخفي
-    function resetSearchInput() {
-        document.getElementById('partySearchInput').value = '';
-        document.getElementById('partyId').value = '';
-        document.getElementById('searchResultsBox').style.display = 'none';
-    }
-
-    // مراقبة تغيير نوع الحساب (عميل/مورد) لتصفير حقل البحث فوراً
-    document.getElementById('partyType').addEventListener('change', resetSearchInput);
-
-    // دالة الفلترة الفورية والبحث السريع بالكتابة في الـ Input
-    const partySearchInput = document.getElementById('partySearchInput');
-    const searchResultsBox = document.getElementById('searchResultsBox');
-
-    partySearchInput.addEventListener('input', (e) => {
-        const searchText = e.target.value.trim().toLowerCase();
-        const selectedPartyType = document.getElementById('partyType').value;
-        
-        // مسح الـ ID القديم في حال كان المستخدم يمسح أو يغير الكتابة بدون اختيار حقيقي
-        document.getElementById('partyId').value = '';
-
-        if (!searchText) {
-            searchResultsBox.style.display = 'none';
-            return;
-        }
-
-        let htmlResults = '';
-        let hasMatches = false;
-
-        for (let id in partiesMap) {
-            const party = partiesMap[id];
-            // مطابقة كتابة النص + التأكد من مطابقة تصنيف الحساب (عميل أو مورد)
-            if (party.type === selectedPartyType && party.name.toLowerCase().includes(searchText)) {
-                hasMatches = true;
-                htmlResults += `<div class="search-result-item" onclick="selectPartyItem('${id}', '${party.name}')">${party.name}</div>`;
-            }
-        }
-
-        if (hasMatches) {
-            searchResultsBox.innerHTML = htmlResults;
-        } else {
-            htmlResults = `<div class="search-result-no-data">لا توجد نتائج مطابقة لـ "${selectedPartyType}"</div>`;
-            searchResultsBox.innerHTML = htmlResults;
-        }
-        searchResultsBox.style.display = 'block';
-    });
-
-    // دالة اختيار الاسم من القائمة المتطايرة وتثبيته في الخانات المخصصة له
-    window.selectPartyItem = (id, name) => {
-        document.getElementById('partySearchInput').value = name;
-        document.getElementById('partyId').value = id;
-        searchResultsBox.style.display = 'none';
-    };
-
-    // إغلاق قائمة البحث الذكية إذا نقر المستخدم بأي مكان خارجها بالنافذة لضمان راحة التصميم
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.search-dropdown-container')) {
-            searchResultsBox.style.display = 'none';
-        }
-    });
+    // مراقبة تغيير نوع الحساب لتحديث الأسماء فوراً تلقائياً
+    document.getElementById('partyType').addEventListener('change', loadParties);
 
     // جلب جميع السندات من مجموعة الـ transactions
     async function loadVouchers() {
@@ -304,13 +236,14 @@
 
             querySnapshot.forEach((doc) => {
                 const d = doc.data();
+                // فلترة وعرض السندات المالية فقط (قبض وصرف)
                 if (d.type === 'قبض' || d.type === 'صرف') {
                     allVouchers.push({
                         id: doc.id,
                         date: d.date,
                         type: d.type,
                         partyId: d.partyId,
-                        partyType: d.partyType || (partiesMap[d.partyId] ? partiesMap[d.partyId].type : 'مورد'),
+                        partyType: d.partyType || (partiesMap[d.partyId] ? partiesMap[d.partyId].type : 'مورد'), // حقل احتياطي
                         amount: Number(d.amount || 0),
                         note: d.note || d.notes || ''
                     });
@@ -324,6 +257,7 @@
         }
     }
 
+    // عرض البيانات داخل الجدول وحساب المجموع السريع
     function renderTable(data) {
         const tbody = document.getElementById('vouchersBody');
         tbody.innerHTML = '';
@@ -357,6 +291,7 @@
         document.getElementById('vouchersTotal').innerText = `${total.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
     }
 
+    // دالة الفلترة الفورية للأعمدة عند اختيار تصنيفات مختلفة من القوائم
     window.filterData = () => {
         const fType = document.getElementById('filterType').value;
         const fParty = document.getElementById('filterParty').value;
@@ -374,7 +309,7 @@
     document.getElementById('voucherForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const partyId = document.getElementById('partyId').value;
-        if(!partyId) { alert("الرجاء البحث واختيار الاسم من القائمة المنسدلة بشكل صحيح أولاً"); return; }
+        if(!partyId) { alert("الرجاء اختيار الاسم أولاً"); return; }
 
         const submitBtn = e.target.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
@@ -391,22 +326,21 @@
 
         try {
             await addDoc(collection(db, "transactions"), newVoucher);
-            alert("تم حفظ السند المالي بنجاح");
+            alert("تم حفظ السند المالي بنجاح بنجاح");
             document.getElementById('vAmount').value = '';
             document.getElementById('vNote').value = '';
             
-            // إعادة تصفير حقل البحث والاختيار بعد الحفظ الناجح
-            resetSearchInput();
-            
+            // تحديث الواجهة والقوائم
             await loadVouchers();
         } catch (err) {
             alert("حدث خطأ أثناء حفظ السند المالي");
-        } military {
+        } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'حفظ السند <i class="fas fa-save ms-1"></i>';
         }
     });
 
+    // دالة حذف السند المالي
     window.deleteVoucher = async (id) => {
         if(confirm("هل أنت متأكد من رغبتك في حذف هذا السند نهائياً؟ سيؤثر هذا على كشف حساب الطرف المالي.")) {
             try {
@@ -419,8 +353,11 @@
         }
     };
 
+    // دالة التصدير إلى ملف إكسيل الشيت باللغة العربية والبيانات الحالية للجدول
     window.exportToExcel = () => {
         const table = document.getElementById("vouchersTable");
+        
+        // إنشاء نسخة معدلة مخصصة لملف الـ Excel لحذف عمود سلة المهملات (الحذف) لتنظيف الملف المستخرج
         const clonedTable = table.cloneNode(true);
         clonedTable.querySelectorAll('tr').forEach(tr => {
             if(tr.lastElementChild) tr.lastElementChild.remove();
@@ -430,6 +367,7 @@
         XLSX.writeFile(wb, `سندات_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
+    // التشغيل المتتابع عند بدء تحميل الصفحة
     async function init() {
         await loadParties();
         await loadVouchers();
