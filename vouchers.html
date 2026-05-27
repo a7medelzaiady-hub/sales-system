@@ -37,7 +37,6 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.02);
         }
 
-        /* تصغير عناصر الإدخال لتناسق الصفحة */
         .form-label { margin-bottom: 3px; font-size: 0.75rem !important; }
         .form-control-sm, .form-select-sm { padding: 6px 10px; font-size: 0.8rem !important; border-radius: 8px; }
 
@@ -209,7 +208,21 @@
 
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
 
-    // جلب وبناء خريطة الأسماء الذكية من قاعدة البيانات
+    // استرجاع الكاش المحلي فوراً لتسريع تشغيل الصفحة
+    function loadCache() {
+        const cachedParties = localStorage.getItem('cache_partiesMap');
+        const cachedVouchers = localStorage.getItem('cache_allVouchers');
+        
+        if (cachedParties) {
+            partiesMap = JSON.parse(cachedParties);
+        }
+        if (cachedVouchers) {
+            allVouchers = JSON.parse(cachedVouchers);
+            renderTable(allVouchers);
+        }
+    }
+
+    // جلب بيانات العملاء والموردين وتخزينها في الكاش
     async function fetchPartiesData() {
         try {
             const [supSnap, custSnap] = await Promise.all([
@@ -220,12 +233,15 @@
             partiesMap = {};
             supSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'مورد' }; });
             custSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'عميل' }; });
+            
+            // حفظ في الـ LocalStorage (الكاش)
+            localStorage.setItem('cache_partiesMap', JSON.stringify(partiesMap));
         } catch (err) {
             console.error("Error fetching parties:", err);
         }
     }
 
-    // دالة البحث الذكي والكتابة واستخراج النتائج الفورية
+    // تفعيل البحث الذكي الفوري من الكاش
     window.searchParty = () => {
         const input = document.getElementById('partySearch');
         const resultsDiv = document.getElementById('partyResults');
@@ -256,31 +272,27 @@
         }
     };
 
-    // تثبيت الاسم المختار وإغلاق القائمة
     window.selectParty = (id, name) => {
         document.getElementById('partySearch').value = name;
         document.getElementById('partyId').value = id;
         document.getElementById('partyResults').style.display = 'none';
     };
 
-    // تصفير حقل البحث الذكي تلقائياً عند تغيير نوع الطرف (عميل / مورد)
     document.getElementById('partyType').addEventListener('change', () => {
         document.getElementById('partySearch').value = '';
         document.getElementById('partyId').value = '';
         document.getElementById('partyResults').style.display = 'none';
     });
 
-    // تشغيل مستمع الحدث أثناء الكتابة في خانة البحث
     document.getElementById('partySearch').addEventListener('input', window.searchParty);
 
-    // إغلاق قائمة البحث الذكي عند الضغط خارجها
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.search-container')) {
             document.getElementById('partyResults').style.display = 'none';
         }
     });
 
-    // جلب جميع العمليات من الفايربيز
+    // جلب السندات وتحديث الكاش
     async function loadVouchers() {
         try {
             const q = query(collection(db, "transactions"), orderBy("date", "desc"));
@@ -302,10 +314,13 @@
                 }
             });
 
+            localStorage.setItem('cache_allVouchers', JSON.stringify(allVouchers));
             renderTable(allVouchers);
 
         } catch (err) {
-            document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="7" class="text-danger py-4">حدث خطأ أثناء تحميل البيانات</td></tr>';
+            if(allVouchers.length === 0) {
+                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="7" class="text-danger py-4">حدث خطأ أثناء تحميل البيانات</td></tr>';
+            }
         }
     }
 
@@ -384,7 +399,7 @@
             await loadVouchers();
         } catch (err) {
             alert("حدث خطأ أثناء الحفظ");
-        } disabled {
+        } finally {
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'حفظ البيانات <i class="fas fa-save ms-1"></i>';
         }
@@ -395,7 +410,7 @@
             try {
                 await deleteDoc(doc(db, "transactions", id));
                 alert("تم الحذف بنجاح.");
-                loadVouchers();
+                await loadVouchers();
             } catch (err) {
                 alert("فشل إجراء الحذف.");
             }
@@ -413,9 +428,11 @@
         XLSX.writeFile(wb, `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
+    // الترتيب الصحيح للاستدعاء والتخزين المؤقت
     async function init() {
-        await fetchPartiesData();
-        await loadVouchers();
+        loadCache(); // 1. افتح الكاش أولاً لعرض البيانات المحفوظة فوراً وبدون انتظار سيرفر
+        await fetchPartiesData(); // 2. حدّث خريطة الأسماء من السيرفر
+        await loadVouchers(); // 3. حدّث جدول المعاملات الفعلي من السيرفر وخزن الجديد في الكاش
     }
     
     init();
