@@ -25,13 +25,6 @@
 
         body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 30px; font-size: 0.85rem; }
         
-        /* شاشة تسجيل الدخول */
-        #loginScreen {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: var(--bg-light); z-index: 2000; display: flex; 
-            align-items: center; justify-content: center;
-        }
-
         .header-section { 
             padding: 8px 15px; background: var(--header-bg); 
             position: sticky; top: 0; z-index: 1000; color: white;
@@ -100,31 +93,12 @@
 </head>
 <body>
 
-<!-- واجهة تسجيل الدخول وحماية الصلاحيات -->
-<div id="loginScreen">
-    <div class="card-custom text-center" style="width: 320px; border-top: 4px solid var(--accent);">
-        <h5 class="fw-bold text-success mb-3">شركة الزيادي لزيوت السيارات</h5>
-        <p class="text-muted small mb-3">الرجاء إدخال اسم المستخدم وكلمة المرور</p>
-        <div class="mb-2 text-start">
-            <label class="form-label fw-bold">اسم المستخدم</label>
-            <input type="text" id="loginUser" class="form-control form-control-sm" placeholder="user أو admin" required>
-        </div>
-        <div class="mb-3 text-start">
-            <label class="form-label fw-bold">كلمة المرور</label>
-            <input type="password" id="loginPass" class="form-control form-control-sm" placeholder="123456" required>
-        </div>
-        <button onclick="checkLogin()" class="btn btn-success btn-sm w-100 fw-bold">تسجيل الدخول</button>
-    </div>
-</div>
-
-<!-- المحتوى الرئيسي للتطبيق (مخفي حتى تسجيل الدخول) -->
-<div id="mainContent" style="display: none;">
+<div id="mainContent">
     <div id="content-to-export">
         <div class="header-section">
             <div class="header-container container">
                 <div class="nav-btns d-flex gap-2">
                     <button class="btn-action" onclick="exportToExcel()" title="تصدير مخصص لإكسل"><i class="fas fa-file-excel"></i></button>
-                    <button class="btn-action bg-danger" onclick="logout()" title="تسجيل خروج"><i class="fas fa-sign-out-alt"></i></button>
                 </div>
                 <div class="title-area text-center flex-grow-1">
                     <h6 class="fw-bold m-0" id="pageTitle" style="font-size: 0.9rem;">إدارة عمليات القبض والصرف (عملاء / موردين)</h6>
@@ -284,35 +258,13 @@
     let allVouchers = [];
     let partiesMap = {}; 
     let receiptModalObj = null;
-    let currentUserRole = "admin"; 
 
-    // التحكم في شاشة تسجيل الدخول والصلاحيات
-    window.checkLogin = () => {
-        const u = document.getElementById('loginUser').value.trim();
-        const p = document.getElementById('loginPass').value.trim();
-
-        if (u === "admin" && p === "123456") {
-            currentUserRole = "admin";
-            applyPermissions();
-        } else if (u === "user" && p === "123456") {
-            currentUserRole = "user";
-            applyPermissions();
-        } else {
-            alert("اسم المستخدم أو كلمة المرور غير صحيحة!");
-        }
-    };
-
-    window.logout = () => {
-        document.getElementById('loginUser').value = '';
-        document.getElementById('loginPass').value = '';
-        document.getElementById('mainContent').style.display = 'none';
-        document.getElementById('loginScreen').style.display = 'flex';
-    };
+    // 🔒 [مفتاح التحكم بالصلاحيات]:
+    // اجعل القيمة "user" لتفعيل حساب الموظف المحدود (فاتورة مبيعات وسجل المبيعات والعملاء فقط وبدون حذف)
+    // اجعل القيمة "admin" إذا أردت فتح كافة صلاحيات الموردين والصرف والحذف كاملة
+    let currentUserRole = "user"; 
 
     function applyPermissions() {
-        document.getElementById('loginScreen').style.display = 'none';
-        document.getElementById('mainContent').style.display = 'block';
-
         if (currentUserRole === "user") {
             document.getElementById('pageTitle').innerText = "فاتورة المبيعات وسجل مبيعات العملاء - شركة الزيادي";
             document.getElementById('formSectionTitle').innerHTML = '<i class="fas fa-file-invoice-dollar me-1"></i> إنشاء فاتورة مبيعات جديدة';
@@ -342,6 +294,7 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
+        applyPermissions(); // تنفيذ قفل الصلاحيات مباشرة عند التحميل بدون صفحة لوجن
     });
 
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
@@ -587,9 +540,7 @@
         }
     };
 
-    // الدالة المحدثة لبناء وتصدير ملف الإكسيل طبقاً للهيكلية المطلوبة تماماً
     window.exportToExcel = () => {
-        // فحص الفلترة الحالية لضمان تصدير ما يراه المستخدم فقط أمامه بناء على الصلاحيات
         let fType = document.getElementById('filterType').value;
         let fParty = document.getElementById('filterParty').value;
         if (currentUserRole === "user") {
@@ -603,10 +554,7 @@
             return matchType && matchParty;
         });
 
-        // مصفوفة تجهيز البيانات لملف الإكسيل بالأعمدة المطلوبة
         const excelRows = [];
-        
-        // إضافة الصف الأول (العناوين) بالترتيب المطلوب
         excelRows.push([
             "التاريخ", 
             "الحركه", 
@@ -618,11 +566,9 @@
             "سعر كرتونه"
         ]);
 
-        // معالجة السطور وتوزيع القيم برمجياً
         filteredData.forEach(v => {
             const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
             
-            // تحديد صياغة عمود الحركة بناء على نوع الطرف
             let movementText = "";
             if (v.partyType === "عميل") {
                 movementText = "سداد منه نقدى";
@@ -632,25 +578,21 @@
                 movementText = v.type === "قبض" ? "سداد منه نقدى" : "سداد له نقدى";
             }
 
-            // إدراج الصف وتمرير القيم المحددة (عدد كرتونه = 1، والمبلغ في سعر كرتونه)
             excelRows.push([
-                v.date,               // التاريخ
-                movementText,         // الحركه (سداد منه نقدى / سداد له نقدى)
-                pName,                // اسم العميل أو المورد
-                "سداد نقدى",          // البيان الثابت
-                "",                   // عدد جركن (فارغ)
-                1,                    // عدد كرتونه ثابته
-                "",                   // سعر جركن (فارغ)
-                v.amount              // سعر كرتونه (المبلغ المالي)
+                v.date,               
+                movementText,         
+                pName,                
+                "سداد نقدى",          
+                "",                   
+                1,                    
+                "",                   
+                v.amount              
             ]);
         });
 
-        // تحويل المصفوفة إلى شيت إكسيل باستخدام مكتبة XLSX
         const ws = XLSX.utils.aoa_to_sheet(excelRows);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "العمليات المالية");
-        
-        // تحميل الملف باسم ديناميكي يحتوي على التاريخ الحالي
         XLSX.writeFile(wb, `تقرير_حركات_الخزنة_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
