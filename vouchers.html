@@ -91,6 +91,15 @@
             font-family: 'Cairo', sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.1);
             border: 1px dashed #000; margin: 0 auto;
         }
+
+        /* تعديل العنوان ليكون واضحاً وغير متداخل وبدون ضغط للحروف */
+        .receipt-header-title {
+            font-size: 1.35rem;
+            font-weight: 700;
+            margin: 0;
+            word-spacing: 3px;
+            letter-spacing: 0px;
+        }
     </style>
 </head>
 <body>
@@ -208,14 +217,14 @@
                 <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body bg-light text-center">
-                <!-- هذا العنصر هو الذي سيتم تحويله إلى صورة كإيصال كاش حراري مخصص -->
+                <!-- الإيصال المخصص للمشاركة والطباعة الحرارية -->
                 <div id="thermalReceipt" class="receipt-preview-box">
                     <div class="text-center border-bottom pb-2 mb-2">
-                        <h5 class="fw-bold m-0" style="letter-spacing: 1px;">شركة الزيادي</h5>
+                        <!-- تم إزالة letter-spacing وإضافة مسافات مريحة لتفادي تداخل الاسم -->
+                        <h5 class="receipt-header-title">شركة الزيادي</h5>
                         <small class="text-muted" style="font-size: 0.65rem;">للتجارة والخدمات العامة</small>
                     </div>
                     
-                    <!-- محاذاة أفقية للتاريخ ونوع الحركة للحفاظ على المساحة -->
                     <div class="d-flex justify-content-between text-end small mb-2 border-bottom pb-1" style="font-size: 0.75rem;">
                         <div><strong>الحركة:</strong> <span id="recType" class="fw-bold"></span></div>
                         <div><strong>التاريخ:</strong> <span id="recDate"></span></div>
@@ -240,7 +249,6 @@
     </div>
 </div>
 
-<!-- بوتستراب جافاسكريبت لتهيئة النافذة المنبثقة -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script type="module">
@@ -270,7 +278,6 @@
 
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
 
-    // استرجاع الكاش المحلي فوراً لتسريع تشغيل الصفحة
     function loadCache() {
         const cachedParties = localStorage.getItem('cache_partiesMap');
         const cachedVouchers = localStorage.getItem('cache_allVouchers');
@@ -284,7 +291,6 @@
         }
     }
 
-    // جلب بيانات العملاء والموردين وتخزينها في الكاش
     async function fetchPartiesData() {
         try {
             const [supSnap, custSnap] = await Promise.all([
@@ -302,7 +308,6 @@
         }
     }
 
-    // تفعيل البحث الذكي الفوري من الكاش
     window.searchParty = () => {
         const input = document.getElementById('partySearch');
         const resultsDiv = document.getElementById('partyResults');
@@ -353,7 +358,6 @@
         }
     });
 
-    // جلب السندات وتحديث الكاش
     async function loadVouchers() {
         try {
             const q = query(collection(db, "transactions"), orderBy("date", "desc"));
@@ -434,7 +438,6 @@
         renderTable(filtered);
     };
 
-    // فتح نافذة المعاينة
     window.openReceiptModal = (type, date, amount) => {
         document.getElementById('recType').innerText = type === 'قبض' ? 'سند قبض' : 'سند صرف';
         document.getElementById('recDate').innerText = date;
@@ -443,7 +446,6 @@
         if(receiptModalObj) receiptModalObj.show();
     };
 
-    // معالج زر المشاركة الفعلي لتحويل الجزء لـ Image ومشاركتها عبر الجهاز
     document.getElementById('btnDoShare').addEventListener('click', () => {
         const target = document.getElementById('thermalReceipt');
         
@@ -452,14 +454,12 @@
                 if (!blob) { alert("فشل إنشاء صورة المعاينة"); return; }
                 const file = new File([blob], "receipt.png", { type: "image/png" });
                 
-                // استخدام ميزة Web Share API الرسمية للهواتف والملفات متى ما توفرت
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     navigator.share({
                         files: [file],
                         title: 'إيصال سداد - شركة الزيادي',
                     }).catch(err => console.log('إلغاء المشاركة'));
                 } else {
-                    // حل بديل في حال المتصفح لا يدعم مشاركة الملفات مباشرة (تحميل تلقائي للصورة)
                     const a = document.createElement('a');
                     a.href = canvas.toDataURL('image/png');
                     a.download = `سند_سداد_${new Date().toISOString().split('T')[0]}.png`;
@@ -495,15 +495,12 @@
         try {
             await addDoc(collection(db, "transactions"), newVoucher);
             
-            // تنظيف الحقول فور الحفظ
             document.getElementById('vAmount').value = '';
             document.getElementById('vNote').value = '';
             document.getElementById('partySearch').value = '';
             document.getElementById('partyId').value = '';
             
             await loadVouchers();
-
-            // إظهار نافذة الصورة والتحكم الفوري بالمشاركة أو الإلغاء
             openReceiptModal(vTypeVal, vDateVal, vAmountVal);
 
         } catch (err) {
@@ -530,7 +527,6 @@
         const table = document.getElementById("vouchersTable");
         const clonedTable = table.cloneNode(true);
         clonedTable.querySelectorAll('tr').forEach(tr => {
-            // حذف آخر عامودين (مشاركة وحذف) قبل التصدير للإكسل
             if(tr.lastElementChild) tr.lastElementChild.remove();
             if(tr.lastElementChild) tr.lastElementChild.remove();
         });
