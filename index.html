@@ -137,7 +137,8 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    // تم إصلاح الاستدعاء هنا وإضافة getDoc و setDoc بشكل صحيح
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -155,7 +156,26 @@
     const loader = document.getElementById('loader');
     const loginContent = document.getElementById('loginContent');
 
+    // دالة تقوم بإنشاء وتأمين حساب الموظف تلقائيًا في الخلفية فور فتح الصفحة دون أدنى عناء
+    async function autoInitializeUser() {
+        try {
+            const targetRef = doc(db, "users", "user");
+            const snap = await getDoc(targetRef);
+            if (!snap.exists()) {
+                await setDoc(targetRef, {
+                    pass: "304201",
+                    role: "restricted"
+                });
+                console.log("تم تهيئة مستخدم الصلاحيات المحدودة بنجاح! ✅");
+            }
+        } catch (e) {
+            console.error("خطأ التكوين التلقائي البسيط:", e);
+        }
+    }
+
     document.addEventListener("DOMContentLoaded", () => {
+        autoInitializeUser(); // تفعيل الحساب فورًا بالخلفية
+        
         const loggedUser = sessionStorage.getItem('isLoggedIn');
         if (loggedUser === 'true') {
             window.location.href = "index1.html";
@@ -193,7 +213,7 @@
                 if (userData.pass === passVal) {
                     sessionStorage.setItem('isLoggedIn', 'true');
                     sessionStorage.setItem('username', userVal);
-                    sessionStorage.setItem('role', userData.role || 'restricted'); // حفظ دور المستخدم
+                    sessionStorage.setItem('role', userData.role || 'restricted'); 
                     window.location.href = "index1.html";
                 } else {
                     err.innerText = "كلمة المرور غير صحيحة";
