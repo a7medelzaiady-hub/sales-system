@@ -9,6 +9,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- مكتبة تحويل HTML إلى صورة للمشاركة -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
         :root { 
@@ -79,6 +81,16 @@
 
         .btn-delete-row { background: none; border: none; color: #e63946; padding: 2px 6px; border-radius: 4px; transition: 0.2s; font-size: 0.8rem; }
         .btn-delete-row:hover { background: #ffe3e5; color: var(--danger); }
+        
+        .btn-share-row { background: none; border: none; color: #0b5e3d; padding: 2px 6px; border-radius: 4px; transition: 0.2s; font-size: 0.8rem; }
+        .btn-share-row:hover { background: #e8f5e9; color: var(--success); }
+
+        /* ستايل نافذة المعاينة والإيصال الحراري الثابت */
+        .receipt-preview-box {
+            width: 80mm; background: #fff; color: #000; padding: 15px; 
+            font-family: 'Cairo', sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border: 1px dashed #000; margin: 0 auto;
+        }
     </style>
 </head>
 <body>
@@ -168,16 +180,17 @@
                 <thead>
                     <tr>
                         <th style="width: 12%;">التاريخ</th>
-                        <th style="width: 13%;">النوع</th>
-                        <th style="width: 15%;">نوع الطرف</th>
+                        <th style="width: 10%;">النوع</th>
+                        <th style="width: 13%;">نوع الطرف</th>
                         <th style="width: 20%;">الاسم</th>
                         <th style="width: 25%;">البيان والتفاصيل</th>
                         <th style="width: 10%;">المبلغ</th>
+                        <th style="width: 5%;">مشاركة</th>
                         <th style="width: 5%;">حذف</th>
                     </tr>
                 </thead>
                 <tbody id="vouchersBody">
-                    <tr><td colspan="7" class="text-center py-4">
+                    <tr><td colspan="8" class="text-center py-4">
                         <div class="spinner-border spinner-border-sm text-success"></div> جاري مراجعة البيانات...
                     </td></tr>
                 </tbody>
@@ -185,6 +198,50 @@
         </div>
     </div>
 </div>
+
+<!-- مودال / نافذة منبثقة لمعاينة السند بعد الحفظ أو عند الضغط على مشاركة -->
+<div class="modal fade" id="receiptModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header py-2">
+                <h6 class="modal-title fw-bold text-success"><i class="fas fa-receipt me-1"></i> إيصال السداد</h6>
+                <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body bg-light text-center">
+                <!-- هذا العنصر هو الذي سيتم تحويله إلى صورة كإيصال كاش حراري مخصص -->
+                <div id="thermalReceipt" class="receipt-preview-box">
+                    <div class="text-center border-bottom pb-2 mb-2">
+                        <h5 class="fw-bold m-0" style="letter-spacing: 1px;">شركة الزيادي</h5>
+                        <small class="text-muted" style="font-size: 0.65rem;">للتجارة والخدمات العامة</small>
+                    </div>
+                    
+                    <!-- محاذاة أفقية للتاريخ ونوع الحركة للحفاظ على المساحة -->
+                    <div class="d-flex justify-content-between text-end small mb-2 border-bottom pb-1" style="font-size: 0.75rem;">
+                        <div><strong>الحركة:</strong> <span id="recType" class="fw-bold"></span></div>
+                        <div><strong>التاريخ:</strong> <span id="recDate"></span></div>
+                    </div>
+
+                    <div class="my-3 py-2 border-bottom border-top text-center" style="background: #f9f9f9;">
+                        <small class="text-muted d-block" style="font-size: 0.7rem;">المبلغ المدفوع</small>
+                        <h3 class="fw-bold m-0 text-dark" id="recAmount" style="font-size: 1.6rem;">0.00</h3>
+                        <small class="fw-bold">جنيه مصري فقط لا غير</small>
+                    </div>
+
+                    <div class="text-center mt-2 pt-1">
+                        <small class="text-muted" style="font-size: 0.65rem;">شكراً لتعاملكم معنا</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between py-2">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">إلغاء / إغلاق</button>
+                <button type="button" class="btn btn-success btn-sm" id="btnDoShare">مشاركة الفاتورة <i class="fas fa-share-alt ms-1"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- بوتستراب جافاسكريبت لتهيئة النافذة المنبثقة -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -205,6 +262,11 @@
 
     let allVouchers = [];
     let partiesMap = {}; 
+    let receiptModalObj = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+        receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
+    });
 
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
 
@@ -234,7 +296,6 @@
             supSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'مورد' }; });
             custSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'عميل' }; });
             
-            // حفظ في الـ LocalStorage (الكاش)
             localStorage.setItem('cache_partiesMap', JSON.stringify(partiesMap));
         } catch (err) {
             console.error("Error fetching parties:", err);
@@ -319,7 +380,7 @@
 
         } catch (err) {
             if(allVouchers.length === 0) {
-                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="7" class="text-danger py-4">حدث خطأ أثناء تحميل البيانات</td></tr>';
+                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="8" class="text-danger py-4">حدث خطأ أثناء تحميل البيانات</td></tr>';
             }
         }
     }
@@ -330,7 +391,7 @@
         let total = 0;
 
         if(data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">لا توجد حركات مطابقة لخيارات الفرز الحالية</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-3 text-muted">لا توجد حركات مطابقة لخيارات الفرز الحالية</td></tr>';
             document.getElementById('vouchersTotal').innerText = "0.00 ج.م";
             return;
         }
@@ -348,6 +409,9 @@
                     <td class="text-end fw-bold text-dark">${pName}</td>
                     <td class="text-end text-muted small">${v.note}</td>
                     <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2})}</td>
+                    <td>
+                        <button class="btn-share-row" onclick="openReceiptModal('${v.type}', '${v.date}', ${v.amount})"><i class="fas fa-share-alt"></i></button>
+                    </td>
                     <td>
                         <button class="btn-delete-row" onclick="deleteVoucher('${v.id}')"><i class="fas fa-trash-alt"></i></button>
                     </td>
@@ -370,6 +434,42 @@
         renderTable(filtered);
     };
 
+    // فتح نافذة المعاينة
+    window.openReceiptModal = (type, date, amount) => {
+        document.getElementById('recType').innerText = type === 'قبض' ? 'سند قبض' : 'سند صرف';
+        document.getElementById('recDate').innerText = date;
+        document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
+        
+        if(receiptModalObj) receiptModalObj.show();
+    };
+
+    // معالج زر المشاركة الفعلي لتحويل الجزء لـ Image ومشاركتها عبر الجهاز
+    document.getElementById('btnDoShare').addEventListener('click', () => {
+        const target = document.getElementById('thermalReceipt');
+        
+        html2canvas(target, { scale: 2, useCORS: true }).then(canvas => {
+            canvas.toBlob(blob => {
+                if (!blob) { alert("فشل إنشاء صورة المعاينة"); return; }
+                const file = new File([blob], "receipt.png", { type: "image/png" });
+                
+                // استخدام ميزة Web Share API الرسمية للهواتف والملفات متى ما توفرت
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({
+                        files: [file],
+                        title: 'إيصال سداد - شركة الزيادي',
+                    }).catch(err => console.log('إلغاء المشاركة'));
+                } else {
+                    // حل بديل في حال المتصفح لا يدعم مشاركة الملفات مباشرة (تحميل تلقائي للصورة)
+                    const a = document.createElement('a');
+                    a.href = canvas.toDataURL('image/png');
+                    a.download = `سند_سداد_${new Date().toISOString().split('T')[0]}.png`;
+                    a.click();
+                    alert("تم حفظ الصورة بجهازك بنجاح، يمكنك مشاركتها الآن يدوياً.");
+                }
+            }, 'image/png');
+        });
+    });
+
     document.getElementById('voucherForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const partyId = document.getElementById('partyId').value;
@@ -379,24 +479,33 @@
         submitBtn.disabled = true;
         submitBtn.innerText = "جاري الحفظ...";
 
+        const vDateVal = document.getElementById('vDate').value;
+        const vTypeVal = document.getElementById('vType').value;
+        const vAmountVal = Number(document.getElementById('vAmount').value);
+
         const newVoucher = {
-            date: document.getElementById('vDate').value,
-            type: document.getElementById('vType').value,
+            date: vDateVal,
+            type: vTypeVal,
             partyType: document.getElementById('partyType').value,
             partyId: partyId,
-            amount: Number(document.getElementById('vAmount').value),
+            amount: vAmountVal,
             note: document.getElementById('vNote').value
         };
 
         try {
             await addDoc(collection(db, "transactions"), newVoucher);
-            alert("تم الحفظ بنجاح");
+            
+            // تنظيف الحقول فور الحفظ
             document.getElementById('vAmount').value = '';
             document.getElementById('vNote').value = '';
             document.getElementById('partySearch').value = '';
             document.getElementById('partyId').value = '';
             
             await loadVouchers();
+
+            // إظهار نافذة الصورة والتحكم الفوري بالمشاركة أو الإلغاء
+            openReceiptModal(vTypeVal, vDateVal, vAmountVal);
+
         } catch (err) {
             alert("حدث خطأ أثناء الحفظ");
         } finally {
@@ -421,6 +530,8 @@
         const table = document.getElementById("vouchersTable");
         const clonedTable = table.cloneNode(true);
         clonedTable.querySelectorAll('tr').forEach(tr => {
+            // حذف آخر عامودين (مشاركة وحذف) قبل التصدير للإكسل
+            if(tr.lastElementChild) tr.lastElementChild.remove();
             if(tr.lastElementChild) tr.lastElementChild.remove();
         });
 
@@ -428,11 +539,10 @@
         XLSX.writeFile(wb, `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
-    // الترتيب الصحيح للاستدعاء والتخزين المؤقت
     async function init() {
-        loadCache(); // 1. افتح الكاش أولاً لعرض البيانات المحفوظة فوراً وبدون انتظار سيرفر
-        await fetchPartiesData(); // 2. حدّث خريطة الأسماء من السيرفر
-        await loadVouchers(); // 3. حدّث جدول المعاملات الفعلي من السيرفر وخزن الجديد في الكاش
+        loadCache(); 
+        await fetchPartiesData(); 
+        await loadVouchers(); 
     }
     
     init();
