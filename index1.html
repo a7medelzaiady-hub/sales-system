@@ -98,13 +98,15 @@
         .logout-btn:hover { background: rgba(228, 30, 63, 0.2); border-color: var(--danger); }
 
         .welcome-banner {
-            padding: 25px 20px 5px;
+            padding: 35px 20px 10px;
             max-width: 1200px;
             margin: 0 auto;
+            text-align: center;
         }
-        .welcome-banner h1 { font-size: 22px; font-weight: 800; margin: 0; color: var(--text-primary); }
-        .welcome-banner p { font-size: 13px; color: var(--text-secondary); margin: 5px 0 0; font-weight: 600; }
+        .welcome-banner h1 { font-size: 26px; font-weight: 800; margin: 0; color: var(--text-primary); }
+        .welcome-banner p { font-size: 14px; color: var(--text-secondary); margin: 6px 0 0; font-weight: 600; }
 
+        /* حاوية الأزرار الرئيسية */
         .dashboard {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -114,13 +116,36 @@
             max-width: 1200px;
             margin-left: auto;
             margin-right: auto;
+            transition: all 0.3s ease;
         }
 
         @media (min-width: 768px) {
             .dashboard { grid-template-columns: repeat(4, 1fr); padding: 25px 20px; }
         }
 
-        .card-link { text-decoration: none; color: inherit; display: block; }
+        /* تنسيق خاص وذكي جداً عندما يتببقى كارتين فقط للموظف */
+        .dashboard.restricted-layout {
+            display: flex !important;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            gap: 24px;
+            max-width: 800px;
+            margin-top: 20px;
+        }
+        
+        @media (max-width: 576px) {
+            .dashboard.restricted-layout {
+                flex-direction: column;
+                padding: 15px;
+            }
+            .dashboard.restricted-layout .card-link {
+                width: 100% !important;
+            }
+        }
+
+        .card-link { text-decoration: none; color: inherit; display: block; transition: width 0.3s ease; }
+        .dashboard.restricted-layout .card-link { width: 50%; }
 
         .card {
             background: var(--bg-card);
@@ -132,6 +157,12 @@
             box-shadow: var(--shadow);
             position: relative;
             overflow: hidden;
+        }
+
+        /* زيادة حجم وأناقة الكروت في وضع الكارتين فقط */
+        .dashboard.restricted-layout .card {
+            padding: 45px 20px;
+            border-width: 1.5px;
         }
 
         .card::before {
@@ -165,6 +196,16 @@
             font-size: 24px;
             transition: 0.3s;
         }
+        
+        /* تكبير الأيقونات والنصوص في وضع العميل المحدود لتعبئة الشاشة بذكاء */
+        .dashboard.restricted-layout .icon-box {
+            width: 80px;
+            height: 80px;
+            font-size: 34px;
+            border-radius: var(--radius-lg);
+            margin-bottom: 22px;
+        }
+
         .card:hover .icon-box { background: var(--accent); color: #fff; transform: rotate(-5deg); }
 
         .archive-card::before { background: var(--gold) !important; }
@@ -176,7 +217,9 @@
         .report-card:hover .icon-box { background: #007bff; color: #fff; }
 
         .card p { margin: 0; font-size: 15px; font-weight: 700; color: var(--text-primary); transition: 0.2s; }
+        .dashboard.restricted-layout .card p { font-size: 18px; font-weight: 800; }
 
+        /* القائمة الجانبية */
         .sidebar {
             position: fixed;
             top: 0; right: -100%;
@@ -219,9 +262,8 @@
         .menu-item i { width: 32px; font-size: 18px; color: var(--text-secondary); transition: 0.2s; }
         .menu-item:hover { background: var(--glass); color: var(--accent); }
         .menu-item:hover i { color: var(--accent); }
-        .menu-item.active { background: var(--glass); color: var(--accent); }
-        .menu-item.active i { color: var(--accent); }
 
+        /* شريط سفلي متناسق */
         .bottom-bar-wrapper {
             position: fixed;
             bottom: 20px; left: 50%;
@@ -238,7 +280,6 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(15px);
         }
-        body.dark-mode .bottom-bar { box-shadow: 0 10px 35px rgba(0,0,0,0.6); }
 
         .nav-action {
             flex: 1;
@@ -254,7 +295,6 @@
         }
         .nav-action i { font-size: 20px; margin-bottom: 5px; color: #ffffff; transition: 0.2s; }
         .nav-action:hover { color: #ffce31; transform: translateY(-2px); }
-        .nav-action:hover i { color: #ffce31; }
 
         .fab-btn {
             position: fixed;
@@ -265,11 +305,9 @@
             color: #fff; font-size: 22px;
             box-shadow: 0 8px 25px rgba(11, 94, 61, 0.3);
             cursor: pointer;
-            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex; align-items: center; justify-content: center;
             z-index: 999;
+            display: flex; align-items: center; justify-content: center;
         }
-        .fab-btn:hover { transform: rotate(90deg) scale(1.08); box-shadow: 0 12px 30px rgba(11, 94, 61, 0.4); }
 
         .overlay {
             position: fixed;
@@ -277,7 +315,6 @@
             background: rgba(0, 0, 0, 0.4);
             display: none; z-index: 1500;
             backdrop-filter: blur(4px);
-            transition: 0.3s;
         }
         .overlay.active { display: block; }
     </style>
@@ -305,7 +342,8 @@
         <p>نظام إدارة المبيعات والحسابات الذكي</p>
     </div>
 
-    <div class="dashboard">
+    <!-- حاوية عرض الكروت الديناميكية -->
+    <div class="dashboard" id="mainDashboard">
         <a href="mabiat-menu.html" class="card-link" id="cardSales">
             <div class="card">
                 <div class="icon-box"><i class="fas fa-cash-register"></i></div>
@@ -318,8 +356,6 @@
                 <p>المشتريات</p>
             </div>
         </a>
-        
-        <!-- كرت العملاء (تم إضافته لبروتوكول الحجب للموظف المحدود) -->
         <a href="client_menu.html" class="card-link" id="cardClients">
             <div class="card">
                 <div class="icon-box"><i class="fas fa-user-group"></i></div>
@@ -415,8 +451,7 @@
         function toggleTheme() {
             const body = document.body;
             body.classList.toggle('dark-mode');
-            const isDark = body.classList.contains('dark-mode');
-            localStorage.setItem('sanad-theme', isDark ? 'dark' : 'light');
+            localStorage.setItem('sanad-theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
         }
 
         window.onload = () => {
@@ -431,13 +466,19 @@
                 document.getElementById('welcomeUser').innerText = `مرحباً بك، ${username}`;
             }
 
-            // فحص وتطبيق القيود الأمنية للموظف المحدود
+            // تطبيق الهيكلة والتنسيق الفاخر للموظف المحدود
             if (role === 'restricted') {
                 
-                // إضافة كرت العملاء (cardClients) إلى مصفوفة الإخفاء التام من الواجهة
+                // 1. تحويل الحاوية إلى وضع العرض المخصص لكارتين فقط سنتر للشاشة
+                const dashboardContainer = document.getElementById('mainDashboard');
+                if (dashboardContainer) {
+                    dashboardContainer.classList.add('restricted-layout');
+                }
+
+                // 2. إخفاء الكروت المحظورة بالكامل
                 const forbiddenCards = [
                     'cardPurchases', 
-                    'cardClients',     // تم إخفاء كرت العملاء بنجاح هنا
+                    'cardClients', 
                     'cardSuppliers', 
                     'cardInventory', 
                     'cardReports',
@@ -448,12 +489,13 @@
                     if (el) el.style.display = 'none';
                 });
 
-                // توجيه كرت السندات مباشرة إلى صفحة المعاملات المخصصة
+                // 3. توجيه كرت السندات الحصري لصفحة المبيعات الحرارية مباشرة
                 const vouchersCardLink = document.getElementById('cardVouchers');
                 if (vouchersCardLink) {
                     vouchersCardLink.setAttribute('href', 'client-vouchers.html');
                 }
 
+                // 4. تعديل الرتب في القائمة الجانبية وإخفاء الروابط والرموز غير المصرح بها
                 const roleBadge = document.getElementById('userRoleBadge');
                 if (roleBadge) roleBadge.innerText = 'موظف مبيعات';
 
@@ -462,7 +504,7 @@
                     'sidePurchaseOrders', 
                     'sideInventoryMgmt',  
                     'sideSupplierList',
-                    'sideCustomerList',   // إخفاء سجل العملاء من القائمة الجانبية أيضاً كحماية إضافية
+                    'sideCustomerList',   
                     'sideSettings',        
                     'sideSecurity',        
                     'labelSystem'         
