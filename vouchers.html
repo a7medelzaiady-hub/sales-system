@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- مكتبة تحويل HTML إلى صورة للمشاركة -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
@@ -42,7 +41,6 @@
         .form-label { margin-bottom: 3px; font-size: 0.75rem !important; }
         .form-control-sm, .form-select-sm { padding: 6px 10px; font-size: 0.8rem !important; border-radius: 8px; }
 
-        /* حاوية البحث الذكي */
         .search-container { position: relative; }
         .search-results {
             position: absolute; top: 100%; left: 0; width: 100%; background: white; 
@@ -85,21 +83,13 @@
         .btn-share-row { background: none; border: none; color: #0b5e3d; padding: 2px 6px; border-radius: 4px; transition: 0.2s; font-size: 0.8rem; }
         .btn-share-row:hover { background: #e8f5e9; color: var(--success); }
 
-        /* ستايل نافذة المعاينة والإيصال الحراري الثابت */
         .receipt-preview-box {
             width: 80mm; background: #fff; color: #000; padding: 15px; 
             font-family: 'Cairo', sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.1);
             border: 1px dashed #000; margin: 0 auto;
         }
 
-        /* تعديل العنوان ليكون واضحاً وغير متداخل وبدون ضغط للحروف */
-        .receipt-header-title {
-            font-size: 1.35rem;
-            font-weight: 700;
-            margin: 0;
-            word-spacing: 3px;
-            letter-spacing: 0px;
-        }
+        .receipt-header-title { font-size: 1.35rem; font-weight: 700; margin: 0; word-spacing: 3px; letter-spacing: 0px; }
     </style>
 </head>
 <body>
@@ -217,10 +207,8 @@
                 <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body bg-light text-center">
-                <!-- الإيصال المخصص للمشاركة والطباعة الحرارية -->
                 <div id="thermalReceipt" class="receipt-preview-box">
                     <div class="text-center border-bottom pb-2 mb-2">
-                        <!-- تم إزالة letter-spacing وإضافة مسافات مريحة لتفادي تداخل الاسم -->
                         <h5 class="receipt-header-title">شركة الزيادي</h5>
                         <small class="text-muted" style="font-size: 0.65rem;">للتجارة والخدمات العامة</small>
                     </div>
@@ -524,15 +512,59 @@
     };
 
     window.exportToExcel = () => {
-        const table = document.getElementById("vouchersTable");
-        const clonedTable = table.cloneNode(true);
-        clonedTable.querySelectorAll('tr').forEach(tr => {
-            if(tr.lastElementChild) tr.lastElementChild.remove();
-            if(tr.lastElementChild) tr.lastElementChild.remove();
+        const fType = document.getElementById('filterType').value;
+        const fParty = document.getElementById('filterParty').value;
+
+        // فلترة البيانات المصدرة بناءً على خيارات التصفية الحالية في الشاشة
+        const filteredData = allVouchers.filter(v => {
+            const matchType = (fType === 'الكل' || v.type === fType);
+            const matchParty = (fParty === 'الكل' || v.partyType === fParty);
+            return matchType && matchParty;
         });
 
-        const wb = XLSX.utils.table_to_book(clonedTable, { sheet: "العمليات المالية" });
-        XLSX.writeFile(wb, `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`);
+        // بناء صفوف ملف الـ Excel بالترتيب والمسميات المحددة بدقة
+        const excelRows = [];
+        excelRows.push([
+            "التاريخ", 
+            "الحركه", 
+            "اسم العميل/المورد",
+            "البيان", 
+            "عدد جركن", 
+            "عدد كرتونه", 
+            "سعر جركن", 
+            "سعر كرتونه"
+        ]);
+
+        filteredData.forEach(v => {
+            const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
+            
+            // تحديد مسمى الحركة تلقائياً بناءً على نوع الطرف والعملية المالية
+            let movementText = "";
+            if (v.partyType === "عميل") {
+                movementText = "سداد منه نقدى";
+            } else if (v.partyType === "مورد") {
+                movementText = "سداد له نقدى";
+            } else {
+                movementText = v.type === "قبض" ? "سداد منه نقدى" : "سداد له نقدى";
+            }
+
+            excelRows.push([
+                v.date,               // التاريخ
+                movementText,         // الحركه
+                pName,                // اسم العميل/المورد
+                "سداد نقدى",          // البيان الثابت
+                "",                   // عدد جركن (فارغ)
+                1,                    // عدد كرتونه (ثابت 1)
+                "",                   // سعر جركن (فارغ)
+                v.amount              // سعر كرتونه (يوضع فيه المبلغ المالي)
+            ]);
+        });
+
+        // تحويل المصفوفة إلى شيت وجلب الملف
+        const ws = XLSX.utils.aoa_to_sheet(excelRows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "العمليات المالية");
+        XLSX.writeFile(wb, `تقرير_حركات_الخزنة_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     async function init() {
