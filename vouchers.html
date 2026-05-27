@@ -101,7 +101,7 @@
                     <button class="btn-action" onclick="exportToExcel()" title="تصدير مخصص لإكسل"><i class="fas fa-file-excel"></i></button>
                 </div>
                 <div class="title-area text-center flex-grow-1">
-                    <h6 class="fw-bold m-0" id="pageTitle" style="font-size: 0.9rem;">إدارة عمليات القبض والصرف (عملاء / موردين)</h6>
+                    <h6 class="fw-bold m-0" style="font-size: 0.9rem;">إدارة عمليات القبض والصرف (عملاء / موردين)</h6>
                 </div>
                 <a href="javascript:history.back()" class="btn-action d-flex align-items-center justify-content-center text-decoration-none">
                     <i class="fas fa-arrow-right"></i>
@@ -112,16 +112,16 @@
         <div class="container mt-2">
             <!-- نموذج إضافة حركة جديدة -->
             <div class="card-custom">
-                <h6 class="fw-bold text-success mb-2" id="formSectionTitle"><i class="fas fa-plus-circle me-1"></i> تسجيل عملية جديدة</h6>
+                <h6 class="fw-bold text-success mb-2"><i class="fas fa-plus-circle me-1"></i> تسجيل عملية جديدة</h6>
                 <form id="voucherForm" class="row g-2">
-                    <div class="col-md-2" id="vTypeContainer">
+                    <div class="col-md-2">
                         <label class="form-label small fw-bold">النوع</label>
                         <select class="form-select form-select-sm" id="vType" required>
                             <option value="قبض">قبض (+)</option>
                             <option value="صرف">صرف (-)</option>
                         </select>
                     </div>
-                    <div class="col-md-2" id="partyTypeContainer">
+                    <div class="col-md-2">
                         <label class="form-label small fw-bold">حساب الطرف</label>
                         <select class="form-select form-select-sm" id="partyType" required>
                             <option value="عميل">عميل</option>
@@ -129,7 +129,7 @@
                         </select>
                     </div>
                     <div class="col-md-3 position-relative search-container">
-                        <label class="form-label small fw-bold" id="searchLabel">اسم الشخص / الشركة (بحث ذكي)</label>
+                        <label class="form-label small fw-bold">اسم الشخص / الشركة (بحث ذكي)</label>
                         <input type="text" class="form-control form-control-sm" id="partySearch" placeholder="اكتب للاستكمال تلقائياً..." autocomplete="off" required>
                         <input type="hidden" id="partyId">
                         <div id="partyResults" class="search-results"></div>
@@ -259,42 +259,9 @@
     let partiesMap = {}; 
     let receiptModalObj = null;
 
-    // 🔒 [مفتاح التحكم بالصلاحيات]:
-    // اجعل القيمة "user" لتفعيل حساب الموظف المحدود (فاتورة مبيعات وسجل المبيعات والعملاء فقط وبدون حذف)
-    // اجعل القيمة "admin" إذا أردت فتح كافة صلاحيات الموردين والصرف والحذف كاملة
-    let currentUserRole = "user"; 
-
-    function applyPermissions() {
-        if (currentUserRole === "user") {
-            document.getElementById('pageTitle').innerText = "فاتورة المبيعات وسجل مبيعات العملاء - شركة الزيادي";
-            document.getElementById('formSectionTitle').innerHTML = '<i class="fas fa-file-invoice-dollar me-1"></i> إنشاء فاتورة مبيعات جديدة';
-            document.getElementById('searchLabel').innerText = "اسم العميل (بحث ذكي في العملاء)";
-
-            document.getElementById('vType').value = "قبض";
-            document.getElementById('partyType').value = "عميل";
-            document.getElementById('vTypeContainer').style.display = "none";
-            document.getElementById('partyTypeContainer').style.display = "none";
-
-            document.getElementById('filterType').value = "قبض";
-            document.getElementById('filterParty').value = "عميل";
-            document.getElementById('filterType').style.display = "none";
-            document.getElementById('filterParty').style.display = "none";
-        } else {
-            document.getElementById('pageTitle').innerText = "إدارة عمليات القبض والصرف (عملاء / موردين)";
-            document.getElementById('formSectionTitle').innerHTML = '<i class="fas fa-plus-circle me-1"></i> تسجيل عملية جديدة';
-            document.getElementById('searchLabel').innerText = "اسم الشخص / الشركة (بحث ذكي)";
-            
-            document.getElementById('vTypeContainer').style.display = "block";
-            document.getElementById('partyTypeContainer').style.display = "block";
-            document.getElementById('filterType').style.display = "block";
-            document.getElementById('filterParty').style.display = "block";
-        }
-        init();
-    }
-
     document.addEventListener("DOMContentLoaded", () => {
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
-        applyPermissions(); // تنفيذ قفل الصلاحيات مباشرة عند التحميل بدون صفحة لوجن
+        init();
     });
 
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
@@ -326,12 +293,12 @@
 
     window.searchParty = () => {
         const input = document.getElementById('partySearch');
-        const resultsDiv = document.getElementById('partyResults');
+        const fontResults = document.getElementById('partyResults');
         const pType = document.getElementById('partyType').value;
         const term = input.value.toLowerCase().trim();
 
         if (term.length < 1) {
-            resultsDiv.style.display = 'none';
+            fontResults.style.display = 'none';
             return;
         }
 
@@ -346,11 +313,11 @@
         }
 
         if (filteredHtml !== '') {
-            resultsDiv.innerHTML = filteredHtml;
-            resultsDiv.style.display = 'block';
+            fontResults.innerHTML = filteredHtml;
+            fontResults.style.display = 'block';
         } else {
-            resultsDiv.innerHTML = `<div class="search-item text-muted text-center">لا توجد نتائج مطابقة</div>`;
-            resultsDiv.style.display = 'block';
+            fontResults.innerHTML = `<div class="search-item text-muted text-center">لا توجد نتائج مطابقة</div>`;
+            fontResults.style.display = 'block';
         }
     };
 
@@ -408,11 +375,6 @@
         let fType = document.getElementById('filterType').value;
         let fParty = document.getElementById('filterParty').value;
 
-        if (currentUserRole === "user") {
-            fType = "قبض";
-            fParty = "عميل";
-        }
-
         const filtered = allVouchers.filter(v => {
             const matchType = (fType === 'الكل' || v.type === fType);
             const matchParty = (fParty === 'الكل' || v.partyType === fParty);
@@ -437,9 +399,6 @@
             total += v.amount;
             const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
             const badgeClass = v.type === 'قبض' ? 'badge-receipt' : 'badge-payment';
-            const deleteBtnHtml = currentUserRole === 'admin' 
-                ? `<button class="btn-delete-row" onclick="deleteVoucher('${v.id}')"><i class="fas fa-trash-alt"></i></button>`
-                : `<span class="text-muted small"><i class="fas fa-lock"></i></span>`;
 
             tbody.innerHTML += `
                 <tr>
@@ -452,7 +411,9 @@
                     <td>
                         <button class="btn-share-row" onclick="openReceiptModal('${v.type}', '${v.date}', ${v.amount})"><i class="fas fa-share-alt"></i></button>
                     </td>
-                    <td>${deleteBtnHtml}</td>
+                    <td>
+                        <button class="btn-delete-row" onclick="deleteVoucher('${v.id}')"><i class="fas fa-trash-alt"></i></button>
+                    </td>
                 </tr>`;
         });
 
@@ -522,7 +483,7 @@
             openReceiptModal(vTypeVal, vDateVal, vAmountVal);
         } catch (err) {
             alert("حدث خطأ أثناء الحفظ");
-        } finally {
+        } simplify {
             submitBtn.disabled = false;
             submitBtn.innerHTML = 'حفظ البيانات <i class="fas fa-save ms-1"></i>';
         }
@@ -543,10 +504,6 @@
     window.exportToExcel = () => {
         let fType = document.getElementById('filterType').value;
         let fParty = document.getElementById('filterParty').value;
-        if (currentUserRole === "user") {
-            fType = "قبض";
-            fParty = "عميل";
-        }
 
         const filteredData = allVouchers.filter(v => {
             const matchType = (fType === 'الكل' || v.type === fType);
