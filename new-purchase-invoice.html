@@ -29,7 +29,7 @@
 
         .data-card { 
             background: var(--white); border: 1px solid var(--border); 
-            border-radius: 20px; padding: 20px; margin-top: 15px;
+            border-radius: 20px; padding: 15px 20px; margin-top: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
         }
 
@@ -66,7 +66,6 @@
         }
         .add-item-btn:hover { background: var(--accent); color: white; }
 
-        /* تعديل الفوتر ليصبح ثابتًا في نهاية الصفحة وليس عائمًا */
         .invoice-footer { 
             background: var(--white); padding: 20px; 
             border: 1px solid var(--border); display: flex; 
@@ -116,38 +115,27 @@
 </div>
 
 <div class="container mt-2">
-    <!-- القسم الأساسي: بيانات المورد والماليات المنسقة أفقيًا وعموديًا -->
+    <!-- بيانات الفاتورة والمورد المنظمة أفقيًا وجنبًا إلى جنب -->
     <div class="data-card">
         <div class="row g-3">
-            <!-- الجهة اليمنى: تفاصيل المورد والدفع مرتبة رأسيًا -->
-            <div class="col-12 col-md-7 border-start-md">
-                <div class="row g-3">
-                    <div class="col-6">
-                        <label><i class="fas fa-calendar-day"></i> تاريخ الفاتورة</label>
-                        <input type="date" id="invDate" class="form-control">
-                    </div>
-                    <div class="col-6">
-                        <label><i class="fas fa-wallet"></i> طريقة الدفع</label>
-                        <select id="paymentType" class="form-select">
-                            <option value="credit">آجل (على الحساب)</option>
-                            <option value="cash">نقدي (كاش)</option>
-                        </select>
-                    </div>
-                    <div class="col-12">
-                        <label><i class="fas fa-truck-field"></i> اسم المورد</label>
-                        <select id="supplierSelect" class="form-select"></select>
-                    </div>
-                </div>
+            <div class="col-6 col-md-3">
+                <label><i class="fas fa-calendar-day"></i> تاريخ الفاتورة</label>
+                <input type="date" id="invDate" class="form-control">
             </div>
-            
-            <!-- الجهة اليسرى: السداد المالي يقف أمامه تمامًا -->
-            <div class="col-12 col-md-5 d-flex flex-column justify-content-end">
-                <div class="p-3 border rounded-4 bg-light h-100 d-flex flex-column justify-content-center">
-                    <label class="text-primary fw-bold mb-2" id="paidLabel">
-                        <i class="fas fa-money-bill-wave"></i> المبلغ المدفوع الآن للمورد (السداد)
-                    </label>
-                    <input type="number" step="0.01" id="paidAmount" class="form-control border-primary fs-5 text-center" value="0.00" placeholder="0.00">
-                </div>
+            <div class="col-6 col-md-3">
+                <label><i class="fas fa-wallet"></i> طريقة الدفع</label>
+                <select id="paymentType" class="form-select">
+                    <option value="credit">آجل (على الحساب)</option>
+                    <option value="cash">نقدي (كاش)</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label><i class="fas fa-truck-field"></i> اسم المورد</label>
+                <select id="supplierSelect" class="form-select"></select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="text-primary fw-bold"><i class="fas fa-money-bill-wave"></i> السداد (المدفوع الآن)</label>
+                <input type="number" step="0.01" id="paidAmount" class="form-control border-primary text-center fw-bold text-primary" value="0.00" placeholder="0.00">
             </div>
         </div>
     </div>
@@ -160,7 +148,7 @@
     </button>
 </div>
 
-<!-- حاوية الفوتر المستقرة والثابتة هندسيًا نهاية الصفحة -->
+<!-- حاوية الفوتر الثابتة هندسيًا نهاية الصفحة -->
 <div class="invoice-footer">
     <div class="total-container">
         <span class="small text-muted fw-bold"><i class="fas fa-boxes"></i> عدد البنود الحالية:</span>
@@ -314,6 +302,7 @@
 
     window.addNewItemRow = (itemData = null) => {
         const id = Date.now() + Math.random();
+        // إعطاء خيار "كرتونة" الأولوية دائمًا كخيار افتراضي
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
         const isReturnChecked = itemData && itemData.returnQty > 0;
         isDataChanged = true;
@@ -398,6 +387,7 @@
             const found = allInventory.find(p => p.name === e.target.value);
             if(found) {
                 row.querySelector('.item-buy').value = found.buy || 0;
+                // ضبط الوحدة تلقائياً بناءً على المخزن أو كرتونة كخيار أولي رئيسي
                 unitSelect.value = found.unitName || "كرتونة";
                 unitSelect.dispatchEvent(new Event('change'));
             }
@@ -414,7 +404,6 @@
         let netTotal = 0;
         const rows = document.querySelectorAll('.item-row');
         
-        // حساب تحديث عدد البنود النشطة بالفاتورة تلقائيًا
         document.getElementById('itemsCount').innerText = rows.length;
 
         rows.forEach(row => {
@@ -484,7 +473,7 @@
                 } else {
                     await addDoc(collection(db, "inventory"), {
                         name, qty: finalQtyModifier, totalPcs: finalQtyModifier, buy, 
-                        unitName: unitName || "قطعة", unitFactor: 1,
+                        unitName: unitName || "كرتونة", unitFactor: 1,
                         sell: buy * 1.2, min: 3, category: "عام", timestamp: serverTimestamp()
                     });
                 }
