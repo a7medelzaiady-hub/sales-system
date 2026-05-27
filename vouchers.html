@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- مكتبة تحويل HTML إلى صورة للمشاركة -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
     <style>
@@ -26,6 +25,13 @@
 
         body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 30px; font-size: 0.85rem; }
         
+        /* شاشة تسجيل الدخول */
+        #loginScreen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            background: var(--bg-light); z-index: 2000; display: flex; 
+            align-items: center; justify-content: center;
+        }
+
         .header-section { 
             padding: 8px 15px; background: var(--header-bg); 
             position: sticky; top: 0; z-index: 1000; color: white;
@@ -42,7 +48,6 @@
         .form-label { margin-bottom: 3px; font-size: 0.75rem !important; }
         .form-control-sm, .form-select-sm { padding: 6px 10px; font-size: 0.8rem !important; border-radius: 8px; }
 
-        /* حاوية البحث الذكي */
         .search-container { position: relative; }
         .search-results {
             position: absolute; top: 100%; left: 0; width: 100%; background: white; 
@@ -85,130 +90,142 @@
         .btn-share-row { background: none; border: none; color: #0b5e3d; padding: 2px 6px; border-radius: 4px; transition: 0.2s; font-size: 0.8rem; }
         .btn-share-row:hover { background: #e8f5e9; color: var(--success); }
 
-        /* ستايل نافذة المعاينة والإيصال الحراري الثابت */
         .receipt-preview-box {
             width: 80mm; background: #fff; color: #000; padding: 15px; 
             font-family: 'Cairo', sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.1);
             border: 1px dashed #000; margin: 0 auto;
         }
-
-        /* تعديل العنوان ليكون واضحاً وغير متداخل وبدون ضغط للحروف */
-        .receipt-header-title {
-            font-size: 1.35rem;
-            font-weight: 700;
-            margin: 0;
-            word-spacing: 3px;
-            letter-spacing: 0px;
-        }
+        .receipt-header-title { font-size: 1.35rem; font-weight: 700; margin: 0; word-spacing: 3px; letter-spacing: 0px; }
     </style>
 </head>
 <body>
 
-<div id="content-to-export">
-    <div class="header-section">
-        <div class="header-container container">
-            <div class="nav-btns d-flex gap-2">
-                <button class="btn-action" onclick="exportToExcel()" title="تصدير إكسل"><i class="fas fa-file-excel"></i></button>
-            </div>
-            <div class="title-area text-center flex-grow-1">
-                <h6 class="fw-bold m-0" style="font-size: 0.9rem;">إدارة عمليات القبض والصرف (عملاء / موردين)</h6>
-            </div>
-            <a href="javascript:history.back()" class="btn-action d-flex align-items-center justify-content-center text-decoration-none">
-                <i class="fas fa-arrow-right"></i>
-            </a>
+<!-- واجهة تسجيل الدخول وحماية الصلاحيات -->
+<div id="loginScreen">
+    <div class="card-custom text-center" style="width: 320px; border-top: 4px solid var(--accent);">
+        <h5 class="fw-bold text-success mb-3">شركة الزيادي لزيوت السيارات</h5>
+        <p class="text-muted small mb-3">الرجاء إدخال اسم المستخدم وكلمة المرور</p>
+        <div class="mb-2 text-start">
+            <label class="form-label fw-bold">اسم المستخدم</label>
+            <input type="text" id="loginUser" class="form-control form-control-sm" placeholder="user أو admin" required>
         </div>
+        <div class="mb-3 text-start">
+            <label class="form-label fw-bold">كلمة المرور</label>
+            <input type="password" id="loginPass" class="form-control form-control-sm" placeholder="123456" required>
+        </div>
+        <button onclick="checkLogin()" class="btn btn-success btn-sm w-100 fw-bold">تسجيل الدخول</button>
     </div>
+</div>
 
-    <div class="container mt-2">
-        <!-- نموذج إضافة حركة جديدة -->
-        <div class="card-custom">
-            <h6 class="fw-bold text-success mb-2"><i class="fas fa-plus-circle me-1"></i> تسجيل عملية جديدة</h6>
-            <form id="voucherForm" class="row g-2">
-                <div class="col-md-2">
-                    <label class="form-label small fw-bold">النوع</label>
-                    <select class="form-select form-select-sm" id="vType" required>
-                        <option value="قبض">قبض (+)</option>
-                        <option value="صرف">صرف (-)</option>
-                    </select>
+<!-- المحتوى الرئيسي للتطبيق (مخفي حتى تسجيل الدخول) -->
+<div id="mainContent" style="display: none;">
+    <div id="content-to-export">
+        <div class="header-section">
+            <div class="header-container container">
+                <div class="nav-btns d-flex gap-2">
+                    <button class="btn-action" onclick="exportToExcel()" title="تصدير مخصص لإكسل"><i class="fas fa-file-excel"></i></button>
+                    <button class="btn-action bg-danger" onclick="logout()" title="تسجيل خروج"><i class="fas fa-sign-out-alt"></i></button>
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-bold">حساب الطرف</label>
-                    <select class="form-select form-select-sm" id="partyType" required>
-                        <option value="عميل">عميل</option>
-                        <option value="مورد">مورد</option>
-                    </select>
+                <div class="title-area text-center flex-grow-1">
+                    <h6 class="fw-bold m-0" id="pageTitle" style="font-size: 0.9rem;">إدارة عمليات القبض والصرف (عملاء / موردين)</h6>
                 </div>
-                <div class="col-md-3 position-relative search-container">
-                    <label class="form-label small fw-bold">اسم الشخص / الشركة (بحث ذكي)</label>
-                    <input type="text" class="form-control form-control-sm" id="partySearch" placeholder="اكتب للاستكمال تلقائياً..." autocomplete="off" required>
-                    <input type="hidden" id="partyId">
-                    <div id="partyResults" class="search-results"></div>
-                </div>
-                <div class="col-md-2">
-                    <label class="form-label small fw-bold">التاريخ</label>
-                    <input type="date" class="form-control form-control-sm" id="vDate" required>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small fw-bold">المبلغ (ج.م)</label>
-                    <input type="number" step="0.01" class="form-control form-control-sm" id="vAmount" placeholder="0.00" required>
-                </div>
-                <div class="col-md-9">
-                    <label class="form-label small fw-bold">البيان / التفاصيل</label>
-                    <input type="text" class="form-control form-control-sm" id="vNote" placeholder="اكتب التفاصيل هنا...">
-                </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn-submit btn-sm w-100">حفظ البيانات <i class="fas fa-save ms-1"></i></button>
-                </div>
-            </form>
-        </div>
-
-        <!-- أدوات الفلترة والعرض -->
-        <div class="card-custom py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <div class="d-flex gap-2 align-items-center">
-                <span class="small fw-bold text-muted" style="font-size: 0.75rem;"><i class="fas fa-filter"></i> تصفية:</span>
-                <select class="form-select form-select-sm w-auto" id="filterType" onchange="filterData()">
-                    <option value="الكل">كل العمليات</option>
-                    <option value="قبض">القبض فقط</option>
-                    <option value="صرف">الصرف فقط</option>
-                </select>
-                <select class="form-select form-select-sm w-auto" id="filterParty" onchange="filterData()">
-                    <option value="الكل">كل الأطراف</option>
-                    <option value="عميل">العملاء فقط</option>
-                    <option value="مورد">الموردين فقط</option>
-                </select>
-            </div>
-            <div class="text-end">
-                <span class="small fw-bold opacity-75" style="font-size: 0.75rem;">إجمالي العمليات المعروضة: </span>
-                <span id="vouchersTotal" class="fw-bold text-success fs-6">0.00 ج.م</span>
+                <a href="javascript:history.back()" class="btn-action d-flex align-items-center justify-content-center text-decoration-none">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
             </div>
         </div>
 
-        <!-- جدول الحركات والسندات -->
-        <div class="table-responsive">
-            <table class="statement-table" id="vouchersTable">
-                <thead>
-                    <tr>
-                        <th style="width: 12%;">التاريخ</th>
-                        <th style="width: 10%;">النوع</th>
-                        <th style="width: 13%;">نوع الطرف</th>
-                        <th style="width: 20%;">الاسم</th>
-                        <th style="width: 25%;">البيان والتفاصيل</th>
-                        <th style="width: 10%;">المبلغ</th>
-                        <th style="width: 5%;">مشاركة</th>
-                        <th style="width: 5%;">حذف</th>
-                    </tr>
-                </thead>
-                <tbody id="vouchersBody">
-                    <tr><td colspan="8" class="text-center py-4">
-                        <div class="spinner-border spinner-border-sm text-success"></div> جاري مراجعة البيانات...
-                    </td></tr>
-                </tbody>
-            </table>
+        <div class="container mt-2">
+            <!-- نموذج إضافة حركة جديدة -->
+            <div class="card-custom">
+                <h6 class="fw-bold text-success mb-2" id="formSectionTitle"><i class="fas fa-plus-circle me-1"></i> تسجيل عملية جديدة</h6>
+                <form id="voucherForm" class="row g-2">
+                    <div class="col-md-2" id="vTypeContainer">
+                        <label class="form-label small fw-bold">النوع</label>
+                        <select class="form-select form-select-sm" id="vType" required>
+                            <option value="قبض">قبض (+)</option>
+                            <option value="صرف">صرف (-)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2" id="partyTypeContainer">
+                        <label class="form-label small fw-bold">حساب الطرف</label>
+                        <select class="form-select form-select-sm" id="partyType" required>
+                            <option value="عميل">عميل</option>
+                            <option value="مورد">مورد</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 position-relative search-container">
+                        <label class="form-label small fw-bold" id="searchLabel">اسم الشخص / الشركة (بحث ذكي)</label>
+                        <input type="text" class="form-control form-control-sm" id="partySearch" placeholder="اكتب للاستكمال تلقائياً..." autocomplete="off" required>
+                        <input type="hidden" id="partyId">
+                        <div id="partyResults" class="search-results"></div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small fw-bold">التاريخ</label>
+                        <input type="date" class="form-control form-control-sm" id="vDate" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold">المبلغ (ج.م)</label>
+                        <input type="number" step="0.01" class="form-control form-control-sm" id="vAmount" placeholder="0.00" required>
+                    </div>
+                    <div class="col-md-9">
+                        <label class="form-label small fw-bold">البيان / التفاصيل</label>
+                        <input type="text" class="form-control form-control-sm" id="vNote" placeholder="اكتب التفاصيل هنا...">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button type="submit" class="btn-submit btn-sm w-100">حفظ البيانات <i class="fas fa-save ms-1"></i></button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- أدوات الفلترة والعرض -->
+            <div class="card-custom py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div class="d-flex gap-2 align-items-center">
+                    <span class="small fw-bold text-muted" style="font-size: 0.75rem;"><i class="fas fa-filter"></i> تصفية:</span>
+                    <select class="form-select form-select-sm w-auto" id="filterType" onchange="filterData()">
+                        <option value="الكل">كل العمليات</option>
+                        <option value="قبض">القبض فقط</option>
+                        <option value="صرف">الصرف فقط</option>
+                    </select>
+                    <select class="form-select form-select-sm w-auto" id="filterParty" onchange="filterData()">
+                        <option value="الكل">كل الأطراف</option>
+                        <option value="عميل">العملاء فقط</option>
+                        <option value="مورد">الموردين فقط</option>
+                    </select>
+                </div>
+                <div class="text-end">
+                    <span class="small fw-bold opacity-75" style="font-size: 0.75rem;">إجمالي العمليات المعروضة: </span>
+                    <span id="vouchersTotal" class="fw-bold text-success fs-6">0.00 ج.م</span>
+                </div>
+            </div>
+
+            <!-- جدول الحركات والسندات المعروضة على الشاشة -->
+            <div class="table-responsive">
+                <table class="statement-table" id="vouchersTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 12%;">التاريخ</th>
+                            <th style="width: 10%;">النوع</th>
+                            <th style="width: 13%;">نوع الطرف</th>
+                            <th style="width: 20%;">الاسم</th>
+                            <th style="width: 25%;">البيان والتفاصيل</th>
+                            <th style="width: 10%;">المبلغ</th>
+                            <th style="width: 5%;">مشاركة</th>
+                            <th style="width: 5%;">حذف</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vouchersBody">
+                        <tr><td colspan="8" class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-success"></div> جاري مراجعة البيانات...
+                        </td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- مودال / نافذة منبثقة لمعاينة السند بعد الحفظ أو عند الضغط على مشاركة -->
+<!-- مودال معاينة الإيصال الحراري -->
 <div class="modal fade" id="receiptModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -217,28 +234,23 @@
                 <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body bg-light text-center">
-                <!-- الإيصال المخصص للمشاركة والطباعة الحرارية -->
                 <div id="thermalReceipt" class="receipt-preview-box">
                     <div class="text-center border-bottom pb-2 mb-2">
-                        <!-- تم إزالة letter-spacing وإضافة مسافات مريحة لتفادي تداخل الاسم -->
                         <h5 class="receipt-header-title">شركة الزيادي</h5>
                         <small class="text-muted" style="font-size: 0.65rem;"> لزيوت وفلاتر السيارات</small>
                     </div>
-                    
                     <div class="d-flex justify-content-between text-end small mb-2 border-bottom pb-1" style="font-size: 0.75rem;">
                         <div><strong>الحركة:</strong> <span id="recType" class="fw-bold"></span></div>
                         <div><strong>التاريخ:</strong> <span id="recDate"></span></div>
                     </div>
-
                     <div class="my-3 py-2 border-bottom border-top text-center" style="background: #f9f9f9;">
                         <small class="text-muted d-block" style="font-size: 0.7rem;">المبلغ المدفوع</small>
                         <h3 class="fw-bold m-0 text-dark" id="recAmount" style="font-size: 1.6rem;">0.00</h3>
                         <small class="fw-bold">تم الاستلام</small>
                     </div>
-
                     <div class="text-center mt-2 pt-1">
-                        <small class="text-muted" style="font-size: 0.65rem;">شكراً لتعاملكم معنا</small>
-                   <small class="text-muted" style="font-size: 0.65rem;">  01027830834</small>
+                        <small class="text-muted d-block" style="font-size: 0.65rem;">شكراً لتعاملكم معنا</small>
+                        <small class="text-muted fw-bold" style="font-size: 0.65rem;">01027830834</small>
                     </div>
                 </div>
             </div>
@@ -272,6 +284,61 @@
     let allVouchers = [];
     let partiesMap = {}; 
     let receiptModalObj = null;
+    let currentUserRole = "admin"; 
+
+    // التحكم في شاشة تسجيل الدخول والصلاحيات
+    window.checkLogin = () => {
+        const u = document.getElementById('loginUser').value.trim();
+        const p = document.getElementById('loginPass').value.trim();
+
+        if (u === "admin" && p === "123456") {
+            currentUserRole = "admin";
+            applyPermissions();
+        } else if (u === "user" && p === "123456") {
+            currentUserRole = "user";
+            applyPermissions();
+        } else {
+            alert("اسم المستخدم أو كلمة المرور غير صحيحة!");
+        }
+    };
+
+    window.logout = () => {
+        document.getElementById('loginUser').value = '';
+        document.getElementById('loginPass').value = '';
+        document.getElementById('mainContent').style.display = 'none';
+        document.getElementById('loginScreen').style.display = 'flex';
+    };
+
+    function applyPermissions() {
+        document.getElementById('loginScreen').style.display = 'none';
+        document.getElementById('mainContent').style.display = 'block';
+
+        if (currentUserRole === "user") {
+            document.getElementById('pageTitle').innerText = "فاتورة المبيعات وسجل مبيعات العملاء - شركة الزيادي";
+            document.getElementById('formSectionTitle').innerHTML = '<i class="fas fa-file-invoice-dollar me-1"></i> إنشاء فاتورة مبيعات جديدة';
+            document.getElementById('searchLabel').innerText = "اسم العميل (بحث ذكي في العملاء)";
+
+            document.getElementById('vType').value = "قبض";
+            document.getElementById('partyType').value = "عميل";
+            document.getElementById('vTypeContainer').style.display = "none";
+            document.getElementById('partyTypeContainer').style.display = "none";
+
+            document.getElementById('filterType').value = "قبض";
+            document.getElementById('filterParty').value = "عميل";
+            document.getElementById('filterType').style.display = "none";
+            document.getElementById('filterParty').style.display = "none";
+        } else {
+            document.getElementById('pageTitle').innerText = "إدارة عمليات القبض والصرف (عملاء / موردين)";
+            document.getElementById('formSectionTitle').innerHTML = '<i class="fas fa-plus-circle me-1"></i> تسجيل عملية جديدة';
+            document.getElementById('searchLabel').innerText = "اسم الشخص / الشركة (بحث ذكي)";
+            
+            document.getElementById('vTypeContainer').style.display = "block";
+            document.getElementById('partyTypeContainer').style.display = "block";
+            document.getElementById('filterType').style.display = "block";
+            document.getElementById('filterParty').style.display = "block";
+        }
+        init();
+    }
 
     document.addEventListener("DOMContentLoaded", () => {
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
@@ -282,13 +349,10 @@
     function loadCache() {
         const cachedParties = localStorage.getItem('cache_partiesMap');
         const cachedVouchers = localStorage.getItem('cache_allVouchers');
-        
-        if (cachedParties) {
-            partiesMap = JSON.parse(cachedParties);
-        }
+        if (cachedParties) { partiesMap = JSON.parse(cachedParties); }
         if (cachedVouchers) {
             allVouchers = JSON.parse(cachedVouchers);
-            renderTable(allVouchers);
+            filterAndRender();
         }
     }
 
@@ -298,11 +362,9 @@
                 getDocs(collection(db, "suppliers")),
                 getDocs(collection(db, "customers"))
             ]);
-
             partiesMap = {};
             supSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'مورد' }; });
             custSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'عميل' }; });
-            
             localStorage.setItem('cache_partiesMap', JSON.stringify(partiesMap));
         } catch (err) {
             console.error("Error fetching parties:", err);
@@ -381,13 +443,30 @@
             });
 
             localStorage.setItem('cache_allVouchers', JSON.stringify(allVouchers));
-            renderTable(allVouchers);
-
+            filterAndRender();
         } catch (err) {
             if(allVouchers.length === 0) {
                 document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="8" class="text-danger py-4">حدث خطأ أثناء تحميل البيانات</td></tr>';
             }
         }
+    }
+
+    function filterAndRender() {
+        let fType = document.getElementById('filterType').value;
+        let fParty = document.getElementById('filterParty').value;
+
+        if (currentUserRole === "user") {
+            fType = "قبض";
+            fParty = "عميل";
+        }
+
+        const filtered = allVouchers.filter(v => {
+            const matchType = (fType === 'الكل' || v.type === fType);
+            const matchParty = (fParty === 'الكل' || v.partyType === fParty);
+            return matchType && matchParty;
+        });
+
+        renderTable(filtered);
     }
 
     function renderTable(data) {
@@ -405,11 +484,14 @@
             total += v.amount;
             const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
             const badgeClass = v.type === 'قبض' ? 'badge-receipt' : 'badge-payment';
+            const deleteBtnHtml = currentUserRole === 'admin' 
+                ? `<button class="btn-delete-row" onclick="deleteVoucher('${v.id}')"><i class="fas fa-trash-alt"></i></button>`
+                : `<span class="text-muted small"><i class="fas fa-lock"></i></span>`;
 
             tbody.innerHTML += `
                 <tr>
                     <td><span class="text-secondary fw-bold">${v.date}</span></td>
-                    <td><span class="badge-type ${badgeClass}">${v.type}</span></td>
+                    <td><span class="badge-type ${badgeClass}">${v.type === 'قبض' ? 'قبض' : 'صرف'}</span></td>
                     <td><span class="text-dark small fw-bold">${v.partyType}</span></td>
                     <td class="text-end fw-bold text-dark">${pName}</td>
                     <td class="text-end text-muted small">${v.note}</td>
@@ -417,9 +499,7 @@
                     <td>
                         <button class="btn-share-row" onclick="openReceiptModal('${v.type}', '${v.date}', ${v.amount})"><i class="fas fa-share-alt"></i></button>
                     </td>
-                    <td>
-                        <button class="btn-delete-row" onclick="deleteVoucher('${v.id}')"><i class="fas fa-trash-alt"></i></button>
-                    </td>
+                    <td>${deleteBtnHtml}</td>
                 </tr>`;
         });
 
@@ -427,45 +507,31 @@
     }
 
     window.filterData = () => {
-        const fType = document.getElementById('filterType').value;
-        const fParty = document.getElementById('filterParty').value;
-
-        const filtered = allVouchers.filter(v => {
-            const matchType = (fType === 'الكل' || v.type === fType);
-            const matchParty = (fParty === 'الكل' || v.partyType === fParty);
-            return matchType && matchParty;
-        });
-
-        renderTable(filtered);
+        filterAndRender();
     };
 
     window.openReceiptModal = (type, date, amount) => {
-        document.getElementById('recType').innerText = type === 'قبض' ? 'سند قبض' : 'سند صرف';
+        document.getElementById('recType').innerText = type === 'قبض' ? 'إيصال مبيعات' : 'سند صرف';
         document.getElementById('recDate').innerText = date;
         document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
-        
         if(receiptModalObj) receiptModalObj.show();
     };
 
     document.getElementById('btnDoShare').addEventListener('click', () => {
         const target = document.getElementById('thermalReceipt');
-        
         html2canvas(target, { scale: 2, useCORS: true }).then(canvas => {
             canvas.toBlob(blob => {
                 if (!blob) { alert("فشل إنشاء صورة المعاينة"); return; }
                 const file = new File([blob], "receipt.png", { type: "image/png" });
-                
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    navigator.share({
-                        files: [file],
-                        title: 'إيصال سداد - شركة الزيادي',
-                    }).catch(err => console.log('إلغاء المشاركة'));
+                    navigator.share({ files: [file], title: 'إيصال - شركة الزيادي' })
+                    .catch(err => console.log('إلغاء المشاركة'));
                 } else {
                     const a = document.createElement('a');
                     a.href = canvas.toDataURL('image/png');
-                    a.download = `سند_سداد_${new Date().toISOString().split('T')[0]}.png`;
+                    a.download = `إيصال_${new Date().toISOString().split('T')[0]}.png`;
                     a.click();
-                    alert("تم حفظ الصورة بجهازك بنجاح، يمكنك مشاركتها الآن يدوياً.");
+                    alert("تم حفظ الصورة بجهازك بنجاح.");
                 }
             }, 'image/png');
         });
@@ -478,7 +544,7 @@
 
         const submitBtn = e.target.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
-        submitBtn.innerText = "جاري الحفظ...";
+        submitBtn.innerHTML = "جاري الحفظ...";
 
         const vDateVal = document.getElementById('vDate').value;
         const vTypeVal = document.getElementById('vType').value;
@@ -495,15 +561,12 @@
 
         try {
             await addDoc(collection(db, "transactions"), newVoucher);
-            
             document.getElementById('vAmount').value = '';
             document.getElementById('vNote').value = '';
             document.getElementById('partySearch').value = '';
             document.getElementById('partyId').value = '';
-            
             await loadVouchers();
             openReceiptModal(vTypeVal, vDateVal, vAmountVal);
-
         } catch (err) {
             alert("حدث خطأ أثناء الحفظ");
         } finally {
@@ -524,16 +587,71 @@
         }
     };
 
+    // الدالة المحدثة لبناء وتصدير ملف الإكسيل طبقاً للهيكلية المطلوبة تماماً
     window.exportToExcel = () => {
-        const table = document.getElementById("vouchersTable");
-        const clonedTable = table.cloneNode(true);
-        clonedTable.querySelectorAll('tr').forEach(tr => {
-            if(tr.lastElementChild) tr.lastElementChild.remove();
-            if(tr.lastElementChild) tr.lastElementChild.remove();
+        // فحص الفلترة الحالية لضمان تصدير ما يراه المستخدم فقط أمامه بناء على الصلاحيات
+        let fType = document.getElementById('filterType').value;
+        let fParty = document.getElementById('filterParty').value;
+        if (currentUserRole === "user") {
+            fType = "قبض";
+            fParty = "عميل";
+        }
+
+        const filteredData = allVouchers.filter(v => {
+            const matchType = (fType === 'الكل' || v.type === fType);
+            const matchParty = (fParty === 'الكل' || v.partyType === fParty);
+            return matchType && matchParty;
         });
 
-        const wb = XLSX.utils.table_to_book(clonedTable, { sheet: "العمليات المالية" });
-        XLSX.writeFile(wb, `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`);
+        // مصفوفة تجهيز البيانات لملف الإكسيل بالأعمدة المطلوبة
+        const excelRows = [];
+        
+        // إضافة الصف الأول (العناوين) بالترتيب المطلوب
+        excelRows.push([
+            "التاريخ", 
+            "الحركه", 
+            "اسم العميل/المورد",
+            "البيان", 
+            "عدد جركن", 
+            "عدد كرتونه", 
+            "سعر جركن", 
+            "سعر كرتونه"
+        ]);
+
+        // معالجة السطور وتوزيع القيم برمجياً
+        filteredData.forEach(v => {
+            const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
+            
+            // تحديد صياغة عمود الحركة بناء على نوع الطرف
+            let movementText = "";
+            if (v.partyType === "عميل") {
+                movementText = "سداد منه نقدى";
+            } else if (v.partyType === "مورد") {
+                movementText = "سداد له نقدى";
+            } else {
+                movementText = v.type === "قبض" ? "سداد منه نقدى" : "سداد له نقدى";
+            }
+
+            // إدراج الصف وتمرير القيم المحددة (عدد كرتونه = 1، والمبلغ في سعر كرتونه)
+            excelRows.push([
+                v.date,               // التاريخ
+                movementText,         // الحركه (سداد منه نقدى / سداد له نقدى)
+                pName,                // اسم العميل أو المورد
+                "سداد نقدى",          // البيان الثابت
+                "",                   // عدد جركن (فارغ)
+                1,                    // عدد كرتونه ثابته
+                "",                   // سعر جركن (فارغ)
+                v.amount              // سعر كرتونه (المبلغ المالي)
+            ]);
+        });
+
+        // تحويل المصفوفة إلى شيت إكسيل باستخدام مكتبة XLSX
+        const ws = XLSX.utils.aoa_to_sheet(excelRows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "العمليات المالية");
+        
+        // تحميل الملف باسم ديناميكي يحتوي على التاريخ الحالي
+        XLSX.writeFile(wb, `تقرير_حركات_الخزنة_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     async function init() {
@@ -541,8 +659,6 @@
         await fetchPartiesData(); 
         await loadVouchers(); 
     }
-    
-    init();
 </script>
 </body>
 </html>
