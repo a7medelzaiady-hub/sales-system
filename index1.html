@@ -288,13 +288,11 @@
 
     <header class="top-nav">
         <div class="nav-icons">
-            <!-- الرمز البرمجي متصل بدالة فتح وإغلاق المنيو بشكل كامل وسليم -->
             <i class="fas fa-bars" onclick="toggleMenu()"></i>
             <i class="fas fa-circle-half-stroke" onclick="toggleTheme()" style="margin-right: 12px;"></i>
         </div>
         <div class="app-title">شركة <span>الزيادى</span></div>
         <div class="nav-icons">
-            <!-- التوجيه المباشر لصفحة تسجيل الدخول عند الخروج وتطهير البيانات -->
             <a href="login.html" class="logout-btn" onclick="sessionStorage.clear();">
                 <i class="fas fa-power-off"></i>
                 خروج
@@ -320,6 +318,8 @@
                 <p>المشتريات</p>
             </div>
         </a>
+        
+        <!-- كرت العملاء (تم إضافته لبروتوكول الحجب للموظف المحدود) -->
         <a href="client_menu.html" class="card-link" id="cardClients">
             <div class="card">
                 <div class="icon-box"><i class="fas fa-user-group"></i></div>
@@ -339,7 +339,6 @@
             </div>
         </a>
         
-        <!-- كرت السندات: معرف برمجياً للتوجيه المشروط بناء على الرتبة لتفادي صفحة الموحد -->
         <a href="vouchers-hub.html" class="card-link" id="cardVouchers">
             <div class="card archive-card">
                 <div class="icon-box"><i class="fas fa-file-invoice-dollar"></i></div>
@@ -347,7 +346,6 @@
             </div>
         </a>
         
-        <!-- كرت النقدية (حساس - سيتم التحكم بظهوره برمجياً) -->
         <a href="banknote.html" class="card-link" id="cardBanknote">
             <div class="card">
                 <div class="icon-box"><i class="fas fa-receipt"></i></div>
@@ -433,38 +431,38 @@
                 document.getElementById('welcomeUser').innerText = `مرحباً بك، ${username}`;
             }
 
-            // فحص وتقييد صلاحيات الموظف المحدود
+            // فحص وتطبيق القيود الأمنية للموظف المحدود
             if (role === 'restricted') {
                 
-                // 1. حجب الكروت المحظورة من شبكة الواجهة الرئيسية + حجب كرت النقدية تماماً
+                // إضافة كرت العملاء (cardClients) إلى مصفوفة الإخفاء التام من الواجهة
                 const forbiddenCards = [
                     'cardPurchases', 
-                    'cardcustomers', 
+                    'cardClients',     // تم إخفاء كرت العملاء بنجاح هنا
                     'cardSuppliers', 
                     'cardInventory', 
                     'cardReports',
-                    'cardBanknote'     // حجب كرت النقدية عن الموظف
+                    'cardBanknote'     
                 ];
                 forbiddenCards.forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.style.display = 'none';
                 });
 
-                // 2. إعادة توجيه كرت السندات للموظف ليفتح صفحة سندات العملاء الحصرية بدلاً من الموحد
+                // توجيه كرت السندات مباشرة إلى صفحة المعاملات المخصصة
                 const vouchersCardLink = document.getElementById('cardVouchers');
                 if (vouchersCardLink) {
                     vouchersCardLink.setAttribute('href', 'client-vouchers.html');
                 }
 
-                // 3. تحديث شارة الرتبة وحجب الروابط الحساسة (بما فيها حركة المعاملات النقدية) من القائمة الجانبية
                 const roleBadge = document.getElementById('userRoleBadge');
                 if (roleBadge) roleBadge.innerText = 'موظف مبيعات';
 
                 const forbiddenSideItems = [
-                    'sideTransactions',   // إخفاء حركة المعاملات النقدية من الجانب
+                    'sideTransactions',   
                     'sidePurchaseOrders', 
                     'sideInventoryMgmt',  
-                    'sideSupplierList',   
+                    'sideSupplierList',
+                    'sideCustomerList',   // إخفاء سجل العملاء من القائمة الجانبية أيضاً كحماية إضافية
                     'sideSettings',        
                     'sideSecurity',        
                     'labelSystem'         
