@@ -83,7 +83,6 @@
         .btn-share-row { background: none; border: none; color: #0b5e3d; padding: 2px 6px; border-radius: 4px; transition: 0.2s; font-size: 0.8rem; }
         .btn-share-row:hover { background: #e8f5e9; color: var(--success); }
 
-        /* ستايل المعاينة الحرارية */
         .receipt-preview-box {
             width: 80mm; background: #fff; color: #000; padding: 15px; 
             font-family: 'Cairo', sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.1);
@@ -91,8 +90,6 @@
         }
 
         .receipt-header-title { font-size: 1.35rem; font-weight: 700; margin: 0; word-spacing: 3px; letter-spacing: 0px; }
-        
-        /* إخفاء اسم العميل من المعاينة أثناء التصدير والمشاركة */
         .hide-on-share { transition: opacity 0.2s; }
     </style>
 </head>
@@ -102,6 +99,7 @@
     <div class="header-section">
         <div class="header-container container">
             <div class="nav-btns d-flex gap-2">
+                <!-- أيقونة الإكسل (يتحكم بنشاطها الجافا سكربت بالأسفل بناءً على رتبة المستخدم) -->
                 <button class="btn-action" onclick="exportToExcel()" title="تصدير إكسل"><i class="fas fa-file-excel"></i></button>
             </div>
             <div class="title-area text-center flex-grow-1">
@@ -126,7 +124,6 @@
                     </select>
                 </div>
                 
-                <!-- محاذاة حقل الاسم وحقل التاريخ أفقياً لتوفير المساحة العمودية -->
                 <div class="col-md-5 position-relative search-container">
                     <label class="form-label small fw-bold">اسم العميل (بحث ذكي)</label>
                     <input type="text" class="form-control form-control-sm" id="partySearch" placeholder="اكتب اسم العميل للاستكمال..." autocomplete="off" required>
@@ -212,7 +209,6 @@
                         <div><strong>التاريخ:</strong> <span id="recDate"></span></div>
                     </div>
 
-                    <!-- عنصر اسم العميل الحساس والمزود بكلاس الإخفاء البرمجي عند المشاركة -->
                     <div class="text-end small mb-2 hide-on-share" id="recClientRow" style="font-size: 0.8rem;">
                         <strong>العميل:</strong> <span id="recClientName" class="fw-bold"></span>
                     </div>
@@ -262,6 +258,13 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
+        
+        // فحص صلاحية المستخدم الحالية وإخفاء زر تصدير الإكسل نهائياً للموظف المحدود من شجرة التصميم
+        const role = sessionStorage.getItem('role');
+        const excelBtn = document.querySelector('button[onclick="exportToExcel()"]');
+        if (role === 'restricted' && excelBtn) {
+            excelBtn.style.setProperty('display', 'none', 'important');
+        }
     });
 
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
@@ -279,7 +282,6 @@
         }
     }
 
-    // جلب العملاء فقط من الفايربيس
     async function fetchClientsData() {
         try {
             const custSnap = await getDocs(collection(db, "customers"));
@@ -335,7 +337,6 @@
         }
     });
 
-    // جلب المعاملات المالية وفلترتها لتشمل حركات العملاء فقط
     async function loadVouchers() {
         try {
             const q = query(collection(db, "transactions"), orderBy("date", "desc"));
@@ -344,7 +345,6 @@
 
             querySnapshot.forEach((doc) => {
                 const d = doc.data();
-                // التحقق من أن الحركة تخص عميل وتطابق عمليات الخزنة
                 if ((d.type === 'قبض' || d.type === 'صرف') && (d.partyType === 'عميل' || clientsMap[d.partyId])) {
                     allVouchers.push({
                         id: doc.id,
@@ -405,11 +405,9 @@
 
     window.filterData = () => {
         const fType = document.getElementById('filterType').value;
-
         const filtered = allVouchers.filter(v => {
             return (fType === 'الكل' || v.type === fType);
         });
-
         renderTable(filtered);
     };
 
@@ -418,10 +416,7 @@
         document.getElementById('recDate').innerText = date;
         document.getElementById('recClientName').innerText = clientName;
         document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
-        
-        // إظهار سطر العميل بشكل افتراضي داخل شاشة المعاينة قبل التحويل لصورة
         document.getElementById('recClientRow').style.opacity = '1';
-        
         if(receiptModalObj) receiptModalObj.show();
     };
 
@@ -429,15 +424,10 @@
         const target = document.getElementById('thermalReceipt');
         const clientRow = document.getElementById('recClientRow');
         
-        // هندسة الحماية: إخفاء اسم العميل تماماً من حاوية العرض قبل تفعيل الـ html2canvas لالتقاط الصورة
-        if (clientRow) {
-            clientRow.style.opacity = '0';
-        }
+        if (clientRow) clientRow.style.opacity = '0';
         
-        // تأخير زمني بسيط للتأكد من اختفاء العنصر بصرياً من شجرة الـ DOM
         setTimeout(() => {
             html2canvas(target, { scale: 2, useCORS: true }).then(canvas => {
-                // إعادة عرض اسم العميل على شاشة التطبيق فوراً بعد اللقطة
                 if (clientRow) clientRow.style.opacity = '1';
 
                 canvas.toBlob(blob => {
@@ -516,40 +506,21 @@
     };
 
     window.exportToExcel = () => {
-        const fType = document.getElementById('filterType').value;
+        // حماية برمجية خلفية إضافية لمنع محاولة استدعاء الدالة من الـ Console
+        if (sessionStorage.getItem('role') === 'restricted') {
+            alert("عذراً، لا تملك الصلاحية لتصدير هذه البيانات الحساسة.");
+            return;
+        }
 
-        const filteredData = allVouchers.filter(v => {
-            return (fType === 'الكل' || v.type === fType);
-        });
+        const fType = document.getElementById('filterType').value;
+        const filteredData = allVouchers.filter(v => (fType === 'الكل' || v.type === fType));
 
         const excelRows = [];
-        excelRows.push([
-            "التاريخ", 
-            "الحركه", 
-            "اسم العميل/المورد",
-            "البيان", 
-            "عدد جركن", 
-            "عدد كرتونه", 
-            "سعر جركن", 
-            "سعر كرتونه"
-        ]);
+        excelRows.push(["التاريخ", "الحركه", "اسم العميل/المورد", "البيان", "عدد جركن", "عدد كرتونه", "سعر جركن", "سعر كرتونه"]);
 
         filteredData.forEach(v => {
             const pName = clientsMap[v.partyId] ? clientsMap[v.partyId].name : 'عميل غير مسجل';
-            
-            // تخصيص النص الثابت لحركة الخزينة والعملاء
-            let movementText = "سداد منه نقدى"; 
-
-            excelRows.push([
-                v.date,               // التاريخ
-                movementText,         // الحركه
-                pName,                // اسم العميل
-                "سداد نقدى",          // البيان الثابت
-                "",                   // عدد جركن (فارغ)
-                1,                    // عدد كرتونه (ثابت 1)
-                "",                   // سعر جركن (فارغ)
-                v.amount              // سعر كرتونه (قيمة المبلغ المالي)
-            ]);
+            excelRows.push([v.date, "سداد منه نقدى", pName, "سداد نقدى", "", 1, "", v.amount]);
         });
 
         const ws = XLSX.utils.aoa_to_sheet(excelRows);
