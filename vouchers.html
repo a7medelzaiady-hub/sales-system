@@ -243,7 +243,7 @@
 <!-- بوتستراب جافاسكريبت لتهيئة النافذة المنبثقة -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-<script type="module">
+        <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -526,16 +526,61 @@
         }
     };
 
+    // الدالة المعدلة والمطورة لتصدير الإكسل بالهيكلية المطلوبة تماماً
     window.exportToExcel = () => {
-        const table = document.getElementById("vouchersTable");
-        const clonedTable = table.cloneNode(true);
-        clonedTable.querySelectorAll('tr').forEach(tr => {
-            // حذف آخر عامودين (مشاركة وحذف) قبل التصدير للإكسل
-            if(tr.lastElementChild) tr.lastElementChild.remove();
-            if(tr.lastElementChild) tr.lastElementChild.remove();
+        // 1. تحديد ترويسة الجدول المطلوبة في ملف المبيعات الخاص بك
+        const excelData = [
+            ["تاريخ", "الحركه", "اسم العميل", "البيان", "عدد جركن", "عدد كرتونه", "سعر جركن", "سعر كرتونه"]
+        ];
+
+        // 2. فلترة البيانات المعروضة حالياً بالجدول لبناء صفوف ملف الإكسل
+        const fType = document.getElementById('filterType').value;
+        const fParty = document.getElementById('filterParty').value;
+
+        const currentFilteredVouchers = allVouchers.filter(v => {
+            const matchType = (fType === 'الكل' || v.type === fType);
+            const matchParty = (fParty === 'الكل' || v.partyType === fParty);
+            return matchType && matchParty;
         });
 
-        const wb = XLSX.utils.table_to_book(clonedTable, { sheet: "العمليات المالية" });
+        // 3. تحويل وتجهيز كل حركة مالية إلى السطر المقابل لها طبقاً لشروطك
+        currentFilteredVouchers.forEach(v => {
+            const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
+            
+            // تخصيص عمود الحركة بناءً على نوع الطرف (عميل أو مورد)
+            let movementText = "";
+            if (v.partyType === "عميل") {
+                movementText = "سداد منه نقدى";
+            } else {
+                movementText = "سداد له نقدى";
+            }
+
+            const dateValue = v.date;          // التاريخ في عمود التاريخ
+            const statementText = "سداد نقدى";  // البيان الثابت
+            const countJerrycan = "";          // فارغ
+            const countBox = 1;                // عدد كرتونة نكتب فيه 1
+            const priceJerrycan = "";          // فارغ
+            const priceBox = v.amount;         // سعر كرتونة نكتب فيه المبلغ نفسه
+
+            // إضافة الصف المجهز للمصفوفة الرئيسية
+            excelData.push([
+                dateValue, 
+                movementText, 
+                pName, 
+                statementText, 
+                countJerrycan, 
+                countBox, 
+                priceJerrycan, 
+                priceBox
+            ]);
+        });
+
+        // 4. إنشاء ملف الإكسل وحفظه
+        const ws = XLSX.utils.aoa_to_sheet(excelData);
+        const wb = XLSX.utils.book_new();
+        XLSX.book_append_sheet(wb, ws, "العمليات المالية");
+        
+        // التصدير التلقائي مع تاريخ اليوم
         XLSX.writeFile(wb, `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
@@ -547,5 +592,7 @@
     
     init();
 </script>
+
+                    
 </body>
 </html>
