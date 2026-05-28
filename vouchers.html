@@ -517,7 +517,7 @@
     window.deleteVoucher = async (id) => {
         if(confirm("هل أنت متأكد من رغبتك في الحذف نهائياً؟")) {
             try {
-                await deleteDoc(doc(db, "transactions", id));
+                await deleteDoc(doc(doc(db, "transactions", id)));
                 alert("تم الحذف بنجاح.");
                 await loadVouchers();
             } catch (err) {
@@ -527,91 +527,58 @@
     };
 
 
-window.exportToExcel = () => {
+    window.exportToExcel = () => {
+        // تجهيز البيانات بالشكل المطلوب
+        const exportData = allVouchers.map(v => {
+            const customerName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'غير معروف';
 
-    // تجهيز البيانات بالشكل المطلوب
-    const exportData = allVouchers.map(v => {
+            return {
+                "التاريخ": v.date,
+                "الحركة": (() => {
+                    // فحص نوع الطرف بناءً على القيم المخزنة أو الكاش المتاح
+                    const partyType = v.partyType || (partiesMap[v.partyId] ? partiesMap[v.partyId].type : "");
+                    const voucherType = v.type; // قبض أو صرف
 
-        const customerName = partiesMap[v.partyId]
-            ? partiesMap[v.partyId].name
-            : 'غير معروف';
+                    // إذا كان العميل أو كانت حركة قبض
+                    if (partyType === "عميل" || voucherType === "قبض") {
+                        return "سداد منه نقدى";
+                    }
+                    // إذا كان المورد أو كانت حركة صرف
+                    if (partyType === "مورد" || voucherType === "صرف") {
+                        return "سداد نقدى له";
+                    }
 
-        const actualPartyType =
-            v.partyType ||
-            (partiesMap[v.partyId]
-                ? partiesMap[v.partyId].type
-                : "");
+                    return "حركة مالية";
+                })(),
+                "اسم العميل": customerName,
+                "البيان": "سداد نقدى",
+                "عدد جركن": "",
+                "عدد كرتونه": 1,
+                "سعر جركن": "",
+                "سعر كرتونه": v.amount
+            };
+        });
 
-        return {
-            "التاريخ": v.date,
+        // إنشاء الشيت
+        const ws = XLSX.utils.json_to_sheet(exportData);
 
-"الحركة": (() => {
+        // ضبط عرض الأعمدة
+        ws['!cols'] = [
+            { wch: 15 },
+            { wch: 25 },
+            { wch: 25 },
+            { wch: 20 },
+            { wch: 12 },
+            { wch: 12 },
+            { wch: 15 },
+            { wch: 15 }
+        ];
 
-    // تحديد نوع الطرف بأي طريقة متاحة
-    const partyType =
-        v.partyType ||
-        v.accountType ||
-        v.typeName ||
-        (partiesMap[v.partyId]
-            ? partiesMap[v.partyId].type
-            : "");
-
-    if (partyType === "عميل") {
-        return "سداد منه نقدى";
-    }
-
-    if (partyType === "مورد") {
-        return "سداد له نقدى";
-    }
-
-    return "حركة مالية";
-
-})(),
-
-            "اسم العميل": customerName,
-
-            "البيان": "سداد نقدى",
-
-            "عدد جركن": "",
-
-            "عدد كرتونه": 1,
-
-            "سعر جركن": "",
-
-            "سعر كرتونه": v.amount
-        };
-
-    });
-
-    // إنشاء الشيت
-    const ws = XLSX.utils.json_to_sheet(exportData);
-
-    // ضبط عرض الأعمدة
-    ws['!cols'] = [
-        { wch: 15 },
-        { wch: 25 },
-        { wch: 25 },
-        { wch: 20 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 15 },
-        { wch: 15 }
-    ];
-
-    // إنشاء ملف الإكسل
-    const wb = XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(
-        wb,
-        ws,
-        "العمليات المالية"
-    );
-
-    XLSX.writeFile(
-        wb,
-        `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`
-    );
-};
+        // إنشاء ملف الإكسل
+        const wb = XLSX.utils.book_new();
+        XXLSX.utils.book_append_sheet(wb, ws, "العمليات المالية");
+        XXLSX.writeFile(wb, `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
 
     async function init() {
         loadCache(); 
