@@ -98,7 +98,7 @@
     <div class="header-section">
         <div class="header-container container">
             <div class="nav-btns d-flex gap-2">
-                <button class="btn-action" onclick="exportToExcel()" title="تصدير إكسل"><i class="fas fa-file-excel"></i></button>
+                <button class="btn-action" id="btnExportExcel" title="تصدير إكسل"><i class="fas fa-file-excel"></i></button>
             </div>
             <div class="title-area text-center flex-grow-1">
                 <h6 class="fw-bold m-0" style="font-size: 0.9rem;">إدارة عمليات القبض والصرف (عملاء / موردين)</h6>
@@ -156,12 +156,12 @@
         <div class="card-custom py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
             <div class="d-flex gap-2 align-items-center">
                 <span class="small fw-bold text-muted" style="font-size: 0.75rem;"><i class="fas fa-filter"></i> تصفية:</span>
-                <select class="form-select form-select-sm w-auto" id="filterType" onchange="filterData()">
+                <select class="form-select form-select-sm w-auto" id="filterType">
                     <option value="الكل">كل العمليات</option>
                     <option value="قبض">القبض فقط</option>
                     <option value="صرف">الصرف فقط</option>
                 </select>
-                <select class="form-select form-select-sm w-auto" id="filterParty" onchange="filterData()">
+                <select class="form-select form-select-sm w-auto" id="filterParty">
                     <option value="الكل">كل الأطراف</option>
                     <option value="عميل">العملاء فقط</option>
                     <option value="مورد">الموردين فقط</option>
@@ -263,6 +263,13 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
+        
+        // ربط أحداث الفلاتر عن طريق الكود للتأكد من تتبعها داخل النطاق (Module Scope)
+        document.getElementById('filterType').addEventListener('change', filterData);
+        document.getElementById('filterParty').addEventListener('change', filterData);
+        
+        // ربط دالة تصدير الإكسيل بالزر مباشرة هنا
+        document.getElementById('btnExportExcel').addEventListener('click', exportToExcel);
     });
 
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
@@ -414,7 +421,7 @@
         document.getElementById('vouchersTotal').innerText = `${total.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
     }
 
-    window.filterData = () => {
+    function filterData() {
         const fType = document.getElementById('filterType').value;
         const fParty = document.getElementById('filterParty').value;
 
@@ -425,7 +432,7 @@
         });
 
         renderTable(filtered);
-    };
+    }
 
     window.openReceiptModal = (type, date, amount) => {
         document.getElementById('recType').innerText = type === 'قبض' ? 'سند قبض' : 'سند صرف';
@@ -512,7 +519,7 @@
         }
     };
 
-    window.exportToExcel = () => {
+    function exportToExcel() {
         const fType = document.getElementById('filterType').value;
         const fParty = document.getElementById('filterParty').value;
 
@@ -522,6 +529,11 @@
             const matchParty = (fParty === 'الكل' || v.partyType === fParty);
             return matchType && matchParty;
         });
+
+        if (filteredData.length === 0) {
+            alert("لا توجد بيانات متاحة للتصدير بناءً على الفلاتر المحددة.");
+            return;
+        }
 
         // بناء صفوف ملف الـ Excel بالترتيب والمسميات المحددة بدقة
         const excelRows = [];
@@ -566,7 +578,7 @@
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "العمليات المالية");
         XLSX.writeFile(wb, `تقرير_حركات_الخزنة_${new Date().toISOString().split('T')[0]}.xlsx`);
-    };
+    }
 
     async function init() {
         loadCache(); 
