@@ -541,29 +541,46 @@ window.exportToExcel = () => {
                 ? partiesMap[v.partyId].type
                 : "");
 
-        return {
-            "التاريخ": v.date,
+        
+return {
+    "التاريخ": v.date,
 
-            "الحركة": actualPartyType === "عميل"
-                ? "سداد منه نقدى"
-                : actualPartyType === "مورد"
-                    ? "سداد له نقدى"
-                    : "",
+    "الحركة": (() => {
 
-            "اسم العميل": customerName,
+        const realPartyType =
+            v.partyType ||
+            (partiesMap[v.partyId]
+                ? partiesMap[v.partyId].type
+                : "");
 
-            "البيان": "سداد نقدى",
+        if (realPartyType === "عميل") {
+            return v.type === "قبض"
+                ? "تحصيل نقدى من عميل"
+                : "صرف للعميل";
+        }
 
-            "عدد جركن": "",
+        if (realPartyType === "مورد") {
+            return v.type === "صرف"
+                ? "سداد نقدى لمورد"
+                : "مرتجع نقدى من مورد";
+        }
 
-            "عدد كرتونه": 1,
+        return "حركة مالية";
 
-            "سعر جركن": "",
+    })(),
 
-            "سعر كرتونه": v.amount
-        };
-    });
+    "اسم العميل": customerName,
 
+    "البيان": "سداد نقدى",
+
+    "عدد جركن": "",
+
+    "عدد كرتونه": 1,
+
+    "سعر جركن": "",
+
+    "سعر كرتونه": v.amount
+};
     // إنشاء الشيت
     const ws = XLSX.utils.json_to_sheet(exportData);
 
