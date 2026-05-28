@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مُولد روابط العملاء - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <link href="https://fonts.googleapis.com/css2=family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { 
@@ -38,11 +38,11 @@
             align-items: center; transition: transform 0.2s;
         }
         .customer-row:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.04); }
-        .btn-copy {
+        .btn-action {
             background-color: var(--accent); color: white; border: none; border-radius: 8px;
-            padding: 8px 16px; font-weight: 700; font-size: 0.85rem; transition: background 0.2s;
+            padding: 10px 20px; font-weight: 700; font-size: 0.85rem; transition: background 0.2s;
         }
-        .btn-copy:hover { background-color: #08472e; color: white; }
+        .btn-action:hover { background-color: #08472e; color: white; }
     </style>
 </head>
 <body>
@@ -69,7 +69,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // إعدادات قاعدة البيانات الخاصة بك لربط الصفحة
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
         authDomain: "ahmedelzaiady.firebaseapp.com",
@@ -85,7 +84,7 @@
 
     let allCustomers = [];
 
-    // 1. جلب قائمة جميع العملاء من Firebase عند فتح الصفحة
+    // 1. جلب قائمة جميع العملاء من Firebase
     async function fetchCustomers() {
         try {
             const querySnapshot = await getDocs(collection(db, "customers"));
@@ -94,10 +93,8 @@
                 ...doc.data()
             }));
             
-            // تحديث الواجهة بعد الجلب بنجاح
             document.getElementById('resultsContainer').innerHTML = '<div class="text-center text-muted p-4 small">جاهز للبحث الفوري.. اكتب أي اسم الآن</div>';
             
-            // ربط مربع البحث بحدث الكتابة الفوري بعد تحميل البيانات بنجاح (حل الخطأ الثالث)
             document.getElementById('searchInput').addEventListener('input', (e) => {
                 searchCustomers(e.target.value);
             });
@@ -108,7 +105,7 @@
         }
     }
 
-    // 2. دالة البحث الذكي الفوري (تم تصحيح الأقواس والتكرار)
+    // 2. دالة البحث الذكي الفوري
     function searchCustomers(keyword) {
         const container = document.getElementById('resultsContainer');
         
@@ -124,65 +121,50 @@
             return;
         }
 
-        // عرض النتائج المتطابقة مع إضافة زر الواتساب والتنسيق اللوني له
+        // تم جعلها زر واحد فقط يقوم بالعمليتين معاً
         container.innerHTML = filtered.map(customer => `
             <div class="customer-row flex-wrap gap-2">
                 <div>
                     <span class="fw-bold d-block" style="color: var(--accent); font-size: 0.95rem;">${customer.name}</span>
                     <small class="text-muted" style="font-size:0.75rem;"><i class="fas fa-hashtag me-1"></i> معرف الحساب: ${customer.id}</small>
                 </div>
-                <div class="d-flex gap-2 justify-content-end align-items-center flex-grow-1 flex-sm-grow-0">
-                    <button class="btn btn-copy" onclick="copyPortalLink('${customer.id}')">
-                        <i class="fas fa-copy me-1"></i> نسخ الرابط
-                    </button>
-                    <button class="btn btn-success fw-bold text-white px-3" style="border-radius: 8px; font-size: 0.85rem; background-color: #25d366; border: none;" onclick="shareOnWhatsApp('${customer.id}', '${customer.name}')">
-                        <i class="fab fa-whatsapp me-1"></i> مشاركة
+                <div class="d-flex justify-content-end align-items-center flex-grow-1 flex-sm-grow-0">
+                    <button class="btn btn-action" onclick="copyAndShare('${customer.id}', '${customer.name}')">
+                        <i class="fas fa-copy me-1"></i> نسخ وإرسال واتساب
                     </button>
                 </div>
             </div>
         `).join('');
     }
 
-    // 3. دالة مساعدة لتوليد الرابط بشكل موحد ومضمون
+    // 3. حل مشكلة الـ Not Found: دالة ثابتة ومضمونة لتوليد الرابط بناءً على نطاق استضافتك الأساسي
     function generateCustomerLink(customerId) {
-        let currentPath = window.location.href;
-        if (currentPath.includes('generate-links.html')) {
-            return currentPath.replace('generate-links.html', 'customer-portal.html') + `?cid=${customerId}`;
-        } else {
-            const baseUrl = window.location.origin + window.location.pathname;
-            const directory = baseUrl.substring(0, baseUrl.lastIndexOf('/'));
-            return `${directory}/customer-portal.html?cid=${customerId}`;
-        }
+        // نستخدم النطاق الأساسي للاستضافة الخاصة بك للتأكد من صحة الرابط دائماً
+        const baseProjectUrl = "https://ahmedelzaiady.web.app"; 
+        return `${baseProjectUrl}/customer-portal.html?cid=${customerId}`;
     }
 
-    // 4. دالة نسخ الرابط الأصلية
-    window.copyPortalLink = (customerId) => {
+    // 4. الدالة المدمجة: تنسخ الرابط وتفتح الواتساب في نفس اللحظة بضغطة واحدة
+    window.copyAndShare = (customerId, customerName) => {
         const finalLink = generateCustomerLink(customerId);
+        
+        // أولاً: تنفيذ عملية النسخ في الخلفية
         navigator.clipboard.writeText(finalLink).then(() => {
-            alert(`✅ تم نسخ الرابط بنجاح!\n\nيمكنك الآن إرساله للعميل مباشرة.`);
+            console.log("تم النسخ بنجاح في الخلفية");
         }).catch(err => {
-            prompt("انسخ الرابط التالي يدوياً:", finalLink);
+            console.error("فشل النسخ التلقائي: ", err);
         });
-    };
 
-    // 5. دالة المشاركة المباشرة عبر الواتساب الفورية
-    window.shareOnWhatsApp = (customerId, customerName) => {
-        const finalLink = generateCustomerLink(customerId);
-        
-        // نص الرسالة الترحيبية المجهزة للعميل بشكل تلقائي
+        // ثانياً: تجهيز نص الرسالة وتوجيه الموظف للواتساب فوراً
         const textMessage = `السلام عليكم يا فندم، مرحباً بك في شركة الزيادي.\n\nيمكنك الآن متابعة كشف حسابك التفصيلي وفواتيرك ومستنداتك المالية مباشرة وعبر الرابط الرقمي التالي:\n${finalLink}`;
-        
-        // ترميز النص ليتوافق مع روابط الويب (URL Encoding)
         const encodedText = encodeURIComponent(textMessage);
-        
-        // إنشاء رابط الواتساب الشامل
         const whatsAppUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
         
-        // فتح الرابط في نافذة جديدة ليتحول المستخدم لتطبيق الواتساب فوراً
+        // فتح تطبيق الواتساب
         window.open(whatsAppUrl, '_blank');
     };
 
-    // بدء تشغيل الصفحة وجلب البيانات
+    // بدء تشغيل الصفحة
     fetchCustomers();
 </script>
 
