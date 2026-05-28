@@ -145,29 +145,26 @@
 
     <div class="hub-container container">
         <div class="row w-100 g-4 justify-content-center">
-            <!-- كارت المبيعات -->
             <div class="col-12 col-md-4">
                 <div class="hub-card card-sales" id="salesCard" onclick="exportSalesToExcel()">
                     <div class="icon-wrapper" id="salesIcon">
                         <i class="fas fa-shopping-cart"></i>
                     </div>
                     <h3>تصدير كارت المبيعات</h3>
-                    <p>توليد ملف إكسيل منفصل يحتوي على فواتير البيع وبنود التحصيل النقدية من العملاء.</p>
+                    <p>توليد ملف إكسيل منفصل يحتوي على فواتير البيع وبنود التحصيل النقدية من العملاء (معدل).</p>
                 </div>
             </div>
 
-            <!-- كارت المشتريات -->
             <div class="col-12 col-md-4">
                 <div class="hub-card card-purchases" id="purchasesCard" onclick="exportPurchasesToExcel()">
                     <div class="icon-wrapper" id="purchasesIcon">
                         <i class="fas fa-truck"></i>
                     </div>
                     <h3>تصدير كارت المشتريات</h3>
-                    <p>توليد ملف إكسيل منفصل يحتوي على فواتير الشراء وبنود السداد النقدية للموردين.</p>
+                    <p>توليد ملف إكسيل منفصل يحتوي على فواتير الشراء وبنود السداد النقدية للموردين (معدل الأمان).</p>
                 </div>
             </div>
 
-            <!-- كارت السندات المباشرة -->
             <div class="col-12 col-md-4">
                 <div class="hub-card card-vouchers" id="vouchersCard" onclick="exportVouchersToExcel()">
                     <div class="icon-wrapper" id="vouchersIcon">
@@ -220,7 +217,7 @@
         "سعر كرتونه"
     ];
 
-    // 1. كارت المبيعات
+    // 1. كارت المبيعات (تم تعديل سطر السداد لتثبيت رقم 1 في الكرتونة)
     window.exportSalesToExcel = async () => {
         const card = document.getElementById('salesCard');
         const iconWrapper = document.getElementById('salesIcon');
@@ -234,7 +231,7 @@
             salesSnap.forEach(doc => {
                 const inv = doc.data();
                 const dateStr = getCleanDate(inv);
-                const name = inv.customerName || "عميل نقدي";
+                const name = inv.customerName || inv.partyName || "عميل نقدي";
                 
                 let itemsFound = [];
                 if (Array.isArray(inv.items) && inv.items.length > 0) {
@@ -247,6 +244,7 @@
                     });
                 }
 
+                // سطر الصنف المباع عادي
                 itemsFound.forEach(item => {
                     const isBox = item.unit === "box";
                     excelRows.push([
@@ -258,13 +256,21 @@
                     ]);
                 });
 
+                // سطر السداد النقدي التابع للفاتورة (تم تثبيت رقم 1 هنا)
                 const total = Number(inv.total || 0);
                 const remaining = Number(inv.remaining || 0);
                 const paid = total - remaining;
                 
                 if (paid > 0) {
                     excelRows.push([
-                        dateStr, "سداد منه نقدى", name, "سداد نقدي", 0, 0, 0, Math.round(paid)
+                        dateStr, 
+                        "سداد منه نقدى", 
+                        name, 
+                        "سداد نقدي", 
+                        "",                           // عدد جركن فاضي
+                        1,                            // تم التثبيت بنجاح: عدد كرتونة = 1
+                        "",                           // سعر جركن فاضي
+                        Math.round(paid)              // سعر كرتونة = قيمة السداد النقدي
                     ]);
                 }
             });
@@ -285,7 +291,7 @@
         }
     };
 
-    // 2. كارت المشتريات
+    // 2. كارت المشتريات (تم تعديل فحص الأسماء وجلب البيانات لضمان عدم خروج الملف فارغاً)
     window.exportPurchasesToExcel = async () => {
         const card = document.getElementById('purchasesCard');
         const iconWrapper = document.getElementById('purchasesIcon');
@@ -299,7 +305,8 @@
             purchasesSnap.forEach(doc => {
                 const inv = doc.data();
                 const dateStr = getCleanDate(inv);
-                const name = inv.supplierName || "مورد نقدي";
+                // تأمين جلب الاسم بأي صيغة معرفة داخل جدول المشتريات
+                const name = inv.supplierName || inv.partyName || inv.customerName || "مورد نقدي";
                 
                 let itemsFound = [];
                 if (Array.isArray(inv.items) && inv.items.length > 0) {
@@ -323,18 +330,26 @@
                     ]);
                 });
 
+                // سطر السداد النقدي للمورد (تم التثبيت لعدد كرتونة 1)
                 const total = Number(inv.total || 0);
                 const remaining = Number(inv.remaining || 0);
                 const paid = total - remaining;
                 
                 if (paid > 0) {
                     excelRows.push([
-                        dateStr, "سداد له نقدى", name, "سداد نقدي", 0, 0, 0, Math.round(paid)
+                        dateStr, 
+                        "سداد له نقدى", 
+                        name, 
+                        "سداد نقدي", 
+                        "", 
+                        1, // عدد كرتونة = 1
+                        "", 
+                        Math.round(paid) // السعر = قيمة السداد
                     ]);
                 }
             });
 
-            if (excelRows.length <= 1) { alert("لم يتم العثور على أي سجلات مشتريات!"); return; }
+            if (excelRows.length <= 1) { alert("لم يتم العثور على أي سجلات مشتريات! تأكد من وجود فواتير بجدول المشتريات."); return; }
 
             const ws = XLSX.utils.aoa_to_sheet(excelRows);
             const wb = XLSX.utils.book_new();
@@ -350,7 +365,7 @@
         }
     };
 
-    // 3. كارت السندات المباشرة
+    // 3. كارت السندات المباشرة (مظبوط 100%)
     window.exportVouchersToExcel = async () => {
         const card = document.getElementById('vouchersCard');
         const iconWrapper = document.getElementById('vouchersIcon');
@@ -363,7 +378,6 @@
             const transSnap = await getDocs(collection(db, "transactions"));
             transSnap.forEach(doc => {
                 const d = doc.data();
-                // فلترة لضمان جلب السندات المالية فقط وتخطي فواتير البيع/الشراء إن وجدت في هذا الجدول
                 if (d.type === 'قبض' || d.type === 'صرف') {
                     const dateStr = getCleanDate(d);
                     const name = d.partyName || d.customerName || d.supplierName || 'حساب غير معروف';
@@ -377,10 +391,10 @@
                         movementText,
                         name,
                         "سداد نقدي", 
-                        "",              // عدد جركن (فارغ)
-                        1,               // عدد كرتونه مثبت 1 بنجاح
-                        "",              // سعر جركن (فارغ)
-                        Math.round(Number(d.amount || 0)) // سعر الكرتونة كقيمة للمبلغ
+                        "",              
+                        1,               // عدد كرتونه مثبت 1
+                        "",              
+                        Math.round(Number(d.amount || 0)) 
                     ]);
                 }
             });
