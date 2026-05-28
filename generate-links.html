@@ -103,7 +103,7 @@
         }
     }
 
-    // 2. دالة البحث الذكي الفوري (تحديث النتائج مع كل حرف يكتبه المستخدم)
+    // 2. دالة البحث الذكي الفوري (نسخة مطورة تحتوي على زر مشاركة الواتساب)
     function searchCustomers(keyword) {
         const container = document.getElementById('resultsContainer');
         
@@ -112,7 +112,6 @@
             return;
         }
 
-        // تصفية العملاء الذين يحتوي اسمهم على الكلمة المفتاحية المكتوبة
         const filtered = allCustomers.filter(c => c.name && c.name.toLowerCase().includes(keyword.toLowerCase()));
 
         if (filtered.length === 0) {
@@ -120,6 +119,24 @@
             return;
         }
 
+        // عرض النتائج المتطابقة مع إضافة زر الواتساب والتنسيق اللوني له
+        container.innerHTML = filtered.map(customer => `
+            <div class="customer-row flex-wrap gap-2">
+                <div>
+                    <span class="fw-bold d-block" style="color: var(--accent); font-size: 0.95rem;">${customer.name}</span>
+                    <small class="text-muted" style="font-size:0.75rem;"><i class="fas fa-hashtag me-1"></i> معرف الحساب: ${customer.id}</small>
+                </div>
+                <div class="d-flex gap-2 justify-content-end align-items-center flex-grow-1 flex-sm-grow-0">
+                    <button class="btn btn-copy" onclick="copyPortalLink('${customer.id}')">
+                        <i class="fas fa-copy me-1"></i> نسخ الرابط
+                    </button>
+                    <button class="btn btn-success fw-bold text-white px-3" style="border-radius: 8px; font-size: 0.85rem; background-color: #25d366; border: none;" onclick="shareOnWhatsApp('${customer.id}', '${customer.name}')">
+                        <i class="fab fa-whatsapp me-1"></i> مشاركة
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }
         // عرض النتائج المتطابقة
         container.innerHTML = filtered.map(customer => `
             <div class="customer-row">
@@ -134,26 +151,70 @@
         `).join('');
     }
 
-    // 3. دالة توليد ونسخ الرابط المباشر للعميل
+   // 3. دالة توليد ونسخ الرابط المباشر للعميل (نسخة مطورة ومضمونة المسار)
     window.copyPortalLink = (customerId) => {
-        // تأخذ رابط الدومين وتستبدل اسم الصفحة الحالية بصفحة بوابة العميل التي أنشأناها في الخطوة السابقة
-        const domain = window.location.origin + window.location.pathname.replace('generate-links.html', 'customer-portal.html');
-        const finalLink = `${domain}?cid=${customerId}`;
+        // جلب رابط المجلد الحالي الذي تعمل منه الآن بشكل ديناميكي
+        let currentPath = window.location.href;
+        
+        // استبدال اسم الصفحة الحالية بصفحة بوابة العميل
+        let finalLink = "";
+        if (currentPath.includes('generate-links.html')) {
+            finalLink = currentPath.replace('generate-links.html', 'customer-portal.html') + `?cid=${customerId}`;
+        } else {
+            // إذا كنت تفتح الملف كـ المجلد الرئيسي مباشرة
+            // نضمن إزالة أي علامات استفهام قديمة ونضيف اسم الملف المباشر
+            const baseUrl = window.location.origin + window.location.pathname;
+            const directory = baseUrl.substring(0, baseUrl.lastIndexOf('/'));
+            finalLink = `${directory}/customer-portal.html?cid=${customerId}`;
+        }
 
+        // تنفيذ عملية النسخ إلى الحافظة
         navigator.clipboard.writeText(finalLink).then(() => {
-            // تنبيه بسيط وجميل للـمستخدم بالنجاح
-            alert("✅ تم نسخ رابط العميل بنجاح! يمكنك الآن لصقه في محادثة الواتساب الخاصة به.");
+            alert(`✅ تم نسخ الرابط بنجاح!\n\nالرابط المنسوخ:\n${finalLink}\n\nيمكنك الآن إرساله للعميل مباشرة.`);
         }).catch(err => {
             console.error("فشل النسخ التلقائي: ", err);
-            alert("الرابط هو: " + finalLink);
+            // حل بديل في حال رفض المتصفح النسخ التلقائي لأسباب أمنية
+            prompt("انسخ الرابط التالي يدوياً:", finalLink);
+        });
+    };
+    // دالة مساعدة لتوليد الرابط بشكل موحد ومضمون
+    function generateCustomerLink(customerId) {
+        let currentPath = window.location.href;
+        if (currentPath.includes('generate-links.html')) {
+            return currentPath.replace('generate-links.html', 'customer-portal.html') + `?cid=${customerId}`;
+        } else {
+            const baseUrl = window.location.origin + window.location.pathname;
+            const directory = baseUrl.substring(0, baseUrl.lastIndexOf('/'));
+            return `${directory}/customer-portal.html?cid=${customerId}`;
+        }
+    }
+
+    // 3. دالة نسخ الرابط الأصلية (معدلة لتستخدم المولد الموحد)
+    window.copyPortalLink = (customerId) => {
+        const finalLink = generateCustomerLink(customerId);
+        navigator.clipboard.writeText(finalLink).then(() => {
+            alert(`✅ تم نسخ الرابط بنجاح!\n\nيمكنك الآن إرساله للعميل مباشرة.`);
+        }).catch(err => {
+            prompt("انسخ الرابط التالي يدوياً:", finalLink);
         });
     };
 
-    // الاستماع لحدث الكتابة في خانة البحث لتشغيل البحث الذكي فوراً
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-        searchCustomers(e.target.value);
-    });
-
+    // 4. دالة المشاركة المباشرة عبر الواتساب الفورية
+    window.shareOnWhatsApp = (customerId, customerName) => {
+        const finalLink = generateCustomerLink(customerId);
+        
+        // نص الرسالة الترحيبية المجهزة للعميل بشكل تلقائي (يمكنك تعديلها كما تحب)
+        const textMessage = `السلام عليكم يا فندم، مرحباً بك في شركة الزيادي.\n\nيمكنك الآن متابعة كشف حسابك التفصيلي وفواتيرك ومستنداتك المالية مباشرة وعبر الرابط الرقمي التالي:\n${finalLink}`;
+        
+        // ترميز النص ليتوافق مع روابط الويب (URL Encoding)
+        const encodedText = encodeURIComponent(textMessage);
+        
+        // إنشاء رابط الواتساب الشامل (يعمل على الموبايل والكمبيوتر مجاناً وبدون قيود)
+        const whatsAppUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
+        
+        // فتح الرابط في نافذة جديدة ليتحول المستخدم لتطبيق الواتساب فوراً
+        window.open(whatsAppUrl, '_blank');
+    };
     // بدء تشغيل الصفحة وجلب البيانات
     fetchCustomers();
 </script>
