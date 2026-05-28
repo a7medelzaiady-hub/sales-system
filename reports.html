@@ -145,26 +145,29 @@
 
     <div class="hub-container container">
         <div class="row w-100 g-4 justify-content-center">
+            <!-- كارت المبيعات -->
             <div class="col-12 col-md-4">
                 <div class="hub-card card-sales" id="salesCard" onclick="exportSalesToExcel()">
                     <div class="icon-wrapper" id="salesIcon">
                         <i class="fas fa-shopping-cart"></i>
                     </div>
                     <h3>تصدير كارت المبيعات</h3>
-                    <p>توليد ملف إكسيل منفصل يحتوي على فواتير البيع وبنود التحصيل النقدية من العملاء (معدل).</p>
+                    <p>توليد ملف إكسيل منفصل يحتوي على فواتير البيع وبنود التحصيل النقدية من العملاء.</p>
                 </div>
             </div>
 
+            <!-- كارت المشتريات -->
             <div class="col-12 col-md-4">
                 <div class="hub-card card-purchases" id="purchasesCard" onclick="exportPurchasesToExcel()">
                     <div class="icon-wrapper" id="purchasesIcon">
                         <i class="fas fa-truck"></i>
                     </div>
                     <h3>تصدير كارت المشتريات</h3>
-                    <p>توليد ملف إكسيل منفصل يحتوي على فواتير الشراء وبنود السداد النقدية للموردين (معدل الأمان).</p>
+                    <p>توليد ملف إكسيل منفصل يحتوي على فواتير الشراء وبنود السداد النقدية للموردين.</p>
                 </div>
             </div>
 
+            <!-- كارت السندات المباشرة -->
             <div class="col-12 col-md-4">
                 <div class="hub-card card-vouchers" id="vouchersCard" onclick="exportVouchersToExcel()">
                     <div class="icon-wrapper" id="vouchersIcon">
@@ -194,7 +197,6 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // دالة لتنظيف التاريخ وعرضه بشكل سليم
     function getCleanDate(docData) {
         if (docData.timestamp?.toDate) {
             const d = docData.timestamp.toDate();
@@ -205,7 +207,6 @@
         return new Date().toISOString().split('T')[0];
     }
 
-    // رؤوس الأعمدة الموحدة والمطلوبة لجميع الملفات
     const excelHeader = [
         "التاريخ", 
         "الحركه", 
@@ -217,7 +218,7 @@
         "سعر كرتونه"
     ];
 
-    // 1. كارت المبيعات (تم تعديل سطر السداد لتثبيت رقم 1 في الكرتونة)
+    // 1. كارت المبيعات (مظبوط 100%)
     window.exportSalesToExcel = async () => {
         const card = document.getElementById('salesCard');
         const iconWrapper = document.getElementById('salesIcon');
@@ -244,7 +245,6 @@
                     });
                 }
 
-                // سطر الصنف المباع عادي
                 itemsFound.forEach(item => {
                     const isBox = item.unit === "box";
                     excelRows.push([
@@ -256,21 +256,13 @@
                     ]);
                 });
 
-                // سطر السداد النقدي التابع للفاتورة (تم تثبيت رقم 1 هنا)
                 const total = Number(inv.total || 0);
                 const remaining = Number(inv.remaining || 0);
                 const paid = total - remaining;
                 
                 if (paid > 0) {
                     excelRows.push([
-                        dateStr, 
-                        "سداد منه نقدى", 
-                        name, 
-                        "سداد نقدي", 
-                        "",                           // عدد جركن فاضي
-                        1,                            // تم التثبيت بنجاح: عدد كرتونة = 1
-                        "",                           // سعر جركن فاضي
-                        Math.round(paid)              // سعر كرتونة = قيمة السداد النقدي
+                        dateStr, "سداد منه نقدى", name, "سداد نقدي", "", 1, "", Math.round(paid)
                     ]);
                 }
             });
@@ -291,7 +283,7 @@
         }
     };
 
-    // 2. كارت المشتريات (تم تعديل فحص الأسماء وجلب البيانات لضمان عدم خروج الملف فارغاً)
+    // 2. كارت المشتريات الذكي (البحث المزدوج لمنع مشكلة عدم العثور على سجلات)
     window.exportPurchasesToExcel = async () => {
         const card = document.getElementById('purchasesCard');
         const iconWrapper = document.getElementById('purchasesIcon');
@@ -301,12 +293,22 @@
         let excelRows = [excelHeader];
 
         try {
-            const purchasesSnap = await getDocs(collection(db, "purchases"));
+            // محاولة أولى: جلب البيانات من كولكشن "purchases"
+            let purchasesSnap = await getDocs(collection(db, "purchases"));
+            
+            // محاولة ثانية تبادلية: إذا كان الكولكشن الأول فارغاً، نجرب الاسم بصيغة المفرد "purchase"
+            if (purchasesSnap.empty) {
+                console.log("كولكشن purchases فارغ، جاري تجربة كولكشن purchase...");
+                purchasesSnap = await getDocs(collection(db, "purchase"));
+            }
+
             purchasesSnap.forEach(doc => {
                 const inv = doc.data();
+                console.log("بيانات فاتورة مشتريات مكتشفة:", inv); // مخصص للمراجعة البرمجية في المتصفح
+
                 const dateStr = getCleanDate(inv);
-                // تأمين جلب الاسم بأي صيغة معرفة داخل جدول المشتريات
-                const name = inv.supplierName || inv.partyName || inv.customerName || "مورد نقدي";
+                // محاولة استخراج اسم المورد بجميع الصيغ المتوقعة في قاعدة بياناتك
+                const name = inv.supplierName || inv.partyName || inv.supplier || inv.customerName || "مورد نقدي";
                 
                 let itemsFound = [];
                 if (Array.isArray(inv.items) && inv.items.length > 0) {
@@ -330,26 +332,21 @@
                     ]);
                 });
 
-                // سطر السداد النقدي للمورد (تم التثبيت لعدد كرتونة 1)
                 const total = Number(inv.total || 0);
                 const remaining = Number(inv.remaining || 0);
                 const paid = total - remaining;
                 
                 if (paid > 0) {
                     excelRows.push([
-                        dateStr, 
-                        "سداد له نقدى", 
-                        name, 
-                        "سداد نقدي", 
-                        "", 
-                        1, // عدد كرتونة = 1
-                        "", 
-                        Math.round(paid) // السعر = قيمة السداد
+                        dateStr, "سداد له نقدى", name, "سداد نقدي", "", 1, "", Math.round(paid)
                     ]);
                 }
             });
 
-            if (excelRows.length <= 1) { alert("لم يتم العثور على أي سجلات مشتريات! تأكد من وجود فواتير بجدول المشتريات."); return; }
+            if (excelRows.length <= 1) { 
+                alert("لم يتم العثور على أي سجلات في جدول المشتريات! يرجى التأكد من اسم الكولكشن الخاص بالفواتير في الفايربيس لديك."); 
+                return; 
+            }
 
             const ws = XLSX.utils.aoa_to_sheet(excelRows);
             const wb = XLSX.utils.book_new();
@@ -357,7 +354,7 @@
             XLSX.writeFile(wb, `تقرير_كارت_المشتريات_${new Date().toISOString().split('T')[0]}.xlsx`);
 
         } catch (e) {
-            console.error(e);
+            console.error("خطأ في جلب المشتريات:", e);
             alert("حدث خطأ أثناء تحميل بيانات المشتريات.");
         } finally {
             card.style.pointerEvents = "auto";
@@ -387,14 +384,7 @@
                     else if (d.type === 'صرف') movementText = "سداد له نقدى";
 
                     excelRows.push([
-                        dateStr,
-                        movementText,
-                        name,
-                        "سداد نقدي", 
-                        "",              
-                        1,               // عدد كرتونه مثبت 1
-                        "",              
-                        Math.round(Number(d.amount || 0)) 
+                        dateStr, movementText, name, "سداد نقدي", "", 1, "", Math.round(Number(d.amount || 0)) 
                     ]);
                 }
             });
