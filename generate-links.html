@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مُولد روابط العملاء - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2=family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { 
@@ -60,9 +60,8 @@
         </div>
     </div>
 
-    <!-- مكان ظهور نتائج البحث -->
     <div id="resultsContainer" class="mt-3">
-        <div class="text-center text-muted p-5 opacity-50 small">ابدأ بكتابة اسم العميل ليتم تصفيته تلقائياً</div>
+        <div class="text-center text-muted p-5 opacity-50 small">جاري تحميل البيانات من السيرفر...</div>
     </div>
 </div>
 
@@ -86,7 +85,7 @@
 
     let allCustomers = [];
 
-    // 1. جلب قائمة جميع العملاء من Firebase عند فتح الصفحة لمرة واحدة لتسريع البحث الذكي
+    // 1. جلب قائمة جميع العملاء من Firebase عند فتح الصفحة
     async function fetchCustomers() {
         try {
             const querySnapshot = await getDocs(collection(db, "customers"));
@@ -97,13 +96,19 @@
             
             // تحديث الواجهة بعد الجلب بنجاح
             document.getElementById('resultsContainer').innerHTML = '<div class="text-center text-muted p-4 small">جاهز للبحث الفوري.. اكتب أي اسم الآن</div>';
+            
+            // ربط مربع البحث بحدث الكتابة الفوري بعد تحميل البيانات بنجاح (حل الخطأ الثالث)
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                searchCustomers(e.target.value);
+            });
+
         } catch (error) {
             console.error("خطأ في جلب بيانات العملاء: ", error);
             document.getElementById('resultsContainer').innerHTML = '<div class="alert alert-danger text-center small">حدث خطأ أثناء تحميل قائمة العملاء</div>';
         }
     }
 
-    // 2. دالة البحث الذكي الفوري (نسخة مطورة تحتوي على زر مشاركة الواتساب)
+    // 2. دالة البحث الذكي الفوري (تم تصحيح الأقواس والتكرار)
     function searchCustomers(keyword) {
         const container = document.getElementById('resultsContainer');
         
@@ -137,47 +142,8 @@
             </div>
         `).join('');
     }
-        // عرض النتائج المتطابقة
-        container.innerHTML = filtered.map(customer => `
-            <div class="customer-row">
-                <div>
-                    <span class="fw-bold d-block" style="color: var(--accent); font-size: 0.95rem;">${customer.name}</span>
-                    <small class="text-muted" style="font-size:0.75rem;"><i class="fas fa-hashtag me-1"></i> معرف الحساب: ${customer.id}</small>
-                </div>
-                <button class="btn btn-copy" onclick="copyPortalLink('${customer.id}')">
-                    <i class="fas fa-copy me-1"></i> نسخ الرابط
-                </button>
-            </div>
-        `).join('');
-    }
 
-   // 3. دالة توليد ونسخ الرابط المباشر للعميل (نسخة مطورة ومضمونة المسار)
-    window.copyPortalLink = (customerId) => {
-        // جلب رابط المجلد الحالي الذي تعمل منه الآن بشكل ديناميكي
-        let currentPath = window.location.href;
-        
-        // استبدال اسم الصفحة الحالية بصفحة بوابة العميل
-        let finalLink = "";
-        if (currentPath.includes('generate-links.html')) {
-            finalLink = currentPath.replace('generate-links.html', 'customer-portal.html') + `?cid=${customerId}`;
-        } else {
-            // إذا كنت تفتح الملف كـ المجلد الرئيسي مباشرة
-            // نضمن إزالة أي علامات استفهام قديمة ونضيف اسم الملف المباشر
-            const baseUrl = window.location.origin + window.location.pathname;
-            const directory = baseUrl.substring(0, baseUrl.lastIndexOf('/'));
-            finalLink = `${directory}/customer-portal.html?cid=${customerId}`;
-        }
-
-        // تنفيذ عملية النسخ إلى الحافظة
-        navigator.clipboard.writeText(finalLink).then(() => {
-            alert(`✅ تم نسخ الرابط بنجاح!\n\nالرابط المنسوخ:\n${finalLink}\n\nيمكنك الآن إرساله للعميل مباشرة.`);
-        }).catch(err => {
-            console.error("فشل النسخ التلقائي: ", err);
-            // حل بديل في حال رفض المتصفح النسخ التلقائي لأسباب أمنية
-            prompt("انسخ الرابط التالي يدوياً:", finalLink);
-        });
-    };
-    // دالة مساعدة لتوليد الرابط بشكل موحد ومضمون
+    // 3. دالة مساعدة لتوليد الرابط بشكل موحد ومضمون
     function generateCustomerLink(customerId) {
         let currentPath = window.location.href;
         if (currentPath.includes('generate-links.html')) {
@@ -189,7 +155,7 @@
         }
     }
 
-    // 3. دالة نسخ الرابط الأصلية (معدلة لتستخدم المولد الموحد)
+    // 4. دالة نسخ الرابط الأصلية
     window.copyPortalLink = (customerId) => {
         const finalLink = generateCustomerLink(customerId);
         navigator.clipboard.writeText(finalLink).then(() => {
@@ -199,22 +165,23 @@
         });
     };
 
-    // 4. دالة المشاركة المباشرة عبر الواتساب الفورية
+    // 5. دالة المشاركة المباشرة عبر الواتساب الفورية
     window.shareOnWhatsApp = (customerId, customerName) => {
         const finalLink = generateCustomerLink(customerId);
         
-        // نص الرسالة الترحيبية المجهزة للعميل بشكل تلقائي (يمكنك تعديلها كما تحب)
+        // نص الرسالة الترحيبية المجهزة للعميل بشكل تلقائي
         const textMessage = `السلام عليكم يا فندم، مرحباً بك في شركة الزيادي.\n\nيمكنك الآن متابعة كشف حسابك التفصيلي وفواتيرك ومستنداتك المالية مباشرة وعبر الرابط الرقمي التالي:\n${finalLink}`;
         
         // ترميز النص ليتوافق مع روابط الويب (URL Encoding)
         const encodedText = encodeURIComponent(textMessage);
         
-        // إنشاء رابط الواتساب الشامل (يعمل على الموبايل والكمبيوتر مجاناً وبدون قيود)
+        // إنشاء رابط الواتساب الشامل
         const whatsAppUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
         
         // فتح الرابط في نافذة جديدة ليتحول المستخدم لتطبيق الواتساب فوراً
         window.open(whatsAppUrl, '_blank');
     };
+
     // بدء تشغيل الصفحة وجلب البيانات
     fetchCustomers();
 </script>
