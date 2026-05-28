@@ -75,6 +75,8 @@
             background: rgba(255,255,255,0.1); color: #fff; transition: 0.3s; font-size: 0.85rem;
         }
         .btn-action:hover { background: #fff; color: var(--accent); }
+        .btn-excel-custom { background: #fff; color: #1f7246 !important; border: 1px solid #1f7246; }
+        .btn-excel-custom:hover { background: #1f7246; color: #fff !important; }
 
         .btn-submit { background: var(--accent); color: white; font-weight: 700; border-radius: 8px; padding: 6px 15px; border: none; font-size: 0.8rem; }
         .btn-submit:hover { background: #08472e; color: white; }
@@ -99,7 +101,7 @@
     <div class="header-section">
         <div class="header-container container">
             <div class="nav-btns d-flex gap-2">
-                <button class="btn-action" onclick="exportToExcel()" title="تصدير إكسل"><i class="fas fa-file-excel"></i></button>
+                <button class="btn-action btn-excel-custom" onclick="exportToExcel()" title="تصدير إكسل"><i class="fas fa-file-excel fa-lg"></i></button>
             </div>
             <div class="title-area text-center flex-grow-1">
                 <h6 class="fw-bold m-0" style="font-size: 0.9rem;">إدارة عمليات القبض والصرف (عملاء / موردين)</h6>
@@ -179,18 +181,17 @@
             <table class="statement-table" id="vouchersTable">
                 <thead>
                     <tr>
-                        <th style="width: 12%;">التاريخ</th>
-                        <th style="width: 10%;">النوع</th>
-                        <th style="width: 13%;">نوع الطرف</th>
-                        <th style="width: 20%;">الاسم</th>
-                        <th style="width: 25%;">البيان والتفاصيل</th>
-                        <th style="width: 10%;">المبلغ</th>
-                        <th style="width: 5%;">مشاركة</th>
-                        <th style="width: 5%;">حذف</th>
+                        <th style="width: 15%;">التاريخ</th>
+                        <th style="width: 12%;">النوع</th>
+                        <th style="width: 25%;">الاسم</th>
+                        <th style="width: 28%;">البيان والتفاصيل</th>
+                        <th style="width: 12%;">المبلغ</th>
+                        <th style="width: 4%;">مشاركة</th>
+                        <th style="width: 4%;">حذف</th>
                     </tr>
                 </thead>
                 <tbody id="vouchersBody">
-                    <tr><td colspan="8" class="text-center py-4">
+                    <tr><td colspan="7" class="text-center py-4">
                         <div class="spinner-border spinner-border-sm text-success"></div> جاري مراجعة البيانات...
                     </td></tr>
                 </tbody>
@@ -380,7 +381,7 @@
 
         } catch (err) {
             if(allVouchers.length === 0) {
-                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="8" class="text-danger py-4">حدث خطأ أثناء تحميل البيانات</td></tr>';
+                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="7" class="text-danger py-4">حدث خطأ أثناء تحميل البيانات</td></tr>';
             }
         }
     }
@@ -391,7 +392,7 @@
         let total = 0;
 
         if(data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-3 text-muted">لا توجد حركات مطابقة لخيارات الفرز الحالية</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">لا توجد حركات مطابقة لخيارات الفرز الحالية</td></tr>';
             document.getElementById('vouchersTotal').innerText = "0.00 ج.م";
             return;
         }
@@ -405,7 +406,6 @@
                 <tr>
                     <td><span class="text-secondary fw-bold">${v.date}</span></td>
                     <td><span class="badge-type ${badgeClass}">${v.type}</span></td>
-                    <td><span class="text-dark small fw-bold">${v.partyType}</span></td>
                     <td class="text-end fw-bold text-dark">${pName}</td>
                     <td class="text-end text-muted small">${v.note}</td>
                     <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2})}</td>
@@ -517,7 +517,7 @@
     window.deleteVoucher = async (id) => {
         if(confirm("هل أنت متأكد من رغبتك في الحذف نهائياً؟")) {
             try {
-                await deleteDoc(doc(doc(db, "transactions", id)));
+                await deleteDoc(doc(db, "transactions", id));
                 alert("تم الحذف بنجاح.");
                 await loadVouchers();
             } catch (err) {
@@ -545,7 +545,7 @@
                     }
                     // إذا كان المورد أو كانت حركة صرف
                     if (partyType === "مورد" || voucherType === "صرف") {
-                        return "سداد له نقدى";
+                        return "سداد نقدى له";
                     }
 
                     return "حركة مالية";
@@ -576,8 +576,8 @@
 
         // إنشاء ملف الإكسل
         const wb = XLSX.utils.book_new();
-        XXLSX.utils.book_append_sheet(wb, ws, "العمليات المالية");
-        XXLSX.writeFile(wb, `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "العمليات المالية");
+        XLSX.writeFile(wb, `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     async function init() {
