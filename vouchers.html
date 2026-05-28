@@ -526,6 +526,7 @@
         }
     };
 
+
 window.exportToExcel = () => {
 
     // تجهيز البيانات بالشكل المطلوب
@@ -541,53 +542,49 @@ window.exportToExcel = () => {
                 ? partiesMap[v.partyId].type
                 : "");
 
-        
-return {
-    "التاريخ": v.date,
+        return {
+            "التاريخ": v.date,
 
-    "الحركة": (() => {
+            "الحركة": (() => {
 
-        const realPartyType =
-            v.partyType ||
-            (partiesMap[v.partyId]
-                ? partiesMap[v.partyId].type
-                : "");
+                if (actualPartyType === "عميل") {
+                    return v.type === "قبض"
+                        ? "تحصيل نقدى من عميل"
+                        : "صرف للعميل";
+                }
 
-        if (realPartyType === "عميل") {
-            return v.type === "قبض"
-                ? "تحصيل نقدى من عميل"
-                : "صرف للعميل";
-        }
+                if (actualPartyType === "مورد") {
+                    return v.type === "صرف"
+                        ? "سداد نقدى لمورد"
+                        : "مرتجع نقدى من مورد";
+                }
 
-        if (realPartyType === "مورد") {
-            return v.type === "صرف"
-                ? "سداد نقدى لمورد"
-                : "مرتجع نقدى من مورد";
-        }
+                return "حركة مالية";
 
-        return "حركة مالية";
+            })(),
 
-    })(),
+            "اسم العميل": customerName,
 
-    "اسم العميل": customerName,
+            "البيان": "سداد نقدى",
 
-    "البيان": "سداد نقدى",
+            "عدد جركن": "",
 
-    "عدد جركن": "",
+            "عدد كرتونه": 1,
 
-    "عدد كرتونه": 1,
+            "سعر جركن": "",
 
-    "سعر جركن": "",
+            "سعر كرتونه": v.amount
+        };
 
-    "سعر كرتونه": v.amount
-};
+    });
+
     // إنشاء الشيت
     const ws = XLSX.utils.json_to_sheet(exportData);
 
     // ضبط عرض الأعمدة
     ws['!cols'] = [
         { wch: 15 },
-        { wch: 20 },
+        { wch: 25 },
         { wch: 25 },
         { wch: 20 },
         { wch: 12 },
@@ -610,7 +607,6 @@ return {
         `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`
     );
 };
-
 
     async function init() {
         loadCache(); 
