@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بوابة التقارير - شركة الزيادي</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <style>
+        :root { 
+            --accent: #0b5e3d; 
+            --header-bg: #0b5e3d;
+            --bg-light: #f4f7f6;
+            --text-primary: #1b2e26;
+            --white: #ffffff;
+            --border: #dce3de;
+            --danger: #d90429;
+            --success: #2d6a4f;
+            --warning: #f5a623;
+            --blue-accent: #0284c7;
+        }
+
+        body { 
+            background: var(--bg-light); 
+            font-family: 'Cairo', sans-serif; 
+            color: var(--text-primary); 
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .header-section { 
+            padding: 15px; background: var(--header-bg); 
+            color: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header-container { display: flex; justify-content: space-between; align-items: center; }
+
+        .hub-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 15px;
+        }
+        
+        /* تصميم الكارت التفاعلي الموحد */
+        .hub-card {
+            background: var(--white);
+            border-radius: 24px;
+            padding: 45px 30px;
+            text-align: center;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.04);
+            transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+            text-decoration: none !important;
+            color: var(--text-primary) !important;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        .hub-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            transition: 0.3s;
+            background: var(--accent); /* الخط العلوي الأخضر المميز للنظام */
+        }
+
+        .hub-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(11, 94, 61, 0.08);
+            border-color: rgba(11, 94, 61, 0.2);
+        }
+
+        .icon-wrapper {
+            width: 90px;
+            height: 90px;
+            border-radius: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            margin-bottom: 25px;
+            transition: 0.3s;
+            background: #e8f5e9;
+            color: var(--accent);
+        }
+
+        .hub-card:hover .icon-wrapper {
+            transform: scale(1.1);
+            background: var(--accent);
+            color: var(--white);
+        }
+
+        .hub-card h3 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+        }
+
+        .hub-card p {
+            font-size: 0.95rem;
+            color: #7f8c8d;
+            margin: 0;
+            line-height: 1.6;
+            max-width: 450px;
+        }
+
+        .btn-action { 
+            width: 38px; height: 38px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); 
+            background: rgba(255,255,255,0.1); color: #fff; transition: 0.3s; 
+        }
+        .btn-action:hover { background: #fff; color: var(--accent); }
+    </style>
+</head>
+<body>
+
+    <div class="header-section">
+        <div class="header-container container">
+            <div style="width: 38px;"></div> <div class="title-area text-center flex-grow-1">
+                <h5 class="fw-bold m-0">بوابة التقارير الشاملة</h5>
+            </div>
+            <a href="javascript:history.back()" class="btn-action d-flex align-items-center justify-content-center text-decoration-none">
+                <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+
+    <div class="hub-container container">
+        <div class="row w-100 justify-content-center" style="max-width: 600px;">
+            
+            <div class="col-10 col-md-12">
+                <div class="hub-card" id="exportCard" onclick="exportAllToExcel()">
+                    <div class="icon-wrapper" id="cardIcon">
+                        <i class="fas fa-cloud-download-alt"></i>
+                    </div>
+                    <h3>تصدير جميع البيانات</h3>
+                    <p>تجميع فوري لكافة السجلات الحالية (المبيعات، المشتريات، وسندات القبض والصرف) ودمجها تلقائياً داخل ملف إكسل موحد يحمل اسم شيت "التقرير".</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    // إعدادات Firebase الخاصة بنظامك لضمان الربط المباشر والآمن بالبيانات الحية
+    const firebaseConfig = {
+        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+        authDomain: "ahmedelzaiady.firebaseapp.com",
+        projectId: "ahmedelzaiady",
+        storageBucket: "ahmedelzaiady.firebasestorage.app",
+        messagingSenderId: "300306825071",
+        appId: "1:300306825071:web:0426ddde56280fa090329a",
+        measurementId: "G-WE04GK5XZZ"
+    };
+    
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // دالة المعالجة والتجميع الذكي من الـ 3 مجموعات وتصديرها بداخل شيت "التقرير"
+    window.exportAllToExcel = async () => {
+        const card = document.getElementById('exportCard');
+        const iconWrapper = document.getElementById('cardIcon');
+        
+        // تغيير مؤقت لشكل الكارت أثناء التحميل لإشعار المستخدم بالعملية برمجياً
+        card.style.pointerEvents = "none";
+        iconWrapper.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        try {
+            // 1. جلب متوازي لبيانات المبيعات والمشتريات والسندات المالية
+            const [salesSnap, purchasesSnap, transSnap, suppliersSnap, customersSnap] = await Promise.all([
+                getDocs(collection(db, "sales")),
+                getDocs(collection(db, "purchases")),
+                getDocs(collection(db, "transactions")),
+                getDocs(collection(db, "suppliers")),
+                getDocs(collection(db, "customers"))
+            ]);
+
+            // بناء خريطة محلية سريعة لأسماء العملاء والموردين لربط المعرفات بأسماء الأطراف
+            let partiesNames = {};
+            suppliersSnap.forEach(doc => { partiesNames[doc.id] = { name: doc.data().name, type: 'مورد' }; });
+            customersSnap.forEach(doc => { partiesNames[doc.id] = { name: doc.data().name, type: 'عميل' }; });
+
+            let mergedData = [];
+
+            // 2. سحب المبيعات
+            salesSnap.forEach(doc => {
+                const d = doc.data();
+                const pName = partiesNames[d.partyId] ? partiesNames[d.partyId].name : (d.customerName || 'حساب غير معروف');
+                mergedData.push({
+                    date: d.date || '',
+                    movement: 'مبيعات',
+                    name: pName,
+                    note: d.note || d.notes || 'فاتورة مبيعات',
+                    jarkanCount: d.jarkanCount || d.jarkanQty || '',
+                    cartonCount: d.cartonCount || d.cartonQty || '',
+                    jarkanPrice: d.jarkanPrice || '',
+                    cartonPrice: d.cartonPrice || d.totalPrice || d.amount || ''
+                });
+            });
+
+            // 3. سحب المشتريات
+            purchasesSnap.forEach(doc => {
+                const d = doc.data();
+                const pName = partiesNames[d.partyId] ? partiesNames[d.partyId].name : (d.supplierName || 'حساب غير معروف');
+                mergedData.push({
+                    date: d.date || '',
+                    movement: 'مشتريات',
+                    name: pName,
+                    note: d.note || d.notes || 'فاتورة مشتريات',
+                    jarkanCount: d.jarkanCount || d.jarkanQty || '',
+                    cartonCount: d.cartonCount || d.cartonQty || '',
+                    jarkanPrice: d.jarkanPrice || '',
+                    cartonPrice: d.cartonPrice || d.totalPrice || d.amount || ''
+                });
+            });
+
+            // 4. سحب السندات المالية (قبض وصرف) وصياغة الحركة نقدياً حسب نوع الحساب
+            transSnap.forEach(doc => {
+                const d = doc.data();
+                if (d.type === 'قبض' || d.type === 'صرف') {
+                    const pName = partiesNames[d.partyId] ? partiesNames[d.partyId].name : 'حساب غير معروف';
+                    const pType = d.partyType || (partiesNames[d.partyId] ? partiesNames[d.partyId].type : 'مورد');
+                    
+                    let movementText = "";
+                    if (pType === "عميل") {
+                        movementText = "سداد منه نقدى";
+                    } else if (pType === "مورد") {
+                        movementText = "سداد له نقدى";
+                    } else {
+                        movementText = d.type === "قبض" ? "سداد منه نقدى" : "سداد له نقدى";
+                    }
+
+                    mergedData.push({
+                        date: d.date || '',
+                        movement: movementText,
+                        name: pName,
+                        note: d.note || d.notes || 'سداد نقدى',
+                        jarkanCount: '',
+                        cartonCount: 1, // تثبيت الحقل للحفاظ على اتزان الحسابات التراكمية بالاكسيل
+                        jarkanPrice: '',
+                        cartonPrice: Number(d.amount || 0)
+                    });
+                }
+            });
+
+            if (mergedData.length === 0) {
+                alert("لا توجد بيانات مسجلة في أي من السجلات لغرض تصديرها حالياً.");
+                return;
+            }
+
+            // 5. فرز السجل بالكامل من الأحدث إلى الأقدم بناءً على التاريخ
+            mergedData.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            // 6. تشكيل البيانات في صفوف مصفوفة الإكسيل بالأعمدة المعتمدة والمطلوبة بدقة
+            const excelRows = [];
+            excelRows.push([
+                "التاريخ", 
+                "الحركه", 
+                "اسم العميل/المورد",
+                "البيان", 
+                "عدد جركن", 
+                "عدد كرتونه", 
+                "سعر جركن", 
+                "سعر كرتونه"
+            ]);
+
+            mergedData.forEach(item => {
+                excelRows.push([
+                    item.date,
+                    item.movement,
+                    item.name,
+                    item.note,
+                    item.jarkanCount,
+                    item.cartonCount,
+                    item.jarkanPrice,
+                    item.cartonPrice
+                ]);
+            });
+
+            // 7. تحويل التقرير المدمج إلى Sheet مستقل يحمل مسمى "التقرير" بداخل ملف العمل
+            const ws = XLSX.utils.aoa_to_sheet(excelRows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "التقرير");
+            
+            // تحميل وحفظ الملف فوراً على جهازك
+            XLSX.writeFile(wb, `السجل_الشامل_الموحد_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+        } catch (err) {
+            console.error(err);
+            alert("حدث خطأ غير متوقع أثناء تجميع البيانات من خوادم قاعدة البيانات.");
+        } finally {
+            // إعادة الكارت لوضعه الطبيعي بعد انتهاء المعالجة والتصدير
+            card.style.pointerEvents = "auto";
+            iconWrapper.innerHTML = '<i class="fas fa-cloud-download-alt"></i>';
+        }
+    };
+</script>
+</body>
+</html>
