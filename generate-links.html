@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مُولد روابط العملاء - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { 
@@ -84,10 +84,10 @@
 
     let allCustomers = [];
 
-    // 1. جلب قائمة جميع العملاء من Firebase
+    // جلب البيانات من مجموعة cash_logs المعتمدة لديك
     async function fetchCustomers() {
         try {
-            const querySnapshot = await getDocs(collection(db, "customers"));
+            const querySnapshot = await getDocs(collection(db, "cash_logs"));
             allCustomers = querySnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
@@ -100,35 +100,33 @@
             });
 
         } catch (error) {
-            console.error("خطأ في جلب بيانات العملاء: ", error);
-            document.getElementById('resultsContainer').innerHTML = '<div class="alert alert-danger text-center small">حدث خطأ أثناء تحميل قائمة العملاء</div>';
+            console.error("خطأ في جلب البيانات: ", error);
+            document.getElementById('resultsContainer').innerHTML = '<div class="alert alert-danger text-center small">حدث خطأ أثناء تحميل السجلات</div>';
         }
     }
 
-    // 2. دالة البحث الذكي الفوري
     function searchCustomers(keyword) {
         const container = document.getElementById('resultsContainer');
-        
         if (!keyword.trim()) {
             container.innerHTML = '<div class="text-center text-muted p-5 opacity-50 small">ابدأ بكتابة اسم العميل ليتم تصفيته تلقائياً</div>';
             return;
         }
 
+        // البحث في حقل الاسم (تأكد أن الحقل في الـ Firestore اسمه name أو قم بتغييره هنا لما يقابله)
         const filtered = allCustomers.filter(c => c.name && c.name.toLowerCase().includes(keyword.toLowerCase()));
 
         if (filtered.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted p-4 small">لم يتم العثور على عملاء يطابقون هذا الاسم</div>';
+            container.innerHTML = '<div class="text-center text-muted p-4 small">لم يتم العثور على سجلات تطابق هذا الاسم</div>';
             return;
         }
 
         container.innerHTML = filtered.map(customer => {
-            // معالجة علامات الاقتباس الفردية والزوجية في الأسماء لمنع كسر كود الـ HTML
             const safeName = customer.name.replace(/['"]/g, ' '); 
             return `
                 <div class="customer-row flex-wrap gap-2">
                     <div>
                         <span class="fw-bold d-block" style="color: var(--accent); font-size: 0.95rem;">${customer.name}</span>
-                        <small class="text-muted" style="font-size:0.75rem;"><i class="fas fa-hashtag me-1"></i> معرف الحساب: ${customer.id}</small>
+                        <small class="text-muted" style="font-size:0.75rem;"><i class="fas fa-hashtag me-1"></i> معرف العملية: ${customer.id}</small>
                     </div>
                     <div class="d-flex justify-content-end align-items-center flex-grow-1 flex-sm-grow-0">
                         <button class="btn btn-action" onclick="window.copyAndShare('${customer.id}', '${safeName}')">
@@ -140,35 +138,28 @@
         }).join('');
     }
 
-    // 3. دالة توليد الرابط بناءً على نطاق استضافتك
     function generateCustomerLink(customerId) {
         const baseProjectUrl = "https://ahmedelzaiady.web.app"; 
         return `${baseProjectUrl}/customer-portal.html?cid=${customerId}`;
     }
 
-    // 4. جعل الدالة عامة لتعمل بشكل صحيح في نطاق الموديول
     window.copyAndShare = (customerId, customerName) => {
         const finalLink = generateCustomerLink(customerId);
         
-        // أولاً: تنفيذ عملية النسخ في الخلفية
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(finalLink)
-                .then(() => console.log("تم النسخ بنجاح في الخلفية"))
-                .catch(err => console.error("فشل النسخ التلقائي: ", err));
+                .then(() => console.log("تم النسخ"))
+                .catch(err => console.error(err));
         }
 
-        // ثانياً: تجهيز نص الرسالة وتوجيه الموظف للواتساب فوراً
-        const textMessage = `السلام عليكم يا فندم، مرحباً بك في شركة الزيادي.\n\nيمكنك الآن متابعة كشف حسابك التفصيلي وفواتيرك ومستنداتك المالية مباشرة وعبر الرابط الرقمي التالي:\n${finalLink}`;
+        const textMessage = `السلام عليكم يا فندم، مرحباً بك في شركة الزيادي.\n\nيمكنك الآن متابعة كشف حسابك التفصيلي مباشرة وعبر الرابط الرقمي التالي:\n${finalLink}`;
         const encodedText = encodeURIComponent(textMessage);
         const whatsAppUrl = `https://api.whatsapp.com/send?text=${encodedText}`;
         
-        // فتح تطبيق الواتساب
         window.open(whatsAppUrl, '_blank');
     };
 
-    // بدء تشغيل الصفحة
     fetchCustomers();
 </script>
-
 </body>
 </html>
