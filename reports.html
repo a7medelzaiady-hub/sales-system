@@ -198,7 +198,7 @@
     </div>
 </div>
 
-<!-- مودال / إيصال السداد لمعاينة السند -->
+<!-- مودال / نافذة منبثقة لمعاينة السند بعد الحفظ أو عند الضغط على مشاركة -->
 <div class="modal fade" id="receiptModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -264,8 +264,11 @@
     document.addEventListener("DOMContentLoaded", () => {
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
         
+        // ربط أحداث الفلاتر عن طريق الكود للتأكد من تتبعها داخل النطاق (Module Scope)
         document.getElementById('filterType').addEventListener('change', filterData);
         document.getElementById('filterParty').addEventListener('change', filterData);
+        
+        // ربط دالة تصدير الإكسيل بالزر مباشرة هنا
         document.getElementById('btnExportExcel').addEventListener('click', exportToExcel);
     });
 
@@ -275,7 +278,9 @@
         const cachedParties = localStorage.getItem('cache_partiesMap');
         const cachedVouchers = localStorage.getItem('cache_allVouchers');
         
-        if (cachedParties) { partiesMap = JSON.parse(cachedParties); }
+        if (cachedParties) {
+            partiesMap = JSON.parse(cachedParties);
+        }
         if (cachedVouchers) {
             allVouchers = JSON.parse(cachedVouchers);
             renderTable(allVouchers);
@@ -518,6 +523,7 @@
         const fType = document.getElementById('filterType').value;
         const fParty = document.getElementById('filterParty').value;
 
+        // فلترة البيانات المصدرة بناءً على خيارات التصفية الحالية في الشاشة
         const filteredData = allVouchers.filter(v => {
             const matchType = (fType === 'الكل' || v.type === fType);
             const matchParty = (fParty === 'الكل' || v.partyType === fParty);
@@ -529,6 +535,7 @@
             return;
         }
 
+        // بناء صفوف ملف الـ Excel بالترتيب والمسميات المحددة بدقة
         const excelRows = [];
         excelRows.push([
             "التاريخ", 
@@ -544,32 +551,33 @@
         filteredData.forEach(v => {
             const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
             
-            // تحديد مسمى الحركة تلقائياً لدمج المبيعات والمشتريات
+            // تحديد مسمى الحركة تلقائياً بناءً على نوع الطرف والعملية المالية
             let movementText = "";
             if (v.partyType === "عميل") {
-                movementText = "سداد منه نقدى"; // مبيعات وقبض
+                movementText = "سداد منه نقدى";
             } else if (v.partyType === "مورد") {
-                movementText = "سداد له نقدى"; // مشتريات وصرف
+                movementText = "سداد له نقدى";
             } else {
                 movementText = v.type === "قبض" ? "سداد منه نقدى" : "سداد له نقدى";
             }
 
             excelRows.push([
                 v.date,               // التاريخ
-                movementText,         // الحركه (سداد منه نقدي أو سداد له نقدي تلقائياً)
+                movementText,         // الحركه
                 pName,                // اسم العميل/المورد
                 "سداد نقدى",          // البيان الثابت
                 "",                   // عدد جركن (فارغ)
-                1,                    // عدد كرتونه (تم كتابة 1 بشكل ثابت لجميع السندات)
+                1,                    // عدد كرتونه (ثابت 1)
                 "",                   // سعر جركن (فارغ)
-                v.amount              // سعر كرتونه (المبلغ المالي)
+                v.amount              // سعر كرتونه (يوضع فيه المبلغ المالي)
             ]);
         });
 
+        // تحويل المصفوفة إلى شيت وجلب الملف
         const ws = XLSX.utils.aoa_to_sheet(excelRows);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "العمليات المالية المدمجة");
-        XLSX.writeFile(wb, `تقرير_الحركات_المدمج_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "العمليات المالية");
+        XLSX.writeFile(wb, `تقرير_حركات_الخزنة_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
 
     async function init() {
