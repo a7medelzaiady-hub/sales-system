@@ -21,6 +21,8 @@
             --border: #dce3de;
             --danger: #d90429;
             --success: #2d6a4f;
+            --warning: #ffb703;
+            --info: #219ebc;
         }
 
         body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 30px; font-size: 0.85rem; }
@@ -37,6 +39,12 @@
             margin: 10px 0; border: 1px solid var(--border);
             box-shadow: 0 2px 8px rgba(0,0,0,0.02);
         }
+
+        .card-report {
+            border-top: 4px solid var(--accent);
+            transition: transform 0.2s;
+        }
+        .card-report:hover { transform: translateY(-2px); }
 
         .form-label { margin-bottom: 3px; font-size: 0.75rem !important; }
         .form-control-sm, .form-select-sm { padding: 6px 10px; font-size: 0.8rem !important; border-radius: 8px; }
@@ -88,7 +96,6 @@
             font-family: 'Cairo', sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.1);
             border: 1px dashed #000; margin: 0 auto;
         }
-
         .receipt-header-title { font-size: 1.35rem; font-weight: 700; margin: 0; word-spacing: 3px; letter-spacing: 0px; }
     </style>
 </head>
@@ -97,11 +104,9 @@
 <div id="content-to-export">
     <div class="header-section">
         <div class="header-container container">
-            <div class="nav-btns d-flex gap-2">
-                <button class="btn-action" id="btnExportExcel" title="تصدير إكسل"><i class="fas fa-file-excel"></i></button>
-            </div>
+            <div class="nav-btns d-flex gap-2"></div>
             <div class="title-area text-center flex-grow-1">
-                <h6 class="fw-bold m-0" style="font-size: 0.9rem;">إدارة عمليات القبض والصرف (عملاء / موردين)</h6>
+                <h6 class="fw-bold m-0" style="font-size: 0.9rem;">إدارة عمليات القبض والصرف (شركة الزيادي)</h6>
             </div>
             <a href="javascript:history.back()" class="btn-action d-flex align-items-center justify-content-center text-decoration-none">
                 <i class="fas fa-arrow-right"></i>
@@ -152,29 +157,53 @@
             </form>
         </div>
 
-        <!-- أدوات الفلترة والعرض -->
-        <div class="card-custom py-2 d-flex flex-wrap justify-content-between align-items-center gap-2">
-            <div class="d-flex gap-2 align-items-center">
-                <span class="small fw-bold text-muted" style="font-size: 0.75rem;"><i class="fas fa-filter"></i> تصفية:</span>
-                <select class="form-select form-select-sm w-auto" id="filterType">
-                    <option value="الكل">كل العمليات</option>
-                    <option value="قبض">القبض فقط</option>
-                    <option value="صرف">الصرف فقط</option>
-                </select>
-                <select class="form-select form-select-sm w-auto" id="filterParty">
-                    <option value="الكل">كل الأطراف</option>
-                    <option value="عميل">العملاء فقط</option>
-                    <option value="مورد">الموردين فقط</option>
-                </select>
+        <!-- قسم كروت التقارير والتصدير الذكي -->
+        <div class="row g-2 my-2">
+            <!-- كارت المبيعات -->
+            <div class="col-md-4">
+                <div class="card-custom card-report" style="border-top-color: var(--success);">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold text-success m-0"><i class="fas fa-shopping-cart me-1"></i> كارت المبيعات</h6>
+                        <span id="badgeSalesCount" class="badge bg-success rounded-pill style='font-size:0.7rem;'">0</span>
+                    </div>
+                    <p class="text-muted small mb-3">يحتوي على مستندات التحصيل والقبض الخاصة بـ (العملاء).</p>
+                    <button class="btn btn-success btn-sm w-100 fw-bold" id="btnExportSales">
+                        <i class="fas fa-file-excel me-1"></i> تصدير إكسل المبيعات
+                    </button>
+                </div>
             </div>
-            <div class="text-end">
-                <span class="small fw-bold opacity-75" style="font-size: 0.75rem;">إجمالي العمليات المعروضة: </span>
-                <span id="vouchersTotal" class="fw-bold text-success fs-6">0.00 ج.م</span>
+
+            <!-- كارت المشتريات -->
+            <div class="col-md-4">
+                <div class="card-custom card-report" style="border-top-color: var(--danger);">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold text-danger m-0"><i class="fas fa-truck me-1"></i> كارت المشتريات</h6>
+                        <span id="badgePurchaseCount" class="badge bg-danger rounded-pill style='font-size:0.7rem;'">0</span>
+                    </div>
+                    <p class="text-muted small mb-3">يحتوي على مستندات الصرف والدفع الخاصة بـ (الموردين).</p>
+                    <button class="btn btn-danger btn-sm w-100 fw-bold" id="btnExportPurchases">
+                        <i class="fas fa-file-excel me-1"></i> تصدير إكسل المشتريات
+                    </button>
+                </div>
+            </div>
+
+            <!-- كارت السندات المدمج -->
+            <div class="col-md-4">
+                <div class="card-custom card-report" style="border-top-color: var(--info);">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="fw-bold text-info m-0"><i class="fas fa-exchange-alt me-1"></i> كارت الخزنة الشامل</h6>
+                        <span id="badgeAllCount" class="badge bg-info rounded-pill style='font-size:0.7rem;'">0</span>
+                    </div>
+                    <p class="text-muted small mb-3">يحتوي على كافة السندات (قبض وصرف للعملاء والموردين) معاً.</p>
+                    <button class="btn btn-info text-white btn-sm w-100 fw-bold" id="btnExportAllVouchers">
+                        <i class="fas fa-file-excel me-1"></i> تصدير تقرير الخزنة المدمج
+                    </button>
+                </div>
             </div>
         </div>
 
-        <!-- جدول الحركات والسندات -->
-        <div class="table-responsive">
+        <!-- جدول المعاينة المباشرة للسندات الأخيرة -->
+        <div class="table-responsive mt-3">
             <table class="statement-table" id="vouchersTable">
                 <thead>
                     <tr>
@@ -190,7 +219,7 @@
                 </thead>
                 <tbody id="vouchersBody">
                     <tr><td colspan="8" class="text-center py-4">
-                        <div class="spinner-border spinner-border-sm text-success"></div> جاري مراجعة البيانات...
+                        <div class="spinner-border spinner-border-sm text-success"></div> جاري تحميل البيانات ومزامنتها...
                     </td></tr>
                 </tbody>
             </table>
@@ -198,12 +227,12 @@
     </div>
 </div>
 
-<!-- مودال / نافذة منبثقة لمعاينة السند بعد الحفظ أو عند الضغط على مشاركة -->
+<!-- مودال معاينة الإيصال الحراري ومشاركته -->
 <div class="modal fade" id="receiptModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header py-2">
-                <h6 class="modal-title fw-bold text-success"><i class="fas fa-receipt me-1"></i> إيصال السداد</h6>
+                <h6 class="modal-title fw-bold text-success"><i class="fas fa-receipt me-1"></i> إيصال الخزينة</h6>
                 <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body bg-light text-center">
@@ -212,18 +241,15 @@
                         <h5 class="receipt-header-title">شركة الزيادي</h5>
                         <small class="text-muted" style="font-size: 0.65rem;"> لزيوت وفلاتر السيارات</small>
                     </div>
-                    
                     <div class="d-flex justify-content-between text-end small mb-2 border-bottom pb-1" style="font-size: 0.75rem;">
                         <div><strong>الحركة:</strong> <span id="recType" class="fw-bold"></span></div>
                         <div><strong>التاريخ:</strong> <span id="recDate"></span></div>
                     </div>
-
                     <div class="my-3 py-2 border-bottom border-top text-center" style="background: #f9f9f9;">
                         <small class="text-muted d-block" style="font-size: 0.7rem;">المبلغ المدفوع</small>
                         <h3 class="fw-bold m-0 text-dark" id="recAmount" style="font-size: 1.6rem;">0.00</h3>
-                        <small class="fw-bold"> تم الاستلام</small>
+                        <small class="fw-bold">تم الإجراء بنجاح</small>
                     </div>
-
                     <div class="text-center mt-2 pt-1">
                         <small class="text-muted" style="font-size: 0.65rem;">شكراً لتعاملكم معنا</small>
                         <small class="text-muted" style="font-size: 0.65rem;">01027830834</small>
@@ -231,8 +257,8 @@
                 </div>
             </div>
             <div class="modal-footer d-flex justify-content-between py-2">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">إلغاء / إغلاق</button>
-                <button type="button" class="btn btn-success btn-sm" id="btnDoShare">مشاركة الفاتورة <i class="fas fa-share-alt ms-1"></i></button>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">إغلاق</button>
+                <button type="button" class="btn btn-success btn-sm" id="btnDoShare">مشاركة الإيصال <i class="fas fa-share-alt ms-1"></i></button>
             </div>
         </div>
     </div>
@@ -264,12 +290,10 @@
     document.addEventListener("DOMContentLoaded", () => {
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
         
-        // ربط أحداث الفلاتر عن طريق الكود للتأكد من تتبعها داخل النطاق (Module Scope)
-        document.getElementById('filterType').addEventListener('change', filterData);
-        document.getElementById('filterParty').addEventListener('change', filterData);
-        
-        // ربط دالة تصدير الإكسيل بالزر مباشرة هنا
-        document.getElementById('btnExportExcel').addEventListener('click', exportToExcel);
+        // ربط أحداث التصدير للكروت الثلاثة برمجياً
+        document.getElementById('btnExportSales').addEventListener('click', () => exportExcelByGroup('مبيعات'));
+        document.getElementById('btnExportPurchases').addEventListener('click', () => exportExcelByGroup('مشتريات'));
+        document.getElementById('btnExportAllVouchers').addEventListener('click', () => exportExcelByGroup('الكل'));
     });
 
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
@@ -277,13 +301,11 @@
     function loadCache() {
         const cachedParties = localStorage.getItem('cache_partiesMap');
         const cachedVouchers = localStorage.getItem('cache_allVouchers');
-        
-        if (cachedParties) {
-            partiesMap = JSON.parse(cachedParties);
-        }
+        if (cachedParties) { partiesMap = JSON.parse(cachedParties); }
         if (cachedVouchers) {
             allVouchers = JSON.parse(cachedVouchers);
             renderTable(allVouchers);
+            updateBadges();
         }
     }
 
@@ -293,15 +315,11 @@
                 getDocs(collection(db, "suppliers")),
                 getDocs(collection(db, "customers"))
             ]);
-
             partiesMap = {};
             supSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'مورد' }; });
             custSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'عميل' }; });
-            
             localStorage.setItem('cache_partiesMap', JSON.stringify(partiesMap));
-        } catch (err) {
-            console.error("Error fetching parties:", err);
-        }
+        } catch (err) { console.error(err); }
     }
 
     window.searchParty = () => {
@@ -310,28 +328,16 @@
         const pType = document.getElementById('partyType').value;
         const term = input.value.toLowerCase().trim();
 
-        if (term.length < 1) {
-            resultsDiv.style.display = 'none';
-            return;
-        }
+        if (term.length < 1) { resultsDiv.style.display = 'none'; return; }
 
         let filteredHtml = '';
         for (let id in partiesMap) {
             if (partiesMap[id].type === pType && partiesMap[id].name.toLowerCase().includes(term)) {
-                filteredHtml += `
-                    <div class="search-item" onclick="selectParty('${id}', '${partiesMap[id].name}')">
-                        <b>${partiesMap[id].name}</b>
-                    </div>`;
+                filteredHtml += `<div class="search-item" onclick="selectParty('${id}', '${partiesMap[id].name}')"><b>${partiesMap[id].name}</b></div>`;
             }
         }
-
-        if (filteredHtml !== '') {
-            resultsDiv.innerHTML = filteredHtml;
-            resultsDiv.style.display = 'block';
-        } else {
-            resultsDiv.innerHTML = `<div class="search-item text-muted text-center">لا توجد نتائج مطابقة</div>`;
-            resultsDiv.style.display = 'block';
-        }
+        resultsDiv.innerHTML = filteredHtml || `<div class="search-item text-muted text-center">لا توجد نتائج مطابقة</div>`;
+        resultsDiv.style.display = 'block';
     };
 
     window.selectParty = (id, name) => {
@@ -347,12 +353,7 @@
     });
 
     document.getElementById('partySearch').addEventListener('input', window.searchParty);
-
-    document.addEventListener('click', (e) => {
-        if (!e.target.closest('.search-container')) {
-            document.getElementById('partyResults').style.display = 'none';
-        }
-    });
+    document.addEventListener('click', (e) => { if (!e.target.closest('.search-container')) document.getElementById('partyResults').style.display = 'none'; });
 
     async function loadVouchers() {
         try {
@@ -377,215 +378,155 @@
 
             localStorage.setItem('cache_allVouchers', JSON.stringify(allVouchers));
             renderTable(allVouchers);
-
-        } catch (err) {
-            if(allVouchers.length === 0) {
-                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="8" class="text-danger py-4">حدث خطأ أثناء تحميل البيانات</td></tr>';
-            }
-        }
+            updateBadges();
+        } catch (err) { console.error(err); }
     }
 
     function renderTable(data) {
         const tbody = document.getElementById('vouchersBody');
         tbody.innerHTML = '';
-        let total = 0;
-
         if(data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-3 text-muted">لا توجد حركات مطابقة لخيارات الفرز الحالية</td></tr>';
-            document.getElementById('vouchersTotal').innerText = "0.00 ج.م";
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-3 text-muted">لا توجد سحوبات مسجلة في الخزينة حالياً</td></tr>';
             return;
         }
-
         data.forEach(v => {
-            total += v.amount;
             const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
-            const badgeClass = v.type === 'قبض' ? 'badge-receipt' : 'badge-payment';
-
             tbody.innerHTML += `
                 <tr>
                     <td><span class="text-secondary fw-bold">${v.date}</span></td>
-                    <td><span class="badge-type ${badgeClass}">${v.type}</span></td>
+                    <td><span class="badge-type ${v.type === 'قبض' ? 'badge-receipt' : 'badge-payment'}">${v.type}</span></td>
                     <td><span class="text-dark small fw-bold">${v.partyType}</span></td>
                     <td class="text-end fw-bold text-dark">${pName}</td>
                     <td class="text-end text-muted small">${v.note}</td>
                     <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2})}</td>
-                    <td>
-                        <button class="btn-share-row" onclick="openReceiptModal('${v.type}', '${v.date}', ${v.amount})"><i class="fas fa-share-alt"></i></button>
-                    </td>
-                    <td>
-                        <button class="btn-delete-row" onclick="deleteVoucher('${v.id}')"><i class="fas fa-trash-alt"></i></button>
-                    </td>
+                    <td><button class="btn-share-row" onclick="openReceiptModal('${v.type}', '${v.date}', ${v.amount})"><i class="fas fa-share-alt"></i></button></td>
+                    <td><button class="btn-delete-row" onclick="deleteVoucher('${v.id}')"><i class="fas fa-trash-alt"></i></button></td>
                 </tr>`;
         });
-
-        document.getElementById('vouchersTotal').innerText = `${total.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
     }
 
-    function filterData() {
-        const fType = document.getElementById('filterType').value;
-        const fParty = document.getElementById('filterParty').value;
+    function updateBadges() {
+        const salesCount = allVouchers.filter(v => v.partyType === "عميل").length;
+        const purchaseCount = allVouchers.filter(v => v.partyType === "مورد").length;
+        
+        document.getElementById('badgeSalesCount').innerText = salesCount;
+        document.getElementById('badgePurchaseCount').innerText = purchaseCount;
+        document.getElementById('badgeAllCount').innerText = allVouchers.length;
+    }
 
-        const filtered = allVouchers.filter(v => {
-            const matchType = (fType === 'الكل' || v.type === fType);
-            const matchParty = (fParty === 'الكل' || v.partyType === fParty);
-            return matchType && matchParty;
+    function exportExcelByGroup(groupType) {
+        let targetData = [];
+        let filename = "";
+
+        if (groupType === "مبيعات") {
+            targetData = allVouchers.filter(v => v.partyType === "عميل");
+            filename = "تقرير_حركات_المبيعات_العملاء";
+        } else if (groupType === "مشتريات") {
+            targetData = allVouchers.filter(v => v.partyType === "مورد");
+            filename = "تقرير_حركات_المشتريات_الموردين";
+        } else {
+            targetData = allVouchers;
+            filename = "تقرير_حركات_الخزنة_الشامل";
+        }
+
+        if (targetData.length === 0) {
+            alert("لا توجد بيانات متاحة في هذا الكارت لتصديرها.");
+            return;
+        }
+
+        const excelRows = [];
+        excelRows.push(["التاريخ", "الحركه", "اسم العميل/المورد", "البيان", "عدد جركن", "عدد كرتونه", "سعر جركن", "سعر كرتونه"]);
+
+        targetData.forEach(v => {
+            const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
+            
+            // تحديد النص البرمجي للحركة بناءً على نوع العضو المالي
+            let movementText = (v.partyType === "عميل") ? "سداد منه نقدى" : "سداد له نقدى";
+
+            excelRows.push([
+                v.date,           // التاريخ
+                movementText,     // الحركه
+                pName,            // اسم العميل/المورد
+                "سداد نقدى",      // البيان الثابت
+                "",               // عدد جركن (فارغ)
+                1,                // عدد كرتونه (مكتوب ومثبت رقم 1 بنجاح هنا)
+                "",               // سعر جركن (فارغ)
+                v.amount          // سعر كرتونه (المبلغ المالي المودع/المصروف)
+            ]);
         });
 
-        renderTable(filtered);
+        const ws = XLSX.utils.aoa_to_sheet(excelRows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "البيانات");
+        XLSX.writeFile(wb, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
 
     window.openReceiptModal = (type, date, amount) => {
         document.getElementById('recType').innerText = type === 'قبض' ? 'سند قبض' : 'سند صرف';
         document.getElementById('recDate').innerText = date;
         document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
-        
         if(receiptModalObj) receiptModalObj.show();
     };
 
     document.getElementById('btnDoShare').addEventListener('click', () => {
-        const target = document.getElementById('thermalReceipt');
-        
-        html2canvas(target, { scale: 2, useCORS: true }).then(canvas => {
+        html2canvas(document.getElementById('thermalReceipt'), { scale: 2, useCORS: true }).then(canvas => {
             canvas.toBlob(blob => {
-                if (!blob) { alert("فشل إنشاء صورة المعاينة"); return; }
                 const file = new File([blob], "receipt.png", { type: "image/png" });
-                
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    navigator.share({
-                        files: [file],
-                        title: 'إيصال سداد - شركة الزيادي',
-                    }).catch(err => console.log('إلغاء المشاركة'));
+                    navigator.share({ files: [file], title: 'إيصال سداد' }).catch(e => {});
                 } else {
                     const a = document.createElement('a');
                     a.href = canvas.toDataURL('image/png');
-                    a.download = `سند_سداد_${new Date().toISOString().split('T')[0]}.png`;
+                    a.download = `سند_سداد.png`;
                     a.click();
-                    alert("تم حفظ الصورة بجهازك بنجاح، يمكنك مشاركتها الآن يدوياً.");
                 }
-            }, 'image/png');
+            });
         });
     });
 
     document.getElementById('voucherForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         const partyId = document.getElementById('partyId').value;
-        if(!partyId) { alert("الرجاء تحديد الاسم الصحيح من قائمة البحث الذكي المنسدلة"); return; }
+        if(!partyId) { alert("الرجاء تحديد الاسم من قائمة البحث الذكي"); return; }
 
         const submitBtn = e.target.querySelector('button[type="submit"]');
         submitBtn.disabled = true;
-        submitBtn.innerText = "جاري الحفظ...";
-
+        
         const vDateVal = document.getElementById('vDate').value;
         const vTypeVal = document.getElementById('vType').value;
         const vAmountVal = Number(document.getElementById('vAmount').value);
 
-        const newVoucher = {
-            date: vDateVal,
-            type: vTypeVal,
-            partyType: document.getElementById('partyType').value,
-            partyId: partyId,
-            amount: vAmountVal,
-            note: document.getElementById('vNote').value
-        };
-
         try {
-            await addDoc(collection(db, "transactions"), newVoucher);
-            
+            await addDoc(collection(db, "transactions"), {
+                date: vDateVal, type: vTypeVal,
+                partyType: document.getElementById('partyType').value,
+                partyId: partyId, amount: vAmountVal,
+                note: document.getElementById('vNote').value
+            });
             document.getElementById('vAmount').value = '';
             document.getElementById('vNote').value = '';
             document.getElementById('partySearch').value = '';
             document.getElementById('partyId').value = '';
-            
             await loadVouchers();
             openReceiptModal(vTypeVal, vDateVal, vAmountVal);
-
-        } catch (err) {
-            alert("حدث خطأ أثناء الحفظ");
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = 'حفظ البيانات <i class="fas fa-save ms-1"></i>';
-        }
+        } catch (err) { alert("خطأ بالحفظ"); } 
+        finally { submitBtn.disabled = false; }
     });
 
     window.deleteVoucher = async (id) => {
-        if(confirm("هل أنت متأكد من رغبتك في الحذف نهائياً؟")) {
+        if(confirm("هل تريد الحذف نهائياً؟")) {
             try {
                 await deleteDoc(doc(db, "transactions", id));
-                alert("تم الحذف بنجاح.");
                 await loadVouchers();
-            } catch (err) {
-                alert("فشل إجراء الحذف.");
-            }
+            } catch (e) { alert("فشل الحذف"); }
         }
     };
-
-    function exportToExcel() {
-        const fType = document.getElementById('filterType').value;
-        const fParty = document.getElementById('filterParty').value;
-
-        // فلترة البيانات المصدرة بناءً على خيارات التصفية الحالية في الشاشة
-        const filteredData = allVouchers.filter(v => {
-            const matchType = (fType === 'الكل' || v.type === fType);
-            const matchParty = (fParty === 'الكل' || v.partyType === fParty);
-            return matchType && matchParty;
-        });
-
-        if (filteredData.length === 0) {
-            alert("لا توجد بيانات متاحة للتصدير بناءً على الفلاتر المحددة.");
-            return;
-        }
-
-        // بناء صفوف ملف الـ Excel بالترتيب والمسميات المحددة بدقة
-        const excelRows = [];
-        excelRows.push([
-            "التاريخ", 
-            "الحركه", 
-            "اسم العميل/المورد",
-            "البيان", 
-            "عدد جركن", 
-            "عدد كرتونه", 
-            "سعر جركن", 
-            "سعر كرتونه"
-        ]);
-
-        filteredData.forEach(v => {
-            const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
-            
-            // تحديد مسمى الحركة تلقائياً بناءً على نوع الطرف والعملية المالية
-            let movementText = "";
-            if (v.partyType === "عميل") {
-                movementText = "سداد منه نقدى";
-            } else if (v.partyType === "مورد") {
-                movementText = "سداد له نقدى";
-            } else {
-                movementText = v.type === "قبض" ? "سداد منه نقدى" : "سداد له نقدى";
-            }
-
-            excelRows.push([
-                v.date,               // التاريخ
-                movementText,         // الحركه
-                pName,                // اسم العميل/المورد
-                "سداد نقدى",          // البيان الثابت
-                "",                   // عدد جركن (فارغ)
-                1,                    // عدد كرتونه (ثابت 1)
-                "",                   // سعر جركن (فارغ)
-                v.amount              // سعر كرتونه (يوضع فيه المبلغ المالي)
-            ]);
-        });
-
-        // تحويل المصفوفة إلى شيت وجلب الملف
-        const ws = XLSX.utils.aoa_to_sheet(excelRows);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "العمليات المالية");
-        XLSX.writeFile(wb, `تقرير_حركات_الخزنة_${new Date().toISOString().split('T')[0]}.xlsx`);
-    }
 
     async function init() {
         loadCache(); 
         await fetchPartiesData(); 
         await loadVouchers(); 
     }
-    
     init();
 </script>
 </body>
