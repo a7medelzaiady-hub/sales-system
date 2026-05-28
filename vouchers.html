@@ -526,18 +526,64 @@
         }
     };
 
-    window.exportToExcel = () => {
-        const table = document.getElementById("vouchersTable");
-        const clonedTable = table.cloneNode(true);
-        clonedTable.querySelectorAll('tr').forEach(tr => {
-            // حذف آخر عامودين (مشاركة وحذف) قبل التصدير للإكسل
-            if(tr.lastElementChild) tr.lastElementChild.remove();
-            if(tr.lastElementChild) tr.lastElementChild.remove();
-        });
+window.exportToExcel = () => {
 
-        const wb = XLSX.utils.table_to_book(clonedTable, { sheet: "العمليات المالية" });
-        XLSX.writeFile(wb, `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`);
-    };
+    // تجهيز البيانات بالشكل المطلوب
+    const exportData = allVouchers.map(v => {
+
+        const customerName = partiesMap[v.partyId]
+            ? partiesMap[v.partyId].name
+            : 'غير معروف';
+
+        return {
+            "التاريخ": v.date,
+            "الحركة": v.partyType === "عميل"
+                ? "سداد منه نقدى"
+                : "سداد له نقدى",
+
+            "اسم العميل": customerName,
+
+            "البيان": "سداد نقدى",
+
+            "عدد جركن": "",
+
+            "عدد كرتونه": 1,
+
+            "سعر جركن": "",
+
+            "سعر كرتونه": v.amount
+        };
+    });
+
+    // إنشاء الشيت
+    const ws = XLSX.utils.json_to_sheet(exportData);
+
+    // ضبط عرض الأعمدة
+    ws['!cols'] = [
+        { wch: 15 }, // التاريخ
+        { wch: 20 }, // الحركة
+        { wch: 25 }, // اسم العميل
+        { wch: 20 }, // البيان
+        { wch: 12 }, // عدد جركن
+        { wch: 12 }, // عدد كرتونه
+        { wch: 15 }, // سعر جركن
+        { wch: 15 }  // سعر كرتونه
+    ];
+
+    // إنشاء ملف الإكسل
+    const wb = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(
+        wb,
+        ws,
+        "العمليات المالية"
+    );
+
+    XLSX.writeFile(
+        wb,
+        `تقرير_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`
+    );
+};
 
     async function init() {
         loadCache(); 
