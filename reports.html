@@ -8,7 +8,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
-    <!-- مكتبة تصدير الإكسيل -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
@@ -123,7 +122,6 @@
 </head>
 <body>
 
-    <!-- الهيدر العلوي -->
     <div class="header-section">
         <div class="header-container container">
             <div style="width: 38px;"></div>
@@ -136,7 +134,6 @@
         </div>
     </div>
 
-    <!-- منطقة الكارت الموحد -->
     <div class="hub-container container">
         <div class="row w-100 justify-content-center" style="max-width: 600px;">
             <div class="col-10 col-md-12">
@@ -168,6 +165,17 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    // دالة لتنسيق التاريخ المستلم من قواعد البيانات لتوحيد شكله
+    function extractDateStr(inv) {
+        if (inv.timestamp?.toDate) {
+            const d = inv.timestamp.toDate();
+            return d.toISOString().split('T')[0];
+        }
+        if (inv.time) return inv.time.split(" ")[0] || inv.time;
+        if (inv.date) return inv.date;
+        return new Date().toISOString().split('T')[0];
+    }
+
     window.exportAllToExcel = async () => {
         const card = document.getElementById('exportCard');
         const iconWrapper = document.getElementById('cardIcon');
@@ -176,97 +184,131 @@
         iconWrapper.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         
         let mergedData = [];
-        let partiesNames = {};
 
         try {
-            // جلب العملاء والموردين لربط المعرفات بالأسماء أولاً
+            // 1. جلب سجل المبيعات (من حقل invoices الفعلي في قاعدة بياناتك)
             try {
-                const [suppliersSnap, customersSnap] = await Promise.all([
-                    getDocs(collection(db, "suppliers")),
-                    getDocs(collection(db, "customers"))
-                ]);
-                suppliersSnap.forEach(doc => { partiesNames[doc.id] = { name: doc.data().name, type: 'مورد' }; });
-                customersSnap.forEach(doc => { partiesNames[doc.id] = { name: doc.data().name, type: 'عميل' }; });
-            } catch (e) { console.warn("تنبيه: فشل تحميل أسماء العملاء/الموردين المباشرة:", e); }
-
-            // 1. جلب المبيعات بشكل منفصل لضمان عدم توقف الكود
-            try {
-                const salesSnap = await getDocs(collection(db, "sales"));
+                const salesSnap = await getDocs(collection(db, "invoices"));
                 salesSnap.forEach(doc => {
-                    const d = doc.data();
-                    const pName = d.customerName || (partiesNames[d.partyId] ? partiesNames[d.partyId].name : 'حساب غير معروف');
-                    mergedData.push({
-                        date: d.date || '',
-                        movement: 'مبيعات',
-                        name: pName,
-                        note: d.note || d.notes || d.statement || 'فاتورة مبيعات',
-                        jarkanCount: d.jarkanCount || d.jarkanQty || d.jarkan || '',
-                        cartonCount: d.cartonCount || d.cartonQty || d.carton || '',
-                        jarkanPrice: d.jarkanPrice || d.priceJarkan || '',
-                        cartonPrice: d.cartonPrice || d.priceCarton || d.totalPrice || d.amount || ''
-                    });
-                });
-            } catch (e) { console.error("خطأ في جلب جدول المبيعات (sales):", e); }
+                    const inv = doc.data();
+                    const dateStr = extractDateStr(inv);
+                    const clientName = inv.customerName || "عميل نقدي";
 
-            // 2. جلب المشتريات بشكل منفصل
+                    // فك الأصناف بداخل الفاتورة سطر بسطر لملف الإكسيل
+                    if (Array.isArray(inv.items) && inv.items.length > 0) {
+                        inv.items.forEach(item => {
+                            const isBox = item.unit === "box";
+                            mergedData.push({
+                                date: dateStr,
+                                movement: "بيع",
+                                name: clientName,
+                                note: item.name || "صنف مبيعات",
+                                jarkanCount: !isBox ? (item.qty || 0) : 0,
+                                cartonCount: isBox ? (item.qty || 0) : 0,
+                                jarkanPrice: !isBox ? Math.round(item.price || 0) : 0,
+                                cartonPrice: isBox ? Math.round(item.price || 0) : 0
+                            });
+                        });
+                    } else {
+                        // دعم الهيكل البديل في حالة عدم وجود مصفوفة items مباشرة
+                        Object.keys(inv).forEach(k => {
+                            if (!isNaN(k) && inv[k]) {
+                                const item = inv[k];
+                                const isBox = item.unit === "box";
+                                mergedData.push({
+                                    date: dateStr,
+                                    movement: "بيع",
+                                    name: clientName,
+                                    note: item.name || "صنف مبيعات",
+                                    jarkanCount: !isBox ? (item.qty || 0) : 0,
+                                    cartonCount: isBox ? (item.qty || 0) : 0,
+                                    jarkanPrice: !isBox ? Math.round(item.price || 0) : 0,
+                                    cartonPrice: isBox ? Math.round(item.price || 0) : 0
+                                });
+                            }
+                        });
+                    }
+                });
+            } catch (e) { console.error("خطأ في جلب المبيعات (invoices):", e); }
+
+            // 2. جلب سجل المشتريات (purchases) بنفس الهيكل المتوقع للفواتير عندك
             try {
                 const purchasesSnap = await getDocs(collection(db, "purchases"));
                 purchasesSnap.forEach(doc => {
-                    const d = doc.data();
-                    const pName = d.supplierName || (partiesNames[d.partyId] ? partiesNames[d.partyId].name : 'حساب غير معروف');
-                    mergedData.push({
-                        date: d.date || '',
-                        movement: 'مشتريات',
-                        name: pName,
-                        note: d.note || d.notes || d.statement || 'فاتورة مشتريات',
-                        jarkanCount: d.jarkanCount || d.jarkanQty || d.jarkan || '',
-                        cartonCount: d.cartonCount || d.cartonQty || d.carton || '',
-                        jarkanPrice: d.jarkanPrice || d.priceJarkan || '',
-                        cartonPrice: d.cartonPrice || d.priceCarton || d.totalPrice || d.amount || ''
-                    });
-                });
-            } catch (e) { console.error("خطأ في جلب جدول المشتريات (purchases):", e); }
+                    const inv = doc.data();
+                    const dateStr = extractDateStr(inv);
+                    const supplierName = inv.supplierName || "مورد غير معروف";
 
-            // 3. جلب السندات (القبض والصرف) وتثبيت خانة البيان إلى "سداد نقدى"
+                    if (Array.isArray(inv.items) && inv.items.length > 0) {
+                        inv.items.forEach(item => {
+                            const isBox = item.unit === "box";
+                            mergedData.push({
+                                date: dateStr,
+                                movement: "شراء",
+                                name: supplierName,
+                                note: item.name || "صنف مشتريات",
+                                jarkanCount: !isBox ? (item.qty || 0) : 0,
+                                cartonCount: isBox ? (item.qty || 0) : 0,
+                                jarkanPrice: !isBox ? Math.round(item.price || 0) : 0,
+                                cartonPrice: isBox ? Math.round(item.price || 0) : 0
+                            });
+                        });
+                    } else {
+                        Object.keys(inv).forEach(k => {
+                            if (!isNaN(k) && inv[k]) {
+                                const item = inv[k];
+                                const isBox = item.unit === "box";
+                                mergedData.push({
+                                    date: dateStr,
+                                    movement: "شراء",
+                                    name: supplierName,
+                                    note: item.name || "صنف مشتريات",
+                                    jarkanCount: !isBox ? (item.qty || 0) : 0,
+                                    cartonCount: isBox ? (item.qty || 0) : 0,
+                                    jarkanPrice: !isBox ? Math.round(item.price || 0) : 0,
+                                    cartonPrice: isBox ? Math.round(item.price || 0) : 0
+                                });
+                            }
+                        });
+                    }
+                });
+            } catch (e) { console.error("خطأ في جلب المشتريات (purchases):", e); }
+
+            // 3. جلب السندات المالية (transactions) مع فرض كلمة "سداد نقدى" في خانة البيان
             try {
                 const transSnap = await getDocs(collection(db, "transactions"));
                 transSnap.forEach(doc => {
                     const d = doc.data();
-                    const pName = d.partyName || d.customerName || d.supplierName || (partiesNames[d.partyId] ? partiesNames[d.partyId].name : 'حساب غير معروف');
-                    const pType = d.partyType || (partiesNames[d.partyId] ? partiesNames[d.partyId].type : '');
+                    const dateStr = extractDateStr(d);
+                    const pName = d.partyName || d.customerName || d.supplierName || 'حساب غير معروف';
                     
-                    let movementText = "";
-                    if (d.type === 'قبض' || pType === 'عميل') {
-                        movementText = "سداد منه نقدى";
-                    } else if (d.type === 'صرف' || pType === 'مورد') {
-                        movementText = "سداد له نقدى";
-                    } else {
-                        movementText = "سداد نقدى";
-                    }
+                    let movementText = "سداد نقدى";
+                    if (d.type === 'قبض') movementText = "سداد منه نقدى";
+                    else if (d.type === 'صرف') movementText = "سداد له نقدى";
 
                     mergedData.push({
-                        date: d.date || '',
+                        date: dateStr,
                         movement: movementText,
                         name: pName,
-                        note: 'سداد نقدى', // تثبيت خانة البيان كما طلبت تماماً لجميع السندات
+                        note: 'سداد نقدى', // فرض الحقل بشكل ثابت بناء على طلبك
                         jarkanCount: '',
                         cartonCount: '',
                         jarkanPrice: '',
-                        cartonPrice: Number(d.amount || 0)
+                        cartonPrice: Math.round(Number(d.amount || 0))
                     });
                 });
-            } catch (e) { console.error("خطأ في جلب جدول السندات (transactions):", e); }
+            } catch (e) { console.error("خطأ في جلب السندات (transactions):", e); }
 
-            // التحقق من وجود بيانات مجمعة
+            // التنبيه في حالة عدم وجود أي بيانات على الإطلاق
             if (mergedData.length === 0) {
-                alert("لم يتم العثور على أي بيانات في السجلات، تأكد من أسماء الـ Collections في الفايربيز.");
+                alert("لم يتم العثور على أي سجلات في قاعدة البيانات لدمجها.");
                 return;
             }
 
-            // فرز البيانات من الأحدث للأقدم بناءً على التاريخ
+            // ترتيب البيانات من الأحدث إلى الأقدم
             mergedData.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-            // تشكيل صفوف ملف الإكسيل
+            // بناء مصفوفة صفوف الإكسيل بالترتيب المطلوب لشركتكم
             const excelRows = [];
             excelRows.push([
                 "التاريخ", 
@@ -292,16 +334,16 @@
                 ]);
             });
 
-            // توليد وتحميل الملف
+            // إنشاء ملف الـ Excel وتحميله للعميل
             const ws = XLSX.utils.aoa_to_sheet(excelRows);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "التقرير");
+            XLSX.utils.book_append_sheet(wb, ws, "التقرير الموحد");
             
-            XLSX.writeFile(wb, `التقرير_الشامل_${new Date().toISOString().split('T')[0]}.xlsx`);
+            XLSX.writeFile(wb, `التقرير_الشامل_الموحد_${new Date().toISOString().split('T')[0]}.xlsx`);
 
         } catch (err) {
-            console.error("حدث خطأ عام أثناء التصدير:", err);
-            alert("حدث خطأ أثناء معالجة الملف وتصديره.");
+            console.error("حدث خطأ عام أثناء الدمج والتصدير:", err);
+            alert("حدث خطأ غير متوقع أثناء معالجة الملف.");
         } finally {
             card.style.pointerEvents = "auto";
             iconWrapper.innerHTML = '<i class="fas fa-cloud-download-alt"></i>';
