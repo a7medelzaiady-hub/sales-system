@@ -150,7 +150,6 @@
     <div class="hub-container container">
         <div class="row w-100 g-4 justify-content-center">
             
-            <!-- 1. كارت المبيعات -->
             <div class="col-12 col-sm-6 col-md-3">
                 <div class="hub-card card-sales" id="salesCard" onclick="exportSalesToExcel()">
                     <div class="icon-wrapper" id="salesIcon">
@@ -161,7 +160,6 @@
                 </div>
             </div>
 
-            <!-- 2. كارت المشتريات -->
             <div class="col-12 col-sm-6 col-md-3">
                 <div class="hub-card card-purchases" id="purchasesCard" onclick="exportPurchasesToExcel()">
                     <div class="icon-wrapper" id="purchasesIcon">
@@ -172,7 +170,6 @@
                 </div>
             </div>
 
-            <!-- 3. كارت السندات المالية -->
             <div class="col-12 col-sm-6 col-md-3">
                 <div class="hub-card card-vouchers" id="vouchersCard" onclick="exportVouchersToExcel()">
                     <div class="icon-wrapper" id="vouchersIcon">
@@ -183,7 +180,6 @@
                 </div>
             </div>
 
-            <!-- 4. الكارت المضاف والمصلح لإنشاء روابط الحسابات للعملاء -->
             <div class="col-12 col-sm-6 col-md-3">
                 <a href="generate-links.html" class="hub-card card-portal">
                     <div class="icon-wrapper">
@@ -248,7 +244,7 @@
             salesSnap.forEach(doc => {
                 const inv = doc.data();
                 const dateStr = getCleanDate(inv);
-                const name = inv.customerName || inv.partyName || "عميل نقدي";
+                const name = inv.customerName || inv.partyName || inv.name || "عميل نقدي";
                 
                 let itemsFound = [];
                 if (Array.isArray(inv.items) && inv.items.length > 0) {
@@ -287,8 +283,8 @@
 
             const ws = XLSX.utils.aoa_to_sheet(excelRows);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "المبيعات");
-            XLSX.writeFile(wb, `تقرير_كارت_المبيعات_${new Date().toISOString().split('T')[0]}.xlsx`);
+            XXLSX.utils.book_append_sheet(wb, ws, "المبيعات");
+            XXLSX.writeFile(wb, `تقرير_كارت_المبيعات_${new Date().toISOString().split('T')[0]}.xlsx`);
 
         } catch (e) {
             console.error(e);
@@ -310,7 +306,7 @@
         try {
             const supSnap = await getDocs(collection(db, "suppliers"));
             let suppliersNames = {};
-            supSnap.forEach(d => suppliersNames[d.id] = d.data().name);
+            supSnap.forEach(d => suppliersNames[d.id] = d.data().name || d.data().supplierName);
 
             const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
             
@@ -319,7 +315,7 @@
                 
                 if (inv.type === "شراء" || inv.type === "فاتورة شراء" || inv.type === "مرتجع شراء") {
                     const dateStr = inv.date || getCleanDate(inv);
-                    const supplierName = suppliersNames[inv.supplierId] || 'مورد غير معروف';
+                    const supplierName = suppliersNames[inv.supplierId] || inv.supplierName || 'مورد غير معروف';
                     const isReturn = inv.type === "مرتجع شراء";
                     const motionType = isReturn ? "بيع" : "شراء";
 
@@ -362,8 +358,8 @@
 
             const ws = XLSX.utils.aoa_to_sheet(excelRows);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "المشتريات");
-            XLSX.writeFile(wb, `تقرير_كارت_المشتريات_${new Date().toISOString().split('T')[0]}.xlsx`);
+            XXLSX.utils.book_append_sheet(wb, ws, "المشتريات");
+            XXLSX.writeFile(wb, `تقرير_كارت_المشتريات_${new Date().toISOString().split('T')[0]}.xlsx`);
 
         } catch (e) {
             console.error("خطأ المشتريات:", e);
@@ -388,14 +384,32 @@
                 const d = doc.data();
                 if (d.type === 'قبض' || d.type === 'صرف') {
                     const dateStr = getCleanDate(d);
-                    const name = d.partyName || d.customerName || d.supplierName || 'حساب غير معروف';
+                    
+                    // فحص شامل وذكي جداً لاستخراج الاسم الصحيح للحساب من السند
+                    let name = "حساب غير معروف";
+                    if (d.partyName) name = d.partyName;
+                    else if (d.name) name = d.name;
+                    else if (d.customerName) name = d.customerName;
+                    else if (d.supplierName) name = d.supplierName;
+                    else if (d.paidTo) name = d.paidTo;
+                    else if (d.receivedFrom) name = d.receivedFrom;
+                    else if (d.clientName) name = d.clientName;
+                    else {
+                        // فحص احتياطي: البحث عن أي قيمة نصية طويلة داخل السند قد تمثل الاسم
+                        for (let key in d) {
+                            if (typeof d[key] === 'string' && d[key].length > 3 && key !== 'type' && key !== 'date' && key !== 'time' && key !== 'id' && key !== 'notes') {
+                                name = d[key];
+                                break;
+                            }
+                        }
+                    }
                     
                     let movementText = "سداد نقدى";
                     if (d.type === 'قبض') movementText = "سداد منه نقدى";
                     else if (d.type === 'صرف') movementText = "سداد له نقدى";
 
                     excelRows.push([
-                        dateStr, movementText, name, "سداد نقدي", "", 1, "", Math.round(Number(d.amount || 0)) 
+                        dateStr, movementText, name, d.notes || d.details || "سداد نقدي", "", 1, "", Math.round(Number(d.amount || 0)) 
                     ]);
                 }
             });
@@ -404,8 +418,8 @@
 
             const ws = XLSX.utils.aoa_to_sheet(excelRows);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "السندات المالية");
-            XLSX.writeFile(wb, `تقرير_كارت_السندات_${new Date().toISOString().split('T')[0]}.xlsx`);
+            XXLSX.utils.book_append_sheet(wb, ws, "السندات المالية");
+            XXLSX.writeFile(wb, `تقرير_كارت_السندات_${new Date().toISOString().split('T')[0]}.xlsx`);
 
         } catch (e) {
             console.error(e);
