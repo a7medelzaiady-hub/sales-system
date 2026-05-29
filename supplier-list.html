@@ -31,7 +31,7 @@
         .search-box { 
             background: var(--white); border: 1px solid var(--border); 
             border-radius: 12px; padding: 10px 15px; display: flex; 
-            align-items: center; margin: 15px 0; 
+            align-items: center; margin: 15px 15px 0; 
             box-shadow: 0 2px 5px rgba(0,0,0,0.02);
         }
         .search-box input { 
@@ -67,21 +67,43 @@
         .btn-info { background: #f0f4ff; color: var(--info); border-color: #dbe4ff; }
         
         .spinner-custom { color: var(--accent); font-weight: 700; font-size: 0.85rem; }
+
+        .btn-delete-all {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+        .btn-delete-all:hover {
+            background: rgba(217, 4, 41, 0.2);
+            border-color: rgba(217, 4, 41, 0.4);
+        }
     </style>
 </head>
 <body>
 
 <div class="header-section">
-    <div class="container d-flex justify-content-between align-items-center">
-        <a href="supplier-management.html" class="text-white"><i class="fas fa-arrow-right"></i></a>
-        <h6 class="m-0 fw-bold">قائمة الموردين </h6>
-        <div style="width: 20px;"></div>
-    </div>
-    <div class="container">
-        <div class="search-box">
-            <input type="text" id="searchInput" placeholder="ابحث باسم المورد أو الهاتف..." oninput="filterSuppliers()">
-            <i class="fas fa-search"></i>
+    <div class="container d-flex justify-content-between align-items-center px-3">
+        <div class="d-flex align-items-center gap-3">
+            <a href="index.html" class="text-white text-decoration-none" title="الرئيسية">
+                <i class="fas fa-house fs-5"></i>
+            </a>
+            <a href="supplier-management.html" class="text-white text-decoration-none" title="رجوع">
+                <i class="fas fa-chevron-right fs-5"></i>
+            </a>
         </div>
+        <h5 class="m-0 fw-bold">قائمة الموردين</h5>
+        <div>
+            <button class="btn-delete-all" onclick="deleteAllSuppliersPermanently()">حذف الكل نهائياً</button>
+        </div>
+    </div>
+    <div class="search-box">
+        <i class="fas fa-search"></i>
+        <input type="text" id="searchInput" placeholder="ابحث باسم المورد أو الهاتف..." oninput="filterSuppliers()">
     </div>
 </div>
 
@@ -94,17 +116,17 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, orderBy, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, orderBy, query, where, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
- const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-  measurementId: "G-WE04GK5XZZ"
-};
+    const firebaseConfig = {
+        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+        authDomain: "ahmedelzaiady.firebaseapp.com",
+        projectId: "ahmedelzaiady",
+        storageBucket: "ahmedelzaiady.firebasestorage.app",
+        messagingSenderId: "300306825071",
+        appId: "1:300306825071:web:0426ddde56280fa090329a",
+        measurementId: "G-WE04GK5XZZ"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -194,6 +216,33 @@
             `;
         }).join('');
     }
+
+    window.deleteAllSuppliersPermanently = async () => {
+        if (!confirm("⚠️ هل تريد حذف جميع الموردين نهائياً؟ لا يمكن التراجع عن هذه الخطوة!")) return;
+        
+        const container = document.getElementById('suppliersContainer');
+        try {
+            const snap = await getDocs(collection(db, "suppliers"));
+            if (snap.empty) {
+                alert("لا يوجد موردين في القائمة لحذفهم.");
+                return;
+            }
+
+            // استخدام نظام الدفعات لحذف آمن وسريع من الفايرستور
+            const batch = writeBatch(db);
+            snap.forEach((docSnap) => {
+                batch.delete(doc(db, "suppliers", docSnap.id));
+            });
+
+            await batch.commit();
+            alert("تم حذف جميع الموردين بنجاح.");
+            
+            // إعادة تحميل القائمة لتحديث الواجهة فوراً
+            loadSuppliers();
+        } catch (e) {
+            alert("حدث خطأ أثناء الحذف: " + e.message);
+        }
+    };
 
     window.filterSuppliers = () => {
         const term = document.getElementById('searchInput').value.toLowerCase();
