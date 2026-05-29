@@ -186,13 +186,12 @@
 
         const app = initializeApp(firebaseConfig);
         
-        // تعديل 1: إجبار الفايربيس على استخدام الكاش المحلي المتطور لحفظ البيانات على الهاتف وتقليل الاستهلاك
         const db = initializeFirestore(app, { localCache: persistentLocalCache() });
         let allCustomers = [];
 
-        // تعديل 2: تحويل الاستدعاء إلى مستمع مباشر ذكي يقرأ الكاش أولاً ولا يستهلك إنترنت إلا للتحديثات الجديدة
         function listenToCustomers() {
-            const q = query(collection(db, "customers"), orderBy("name"));
+            // جلب البيانات من الكولكشن مباشرة بدون قيد الترتيب الأبجدي لتطبيق الترتيب المالي لاحقاً
+            const q = query(collection(db, "customers"));
             
             onSnapshot(q, (snap) => {
                 allCustomers = [];
@@ -202,23 +201,31 @@
                         allCustomers.push({ id: d.id, ...data });
                     }
                 });
+
+                // ترتيب القائمة برمجياً من العميل الأكبر مديونية (الرصيد الأعلى) إلى الأصغر مديونية فـ الخالص
+                allCustomers.sort((a, b) => {
+                    const balanceA = Number(a.balance || 0);
+                    const balanceB = Number(b.balance || 0);
+                    return balanceB - balanceA; 
+                });
+
                 renderCustomers(allCustomers);
             }, (error) => {
                 document.getElementById('customersContainer').innerHTML = `<div class="alert alert-danger mx-3 text-center">خطأ: ${error.message}</div>`;
             });
         }
 
-window.renderCustomers = (list) => {
+        window.renderCustomers = (list) => {
             const container = document.getElementById('customersContainer');
             if(list.length === 0) {
                 container.innerHTML = `<div class="text-center py-5 opacity-50 fw-bold">لا توجد نتائج</div>`;
                 return;
             }
             container.innerHTML = list.map(cust => {
-                // التأكد تماماً من تحويل القيمة إلى رقم حقيقي قبل أي مقارنة
+                // التأكد تماماً من قراءة وتحويل قيمة الرصيد إلى رقم حقيقي قبل المقارنة والطباعة
                 const balance = Number(cust.balance || 0); 
                 
-                // تحديد الحالات بدقة بناءً على الأرقام
+                // فرز الحالات بدقة لمنع ظهور (صفر خالص) للعملاء المدينين
                 let statusText = 'خالص';
                 let cardClass = 'is-clear';
                 let textClass = 'text-clear';
@@ -229,7 +236,7 @@ window.renderCustomers = (list) => {
                     textClass = 'text-debt';
                 } else if (balance < 0) {
                     statusText = 'له';
-                    cardClass = 'is-clear'; // يمكنك تغييرها لو عندك ستايل مخصص لمن له مبالغ
+                    cardClass = 'is-clear'; 
                     textClass = 'text-clear';
                 }
 
@@ -258,7 +265,6 @@ window.renderCustomers = (list) => {
                     isDeleted: true,
                     deletedAt: new Date().toISOString()
                 });
-                // لا نحتاج لاستدعاء دالة التحميل هنا لأن onSnapshot سيحدث الواجهة تلقائياً وبدون استهلاك قراءات إضافية!
             } catch (e) {
                 alert("خطأ: " + e.message);
             }
@@ -292,7 +298,7 @@ window.renderCustomers = (list) => {
             renderCustomers(filtered);
         }
 
-        // تشغيل المستمع الذكي الموفر فور فتح الصفحة
+        // تشغيل المستمع الذكي
         listenToCustomers();
     </script>
 </body>
