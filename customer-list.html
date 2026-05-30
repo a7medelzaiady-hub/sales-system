@@ -172,7 +172,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { initializeFirestore, persistentLocalCache, collection, getDocs, orderBy, query, doc, updateDoc, deleteDoc, writeBatch, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { initializeFirestore, persistentLocalCache, collection, getDocs, doc, updateDoc, writeBatch, onSnapshot, query } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -185,12 +185,17 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        
         const db = initializeFirestore(app, { localCache: persistentLocalCache() });
         let allCustomers = [];
 
+        // دالة مساعدة لتحويل آمن لأي قيمة قادمة من الفايربيز إلى رقم حقيقي
+        function parseBalance(value) {
+            if (value === undefined || value === null) return 0;
+            const parsed = Number(value);
+            return isNaN(parsed) ? 0 : parsed;
+        }
+
         function listenToCustomers() {
-            // جلب البيانات من الكولكشن مباشرة بدون قيد الترتيب الأبجدي لتطبيق الترتيب المالي لاحقاً
             const q = query(collection(db, "customers"));
             
             onSnapshot(q, (snap) => {
@@ -202,11 +207,9 @@
                     }
                 });
 
-                // ترتيب القائمة برمجياً من العميل الأكبر مديونية (الرصيد الأعلى) إلى الأصغر مديونية فـ الخالص
+                // ترتيب القائمة من المديونية الأعلى فـ الأقل
                 allCustomers.sort((a, b) => {
-                    const balanceA = Number(a.balance || 0);
-                    const balanceB = Number(b.balance || 0);
-                    return balanceB - balanceA; 
+                    return parseBalance(b.balance) - parseBalance(a.balance); 
                 });
 
                 renderCustomers(allCustomers);
@@ -222,10 +225,9 @@
                 return;
             }
             container.innerHTML = list.map(cust => {
-                // التأكد تماماً من قراءة وتحويل قيمة الرصيد إلى رقم حقيقي قبل المقارنة والطباعة
-                const balance = Number(cust.balance || 0); 
+                // استخدام الدالة الجديدة لضمان قراءة الرقم بشكل صحيح
+                const balance = parseBalance(cust.balance); 
                 
-                // فرز الحالات بدقة لمنع ظهور (صفر خالص) للعملاء المدينين
                 let statusText = 'خالص';
                 let cardClass = 'is-clear';
                 let textClass = 'text-clear';
@@ -246,7 +248,7 @@
                         <h6 class="customer-name">${cust.name}</h6>
                         <small class="phone-sub"><i class="fas fa-phone-alt me-1"></i> ${cust.phone || 'بدون هاتف'}</small>
                         <span id="balance-${cust.id}" class="balance-value ${textClass}">
-                            ${Math.abs(balance).toLocaleString()} ج.م <small>(${statusText})</small>
+                            ${Math.abs(balance).toLocaleString('en-US', {minimumFractionDigits: 0})} ج.م <small>(${statusText})</small>
                         </span>
                     </div>
                     <div class="action-container">
