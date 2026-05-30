@@ -247,15 +247,12 @@
         <div class="payment-box">
             <div class="row g-2">
                 <div class="col-6">
-                    <label class="sub-lbl">طريقة الدفع</label>
-                    <select id="payMethod" class="form-select" onchange="togglePayLogic()">
-                        <option value="cash">نقدي (كاش)</option>
-                        <option value="credit">آجل (على الحساب)</option>
-                    </select>
+                    <label class="sub-lbl"><i class="fas fa-money-bill-wave me-1"></i> سداد نقدي (كاش)</label>
+                    <input type="number" id="paidCash" class="form-control" value="0" oninput="handleInput()">
                 </div>
                 <div class="col-6">
-                    <label class="sub-lbl">المبلغ المدفوع</label>
-                    <input type="number" id="paidAmount" class="form-control" value="0" oninput="handleInput()">
+                    <label class="sub-lbl"><i class="fas fa-mobile-alt me-1"></i> سداد محفظة (فودافون كاش)</label>
+                    <input type="number" id="paidWallet" class="form-control" value="0" oninput="handleInput()">
                 </div>
             </div>
         </div>
@@ -349,9 +346,13 @@
                 <span>حساب سابق  (+):</span>
                 <span id="recOldBalance" style="font-weight: 700;">0.00</span>
             </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #2a9d8f;">
-                <span>سداد(-):</span>
-                <span id="recPaid" style="font-weight: 700;">0.00</span>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; color: #2a9d8f;">
+                <span>سداد نقدي (كاش) (-):</span>
+                <span id="recPaidCash" style="font-weight: 700;">0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #0077b6;">
+                <span>سداد محفظة (-):</span>
+                <span id="recPaidWallet" style="font-weight: 700;">0.00</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: 17px; margin-top: 8px; padding-top: 6px; border-top: 1px solid #000;">
                 <span> الحساب المتبقي :</span>
@@ -388,7 +389,6 @@
     let editId = new URLSearchParams(window.location.search).get('edit');
     let isChanged = false;
 
-    // متغير لتخزين الحساب السابق الصافي المسترجع وقت اختيار العميل (لاستخدامه عند طباعة الفاتورة بالتعديل الجديد)
     let currentFetchedOldBalance = 0;
 
     async function getRealBalance(customerId, initialBalance = 0) {
@@ -397,7 +397,7 @@
             const snapInvoices = await getDocs(qInvoices);
             let invoiceDebt = 0;
             snapInvoices.forEach(doc => { 
-                if (editId && doc.id === editId) return; // عند التعديل، نتجاهل الفاتورة نفسها من الحساب السابق
+                if (editId && doc.id === editId) return; 
                 invoiceDebt += (Number(doc.data().remaining) || 0); 
             });
 
@@ -460,8 +460,9 @@
                     document.getElementById('customerSelect').value = data.customerId;
                     document.getElementById('customerSearch').value = data.customerName;
                     document.getElementById('invTime').value = data.time;
-                    document.getElementById('payMethod').value = data.paymentMethod;
-                    document.getElementById('paidAmount').value = data.paid;
+                    
+                    document.getElementById('paidCash').value = data.paidCash || 0;
+                    document.getElementById('paidWallet').value = data.paidWallet || 0;
 
                     const cust = customers.find(c => c.id === data.customerId);
                     if (cust) {
@@ -597,31 +598,28 @@
             r.querySelector('.p-subtotal').value = sub.toFixed(2);
             total += sub;
         });
-        const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
+        
+        const paidCash = parseFloat(document.getElementById('paidCash').value) || 0;
+        const paidWallet = parseFloat(document.getElementById('paidWallet').value) || 0;
+        const totalPaid = paidCash + paidWallet;
+        
         document.getElementById('displayTotal').innerText = total.toLocaleString('en-US', {minimumFractionDigits: 2});
-        document.getElementById('displayPaid').innerText = paid.toLocaleString('en-US', {minimumFractionDigits: 2});
-        document.getElementById('displayRemaining').innerText = (total - paid).toLocaleString('en-US', {minimumFractionDigits: 2});
+        document.getElementById('displayPaid').innerText = totalPaid.toLocaleString('en-US', {minimumFractionDigits: 2});
+        document.getElementById('displayRemaining').innerText = (total - totalPaid).toLocaleString('en-US', {minimumFractionDigits: 2});
         
         const badge = document.getElementById('itemsBadgeVal');
         if (badge) {
             badge.innerText = document.querySelectorAll('.product-row').length;
         }
 
-        return { total, paid, remaining: total - paid };
-    };
-
-    window.togglePayLogic = () => {
-        const method = document.getElementById('payMethod').value;
-        const total = parseFloat(document.getElementById('displayTotal').innerText.replace(/,/g, '')) || 0;
-        document.getElementById('paidAmount').value = (method === 'cash') ? total : 0;
-        handleInput();
+        return { total, paidCash, paidWallet, paid: totalPaid, remaining: total - totalPaid };
     };
 
     window.saveInvoice = async () => {
         const saveBtn = document.getElementById('saveBtn');
 
         try {
-            const { total, paid, remaining } = calc();
+            const { total, paidCash, paidWallet, paid, remaining } = calc();
             const customerId = document.getElementById('customerSelect').value;
             const customerName = document.getElementById('customerSearch').value;
 
@@ -648,9 +646,10 @@
                 customerId,
                 customerName,
                 total,
+                paidCash,
+                paidWallet,
                 paid,
                 remaining,
-                paymentMethod: document.getElementById('payMethod').value,
                 time: document.getElementById('invTime').value,
                 timestamp: serverTimestamp(),
                 items
@@ -686,15 +685,17 @@
                 await updateDoc(oldRef, invoiceData);
             }
 
-            // --- عملية تعبئة الفاتورة الحرارية للشير بالحساب السابق ---
             const oldBalance = currentFetchedOldBalance;
-            const finalRemainingTotal = oldBalance + total - paid; // الحساب السابق + إجمالي الفاتورة - المدفوع
+            const finalRemainingTotal = oldBalance + total - paid; 
 
             document.getElementById('recCustomer').innerText = customerName;
             document.getElementById('recDate').innerText = invoiceData.time;
             document.getElementById('recTotal').innerText = total.toFixed(2) + " ج.م";
             document.getElementById('recOldBalance').innerText = oldBalance.toFixed(2) + " ج.م";
-            document.getElementById('recPaid').innerText = paid.toFixed(2) + " ج.م";
+            
+            document.getElementById('recPaidCash').innerText = paidCash.toFixed(2) + " ج.م";
+            document.getElementById('recPaidWallet').innerText = paidWallet.toFixed(2) + " ج.م";
+            
             document.getElementById('recRemaining').innerText = finalRemainingTotal.toFixed(2) + " ج.م";
 
             const recItemsTbody = document.getElementById('recItems');
@@ -728,42 +729,4 @@
                 canvas.toBlob(async (blob) => {
                     const file = new File([blob], `فاتورة_${customerName}.png`, { type: 'image/png' });
                     
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        try {
-                            await navigator.share({
-                                files: [file],
-                                title: 'فاتورة مبيعات - شركة الزيادي',
-                                text: `فاتورة العميل: ${customerName}`
-                            });
-                            window.location.href = "sales-history.html";
-                        } catch (err) { window.location.href = "sales-history.html"; }
-                    } else {
-                        const a = document.createElement('a');
-                        a.href = canvas.toDataURL('image/png');
-                        a.download = `فاتورة_${customerName}.png`;
-                        a.click();
-                        
-                        const textFallback = `🧾 فاتورة شركة الزيادي\n👤 العميل: ${customerName}\n💰 إجمالي الفاتورة: ${total.toFixed(2)} ج.م\n💵 الحساب المتبقي الكلي: ${finalRemainingTotal.toFixed(2)} ج.م`;
-                        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(textFallback)}`, '_blank');
-                        window.location.href = "sales-history.html";
-                    }
-                }, 'image/png');
-            };
-
-            document.getElementById('cancelShareBtn').onclick = () => {
-                modal.style.display = 'none';
-                window.location.href = "sales-history.html";
-            };
-
-        } catch (e) {
-            alert("خطأ: " + e.message);
-            saveBtn.disabled = false;
-            saveBtn.innerText = "حفظ وتحديث البيانات";
-        }
-    };
-
-    init();
-</script>
-
-</body>
-</html>
+                    if (navigator.canShare && navigator.canShare({ files: [file] }))
