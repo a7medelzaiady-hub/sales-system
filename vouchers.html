@@ -272,9 +272,19 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, updateDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
+   import {
+    getFirestore,
+    collection,
+    addDoc,
+    getDocs,
+    getDoc,
+    doc,
+    deleteDoc,
+    updateDoc,
+    query,
+    where,
+    orderBy
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
         authDomain: "ahmedelzaiady.firebaseapp.com",
@@ -317,15 +327,14 @@
                 getDocs(collection(db, "suppliers")),
                 getDocs(collection(db, "customers"))
             ]);
-
-            partiesMap = {};
-            custSnap.forEach(doc => {
+supSnap.forEach(doc => {
     partiesMap[doc.id] = {
         name: doc.data().name,
         type: 'مورد',
         initialBalance: Number(doc.data().initialBalance || 0)
     };
 });
+
 custSnap.forEach(doc => {
     partiesMap[doc.id] = {
         name: doc.data().name,
@@ -552,7 +561,7 @@ async function calculateCustomerBalance(customerId) {
 
     return balance;
 }
-    window.openReceiptModal = (type, date, amount, partyId) => {
+    window.openReceiptModal = async (type, date, amount, partyId) => {
         const pName = partiesMap[partyId] ? partiesMap[partyId].name : 'حساب غير معروف';
         
         document.getElementById('recType').innerText = type === 'قبض' ? 'سند قبض' : 'سند صرف';
@@ -567,9 +576,11 @@ let prevBalance = currentBalance;
 let newBalance = currentBalance;
 
 if (type === 'قبض') {
-    newBalance = currentBalance - Number(amount);
+    prevBalance = currentBalance + Number(amount);
+    newBalance = currentBalance;
 } else {
-    newBalance = currentBalance + Number(amount);
+    prevBalance = currentBalance - Number(amount);
+    newBalance = currentBalance;
 }
      document.getElementById('recPrevBalance').innerText =
 `${prevBalance.toLocaleString('ar-EG',{minimumFractionDigits:2})} ج.م`;
