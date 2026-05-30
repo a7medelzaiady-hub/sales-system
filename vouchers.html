@@ -319,8 +319,20 @@
             ]);
 
             partiesMap = {};
-            supSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'مورد' }; });
-            custSnap.forEach(doc => { partiesMap[doc.id] = { name: doc.data().name, type: 'عميل' }; });
+            supSnap.forEach(doc => {
+    partiesMap[doc.id] = {
+        name: doc.data().name,
+        type: 'مورد',
+        balance: Number(doc.data().balance || 0)
+    };
+});
+            custSnap.forEach(doc => {
+    partiesMap[doc.id] = {
+        name: doc.data().name,
+        type: 'عميل',
+        balance: Number(doc.data().balance || 0)
+    };
+});
             
             localStorage.setItem('cache_partiesMap', JSON.stringify(partiesMap));
         } catch (err) {
@@ -508,29 +520,22 @@
         document.getElementById('recPartyName').innerText = pName;
         document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
         
-        let currentPartyVouchers = allVouchers.filter(v => v.partyId === partyId);
+     const currentBalance = Number(partiesMap[partyId]?.balance || 0);
 
-console.log("الحركات الخاصة بالعميل:", currentPartyVouchers);
-        let totalReceipts = 0; 
-        let totalPayments = 0;  
-        
-        currentPartyVouchers.forEach(v => {
-            if (v.type === 'قبض') totalReceipts += v.amount;
-            if (v.type === 'صرف') totalPayments += v.amount;
-        });
+let prevBalance = currentBalance;
 
-        let netBalance = totalReceipts - totalPayments; 
-        let prevBalance = 0;
+let newBalance = currentBalance;
 
-        if (type === 'قبض') {
-            prevBalance = netBalance - amount;
-        } else {
-            prevBalance = netBalance + amount;
-        }
+if (type === 'قبض') {
+    newBalance = currentBalance - Number(amount);
+} else {
+    newBalance = currentBalance + Number(amount);
+}
+     document.getElementById('recPrevBalance').innerText =
+`${prevBalance.toLocaleString('ar-EG',{minimumFractionDigits:2})} ج.م`;
 
-        document.getElementById('recPrevBalance').innerText = `${prevBalance.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
-        document.getElementById('recNewBalance').innerText = `${netBalance.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
-        
+document.getElementById('recNewBalance').innerText =
+`${newBalance.toLocaleString('ar-EG',{minimumFractionDigits:2})} ج.م`;   
         if(receiptModalObj) receiptModalObj.show();
     };
 
