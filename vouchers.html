@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 
     <style>
         :root { 
@@ -42,7 +42,6 @@
         .form-label { margin-bottom: 3px; font-size: 0.75rem !important; }
         .form-control-sm, .form-select-sm { padding: 6px 10px; font-size: 0.8rem !important; border-radius: 8px; }
 
-        /* حاوية البحث الذكي */
         .search-container { position: relative; }
         .search-results {
             position: absolute; top: 100%; left: 0; width: 100%; background: white; 
@@ -95,16 +94,23 @@
         .btn-edit-row { background: none; border: none; color: #f7a01b; padding: 2px 4px; border-radius: 4px; transition: 0.2s; font-size: 0.8rem; }
         .btn-edit-row:hover { background: #fff6e6; color: #d6850d; }
 
-        /* ستايل نافذة المعاينة والإيصال الحراري الثابت */
+        /* تعديل صندوق المعاينة لمنع تفريط الحروف */
         .receipt-preview-box {
             width: 80mm; background: #fff; color: #000; padding: 15px; 
             font-family: 'Cairo', sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.1);
             border: 1px dashed #000; margin: 0 auto;
+            text-align: right !important; /* الاعتماد على المحاذاة بدلاً من الـ rtl في التحويل */
         }
         
-        /* منع أي تأثير سلبي لتمديد الحروف العربية أثناء التقاط الصورة */
-        .receipt-preview-box h5, .receipt-preview-box span, .receipt-preview-box div {
+        .receipt-preview-box h5, .receipt-preview-box small, .receipt-preview-box span, .receipt-preview-box div {
             letter-spacing: normal !important;
+            word-spacing: normal !important;
+            display: inline-block;
+        }
+        .receipt-preview-box .block-element {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
         }
     </style>
 </head>
@@ -226,43 +232,46 @@
                 <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body bg-light text-center">
-                <div id="thermalReceipt" class="receipt-preview-box">
-                    <div class="text-center border-bottom pb-2 mb-2">
-                        <h5 class="fw-bold m-0">شركة الزيادي</h5>
-                        <small class="text-muted" style="font-size: 0.65rem;">  لزيوت وفلاتر السيارات</small>
+                <div id="thermalReceipt" class="receipt-preview-box" dir="ltr">
+                    <div class="text-center border-bottom pb-2 mb-2" style="width: 100%;">
+                        <h5 class="fw-bold m-0" style="display: block;">شركة الزيادي</h5>
+                        <small class="text-muted" style="font-size: 0.65rem; display: block;">لزيوت وفلاتر السيارات</small>
                     </div>
                     
-                    <div class="d-flex justify-content-between text-end small mb-2 border-bottom pb-1" style="font-size: 0.75rem;">
-                        <div><strong>الحركة:</strong> <span id="recType" class="fw-bold"></span></div>
-                        <div><strong>التاريخ:</strong> <span id="recDate"></span></div>
+                    <div class="block-element small mb-2 border-bottom pb-1" style="font-size: 0.75rem;">
+                        <div><span id="recType" class="fw-bold"></span> <strong>:الحركة</strong></div>
+                        <div><span id="recDate"></span> <strong>:التاريخ</strong></div>
                     </div>
 
-                    <div class="text-end small mb-2 pb-1 border-bottom" style="font-size: 0.8rem;">
-                        <div><strong>الاسم:</strong> <span id="recPartyName" class="fw-bold"></span></div>
+                    <div class="text-end small mb-2 pb-1 border-bottom" style="font-size: 0.8rem; width:100%;">
+                        <div class="block-element">
+                            <span></span>
+                            <div><span id="recPartyName" class="fw-bold"></span> <strong> :الاسم</strong></div>
+                        </div>
                     </div>
 
-                    <div class="my-2 py-2 border-bottom text-center" style="background: #f9f9f9;">
-                        <small class="text-muted d-block" style="font-size: 0.7rem;">المبلغ المدفوع</small>
-                        <h3 class="fw-bold m-0 text-dark" id="recAmount" style="font-size: 1.5rem;">0.00</h3>
-                        <small class="fw-bold" id="recStatusText">تم الاستلام</small>
+                    <div class="my-2 py-2 border-bottom text-center" style="background: #f9f9f9; width: 100%;">
+                        <small class="text-muted d-block" style="font-size: 0.7rem; display: block;">المبلغ المدفوع</small>
+                        <h3 class="fw-bold m-0 text-dark" id="recAmount" style="font-size: 1.5rem; display: block;">0.00</h3>
+                        <small class="fw-bold" id="recStatusText" style="display: block;">تم الاستلام</small>
                     </div>
 
-                    <div class="p-2 rounded mb-2" style="background: #edf2f0; font-size: 0.8rem; border: 1px solid #dcdff2;">
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="text-muted">الحساب السابق:</span>
+                    <div class="p-2 rounded mb-2 text-end" style="background: #edf2f0; font-size: 0.8rem; border: 1px solid #dcdff2; width: 100%;">
+                        <div class="block-element mb-1">
                             <span id="recPrevBalance" class="fw-bold text-dark">0.00 ج.م</span>
+                            <span class="text-muted">:الحساب السابق</span>
                         </div>
-                        <div class="d-flex justify-content-between pt-1 border-top border-secondary border-opacity-10">
-                            <span class="text-muted fw-bold">المتبقي بعد السداد:</span>
+                        <div class="block-element pt-1 border-top border-secondary border-opacity-10">
                             <span id="recNewBalance" class="fw-bold text-success">0.00 ج.م</span>
+                            <span class="text-muted fw-bold">:المتبقي بعد السداد</span>
                         </div>
                     </div>
 
-                    <div class="text-center mt-2 pt-1">
-                        <small class="text-muted" style="font-size: 0.65rem;">شكراً لتعاملكم معنا</small>
+                    <div class="text-center mt-2 pt-1" style="width: 100%;">
+                        <small class="text-muted" style="font-size: 0.65rem; display: block;">شكراً لتعاملكم معنا</small>
                     </div>
-                    <div class="text-center pt-1">
-                        <small class="text-muted" style="font-size: 0.65rem;"> للتواصل 01027830834</small>
+                    <div class="text-center pt-1" style="width: 100%;">
+                        <small class="text-muted" style="font-size: 0.65rem; display: block;">للتواصل 01027830834</small>
                     </div>
                 </div>
             </div>
@@ -579,16 +588,18 @@
         if(receiptModalObj) receiptModalObj.show();
     };
 
+    // كود المشاركة المحدث والنهائي لحل تفريط الخطوط العربية
     document.getElementById('btnDoShare').addEventListener('click', () => {
         const target = document.getElementById('thermalReceipt');
         
-        // تأخير زمني بسيط يضمن اكتمال استقرار الرندر للحروف العربية قبل الالتقاط
         setTimeout(() => {
             html2canvas(target, { 
-                scale: 3,             // رفع الجودة لضمان حدة النص العريض في واتساب
+                scale: 3,                 // جودة فائقة لمنع بكسلة النصوص
                 useCORS: true, 
-                letterRendering: true, // يمنع تداخل الخطوط والرموز الغريبة
-                allowTaint: false
+                allowTaint: false,
+                backgroundColor: "#ffffff",
+                logging: false,
+                textBaseline: 'alphabetic' // يحافظ على ترابط الحروف العربية بقواعد الخطوط
             }).then(canvas => {
                 canvas.toBlob(blob => {
                     if (!blob) { alert("فشل إنشاء صورة المعاينة"); return; }
@@ -608,7 +619,7 @@
                     }
                 }, 'image/png');
             });
-        }, 120); 
+        }, 150); 
     });
 
     document.getElementById('voucherForm').addEventListener('submit', async (e) => {
