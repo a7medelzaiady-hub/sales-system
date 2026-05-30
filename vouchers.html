@@ -319,20 +319,21 @@
             ]);
 
             partiesMap = {};
-            supSnap.forEach(doc => {
-    partiesMap[doc.id] = {
-        name: doc.data().name,
-        type: 'مورد',
-        balance: Number(doc.data().balance || 0)
-    };
-});
             custSnap.forEach(doc => {
     partiesMap[doc.id] = {
         name: doc.data().name,
-        type: 'عميل',
-        balance: Number(doc.data().balance || 0)
+        type: 'مورد',
+        initialBalance: Number(doc.data().initialBalance || 0)
     };
 });
+custSnap.forEach(doc => {
+    partiesMap[doc.id] = {
+        name: doc.data().name,
+        type: 'عميل',
+        initialBalance: Number(doc.data().initialBalance || 0)
+    };
+});
+
             
             localStorage.setItem('cache_partiesMap', JSON.stringify(partiesMap));
         } catch (err) {
@@ -511,7 +512,46 @@
 
         renderTable(filtered);
     };
+async function calculateCustomerBalance(customerId) {
 
+    const customerDoc = await getDoc(doc(db, "customers", customerId));
+
+    if (!customerDoc.exists()) return 0;
+
+    const customerData = customerDoc.data();
+
+    let balance = Number(customerData.initialBalance || 0);
+
+    const invoicesSnap = await getDocs(
+        query(
+            collection(db, "invoices"),
+            where("customerId", "==", customerId)
+        )
+    );
+
+    invoicesSnap.forEach(inv => {
+        balance += Number(inv.data().remaining || 0);
+    });
+
+    const transSnap = await getDocs(
+        query(
+            collection(db, "transactions"),
+            where("partyId", "==", customerId)
+        )
+    );
+
+    transSnap.forEach(tr => {
+        const t = tr.data();
+
+        if (t.type === 'قبض')
+            balance -= Number(t.amount || 0);
+
+        if (t.type === 'صرف')
+            balance += Number(t.amount || 0);
+    });
+
+    return balance;
+}
     window.openReceiptModal = (type, date, amount, partyId) => {
         const pName = partiesMap[partyId] ? partiesMap[partyId].name : 'حساب غير معروف';
         
@@ -520,7 +560,7 @@
         document.getElementById('recPartyName').innerText = pName;
         document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
         
-     const currentBalance = Number(partiesMap[partyId]?.balance || 0);
+const currentBalance = await calculateCustomerBalance(partyId);
 
 let prevBalance = currentBalance;
 
