@@ -47,7 +47,7 @@
             z-index: 1000;
         }
 
-        .add-btn { background: rgba(255,255,255,0.2); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; text-decoration: none; font-size: 0.9rem; }
+        .add-btn { background: rgba(255,255,255,0.2); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; text-decoration: none; font-size: 0.9rem; border: none; }
         .add-btn:hover { background: rgba(255,255,255,0.3); color: white; }
         
         .stats-section-title {
@@ -148,6 +148,14 @@
             align-items: center;
             justify-content: space-between;
         }
+
+        .danger-zone-card {
+            background: #fff5f5;
+            border: 1px dashed #feb2b2;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
     </style>
 </head>
 <body>
@@ -156,12 +164,23 @@
     <a href="index.html" class="add-btn"><i class="fas fa-arrow-right"></i></a>
     <h6 class="m-0 fw-bold" style="font-size: 0.9rem;"><i class="fas fa-history me-1"></i> سجل المبيعات والإحصائيات</h6>
     <div class="d-flex gap-2">
-        <button class="add-btn" id="exportExcelBtn" title="تصدير إكسيل"><i class="fas fa-file-excel"></i></button>
+        <button class="add-btn" id="exportExcelBtn" title="تصدير كشف حركة احترافي"><i class="fas fa-file-excel"></i></button>
         <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>
     </div>
 </div>
 
 <div class="container px-2 mt-1">
+
+    <!-- لوحة إدارة وحذف كل العملاء (منطقة خطرة) -->
+    <div class="danger-zone-card mt-2 d-flex justify-content-between align-items-center">
+        <div>
+            <span class="fw-bold text-danger d-block" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle me-1"></i> صيانة قاعدة البيانات</span>
+            <small class="text-muted" style="font-size: 0.68rem;">حذف جميع العملاء المسجلين وفواتيرهم ومعاملاتهم نهائياً لتصفير السيستم.</small>
+        </div>
+        <button class="btn btn-danger btn-sm fw-bold px-3" id="deleteAllCustomersBtn" style="font-size: 0.72rem; border-radius: 6px;">
+            <i class="fas fa-users-slash me-1"></i> حذف كل العملاء والداتا
+        </button>
+    </div>
     
     <!-- إحصائيات اليوم -->
     <div class="stats-section-title"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم (اضغط للفلترة)</div>
@@ -287,14 +306,14 @@
             <div class="d-flex justify-content-between"><span>إجمالي الفاتورة:</span><span id="recTotal">0.00</span></div>
             <div class="d-flex justify-content-between"><span>حساب سابق:</span><span id="recOldBalance">0.00</span></div>
             <div class="d-flex justify-content-between"><span>سداد:</span><span id="recPaid">0.00</span></div>
-            <div class="d-flex justify-content-between fw-bold style='font-size:16px; border-top:1.5px solid #000; padding-top:4px;'"><span>الحساب المتبقي:</span><span id="recRemaining">0.00</span></div>
+            <div class="d-flex justify-content-between fw-bold" style="font-size:16px; border-top:1.5px solid #000; padding-top:4px;"><span>الحساب المتبقي:</span><span id="recRemaining">0.00</span></div>
         </div>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, query, orderBy, deleteDoc, doc, increment, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -312,7 +331,28 @@
     let allInvoices = [];
     let customersData = {};
     let activeShareData = null;
-    let currentFilterType = null; // لنوع فلتر الإحصائيات النشط
+    let currentFilterType = null;
+
+    // دالة مساعدة لتوحيد تنسيق صيغة التاريخ ومقارنتها بشكل سليم وصحيح 100%
+    function parseInvoiceDate(inv) {
+        if (inv.date) {
+            // لو التاريخ مسجل بصيغة YYYY-MM-DD يرجعها علطول
+            if (inv.date.includes('-') && inv.date.split('-')[0].length === 4) {
+                return inv.date;
+            }
+            // لو التنسيق متبخبط برة الفورمات بنحوله إلى الصيغة القياسية
+            try {
+                const d = new Date(inv.date);
+                if (!isNaN(d.getTime())) {
+                    return d.toLocaleDateString('en-CA');
+                }
+            } catch(e) {}
+        }
+        if (inv.timestamp && inv.timestamp.seconds) {
+            return new Date(inv.timestamp.seconds * 1000).toLocaleDateString('en-CA');
+        }
+        return new Date().toLocaleDateString('en-CA');
+    }
 
     async function loadData() {
         try {
@@ -347,7 +387,6 @@
                 const previousBalance = runningBalances[cid];
                 runningBalances[cid] += (Number(data.remaining) || 0);
 
-                // فصل حسابي دقيق للكاش والمحفظة عند التحميل بناء على القواعد المعتمدة سابقاً
                 let cPaid = 0; let wPaid = 0;
                 if (data.cashAmount !== undefined || data.walletAmount !== undefined) {
                     cPaid = Number(data.cashAmount) || 0;
@@ -390,11 +429,9 @@
             totalRemaining += (Number(inv.remaining) || 0);
             totalSales += (Number(inv.total) || 0);
 
-            let isToday = false;
-            if (inv.date) isToday = (inv.date === todayStr);
-            else if (inv.timestamp) {
-                isToday = (new Date(inv.timestamp.seconds * 1000).toLocaleDateString('en-CA') === todayStr);
-            }
+            // استخدام دالة معالجة وفحص التاريخ الموحدة لضمان الدقة
+            const invDateStr = parseInvoiceDate(inv);
+            const isToday = (invDateStr === todayStr);
 
             if (isToday) {
                 todayCash += inv.calculatedCash;
@@ -435,7 +472,7 @@
                     <div class="d-flex justify-content-between align-items-start mb-1">
                         <div>
                             <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.85rem;">${inv.customerName || 'عميل نقدي'}</h6>
-                            <span class="detail-badge"><i class="far fa-clock"></i> ${inv.time || ''}</span>
+                            <span class="detail-badge"><i class="far fa-clock"></i> ${inv.date || parseInvoiceDate(inv)} ${inv.time || ''}</span>
                             <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.65rem;">${inv.paymentMethod || 'غير محدد'}</span>
                         </div>
                         <div class="d-flex gap-1">
@@ -452,11 +489,6 @@
                         <div class="fin-box text-danger">الأجل (المتبقي) <span>${(Number(inv.remaining) || 0).toFixed(2)}</span></div>
                         <div class="fin-box text-secondary">حساب سابق كان كام <span>${(Number(inv.previousBalance) || 0).toFixed(2)}</span></div>
                     </div>
-                    
-                    ${(inv.calculatedCash > 0 && inv.calculatedWallet > 0) ? `
-                    <div class="mt-1 text-muted" style="font-size: 0.65rem; font-weight: 600;">
-                        <i class="fas fa-info-circle me-1"></i> تفصيل: (${inv.calculatedCash.toFixed(2)} نقدي + ${inv.calculatedWallet.toFixed(2)} محفظة)
-                    </div>` : ''}
 
                     <div id="details_box_${inv.id}" style="display:none;">
                         <table class="items-preview-table">
@@ -478,7 +510,42 @@
         }).join('');
     }
 
-    // الفلترة الذكية عند الضغط على كروت الإحصائيات للتحقق من صحة الأرقام حسابياً
+    // زرار حذف جميع العملاء وكافة البيانات المرتبطة بهم نهائياً من السيستم لتصفير قاعدة البيانات
+    document.getElementById('deleteAllCustomersBtn').onclick = async () => {
+        const passwordCheck = prompt("🔒 هذه العملية ستقوم بحذف جميع العملاء والفواتير والعمليات وتصفير الحسابات تماماً!\nالرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة:");
+        if (passwordCheck !== "الزيادي") {
+            if (passwordCheck !== null) alert("كلمة التأكيد غير صحيحة، تم إلغاء العملية.");
+            return;
+        }
+
+        const finalConfirm = confirm("🛑 هل أنت متأكد للمرة الأخيرة؟ لا يمكن استعادة الداتا بعد الحذف.");
+        if (!finalConfirm) return;
+
+        try {
+            // 1. حذف العملاء
+            const custSnap = await getDocs(collection(db, "customers"));
+            for (const docBox of custSnap.docs) {
+                await deleteDoc(doc(db, "customers", docBox.id));
+            }
+            // 2. حذف الفواتير
+            const invSnap = await getDocs(collection(db, "invoices"));
+            for (const docBox of invSnap.docs) {
+                await deleteDoc(doc(db, "invoices", docBox.id));
+            }
+            // 3. حذف السندات والعمليات المالية
+            const transSnap = await getDocs(collection(db, "transactions"));
+            for (const docBox of transSnap.docs) {
+                await deleteDoc(doc(db, "transactions", docBox.id));
+            }
+
+            alert("🚀 تم تصفير وحذف جميع العملاء وجميع محتويات قاعدة البيانات بنجاح تام.");
+            location.reload();
+        } catch (err) {
+            alert("حدث خطأ أثناء تصفير الداتا.");
+            console.error(err);
+        }
+    };
+
     window.filterByStat = (type, cardElement) => {
         document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active-filter'));
         cardElement.classList.add('active-filter');
@@ -489,11 +556,8 @@
         let statusLabel = "";
 
         filtered = allInvoices.filter(inv => {
-            let isToday = false;
-            if (inv.date) isToday = (inv.date === todayStr);
-            else if (inv.timestamp) {
-                isToday = (new Date(inv.timestamp.seconds * 1000).toLocaleDateString('en-CA') === todayStr);
-            }
+            const invDateStr = parseInvoiceDate(inv);
+            const isToday = (invDateStr === todayStr);
 
             switch(type) {
                 case 'today-cash':
@@ -563,7 +627,7 @@
         activeShareData = inv;
 
         document.getElementById('recCustomer').innerText = inv.customerName || 'عميل نقدي';
-        document.getElementById('recDate').innerText = inv.time || '';
+        document.getElementById('recDate').innerText = inv.date || parseInvoiceDate(inv);
         document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || '';
         document.getElementById('recTotal').innerText = Number(inv.total).toFixed(2);
         document.getElementById('recOldBalance').innerText = Number(inv.previousBalance).toFixed(2);
@@ -609,23 +673,91 @@
         } catch (e) { alert("حدث خطأ"); }
     };
 
+    // كود تصدير الإكسيل المعدل والمنظم بكامل الشروط المطلوبة حرفياً لشركة الزيادي وبأعلى دقة حسابية
     document.getElementById('exportExcelBtn').onclick = () => {
         if (allInvoices.length === 0) return;
-        const excelData = allInvoices.map(inv => ({
-            "التاريخ والوقت": inv.time || "",
-            "اسم العميل": inv.customerName || "عميل نقدي",
-            "طريقة السداد": inv.paymentMethod || "",
-            "إجمالي الفاتورة": Number(inv.total) || 0,
-            "المسدد نقدي": inv.calculatedCash,
-            "المسدد محفظة": inv.calculatedWallet,
-            "الآجل (المتبقي)": Number(inv.remaining) || 0,
-            "الحساب السابق": Number(inv.previousBalance) || 0
-        }));
-        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        
+        let customRows = [];
+
+        allInvoices.forEach(inv => {
+            const invoiceDate = inv.date || parseInvoiceDate(inv);
+            
+            // 1. معالجة عمليات السداد المستقلة (لو العميل دفع نقدي)
+            if (inv.calculatedCash > 0) {
+                customRows.push({
+                    "التاريخ": invoiceDate,
+                    "الحركه": "سداد منه نقدي",
+                    "البيان": "سداد نقدي",
+                    "عدد جركن": "",
+                    "عدد كرتونه": 1,
+                    "سعر جركن": "",
+                    "سعر الكرتونه": inv.calculatedCash
+                });
+            }
+
+            // 2. معالجة عمليات السداد المستقلة (لو العميل دفع محفظة)
+            if (inv.calculatedWallet > 0) {
+                customRows.push({
+                    "التاريخ": invoiceDate,
+                    "الحركه": "سداد منه محفظة",
+                    "البيان": "سداد نقدي",
+                    "عدد جركن": "",
+                    "عدد كرتونه": 1,
+                    "سعر جركن": "",
+                    "سعر الكرتونه": inv.calculatedWallet
+                });
+            }
+
+            // 3. معالجة بنود البيع (الأصناف المشتراة داخل الفاتورة نفسها)
+            if (inv.items && inv.items.length > 0) {
+                inv.items.forEach(item => {
+                    const nameLower = item.name.toLowerCase();
+                    let qtyJarkan = "";
+                    let qtyCarton = "";
+                    let priceJarkan = "";
+                    let priceCarton = "";
+
+                    // توزيع تلقائي دقيق حسب اسم الصنف للجركن والكرتونة
+                    if (nameLower.includes("جركن") || nameLower.includes("جالون") || nameLower.includes("جركان")) {
+                        qtyJarkan = item.qty || "";
+                        priceJarkan = item.price || "";
+                    } else {
+                        qtyCarton = item.qty || "";
+                        priceCarton = item.price || "";
+                    }
+
+                    customRows.push({
+                        "التاريخ": invoiceDate,
+                        "الحركه": "بيع",
+                        "البيان": item.name,
+                        "عدد جركن": qtyJarkan,
+                        "عدد كرتونه": qtyCarton,
+                        "سعر جركن": priceJarkan,
+                        "سعر الكرتونه": priceCarton
+                    });
+                });
+            } else {
+                // لو فاتورة بيع بدون تفاصيل أصناف (مثلاً مسجلة كإجمالي فقط)
+                if (Number(inv.total) > 0 && inv.calculatedCash === 0 && inv.calculatedWallet === 0) {
+                    customRows.push({
+                        "التاريخ": invoiceDate,
+                        "الحركه": "بيع",
+                        "البيان": "بيع بضاعة إجمالي",
+                        "عدد جركن": "",
+                        "عدد كرتونه": "",
+                        "سعر جركن": "",
+                        "سعر الكرتونه": inv.total
+                    });
+                }
+            }
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(customRows);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
+        XLSX.utils.book_append_sheet(workbook, worksheet, "كشف الحركة المطور");
+        
         worksheet['!dir'] = "rtl";
-        XLSX.writeFile(workbook, `مبيعات_الزيادي.xlsx`);
+        XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);
     };
 
     loadData();
