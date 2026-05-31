@@ -335,15 +335,7 @@
 
     function parseInvoiceDate(inv) {
         if (inv.date) {
-            if (inv.date.includes('-') && inv.date.split('-')[0].length === 4) {
-                return inv.date;
-            }
-            try {
-                const d = new Date(inv.date);
-                if (!isNaN(d.getTime())) {
-                    return d.toLocaleDateString('en-CA');
-                }
-            } catch(e) {}
+            return inv.date;
         }
         if (inv.timestamp && inv.timestamp.seconds) {
             return new Date(inv.timestamp.seconds * 1000).toLocaleDateString('en-CA');
@@ -468,7 +460,7 @@
                     <div class="d-flex justify-content-between align-items-start mb-1">
                         <div>
                             <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.85rem;">${inv.customerName || 'عميل نقدي'}</h6>
-                            <span class="detail-badge"><i class="far fa-clock"></i> ${inv.date || parseInvoiceDate(inv)} ${inv.time || ''}</span>
+                            <span class="detail-badge"><i class="far fa-clock"></i> ${parseInvoiceDate(inv)} ${inv.time || ''}</span>
                             <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.65rem;">${inv.paymentMethod || 'غير محدد'}</span>
                         </div>
                         <div class="d-flex gap-1">
@@ -619,7 +611,7 @@
         activeShareData = inv;
 
         document.getElementById('recCustomer').innerText = inv.customerName || 'عميل نقدي';
-        document.getElementById('recDate').innerText = inv.date || parseInvoiceDate(inv);
+        document.getElementById('recDate').innerText = parseInvoiceDate(inv);
         document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || '';
         document.getElementById('recTotal').innerText = Number(inv.total).toFixed(2);
         document.getElementById('recOldBalance').innerText = Number(inv.previousBalance).toFixed(2);
@@ -665,17 +657,15 @@
         } catch (e) { alert("حدث خطأ"); }
     };
 
-    // كود تصدير الإكسيل المعدل والمنظم بإضافة عمود اسم العميل بعد عمود الحركة مباشرة
     document.getElementById('exportExcelBtn').onclick = () => {
         if (allInvoices.length === 0) return;
         
         let customRows = [];
 
         allInvoices.forEach(inv => {
-            const invoiceDate = inv.date || parseInvoiceDate(inv);
+            const invoiceDate = parseInvoiceDate(inv);
             const clientName = inv.customerName || "عميل نقدي";
             
-            // 1. معالجة عمليات السداد المستقلة كاش
             if (inv.calculatedCash > 0) {
                 customRows.push({
                     "التاريخ": invoiceDate,
@@ -689,7 +679,6 @@
                 });
             }
 
-            // 2. معالجة عمليات السداد المستقلة محفظة
             if (inv.calculatedWallet > 0) {
                 customRows.push({
                     "التاريخ": invoiceDate,
@@ -703,7 +692,6 @@
                 });
             }
 
-            // 3. معالجة بنود البيع لكل صنف
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(item => {
                     const nameLower = item.name.toLowerCase();
