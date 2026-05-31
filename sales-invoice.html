@@ -245,28 +245,30 @@
         </button>
 
         <div class="payment-box">
-            <div class="row g-2 mb-2">
-                <div class="col-12">
-                    <label class="sub-lbl"><i class="fas fa-credit-card me-1"></i> طريقة الدفع الرئيسية</label>
+            <div class="row g-2 mb-3">
+                <div class="col-6">
+                    <label class="sub-lbl">طريقة الدفع</label>
                     <select id="payMethod" class="form-select" onchange="togglePayLogic()">
-                        <option value="cash">نقدي (كاش بالكامل)</option>
-                        <option value="wallet">محفظة إلكترونية (بالكامل)</option>
-                        <option value="mixed">مختلط (كاش + محفظة)</option>
+                        <option value="cash">نقدي (كاش)</option>
                         <option value="credit">آجل (على الحساب)</option>
                     </select>
                 </div>
-            </div>
-            <div class="row g-2">
                 <div class="col-6">
-                    <label class="sub-lbl"><i class="fas fa-money-bill-wave me-1"></i> سداد نقدي (كاش)</label>
-                    <input type="number" id="cashAmount" class="form-control" value="0" oninput="handleInput()">
-                </div>
-                <div class="col-6">
-                    <label class="sub-lbl"><i class="fas fa-mobile-alt me-1"></i> سداد محفظة</label>
-                    <input type="number" id="walletAmount" class="form-control" value="0" oninput="handleInput()">
+                    <label class="sub-lbl">إجمالي المدفوع</label>
+                    <input type="number" id="paidAmount" class="form-control" value="0" readonly style="background-color: #eee !important;">
                 </div>
             </div>
-            <input type="hidden" id="paidAmount" value="0">
+            
+            <div class="row g-2" id="splitPaymentDetails">
+                <div class="col-6">
+                    <label class="sub-lbl" style="color: var(--accent);"><i class="fas fa-money-bill-wave me-1"></i> منه نقدي (كاش)</label>
+                    <input type="number" id="cashAmount" class="form-control" value="0" oninput="handleSplitInput()">
+                </div>
+                <div class="col-6">
+                    <label class="sub-lbl" style="color: var(--success);"><i class="fas fa-mobile-alt me-1"></i> منه محفظة</label>
+                    <input type="number" id="walletAmount" class="form-control" value="0" oninput="handleSplitInput()">
+                </div>
+            </div>
         </div>
 
         <div class="total-box">
@@ -296,7 +298,7 @@
             <i class="fab fa-whatsapp" style="color: #25D366; font-size: 2.6rem;"></i>
         </div>
         <h5 style="font-weight: 700; color: #2b000b; margin-bottom: 8px;">تم الحفظ بنجاح! 🎉</h5>
-        <p style="color: #555; font-size: 0.88rem; margin-bottom: 22px; line-height: 1.5;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل؟</p>
+        <p style="color: #555; font-size: 0.88rem; margin-bottom: 22px; line-height: 1.5;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل?</p>
         <div style="display: flex; flex-direction: column; gap: 10px;">
             <button id="confirmShareBtn" style="background: #25D366; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: 0.2s;">
                 <i class="fab fa-whatsapp"></i> مشاركة الفاتورة كصورة
@@ -359,17 +361,19 @@
                 <span id="recOldBalance" style="font-weight: 700;">0.00</span>
             </div>
             
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; padding-right: 15px; color: #555;">
-                <span>سداد كاش (-):</span>
-                <span id="recCashPaid">0.00</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; padding-right: 15px; color: #555;">
-                <span>سداد محفظة (-):</span>
-                <span id="recWalletPaid">0.00</span>
+            <div id="recSplitDetails" style="display: none;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; color: #555; padding-right: 15px;">
+                    <span>- مسدد نقدي (كاش):</span>
+                    <span id="recCashAmount">0.00</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; color: #555; padding-right: 15px;">
+                    <span>- مسدد محفظة:</span>
+                    <span id="recWalletAmount">0.00</span>
+                </div>
             </div>
 
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #2a9d8f; font-weight: bold;">
-                <span>إجمالي المدفوع:</span>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #2a9d8f;">
+                <span>سداد(-):</span>
                 <span id="recPaid" style="font-weight: 700;">0.00</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: 17px; margin-top: 8px; padding-top: 6px; border-top: 1px solid #000;">
@@ -440,6 +444,15 @@
     };
 
     window.handleInput = () => { isChanged = true; calc(); };
+    
+    // وظيفة معالجة الإدخال الموزع (كاش / محفظة)
+    window.handleSplitInput = () => {
+        const cash = parseFloat(document.getElementById('cashAmount').value) || 0;
+        const wallet = parseFloat(document.getElementById('walletAmount').value) || 0;
+        document.getElementById('paidAmount').value = cash + wallet;
+        window.handleInput();
+    };
+
     const CACHE_KEYS = {
         customers: "cache_customers",
         inventory: "cache_inventory"
@@ -477,11 +490,12 @@
                     document.getElementById('customerSelect').value = data.customerId;
                     document.getElementById('customerSearch').value = data.customerName;
                     document.getElementById('invTime').value = data.time;
-                    document.getElementById('payMethod').value = data.paymentMethod || "cash";
+                    document.getElementById('payMethod').value = data.paymentMethod;
                     
-                    // استرجاع مبالغ الكاش والمحفظة المنفصلة عند التعديل
+                    // استعادة توزيع المبالغ عند وضع التعديل
                     document.getElementById('cashAmount').value = data.cashAmount || 0;
                     document.getElementById('walletAmount').value = data.walletAmount || 0;
+                    document.getElementById('paidAmount').value = data.paid || 0;
 
                     const cust = customers.find(c => c.id === data.customerId);
                     if (cust) {
@@ -492,9 +506,11 @@
 
                     document.getElementById("itemsContainer").innerHTML = "";
                     data.items?.forEach(item => addNewRow(item));
+                    
+                    // تحديث ظهور حقول التوزيع بناء على طريقة الدفع المسترجعة
+                    togglePayLogic(false);
                 }
                 isChanged = false;
-                calc();
             }
         } catch (e) { console.error(e); }
     }
@@ -618,14 +634,7 @@
             r.querySelector('.p-subtotal').value = sub.toFixed(2);
             total += sub;
         });
-
-        // احتساب المدفوع بناءاً على قيم الكاش والمحفظة
-        const cashPaid = parseFloat(document.getElementById('cashAmount').value) || 0;
-        const walletPaid = parseFloat(document.getElementById('walletAmount').value) || 0;
-        const paid = cashPaid + walletPaid;
-        
-        document.getElementById('paidAmount').value = paid;
-
+        const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
         document.getElementById('displayTotal').innerText = total.toLocaleString('en-US', {minimumFractionDigits: 2});
         document.getElementById('displayPaid').innerText = paid.toLocaleString('en-US', {minimumFractionDigits: 2});
         document.getElementById('displayRemaining').innerText = (total - paid).toLocaleString('en-US', {minimumFractionDigits: 2});
@@ -635,27 +644,28 @@
             badge.innerText = document.querySelectorAll('.product-row').length;
         }
 
-        return { total, paid, remaining: total - paid, cashPaid, walletPaid };
+        return { total, paid, remaining: total - paid };
     };
 
-    window.togglePayLogic = () => {
+    window.togglePayLogic = (resetValues = true) => {
         const method = document.getElementById('payMethod').value;
-        let total = 0;
-        document.querySelectorAll('.product-row').forEach(r => {
-            const qty = parseFloat(r.querySelector('.p-qty').value) || 0;
-            const price = parseFloat(r.querySelector('.p-price').value) || 0;
-            total += (qty * price);
-        });
+        const total = parseFloat(document.getElementById('displayTotal').innerText.replace(/,/g, '')) || 0;
+        const splitSection = document.getElementById('splitPaymentDetails');
 
         if (method === 'cash') {
-            document.getElementById('cashAmount').value = total;
-            document.getElementById('walletAmount').value = 0;
-        } else if (method === 'wallet') {
-            document.getElementById('cashAmount').value = 0;
-            document.getElementById('walletAmount').value = total;
-        } else if (method === 'credit') {
-            document.getElementById('cashAmount').value = 0;
-            document.getElementById('walletAmount').value = 0;
+            splitSection.style.display = 'flex'; // إظهار حقول الفصل
+            if (resetValues) {
+                document.getElementById('cashAmount').value = total; // افتراضياً المبلغ كامل كاش
+                document.getElementById('walletAmount').value = 0;
+                document.getElementById('paidAmount').value = total;
+            }
+        } else {
+            splitSection.style.display = 'none'; // إخفاء حقول الفصل في حالة الآجل
+            if (resetValues) {
+                document.getElementById('cashAmount').value = 0;
+                document.getElementById('walletAmount').value = 0;
+                document.getElementById('paidAmount').value = 0;
+            }
         }
         handleInput();
     };
@@ -664,7 +674,7 @@
         const saveBtn = document.getElementById('saveBtn');
 
         try {
-            const { total, paid, remaining, cashPaid, walletPaid } = calc();
+            const { total, paid, remaining } = calc();
             const customerId = document.getElementById('customerSelect').value;
             const customerName = document.getElementById('customerSearch').value;
 
@@ -687,15 +697,16 @@
             saveBtn.disabled = true;
             saveBtn.innerText = "جاري الحفظ...";
 
+            // تجهيز البيانات للحفظ مع إضافة قيم التقسيم الداخلي
             const invoiceData = {
                 customerId,
                 customerName,
                 total,
                 paid,
                 remaining,
-                cashAmount: cashPaid,       // حفظ الكاش منفصلاً في قاعدة البيانات
-                walletAmount: walletPaid,   // حفظ المحفظة منفصلاً في قاعدة البيانات
                 paymentMethod: document.getElementById('payMethod').value,
+                cashAmount: parseFloat(document.getElementById('cashAmount').value) || 0,     // الحقل الداخلي للكاش
+                walletAmount: parseFloat(document.getElementById('walletAmount').value) || 0, // الحقل الداخلي للمحفظة
                 time: document.getElementById('invTime').value,
                 timestamp: serverTimestamp(),
                 items
@@ -715,35 +726,26 @@
 
                 if (oldSnap.exists()) {
                     const oldData = oldSnap.data();
-                    
-                    // إرجاع الكميات القديمة للمخزن قبل التحديث الجديد
                     for (const oldItem of oldData.items || []) {
                         const p = inventory.find(i => i.id === oldItem.stockId);
                         const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * (p?.unitFactor || 1) : oldItem.qty;
                         await updateDoc(doc(db, "inventory", oldItem.stockId), { totalPcs: increment(oldQtyPcs) });
                     }
-
-                    // خصم الكميات الجديدة المحدثة
                     for (const item of items) {
                         const p = inventory.find(i => i.id === item.stockId);
                         const qtyPcs = item.unit === 'box' ? item.qty * (p?.unitFactor || 1) : item.qty;
                         await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
                     }
-
                     await updateDoc(oldRef, invoiceData);
                 }
             }
 
             isChanged = false;
             prepareThermalReceipt(invoiceData, currentFetchedOldBalance);
-            
-            // إظهار مودال المشاركة عبر واتساب
             document.getElementById('shareModal').style.display = 'flex';
 
-        } catch (e) {
-            console.error(e);
-            alert("حدث خطأ أثناء حفظ الفاتورة");
-        } finally {
+        } catch (e) { console.error(e); }
+        finally {
             saveBtn.disabled = false;
             saveBtn.innerText = "حفظ وتحديث البيانات";
         }
@@ -754,23 +756,26 @@
         document.getElementById('recDate').innerText = data.time;
         document.getElementById('recTotal').innerText = data.total.toFixed(2);
         document.getElementById('recOldBalance').innerText = oldBalance.toFixed(2);
-        
-        // تعبئة حقول السداد المنفصلة في الإيصال الحراري
-        document.getElementById('recCashPaid').innerText = (data.cashAmount || 0).toFixed(2);
-        document.getElementById('recWalletPaid').innerText = (data.walletAmount || 0).toFixed(2);
-        
         document.getElementById('recPaid').innerText = data.paid.toFixed(2);
-        
-        const netRemaining = oldBalance + data.remaining;
-        document.getElementById('recRemaining').innerText = netRemaining.toFixed(2) + " ج.م";
+        document.getElementById('recRemaining').innerText = (oldBalance + data.remaining).toFixed(2);
+
+        // التحكم في ظهور وطباعة تفاصيل الفصل في الفاتورة الورقية
+        const recSplitZone = document.getElementById('recSplitDetails');
+        if (data.paymentMethod === 'cash' && (data.cashAmount > 0 || data.walletAmount > 0)) {
+            recSplitZone.style.display = 'block';
+            document.getElementById('recCashAmount').innerText = data.cashAmount.toFixed(2);
+            document.getElementById('recWalletAmount').innerText = data.walletAmount.toFixed(2);
+        } else {
+            recSplitZone.style.display = 'none';
+        }
 
         const tbody = document.getElementById('recItems');
         tbody.innerHTML = data.items.map(item => `
             <tr style="border-bottom: 1px dotted #000;">
-                <td style="padding: 8px 0; font-weight:700;">${item.name} <br><small style="color:#333;">بـ (${item.unit === 'box' ? 'كرتونة' : 'قطعة'})</small></td>
-                <td style="padding: 8px 0; text-align: center;">${item.qty}</td>
-                <td style="padding: 8px 0; text-align: left;">${item.price.toFixed(2)}</td>
-                <td style="padding: 8px 0; text-align: left; font-weight:700;">${(item.qty * item.price).toFixed(2)}</td>
+                <td style="padding: 10px 0;">${item.name}</td>
+                <td style="padding: 10px 0; text-align: center;">${item.qty}</td>
+                <td style="padding: 10px 0; text-align: left;">${item.price.toFixed(2)}</td>
+                <td style="padding: 10px 0; text-align: left;">${(item.qty * item.price).toFixed(2)}</td>
             </tr>
         `).join('');
     }
@@ -789,12 +794,12 @@
                     navigator.share({
                         files: [file],
                         title: 'فاتورة مبيعات',
-                        text: `فاتورة العميل: ${document.getElementById('recCustomer').innerText}`
+                        text: `فاتورة مبيعات من شركة الزيادي`
                     }).then(() => {
                         window.location.href = "sales-history.html";
                     }).catch(err => console.log(err));
                 } else {
-                    alert("خاصية المشاركة المباشرة غير مدعومة في هذا المتصفح، يمكنك تصوير الشاشة.");
+                    alert("المشاركة غير مدعومة في هذا المتصفح");
                 }
             }, 'image/png');
         });
