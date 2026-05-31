@@ -236,23 +236,17 @@
 
     <div class="payment-box">  
         <div class="row g-2">  
-         <div class="col-6">
-    <label class="sub-lbl">نقدي</label>
-    <input type="number"
-           id="cashAmount"
-           class="form-control"
-           value="0"
-           oninput="handleInput()">
-</div>
-
-<div class="col-6">
-    <label class="sub-lbl">محفظة</label>
-    <input type="number"
-           id="walletAmount"
-           class="form-control"
-           value="0"
-           oninput="handleInput()">
-</div> 
+            <div class="col-6">  
+                <label class="sub-lbl">طريقة الدفع</label>  
+                <select id="payMethod" class="form-select" onchange="togglePayLogic()">  
+                    <option value="cash">نقدي (كاش)</option>  
+                    <option value="credit">آجل (على الحساب)</option>  
+                </select>  
+            </div>  
+            <div class="col-6">  
+                <label class="sub-lbl">المبلغ المدفوع</label>  
+                <input type="number" id="paidAmount" class="form-control" value="0" oninput="handleInput()">  
+            </div>  
         </div>  
     </div>  
 
@@ -344,15 +338,6 @@
             <span>سداد(-):</span>  
             <span id="recPaid" style="font-weight: 700;">0.00</span>  
         </div>  
-        <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-    <span>منه نقدي:</span>
-    <span id="recCash">0.00</span>
-</div>
-
-<div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-    <span>منه محفظة:</span>
-    <span id="recWallet">0.00</span>
-</div>
         <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: 17px; margin-top: 8px; padding-top: 6px; border-top: 1px solid #000;">  
             <span> الحساب المتبقي :</span>  
             <span id="recRemaining" style="border-bottom: 1px solid #000;">0.00</span>  
@@ -459,11 +444,8 @@
                     document.getElementById('customerSelect').value = data.customerId;  
                     document.getElementById('customerSearch').value = data.customerName;  
                     document.getElementById('invTime').value = data.time;  
-                  document.getElementById('cashAmount').value =
-data.cashPaid || 0;
-
-document.getElementById('walletAmount').value =
-data.walletPaid || 0; 
+                    document.getElementById('payMethod').value = data.paymentMethod;  
+                    document.getElementById('paidAmount').value = data.paid;  
   
                     const cust = customers.find(c => c.id === data.customerId);  
                     if (cust) {  
@@ -599,13 +581,7 @@ data.walletPaid || 0;
             r.querySelector('.p-subtotal').value = sub.toFixed(2);  
             total += sub;  
         });  
-   const cashPaid =
-parseFloat(document.getElementById('cashAmount').value) || 0;
-
-const walletPaid =
-parseFloat(document.getElementById('walletAmount').value) || 0;
-
-const paid = cashPaid + walletPaid;
+        const paid = parseFloat(document.getElementById('paidAmount').value) || 0;  
         document.getElementById('displayTotal').innerText = total.toLocaleString('en-US', {minimumFractionDigits: 2});  
         document.getElementById('displayPaid').innerText = paid.toLocaleString('en-US', {minimumFractionDigits: 2});  
         document.getElementById('displayRemaining').innerText = (total - paid).toLocaleString('en-US', {minimumFractionDigits: 2});  
@@ -652,29 +628,13 @@ const paid = cashPaid + walletPaid;
             saveBtn.disabled = true;  
             saveBtn.innerText = "جاري الحفظ...";  
   
-           const invoiceData = {
-    customerId,
-    customerName,
-
-    total,
-
-    cashPaid:
-        parseFloat(document.getElementById('cashAmount').value) || 0,
-
-    walletPaid:
-        parseFloat(document.getElementById('walletAmount').value) || 0,
-
-    paid,
-
-    remaining,
-
-    time: document.getElementById('invTime').value,
-
-    timestamp: serverTimestamp(),
-
-    items
-};
- 
+            const invoiceData = {  
+                customerId,  
+                customerName,  
+                total,  
+                paid,  
+                remaining,  
+                paymentMethod: document.getElementById('payMethod').value,  
                 time: document.getElementById('invTime').value,  
                 timestamp: serverTimestamp(),  
                 items  
@@ -720,17 +680,7 @@ const paid = cashPaid + walletPaid;
             document.getElementById('recOldBalance').innerText = oldBalance.toFixed(2) + " ج.م";  
             document.getElementById('recPaid').innerText = paid.toFixed(2) + " ج.م";  
             document.getElementById('recRemaining').innerText = finalRemainingTotal.toFixed(2) + " ج.م";  
-  const cashPaid =
-parseFloat(document.getElementById('cashAmount').value) || 0;
-
-const walletPaid =
-parseFloat(document.getElementById('walletAmount').value) || 0;
-
-document.getElementById('recCash').innerText =
-cashPaid.toFixed(2) + " ج.م";
-
-document.getElementById('recWallet').innerText =
-walletPaid.toFixed(2) + " ج.م";
+  
             const recItemsTbody = document.getElementById('recItems');  
             recItemsTbody.innerHTML = "";  
             items.forEach(item => {  
