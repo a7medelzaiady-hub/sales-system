@@ -90,7 +90,7 @@
     </h6>
 
     <div class="d-flex align-items-center gap-3">
-        <i class="fas fa-sync-alt" onclick="loadInvoices(true)" style="cursor:pointer; opacity:0.8; font-size: 1.1rem;" title="تحديث البيانات من السيرفر"></i>
+        <i class="fas fa-sync-alt" id="refreshBtn" style="cursor:pointer; opacity:0.8; font-size: 1.1rem;" title="تحديث البيانات من السيرفر"></i>
         <a href="sales-invoice.html" class="add-btn">
             <i class="fas fa-plus"></i>
         </a>
@@ -131,8 +131,8 @@
     <button class="btn-export btn-excel" onclick="exportToExcel()">
         <i class="fas fa-file-excel"></i> تصدير Excel
     </button>
-    <button class="btn-export" style="background:#dc3545" onclick="deleteAllInvoices()">
-        <i class="fas fa-trash"></i> حذف الكل
+    <button class="btn-export" style="background:#dc3545" id="clearCacheBtn">
+        <i class="fas fa-eraser"></i> مسح الكاش المؤقت
     </button>
     <button class="btn-export btn-pdf-report" onclick="window.print()">
         <i class="fas fa-file-pdf"></i> طباعة PDF
@@ -251,7 +251,6 @@
             const dateObj = inv.timestamp?.toDate?.() || inv.time || new Date();
             const method = inv.paymentMethod || "نقدي";
             
-            // تحديد مسمى الحركة بناء على نوع السداد
             const حركة_السداد = (method === "محفظة") ? "سداد منه محفظة" : "سداد منه نقدى";
 
             (inv.items || []).forEach(item => {
@@ -278,6 +277,13 @@
 
     window.loadInvoices = async (forceRefresh = false) => {
         try {
+            document.getElementById('listContainer').innerHTML = '<div class="text-center p-5"><div class="spinner-border spinner-border-sm" style="color: var(--accent);"></div></div>';
+            
+            if (forceRefresh) {
+                localStorage.removeItem("cached_all_invoices");
+                localStorage.removeItem("cached_totals_data");
+            }
+
             const cachedInvoices = localStorage.getItem("cached_all_invoices");
             const cachedTotals = localStorage.getItem("cached_totals_data");
 
@@ -357,7 +363,6 @@
     };
 
     function displayTotals(data) {
-        // تم إزالة كلمة "ج.م" من العرض بناءً على طلبك
         document.getElementById('totalAll').innerText = Math.round(data.totalSales).toLocaleString('ar-EG');
         document.getElementById('paidCashAll').innerText = Math.round(data.totalPaidCash).toLocaleString('ar-EG');
         document.getElementById('paidWalletAll').innerText = Math.round(data.totalPaidWallet).toLocaleString('ar-EG');
@@ -409,6 +414,17 @@
             `;
         }).join('');
     }
+
+    // ربط الأزرار بالأحداث داخل الـ Module لتعمل بشكل صحيح وثابت
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+        loadInvoices(true);
+    });
+
+    document.getElementById('clearCacheBtn').addEventListener('click', () => {
+        localStorage.clear();
+        alert("تم تفريغ الذاكرة المؤقتة بالكامل 🧼");
+        loadInvoices(true);
+    });
 
     window.shareInv = async (id, btn) => {
         const icon = btn.innerHTML;
@@ -511,7 +527,6 @@
                     <small>${inv.time}</small>
                 </div>
                 <p style="margin:5px 0;"><b>العميل:</b> ${inv.customerName || 'عميل نقدي'}</p>
-                <!-- إضافة طريقة الدفع هنا للفاتورة المطبوعة -->
                 <p style="margin:5px 0;"><b>طريقة الدفع:</b> ${inv.paymentMethod || 'نقدي'}</p>
                 <table>
                     <thead><tr><th style="text-align:right;">الصنف</th><th>ك</th><th>سعر</th><th style="text-align:left;">إجمالي</th></tr></thead>
@@ -575,7 +590,8 @@
         });
     };
 
-    loadInvoices(false);
+    // جلب حقيقي وحي دائمًا عند فتح الصفحة
+    loadInvoices(true);
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
