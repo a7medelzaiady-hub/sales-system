@@ -8,7 +8,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- مكتبة Excel المصدرة للبيانات كاملة -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { 
@@ -64,11 +63,22 @@
             background: var(--white);
             border: 1px solid var(--border);
             border-radius: var(--card-radius);
-            padding: 4px 5px;
+            padding: 6px 5px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.01);
             text-align: center;
             position: relative;
             overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+            border-color: var(--accent);
+        }
+        .stat-card.active-filter {
+            border: 2px solid var(--accent) !important;
+            background: #ebf9eb;
         }
         
         .stat-bar {
@@ -88,7 +98,6 @@
             box-shadow: 0 2px 6px rgba(0,0,0,0.02);
             transition: all 0.2s ease;
         }
-        .invoice-item:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,0.04); }
 
         .detail-badge {
             font-size: 0.7rem;
@@ -112,10 +121,7 @@
             margin-top: 8px;
             border: 1px dashed var(--border);
         }
-        .fin-box {
-            font-size: 0.72rem;
-            font-weight: 700;
-        }
+        .fin-box { font-size: 0.72rem; font-weight: 700; }
         .fin-box span { display: block; font-size: 0.8rem; margin-top: 1px; font-weight: 800; }
 
         .search-box {
@@ -125,23 +131,32 @@
             font-weight: 600;
             font-size: 0.82rem;
         }
-        .search-box:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(11, 94, 61, 0.15); }
 
         .items-preview-table {
             width: 100%; margin-top: 8px; font-size: 0.75rem; border-collapse: collapse;
         }
         .items-preview-table th { background: #ebf9eb; padding: 4px; border: 1px solid var(--border); font-weight: 700; text-align: center; }
         .items-preview-table td { padding: 4px; border: 1px solid var(--border); text-align: center; }
+        
+        .filter-status-bar {
+            display: none;
+            background: #e2e8f0;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            align-items: center;
+            justify-content: space-between;
+        }
     </style>
 </head>
 <body>
 
 <div class="header-nav">
     <a href="index.html" class="add-btn"><i class="fas fa-arrow-right"></i></a>
-    <h6 class="m-0 fw-bold" style="font-size: 0.9rem;"><i class="fas fa-history me-1"></i> سجل الإحصائيات والمبيعات</h6>
+    <h6 class="m-0 fw-bold" style="font-size: 0.9rem;"><i class="fas fa-history me-1"></i> سجل المبيعات والإحصائيات</h6>
     <div class="d-flex gap-2">
-        <!-- زر التصدير إلى Excel الشامل للعملاء والبيانات المالية -->
-        <button class="add-btn" id="exportExcelBtn" title="تصدير إكسيل شامل"><i class="fas fa-file-excel"></i></button>
+        <button class="add-btn" id="exportExcelBtn" title="تصدير إكسيل"><i class="fas fa-file-excel"></i></button>
         <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>
     </div>
 </div>
@@ -149,69 +164,75 @@
 <div class="container px-2 mt-1">
     
     <!-- إحصائيات اليوم -->
-    <div class="stats-section-title"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم</div>
+    <div class="stats-section-title"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم (اضغط للفلترة)</div>
     <div class="row g-1 mb-2">
         <div class="col-3">
-            <div class="stat-card">
-                <div class="stat-bar" style="background: var(--accent);"></div>
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">نقدى اليوم</small>
+            <div class="stat-card" onclick="filterByStat('today-cash', this)">
+                <div class="stat-bar" style="background: var(--success);"></div>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem;">نقدي اليوم</small>
                 <span class="fw-bold d-block text-truncate text-success" id="todayCash" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
-            <div class="stat-card">
+            <div class="stat-card" onclick="filterByStat('today-wallet', this)">
                 <div class="stat-bar" style="background: var(--purple);"></div>
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">محفظة اليوم</small>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem;">محفظة اليوم</small>
                 <span class="fw-bold d-block text-truncate text-primary" id="todayWallet" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
-            <div class="stat-card">
+            <div class="stat-card" onclick="filterByStat('today-remaining', this)">
                 <div class="stat-bar" style="background: var(--warning);"></div>
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">آجل اليوم</small>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem;">آجل اليوم</small>
                 <span class="fw-bold d-block text-truncate text-warning" id="todayRemaining" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
-            <div class="stat-card">
+            <div class="stat-card" onclick="filterByStat('today-total', this)">
                 <div class="stat-bar" style="background: #212529;"></div>
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">مبيعات اليوم</small>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem;">مبيعات اليوم</small>
                 <span class="fw-bold d-block text-truncate text-dark" id="todayTotalSales" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
     </div>
 
-    <!-- إحصائيات الكل المجمعة -->
-    <div class="stats-section-title"><i class="fas fa-chart-pie me-1"></i> إحصائيات الكل</div>
-    <div class="row g-1 mb-3">
+    <!-- إحصائيات الكل -->
+    <div class="stats-section-title"><i class="fas fa-chart-pie me-1"></i> إحصائيات الكل (اضغط للفلترة)</div>
+    <div class="row g-1 mb-2">
         <div class="col-3">
-            <div class="stat-card">
-                <div class="stat-bar" style="background: var(--accent);"></div>
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">ا.النقدى</small>
+            <div class="stat-card" onclick="filterByStat('all-cash', this)">
+                <div class="stat-bar" style="background: var(--success);"></div>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem;">ا.النقدي</small>
                 <span class="fw-bold d-block text-truncate text-success" id="statCash" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
-            <div class="stat-card">
+            <div class="stat-card" onclick="filterByStat('all-wallet', this)">
                 <div class="stat-bar" style="background: var(--purple);"></div>
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">ا.المحفظة</small>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem;">ا.المحفظة</small>
                 <span class="fw-bold d-block text-truncate text-primary" id="statWallet" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
-            <div class="stat-card">
+            <div class="stat-card" onclick="filterByStat('all-remaining', this)">
                 <div class="stat-bar" style="background: var(--warning);"></div>
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">ا.الآجل</small>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem;">ا.الآجل</small>
                 <span class="fw-bold d-block text-truncate text-warning" id="statRemaining" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
-            <div class="stat-card">
+            <div class="stat-card" onclick="filterByStat('all-total', this)">
                 <div class="stat-bar" style="background: #212529;"></div>
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">ا.المبيعات</small>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem;">ا.المبيعات</small>
                 <span class="fw-bold d-block text-truncate text-dark" id="statTotalSales" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
+    </div>
+
+    <!-- شريط حالة الفلتر الحالي -->
+    <div class="filter-status-bar mb-2" id="filterStatusBar">
+        <span id="filterStatusText">عرض فلاتر مخصصة</span>
+        <button class="btn btn-sm btn-dark py-0" onclick="resetStatFilter()" style="font-size:0.65rem;">عرض الكل</button>
     </div>
 
     <div class="mb-2">
@@ -221,104 +242,52 @@
     <div id="invoicesList">
         <div class="text-center py-5 text-muted">
             <i class="fas fa-spinner fa-spin fa-2x"></i>
-            <p class="mt-2 font-weight-bold" style="font-size: 0.8rem;">جاري تحميل سجل الفواتير والعملاء...</p>
+            <p class="mt-2 fw-bold">جاري تحميل البيانات...</p>
         </div>
     </div>
 </div>
 
-<!-- Modal مشاركة الفاتورة -->
+<!-- مودال الواتساب والمشاركة الحرارية -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
-    <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: 14px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+    <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: 14px; text-align: center;">
         <div style="width: 50px; height: 50px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">
             <i class="fab fa-whatsapp" style="color: #25D366; font-size: 1.8rem;"></i>
         </div>
-        <h6 style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">مشارکة الفاتورة المحددة</h6>
-        <p style="color: #555; font-size: 0.75rem; margin-bottom: 14px;">سيتم إنشاء الفاتورة الحرارية بصيغة صورة ومشاركتها مباشرة عبر الواتساب</p>
-        <div style="display: flex; flex-direction: column; gap: 8px;">
-            <button id="confirmShareBtn" style="background: #25D366; color: white; border: none; padding: 8px; border-radius: 8px; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; font-size:0.8rem;">
-                <i class="fab fa-whatsapp"></i> مشاركة كصورة الآن
-            </button>
-            <button onclick="document.getElementById('shareModal').style.display='none'" style="background: #f4f7f6; color: var(--danger); border: none; padding: 8px; border-radius: 8px; font-weight: 700; width: 100%; font-size:0.8rem;">
-                إلغاء
-            </button>
+        <h6 class="fw-bold mb-1">مشاركة الفاتورة المحددة</h6>
+        <p style="color: #555; font-size: 0.75rem; margin-bottom: 14px;">سيتم إنشاء الفاتورة الحرارية كصورة ومشاركتها عبر الواتساب</p>
+        <div class="d-flex flex-column gap-2">
+            <button id="confirmShareBtn" class="btn btn-success btn-sm w-100 fw-bold"><i class="fab fa-whatsapp me-1"></i> مشاركة الآن</button>
+            <button onclick="document.getElementById('shareModal').style.display='none'" class="btn btn-light btn-sm w-100 fw-bold text-danger">إلغاء</button>
         </div>
     </div>
 </div>
 
-<!-- حاوية الفاتورة الحرارية (مخفية) -->
+<!-- حاوية الفاتورة الحرارية المخفية -->
 <div id="thermalReceiptContainer" style="position: absolute; left: -9999px; top: -9999px;">
-    <div id="thermalReceipt" style="width: 380px; background: #fff; color: #000; padding: 25px 20px; font-family: 'Cairo', sans-serif; direction: rtl; font-size: 14px; line-height: 1.6;">
-        <div style="text-align: center; margin-bottom: 20px; border-bottom: 3px double #000; padding-bottom: 12px; width: 100%;">
-            <span style="font-size: 24px; font-weight: 800; display: block; line-height: 1.2;">شركة الزيادي</span>
-            <span style="font-size: 14px; font-weight: 700; display: block; margin-top: 2px;">لزيوت وفلاتر السيارات</span>
-            <span style="font-size: 13px; font-weight: 600; display: block; margin-top: 2px;">إدارة محاسب/ أحمد محمود الزيادي</span>
-            <div style="margin-top: 10px;">
-                <span style="font-size: 14px; border: 1.5px solid #000; display: inline-block; padding: 2px 20px; font-weight: 800; border-radius: 4px;">فاتورة مبيعات</span>
-            </div>
+    <div id="thermalReceipt" style="width: 380px; background: #fff; padding: 25px 20px; font-family: 'Cairo', sans-serif; direction: rtl;">
+        <div style="text-align: center; margin-bottom: 20px; border-bottom: 3px double #000; padding-bottom: 12px;">
+            <span style="font-size: 24px; font-weight: 800; display: block;">شركة الزيادي</span>
+            <span style="font-size: 14px; font-weight: 700; display: block;">لزيوت وفلاتر السيارات</span>
+            <div style="margin-top: 10px;"><span style="font-size: 14px; border: 1.5px solid #000; padding: 2px 20px; font-weight: 800;">فاتورة مبيعات</span></div>
         </div>
-
         <div style="border-bottom: 1px dashed #000; margin-bottom: 12px; padding-bottom: 10px; font-size: 13px;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-                <span><b>العميل:</b></span>
-                <span id="recCustomer" style="font-weight: 700;"></span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-                <span><b>التاريخ:</b></span>
-                <span id="recDate" style="direction: ltr;"></span>
-            </div>
-            <div style="display: flex; justify-content: space-between;">
-                <span><b>طريقة السداد:</b></span>
-                <span id="recPaymentMethod" style="font-weight: 700;"></span>
-            </div>
+            <div class="d-flex justify-content-between"><span><b>العميل:</b></span><span id="recCustomer" style="font-weight:700;"></span></div>
+            <div class="d-flex justify-content-between"><span><b>التاريخ:</b></span><span id="recDate"></span></div>
+            <div class="d-flex justify-content-between"><span><b>طريقة السداد:</b></span><span id="recPaymentMethod"></span></div>
         </div>
-
-        <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: right; margin-bottom: 15px;">
+        <table style="width: 100%; font-size: 13px; text-align: right; margin-bottom: 15px;">
             <thead>
                 <tr style="border-bottom: 1.5px solid #000; font-weight: 800;">
-                    <th style="padding: 6px 0; width: 45%;">الصنف</th>
-                    <th style="padding: 6px 0; text-align: center; width: 20%;">الكمية</th>
-                    <th style="padding: 6px 0; text-align: left; width: 15%;">السعر</th>
-                    <th style="padding: 6px 0; text-align: left; width: 20%;">الإجمالي</th>
+                    <th>الصنف</th><th style="text-align:center;">الكمية</th><th style="text-align:left;">السعر</th><th style="text-align:left;">الإجمالي</th>
                 </tr>
             </thead>
             <tbody id="recItems"></tbody>
         </table>
-
-        <div style="border-top: 1px dashed #000; padding-top: 12px; font-size: 14px; line-height: 1.8;">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span>إجمالي الفاتورة الحالية:</span>
-                <span id="recTotal" style="font-weight: 700;">0.00</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span>حساب سابق (+):</span>
-                <span id="recOldBalance" style="font-weight: 700;">0.00</span>
-            </div>
-            
-            <div id="recSplitDetails" style="display: none;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 12px; color: #444; padding-right: 12px;">
-                    <span>- مسدد نقدي:</span>
-                    <span id="recCashAmount">0.00</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 12px; color: #444; padding-right: 12px;">
-                    <span>- مسدد محفظة:</span>
-                    <span id="recWalletAmount">0.00</span>
-                </div>
-            </div>
-
-            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span>سداد (-):</span>
-                <span id="recPaid" style="font-weight: 700;">0.00</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: 16px; margin-top: 6px; padding-top: 4px; border-top: 1.5px solid #000;">
-                <span>الحساب المتبقي:</span>
-                <span id="recRemaining" style="border-bottom: 1px solid #000;">0.00</span>
-            </div>
-        </div>
-
-        <div style="text-align: center; margin-top: 25px; border-top: 1.5px dashed #000; padding-top: 12px; font-size: 12px; font-weight: 700;">
-            <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: 800;">شكراً لتعاملكم معنا 🙏</p>
-            <p style="margin: 0 0 6px 0; color: #333;">برجاء مراجعة الفاتورة بعد استلامها</p>
-            <p style="margin: 4px 0 0 0; font-size: 13px; background-color: #f5f5f5; padding: 3px 0; border-radius: 4px; font-weight: 800; border: 1px dotted #ccc;">للمراجعة: 01027830834</p>
+        <div style="border-top: 1px dashed #000; padding-top: 12px; font-size: 14px;">
+            <div class="d-flex justify-content-between"><span>إجمالي الفاتورة:</span><span id="recTotal">0.00</span></div>
+            <div class="d-flex justify-content-between"><span>حساب سابق:</span><span id="recOldBalance">0.00</span></div>
+            <div class="d-flex justify-content-between"><span>سداد:</span><span id="recPaid">0.00</span></div>
+            <div class="d-flex justify-content-between fw-bold style='font-size:16px; border-top:1.5px solid #000; padding-top:4px;'"><span>الحساب المتبقي:</span><span id="recRemaining">0.00</span></div>
         </div>
     </div>
 </div>
@@ -339,13 +308,14 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+    
     let allInvoices = [];
     let customersData = {};
     let activeShareData = null;
+    let currentFilterType = null; // لنوع فلتر الإحصائيات النشط
 
-    async function loadCustomersAndInvoices() {
+    async function loadData() {
         try {
-            // جلب بيانات العملاء بالكامل لربطها بالفواتير
             const custSnap = await getDocs(collection(db, "customers"));
             custSnap.forEach(d => {
                 customersData[d.id] = { id: d.id, name: d.data().name, initialBalance: Number(d.data().initialBalance) || 0 };
@@ -377,21 +347,34 @@
                 const previousBalance = runningBalances[cid];
                 runningBalances[cid] += (Number(data.remaining) || 0);
 
+                // فصل حسابي دقيق للكاش والمحفظة عند التحميل بناء على القواعد المعتمدة سابقاً
+                let cPaid = 0; let wPaid = 0;
+                if (data.cashAmount !== undefined || data.walletAmount !== undefined) {
+                    cPaid = Number(data.cashAmount) || 0;
+                    wPaid = Number(data.walletAmount) || 0;
+                } else {
+                    let p = Number(data.paid) || 0;
+                    if (data.paymentMethod === "سداد محفظة" || data.paymentMethod === "محفظة") wPaid = p;
+                    else if (data.paymentMethod === "سداد نقدي" || data.paymentMethod === "كاش" || data.paymentMethod === "نقدي") cPaid = p;
+                    else cPaid = p; 
+                }
+
                 tempInvoices.push({
                     id: doc.id,
                     ...data,
+                    calculatedCash: cPaid,
+                    calculatedWallet: wPaid,
                     previousBalance: previousBalance 
                 });
             });
 
             allInvoices = tempInvoices.reverse();
-            
             calculateStats();
             renderInvoices(allInvoices);
 
         } catch (e) {
-            console.error("Error:", e);
-            document.getElementById('invoicesList').innerHTML = `<div class="alert alert-danger text-center p-2">حدث خطأ أثناء تحميل البيانات من Firebase.</div>`;
+            console.error(e);
+            document.getElementById('invoicesList').innerHTML = `<div class="alert alert-danger text-center p-2">حدث خطأ في تحميل البيانات.</div>`;
         }
     }
 
@@ -402,31 +385,20 @@
         const todayStr = new Date().toLocaleDateString('en-CA'); 
 
         allInvoices.forEach(inv => {
-            let cash = 0; let wallet = 0;
-
-            if (inv.cashAmount !== undefined || inv.walletAmount !== undefined) {
-                cash = Number(inv.cashAmount) || 0;
-                wallet = Number(inv.walletAmount) || 0;
-            } else {
-                let paidVal = Number(inv.paid) || 0;
-                if (inv.paymentMethod === "سداد محفظة" || inv.paymentMethod === "محفظة") wallet = paidVal;
-                else cash = paidVal;
-            }
-
-            totalCash += cash;
-            totalWallet += wallet;
+            totalCash += inv.calculatedCash;
+            totalWallet += inv.calculatedWallet;
             totalRemaining += (Number(inv.remaining) || 0);
             totalSales += (Number(inv.total) || 0);
 
             let isToday = false;
             if (inv.date) isToday = (inv.date === todayStr);
             else if (inv.timestamp) {
-                const invDateStr = new Date(inv.timestamp.seconds * 1000).toLocaleDateString('en-CA');
-                isToday = (invDateStr === todayStr);
+                isToday = (new Date(inv.timestamp.seconds * 1000).toLocaleDateString('en-CA') === todayStr);
             }
 
             if (isToday) {
-                todayCash += cash; todayWallet += wallet;
+                todayCash += inv.calculatedCash;
+                todayWallet += inv.calculatedWallet;
                 todayRemaining += (Number(inv.remaining) || 0);
                 todaySales += (Number(inv.total) || 0);
             }
@@ -446,61 +418,54 @@
     function renderInvoices(invoices) {
         const container = document.getElementById('invoicesList');
         if (invoices.length === 0) {
-            container.innerHTML = `<div class="text-center py-4 text-muted fw-bold">لا توجد فواتير مسجلة.</div>`;
+            container.innerHTML = `<div class="text-center py-4 text-muted fw-bold">لا توجد فواتير مطابقة للبحث أو الفلتر المختار.</div>`;
             return;
         }
 
         container.innerHTML = invoices.map(inv => {
             let methodBadgeColor = "bg-secondary";
-            if(inv.paymentMethod === "سداد نقدي" || inv.paymentMethod === "كاش") methodBadgeColor = "bg-success";
+            if(inv.paymentMethod === "سداد نقدي" || inv.paymentMethod === "كاش" || inv.paymentMethod === "نقدي") methodBadgeColor = "bg-success";
             else if(inv.paymentMethod === "سداد محفظة" || inv.paymentMethod === "محفظة") methodBadgeColor = "bg-primary";
-            else if(inv.paymentMethod === "سداد كاش ومحفظة") methodBadgeColor = "bg-info text-dark";
             else if(inv.paymentMethod === "آجل") methodBadgeColor = "bg-warning text-dark";
 
-            let cashPaid = 0; let walletPaid = 0;
-            if (inv.cashAmount !== undefined || inv.walletAmount !== undefined) {
-                cashPaid = Number(inv.cashAmount) || 0;
-                walletPaid = Number(inv.walletAmount) || 0;
-            } else {
-                let p = Number(inv.paid) || 0;
-                if (inv.paymentMethod === "سداد محفظة" || inv.paymentMethod === "محفظة") walletPaid = p;
-                else cashPaid = p;
-            }
-            const totalPaid = cashPaid + walletPaid;
+            const totalPaid = inv.calculatedCash + inv.calculatedWallet;
 
             return `
-                <div class="invoice-item" id="item_wrapper_${inv.id}">
+                <div class="invoice-item">
                     <div class="d-flex justify-content-between align-items-start mb-1">
                         <div>
                             <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.85rem;">${inv.customerName || 'عميل نقدي'}</h6>
                             <span class="detail-badge"><i class="far fa-clock"></i> ${inv.time || ''}</span>
-                            <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.65rem; padding: 3px 6px;">${inv.paymentMethod || 'غير محدد'}</span>
+                            <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.65rem;">${inv.paymentMethod || 'غير محدد'}</span>
                         </div>
                         <div class="d-flex gap-1">
-                            <button class="btn btn-sm btn-outline-success" style="border-radius:6px; padding: 2px 6px; font-size:0.7rem;" onclick="triggerShare('${inv.id}')"><i class="fab fa-whatsapp"></i> شير</button>
-                            <button class="btn btn-sm btn-outline-info text-dark" style="border-radius:6px; padding: 2px 6px; font-size:0.7rem;" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> الاصناف</button>
-                            <button class="btn btn-sm btn-outline-primary" style="border-radius:6px; padding: 2px 6px; font-size:0.7rem;" onclick="editInvoice('${inv.id}')"><i class="fas fa-edit"></i></button>
-                            <button class="btn btn-sm btn-outline-danger" style="border-radius:6px; padding: 2px 6px; font-size:0.7rem;" onclick="deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>
+                            <button class="btn btn-sm btn-outline-success" style="padding: 2px 6px; font-size:0.7rem;" onclick="triggerShare('${inv.id}')"><i class="fab fa-whatsapp"></i> شير</button>
+                            <button class="btn btn-sm btn-outline-info text-dark" style="padding: 2px 6px; font-size:0.7rem;" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> الاصناف</button>
+                            <button class="btn btn-sm btn-outline-primary" style="padding: 2px 6px; font-size:0.7rem;" onclick="editInvoice('${inv.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn btn-sm btn-outline-danger" style="padding: 2px 6px; font-size:0.7rem;" onclick="deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>
                         </div>
                     </div>
 
                     <div class="financial-grid">
                         <div class="fin-box text-dark">إجمالي الفاتورة <span>${(Number(inv.total) || 0).toFixed(2)}</span></div>
-                        <div class="fin-box text-success">المسدد <span>${totalPaid.toFixed(2)}</span></div>
-                        <div class="fin-box text-danger">المتبقي (الآجل) <span>${(Number(inv.remaining) || 0).toFixed(2)}</span></div>
-                        <div class="fin-box text-secondary">حساب سابق <span>${(Number(inv.previousBalance) || 0).toFixed(2)}</span></div>
+                        <div class="fin-box text-success">المسدد الشامل <span>${totalPaid.toFixed(2)}</span></div>
+                        <div class="fin-box text-danger">الأجل (المتبقي) <span>${(Number(inv.remaining) || 0).toFixed(2)}</span></div>
+                        <div class="fin-box text-secondary">حساب سابق كان كام <span>${(Number(inv.previousBalance) || 0).toFixed(2)}</span></div>
                     </div>
+                    
+                    ${(inv.calculatedCash > 0 && inv.calculatedWallet > 0) ? `
+                    <div class="mt-1 text-muted" style="font-size: 0.65rem; font-weight: 600;">
+                        <i class="fas fa-info-circle me-1"></i> تفصيل: (${inv.calculatedCash.toFixed(2)} نقدي + ${inv.calculatedWallet.toFixed(2)} محفظة)
+                    </div>` : ''}
 
                     <div id="details_box_${inv.id}" style="display:none;">
                         <table class="items-preview-table">
-                            <thead>
-                                <tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr>
-                            </thead>
+                            <thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>
                             <tbody>
                                 ${(inv.items || []).map(itm => `
                                     <tr>
                                         <td style="text-align:right;">${itm.name}</td>
-                                        <td>${itm.qty} ${itm.unit === 'box' ? 'كرتونة' : 'قطعة'}</td>
+                                        <td>${itm.qty}</td>
                                         <td>${(Number(itm.price) || 0).toFixed(2)}</td>
                                         <td>${((Number(itm.qty) || 0) * (Number(itm.price) || 0)).toFixed(2)}</td>
                                     </tr>
@@ -513,6 +478,80 @@
         }).join('');
     }
 
+    // الفلترة الذكية عند الضغط على كروت الإحصائيات للتحقق من صحة الأرقام حسابياً
+    window.filterByStat = (type, cardElement) => {
+        document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active-filter'));
+        cardElement.classList.add('active-filter');
+        currentFilterType = type;
+
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        let filtered = [];
+        let statusLabel = "";
+
+        filtered = allInvoices.filter(inv => {
+            let isToday = false;
+            if (inv.date) isToday = (inv.date === todayStr);
+            else if (inv.timestamp) {
+                isToday = (new Date(inv.timestamp.seconds * 1000).toLocaleDateString('en-CA') === todayStr);
+            }
+
+            switch(type) {
+                case 'today-cash':
+                    statusLabel = "فواتير ساهمت في [نقدي اليوم]";
+                    return isToday && inv.calculatedCash > 0;
+                case 'today-wallet':
+                    statusLabel = "فواتير ساهمت في [محفظة اليوم]";
+                    return isToday && inv.calculatedWallet > 0;
+                case 'today-remaining':
+                    statusLabel = "فواتير ساهمت في [آجل اليوم]";
+                    return isToday && Number(inv.remaining) > 0;
+                case 'today-total':
+                    statusLabel = "جميع فواتير مبيعات اليوم";
+                    return isToday;
+                case 'all-cash':
+                    statusLabel = "جميع الفواتير التي تحتوي على دفع [نقدي]";
+                    return inv.calculatedCash > 0;
+                case 'all-wallet':
+                    statusLabel = "جميع الفواتير التي تحتوي على دفع [محفظة]";
+                    return inv.calculatedWallet > 0;
+                case 'all-remaining':
+                    statusLabel = "جميع الفواتير المتبقي عليها [آجل]";
+                    return Number(inv.remaining) > 0;
+                case 'all-total':
+                    statusLabel = "كل فواتير المبيعات المسجلة بالسيستم";
+                    return true;
+                default:
+                    return true;
+            }
+        });
+
+        document.getElementById('filterStatusText').innerText = `${statusLabel} (${filtered.length} فاتورة)`;
+        document.getElementById('filterStatusBar').style.display = "flex";
+        renderInvoices(filtered);
+    };
+
+    window.resetStatFilter = () => {
+        document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active-filter'));
+        document.getElementById('filterStatusBar').style.display = "none";
+        currentFilterType = null;
+        document.getElementById('searchInput').value = "";
+        renderInvoices(allInvoices);
+    };
+
+    window.filterInvoices = () => {
+        const query = document.getElementById('searchInput').value.toLowerCase().trim();
+        if(!query) {
+            if(currentFilterType) { return; } 
+            renderInvoices(allInvoices);
+            return;
+        }
+        const filtered = allInvoices.filter(inv => 
+            (inv.customerName && inv.customerName.toLowerCase().includes(query)) || 
+            (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(query))
+        );
+        renderInvoices(filtered);
+    };
+
     window.toggleDetails = (id) => {
         const element = document.getElementById(`details_box_${id}`);
         element.style.display = (element.style.display === "none") ? "block" : "none";
@@ -523,31 +562,21 @@
         if(!inv) return;
         activeShareData = inv;
 
-        let cashPaid = 0; let walletPaid = 0;
-        if (inv.cashAmount !== undefined || inv.walletAmount !== undefined) {
-            cashPaid = Number(inv.cashAmount) || 0;
-            walletPaid = Number(inv.walletAmount) || 0;
-        } else {
-            let p = Number(inv.paid) || 0;
-            if (inv.paymentMethod === "سداد محفظة" || inv.paymentMethod === "محفظة") walletPaid = p;
-            else cashPaid = p;
-        }
-
-        document.getElementById('recCustomer').innerText = inv.customerName;
-        document.getElementById('recDate').innerText = inv.time;
-        document.getElementById('recPaymentMethod').innerText = inv.paymentMethod;
+        document.getElementById('recCustomer').innerText = inv.customerName || 'عميل نقدي';
+        document.getElementById('recDate').innerText = inv.time || '';
+        document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || '';
         document.getElementById('recTotal').innerText = Number(inv.total).toFixed(2);
         document.getElementById('recOldBalance').innerText = Number(inv.previousBalance).toFixed(2);
-        document.getElementById('recPaid').innerText = (cashPaid + walletPaid).toFixed(2);
+        document.getElementById('recPaid').innerText = (inv.calculatedCash + inv.calculatedWallet).toFixed(2);
         document.getElementById('recRemaining').innerText = (Number(inv.previousBalance) + Number(inv.remaining)).toFixed(2);
 
         const tbody = document.getElementById('recItems');
         tbody.innerHTML = (inv.items || []).map(item => `
-            <tr style="border-bottom: 1px dotted #000;">
-                <td style="padding: 8px 0;">${item.name}</td>
-                <td style="padding: 8px 0; text-align: center;">${item.qty}</td>
-                <td style="padding: 8px 0; text-align: left;">${Number(item.price).toFixed(2)}</td>
-                <td style="padding: 8px 0; text-align: left;">${(Number(item.qty) * Number(item.price)).toFixed(2)}</td>
+            <tr>
+                <td>${item.name}</td>
+                <td style="text-align: center;">${item.qty}</td>
+                <td style="text-align: left;">${Number(item.price).toFixed(2)}</td>
+                <td style="text-align: left;">${(Number(item.qty) * Number(item.price)).toFixed(2)}</td>
             </tr>
         `).join('');
 
@@ -561,79 +590,45 @@
             canvas.toBlob(blob => {
                 const file = new File([blob], `invoice_${activeShareData.id}.png`, { type: 'image/png' });
                 if (navigator.share) {
-                    navigator.share({ files: [file], title: 'فاتورة مبيعات', text: `فاتورة شركة الزيادي` })
+                    navigator.share({ files: [file], title: 'فاتورة مبيعات', text: `شركة الزيادي` })
                     .then(() => document.getElementById('shareModal').style.display = 'none')
                     .catch(err => console.log(err));
-                } else { alert("المشاركة غير مدعومة"); }
+                } else { alert("المشاركة غير مدعومة بجهازك"); }
             }, 'image/png');
         });
-    };
-
-    window.filterInvoices = () => {
-        const query = document.getElementById('searchInput').value.toLowerCase().trim();
-        if(!query) { renderInvoices(allInvoices); return; }
-        const filtered = allInvoices.filter(inv => 
-            (inv.customerName && inv.customerName.toLowerCase().includes(query)) || 
-            (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(query))
-        );
-        renderInvoices(filtered);
     };
 
     window.editInvoice = (id) => { window.location.href = `sales-invoice.html?edit=${id}`; };
 
     window.deleteInvoice = async (id) => {
-        if (!confirm("هل أنت متأكد من الحذف؟")) return;
+        if (!confirm("هل متأكد من حذف الفاتورة؟")) return;
         try {
-            const invRef = doc(db, "invoices", id);
-            await deleteDoc(invRef);
-            alert("تم الحذف.");
+            await deleteDoc(doc(db, "invoices", id));
+            alert("تم الحذف بنجاح");
             location.reload();
-        } catch (e) { alert("خطأ في الحذف"); }
+        } catch (e) { alert("حدث خطأ"); }
     };
 
-    // التصدير الشامل لملف الإكسيل (بيانات كاملة 100%)
     document.getElementById('exportExcelBtn').onclick = () => {
-        if (allInvoices.length === 0) {
-            alert("لا توجد بيانات لتصديرها حالياً");
-            return;
-        }
-
-        const excelData = allInvoices.map(inv => {
-            let cashPaid = 0; let walletPaid = 0;
-            if (inv.cashAmount !== undefined || inv.walletAmount !== undefined) {
-                cashPaid = Number(inv.cashAmount) || 0;
-                walletPaid = Number(inv.walletAmount) || 0;
-            } else {
-                let p = Number(inv.paid) || 0;
-                if (inv.paymentMethod === "سداد محفظة" || inv.paymentMethod === "محفظة") walletPaid = p;
-                else cashPaid = p;
-            }
-
-            const itemsStr = (inv.items || []).map(i => `${i.name} (${i.qty})`).join(' - ');
-
-            return {
-                "التاريخ والوقت": inv.time || "",
-                "اسم العميل": inv.customerName || "عميل نقدي",
-                "طريقة السداد": inv.paymentMethod || "",
-                "إجمالي الفاتورة": Number(inv.total) || 0,
-                "المسدد نقدي": cashPaid,
-                "المسدد محفظة": walletPaid,
-                "إجمالي المسدد": cashPaid + walletPaid,
-                "الآجل (المتبقي)": Number(inv.remaining) || 0,
-                "الحساب السابق": Number(inv.previousBalance) || 0,
-                "الأصناف المبيعة": itemsStr
-            };
-        });
-
+        if (allInvoices.length === 0) return;
+        const excelData = allInvoices.map(inv => ({
+            "التاريخ والوقت": inv.time || "",
+            "اسم العميل": inv.customerName || "عميل نقدي",
+            "طريقة السداد": inv.paymentMethod || "",
+            "إجمالي الفاتورة": Number(inv.total) || 0,
+            "المسدد نقدي": inv.calculatedCash,
+            "المسدد محفظة": inv.calculatedWallet,
+            "الآجل (المتبقي)": Number(inv.remaining) || 0,
+            "الحساب السابق": Number(inv.previousBalance) || 0
+        }));
         const worksheet = XLSX.utils.json_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "سجل المبيعات الشامل");
-
-        worksheet['!dir'] = "rtl"; // ضبط الاتجاه للغة العربية في الإكسيل
-        XLSX.writeFile(workbook, `سجل_مبيعات_شركة_الزيادي_${new Date().toLocaleDateString('en-CA')}.xlsx`);
+        XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
+        worksheet['!dir'] = "rtl";
+        XLSX.writeFile(workbook, `مبيعات_الزيادي.xlsx`);
     };
 
-    loadCustomersAndInvoices();
+    loadData();
 </script>
 </body>
 </html>
