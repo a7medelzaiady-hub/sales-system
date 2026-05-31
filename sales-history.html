@@ -33,10 +33,11 @@
             position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
 
-        .stats-container { display: flex; gap: 8px; padding: 10px 15px; overflow-x: auto; scrollbar-width: none; }
-        .stat-card { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 15px 8px; min-width: 110px; flex: 1; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
-        .stat-title { font-size: 0.7rem; color: #6c757d; margin-bottom: 4px; font-weight: 700; }
-        .stat-value { font-weight: 800; font-size: 0.9rem; line-height: 1.1; }
+        /* تنسيق الخانات العلوية وتصغير الخط للتنسيق */
+        .stats-container { display: flex; gap: 6px; padding: 10px 12px; overflow-x: auto; scrollbar-width: none; }
+        .stat-card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 10px 4px; min-width: 85px; flex: 1; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        .stat-title { font-size: 0.65rem; color: #6c757d; margin-bottom: 4px; font-weight: 700; white-space: nowrap; }
+        .stat-value { font-weight: 800; font-size: 0.8rem; line-height: 1.1; }
 
         .export-section { display: flex; gap: 10px; padding: 0 15px 15px; }
         .btn-export { flex: 1; border: none; border-radius: 10px; padding: 8px; font-size: 0.8rem; font-weight: bold; color: white; display: flex; align-items: center; justify-content: center; gap: 5px; transition: 0.2s; }
@@ -96,17 +97,18 @@
     </div>
 </div>
 
+<!-- الصف الأول للإحصائيات العامة (الكل) -->
 <div class="stats-container">
     <div class="stat-card">
         <div class="stat-title">إجمالي المبيعات</div>
         <div class="stat-value" style="color: var(--info)" id="totalAll">0</div>
     </div>
     <div class="stat-card">
-        <div class="stat-title">التحصيل النقدي</div>
+        <div class="stat-title">النقدي</div>
         <div class="stat-value" style="color: var(--success)" id="paidCashAll">0</div>
     </div>
     <div class="stat-card">
-        <div class="stat-title">تحصيل المحفظة</div>
+        <div class="stat-title">المحفظة</div>
         <div class="stat-value" style="color: var(--purple)" id="paidWalletAll">0</div>
     </div>
     <div class="stat-card">
@@ -115,14 +117,23 @@
     </div>
 </div>
 
+<!-- الصف الثاني للإحصائيات اليومية -->
 <div class="stats-container pt-0">
+    <div class="stat-card" style="background: #eef7ff; border-color: #cfe2ff;">
+        <div class="stat-title" style="color: var(--info)">مبيعات اليوم</div>
+        <div class="stat-value" style="color: var(--info)" id="todaySales">0</div>
+    </div>
     <div class="stat-card" style="background: #ebf9eb; border-color: #c3e6cb;">
-        <div class="stat-title text-success">نقدي اليوم</div>
+        <div class="stat-title text-success">نقدية اليوم</div>
         <div class="stat-value text-success" id="todayCash">0</div>
     </div>
     <div class="stat-card" style="background: #f3f0ff; border-color: #dcd3ff;">
         <div class="stat-title" style="color: var(--purple)">محفظة اليوم</div>
         <div class="stat-value" style="color: var(--purple)" id="todayWallet">0</div>
+    </div>
+    <div class="stat-card" style="background: #fff5f5; border-color: #f8d7da;">
+        <div class="stat-title text-danger">آجل اليوم</div>
+        <div class="stat-value text-danger" id="todayRem">0</div>
     </div>
 </div>
 
@@ -198,11 +209,9 @@
     const db = getFirestore(app);
     let allInvoices = [];
 
-    // دالة فحص ذكية وموسعة جداً للمحفظة عشان تلم كل الاحتمالات الممكنة
     function isWalletMethod(method) {
         if (!method) return false;
         const cleaned = method.toString().trim().toLowerCase();
-        // بتفحص لو الكلمة تحتوي على (محفظ) أو كلمة wallet أو فودافون أو اتصالات إلخ..
         return cleaned.includes("محفظ") || cleaned.includes("wallet") || cleaned.includes("vodafone") || cleaned.includes("cash") || cleaned.includes("كاش");
     }
 
@@ -258,7 +267,8 @@
             const dateObj = inv.timestamp?.toDate?.() || inv.time || new Date();
             const method = inv.paymentMethod || "نقدي";
             
-            const حركة_السداد = isWalletMethod(method) ? "سداد منه محفظة" : "سداد منه نقدى";
+            // تعديل الحركة بناء على طلبك بدقة
+            const حركة_السداد = isWalletMethod(method) ? "سداد منه محفظه" : "سداد منه نقدى";
 
             (inv.items || []).forEach(item => {
                 const isBox = item.unit === "box";
@@ -303,25 +313,43 @@
         });
     }
 
+    // ضبط الترصيد بالكامل وفصل حسابات الكل وحسابات اليوم بدقة منعا للتداخل
     function calculateAndDisplay(invoices, transactions) {
         let totalSales = 0;
         let totalPaidCash = 0;
         let totalPaidWallet = 0;
+        let totalRemSum = 0;
+
+        let todaySalesSum = 0;
         let todayCashSum = 0;
         let todayWalletSum = 0;
+        let todayRemSum = 0;
 
         invoices.forEach(inv => {
-            totalSales += Number(inv.total || 0);
-            const paid = Number(inv.total || 0) - Number(inv.remaining || 0);
+            const invTotal = Number(inv.total || 0);
+            const invRemaining = Number(inv.remaining || 0);
+            const invPaid = invTotal - invRemaining;
             const method = inv.paymentMethod; 
             const invDate = inv.timestamp || inv.time;
 
+            totalSales += invTotal;
+            totalRemSum += invRemaining;
+
             if (isWalletMethod(method)) {
-                totalPaidWallet += paid;
-                if (isToday(invDate)) todayWalletSum += paid;
+                totalPaidWallet += invPaid;
             } else {
-                totalPaidCash += paid;
-                if (isToday(invDate)) todayCashSum += paid;
+                totalPaidCash += invPaid;
+            }
+
+            // حسابات اليوم المنفصلة
+            if (isToday(invDate)) {
+                todaySalesSum += invTotal;
+                todayRemSum += invRemaining;
+                if (isWalletMethod(method)) {
+                    todayWalletSum += invPaid;
+                } else {
+                    todayCashSum += invPaid;
+                }
             }
         });
 
@@ -339,14 +367,19 @@
             }
         });
 
-        const actualPaidAll = totalPaidCash + totalPaidWallet;
+        // الترصيد النهائي الكلي الصحيح
+        const actualRemAll = totalSales - (totalPaidCash + totalPaidWallet);
 
         document.getElementById('totalAll').innerText = Math.round(totalSales).toLocaleString('ar-EG');
         document.getElementById('paidCashAll').innerText = Math.round(totalPaidCash).toLocaleString('ar-EG');
         document.getElementById('paidWalletAll').innerText = Math.round(totalPaidWallet).toLocaleString('ar-EG');
-        document.getElementById('remAll').innerText = Math.round(totalSales - actualPaidAll).toLocaleString('ar-EG');
+        document.getElementById('remAll').innerText = Math.round(totalRemSum).toLocaleString('ar-EG');
+        
+        // عرض خانات اليوم المضافة والمعدلة
+        document.getElementById('todaySales').innerText = Math.round(todaySalesSum).toLocaleString('ar-EG');
         document.getElementById('todayCash').innerText = Math.round(todayCashSum).toLocaleString('ar-EG');
         document.getElementById('todayWallet').innerText = Math.round(todayWalletSum).toLocaleString('ar-EG');
+        document.getElementById('todayRem').innerText = Math.round(todayRemSum).toLocaleString('ar-EG');
     }
 
     function render() {
@@ -366,6 +399,7 @@
                     : `<div class="cash-badge mt-1">خالص نقدي ✅</div>`;
             }
 
+            // تم حذف جملة "النوع الفعلي" بناء على طلبك تماما
             return `
                 <div class="inv-card" data-name="${inv.customerName || ''}">
                     <div class="d-flex justify-content-between align-items-start">
@@ -373,7 +407,7 @@
                             <b class="d-block mb-1" style="color: var(--accent); font-size: 1rem;">${inv.customerName || 'عميل نقدي'}</b>
                             <small class="text-muted fw-bold" style="font-size: 0.7rem;">
                                 <i class="far fa-clock me-1"></i> ${inv.time} 
-                                <span class="ms-2 text-danger" style="background: #fff3cd; padding: 2px 5px; border-radius: 4px;">النوع الفعلي: [${method}]</span>
+                                <span class="ms-2" style="background: #eef7ff; padding: 2px 6px; border-radius: 4px; color: var(--accent);">${method}</span>
                             </small>
                         </div>
                         <div class="text-end">
