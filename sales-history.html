@@ -90,7 +90,6 @@
     </h6>
 
     <div class="d-flex align-items-center gap-3">
-        <i class="fas fa-sync-alt" id="refreshBtn" style="cursor:pointer; opacity:0.8; font-size: 1.1rem;" title="تحديث البيانات من السيرفر"></i>
         <a href="sales-invoice.html" class="add-btn">
             <i class="fas fa-plus"></i>
         </a>
@@ -131,8 +130,8 @@
     <button class="btn-export btn-excel" onclick="exportToExcel()">
         <i class="fas fa-file-excel"></i> تصدير Excel
     </button>
-    <button class="btn-export" style="background:#dc3545" id="clearCacheBtn">
-        <i class="fas fa-eraser"></i> مسح الكاش المؤقت
+    <button class="btn-export" style="background:#dc3545" id="deleteAllBtn">
+        <i class="fas fa-trash"></i> حذف الكل
     </button>
     <button class="btn-export btn-pdf-report" onclick="window.print()">
         <i class="fas fa-file-pdf"></i> طباعة PDF
@@ -183,7 +182,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, getDoc, query, orderBy, doc, deleteDoc, updateDoc, increment, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, getDocs, getDoc, query, orderBy, doc, deleteDoc, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -275,100 +274,74 @@
         XLSX.writeFile(workbook, "المبيعات_والكاش.xlsx");
     };
 
-    window.loadInvoices = async (forceRefresh = false) => {
-        try {
-            document.getElementById('listContainer').innerHTML = '<div class="text-center p-5"><div class="spinner-border spinner-border-sm" style="color: var(--accent);"></div></div>';
-            
-            if (forceRefresh) {
-                localStorage.removeItem("cached_all_invoices");
-                localStorage.removeItem("cached_totals_data");
-            }
+    // الاستماع الحي والتحديث الفوري عند وجود أي بيانات جديدة بالسيرفر
+    function startLiveSync() {
+        const qInvoices = query(collection(db, "invoices"), orderBy("timestamp", "desc"));
+        const qTrans = query(collection(db, "transactions"), where("type", "==", "قبض"));
 
-            const cachedInvoices = localStorage.getItem("cached_all_invoices");
-            const cachedTotals = localStorage.getItem("cached_totals_data");
+        let transData = [];
 
-            if (!forceRefresh && cachedInvoices && cachedTotals) {
-                allInvoices = JSON.parse(cachedInvoices);
-                displayTotals(JSON.parse(cachedTotals));
-                render();
-                return;
-            }
+        // 1. الاستماع لعمليات السداد والقبض
+        onSnapshot(qTrans, (transSnap) => {
+            transData = [];
+            transSnap.forEach(t => transData.push(t.data()));
+            calculateAndDisplay(allInvoices, transData);
+        });
 
-            const [invSnap, transSnap] = await Promise.all([
-                getDocs(query(collection(db, "invoices"), orderBy("timestamp", "desc"))),
-                getDocs(query(collection(db, "transactions"), where("type", "==", "قبض")))
-            ]);
-
+        // 2. الاستماع الحي للفواتير وتحديث الواجهة تلقائياً
+        onSnapshot(qInvoices, (invSnap) => {
             allInvoices = invSnap.docs.map(d => ({id: d.id, ...d.data()}));
-            
-            let totalSales = 0;
-            let totalPaidCash = 0;
-            let totalPaidWallet = 0;
-            let todayCashSum = 0;
-            let todayWalletSum = 0;
-
-            allInvoices.forEach(inv => {
-                totalSales += Number(inv.total || 0);
-                const paid = Number(inv.total || 0) - Number(inv.remaining || 0);
-                const method = inv.paymentMethod || "نقدي"; 
-                const invDate = inv.timestamp || inv.time;
-
-                if (method === "محفظة") {
-                    totalPaidWallet += paid;
-                    if (isToday(invDate)) todayWalletSum += paid;
-                } else {
-                    totalPaidCash += paid;
-                    if (isToday(invDate)) todayCashSum += paid;
-                }
-            });
-
-            transSnap.forEach(t => {
-                const tr = t.data();
-                const amount = Number(tr.amount || 0);
-                const method = tr.paymentMethod || "نقدي"; 
-                const trDate = tr.timestamp || tr.date;
-
-                if (method === "محفظة") {
-                    totalPaidWallet += amount;
-                    if (isToday(trDate)) todayWalletSum += amount;
-                } else {
-                    totalPaidCash += amount;
-                    if (isToday(trDate)) todayCashSum += amount;
-                }
-            });
-
-            const actualPaidAll = totalPaidCash + totalPaidWallet;
-            const totalsData = {
-                totalSales,
-                totalPaidCash,
-                totalPaidWallet,
-                totalRemaining: totalSales - actualPaidAll,
-                todayCashSum,
-                todayWalletSum
-            };
-
-            localStorage.setItem("cached_all_invoices", JSON.stringify(allInvoices));
-            localStorage.setItem("cached_totals_data", JSON.stringify(totalsData));
-
-            displayTotals(totalsData);
+            calculateAndDisplay(allInvoices, transData);
             render();
-        } catch (e) { 
-            console.error(e); 
-            if(localStorage.getItem("cached_all_invoices")) {
-                allInvoices = JSON.parse(localStorage.getItem("cached_all_invoices"));
-                displayTotals(JSON.parse(localStorage.getItem("cached_totals_data")));
-                render();
-            }
-        }
-    };
+        }, (error) => {
+            console.error("Live Sync Error:", error);
+        });
+    }
 
-    function displayTotals(data) {
-        document.getElementById('totalAll').innerText = Math.round(data.totalSales).toLocaleString('ar-EG');
-        document.getElementById('paidCashAll').innerText = Math.round(data.totalPaidCash).toLocaleString('ar-EG');
-        document.getElementById('paidWalletAll').innerText = Math.round(data.totalPaidWallet).toLocaleString('ar-EG');
-        document.getElementById('remAll').innerText = Math.round(data.totalRemaining).toLocaleString('ar-EG');
-        document.getElementById('todayCash').innerText = Math.round(data.todayCashSum).toLocaleString('ar-EG');
-        document.getElementById('todayWallet').innerText = Math.round(data.todayWalletSum).toLocaleString('ar-EG');
+    function calculateAndDisplay(invoices, transactions) {
+        let totalSales = 0;
+        let totalPaidCash = 0;
+        let totalPaidWallet = 0;
+        let todayCashSum = 0;
+        let todayWalletSum = 0;
+
+        invoices.forEach(inv => {
+            totalSales += Number(inv.total || 0);
+            const paid = Number(inv.total || 0) - Number(inv.remaining || 0);
+            const method = inv.paymentMethod || "نقدي"; 
+            const invDate = inv.timestamp || inv.time;
+
+            if (method === "محفظة") {
+                totalPaidWallet += paid;
+                if (isToday(invDate)) todayWalletSum += paid;
+            } else {
+                totalPaidCash += paid;
+                if (isToday(invDate)) todayCashSum += paid;
+            }
+        });
+
+        transactions.forEach(tr => {
+            const amount = Number(tr.amount || 0);
+            const method = tr.paymentMethod || "نقدي"; 
+            const trDate = tr.timestamp || tr.date;
+
+            if (method === "محفظة") {
+                totalPaidWallet += amount;
+                if (isToday(trDate)) todayWalletSum += amount;
+            } else {
+                totalPaidCash += amount;
+                if (isToday(trDate)) todayCashSum += amount;
+            }
+        });
+
+        const actualPaidAll = totalPaidCash + totalPaidWallet;
+
+        document.getElementById('totalAll').innerText = Math.round(totalSales).toLocaleString('ar-EG');
+        document.getElementById('paidCashAll').innerText = Math.round(totalPaidCash).toLocaleString('ar-EG');
+        document.getElementById('paidWalletAll').innerText = Math.round(totalPaidWallet).toLocaleString('ar-EG');
+        document.getElementById('remAll').innerText = Math.round(totalSales - actualPaidAll).toLocaleString('ar-EG');
+        document.getElementById('todayCash').innerText = Math.round(todayCashSum).toLocaleString('ar-EG');
+        document.getElementById('todayWallet').innerText = Math.round(todayWalletSum).toLocaleString('ar-EG');
     }
 
     function render() {
@@ -415,15 +388,15 @@
         }).join('');
     }
 
-    // ربط الأزرار بالأحداث داخل الـ Module لتعمل بشكل صحيح وثابت
-    document.getElementById('refreshBtn').addEventListener('click', () => {
-        loadInvoices(true);
-    });
-
-    document.getElementById('clearCacheBtn').addEventListener('click', () => {
-        localStorage.clear();
-        alert("تم تفريغ الذاكرة المؤقتة بالكامل 🧼");
-        loadInvoices(true);
+    // زر حذف السجل بالكامل
+    document.getElementById('deleteAllBtn').addEventListener('click', async () => {
+        if (!confirm("⚠️ هل أنت متأكد من حذف السجل بالكامل؟ لا يمكن التراجع عن هذه الخطوة!")) return;
+        try {
+            const snap = await getDocs(collection(db, "invoices"));
+            const promises = snap.docs.map(d => deleteDoc(doc(db, "invoices", d.id)));
+            await Promise.all(promises);
+            alert("تم حذف السجل بالكامل بنجاح 🗑️");
+        } catch (e) { alert("خطأ أثناء الحذف: " + e.message); }
     });
 
     window.shareInv = async (id, btn) => {
@@ -577,9 +550,7 @@
         if (!confirm("⚠️ حذف الفاتورة؟ سيتم تعديل المخزون والمديونية تلقائياً.")) return;
         try {
             await deleteDoc(doc(db, "invoices", id));
-            localStorage.clear();
             alert("تم حذف الفاتورة بنجاح ✅");
-            loadInvoices(true);
         } catch (e) { alert("خطأ: " + e.message); }
     };
 
@@ -590,8 +561,8 @@
         });
     };
 
-    // جلب حقيقي وحي دائمًا عند فتح الصفحة
-    loadInvoices(true);
+    // تشغيل المزامنة والاستماع الحي فورًا
+    startLiveSync();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
