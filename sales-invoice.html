@@ -245,19 +245,28 @@
         </button>
 
         <div class="payment-box">
-            <div class="row g-2">
-                <div class="col-6">
-                    <label class="sub-lbl">طريقة الدفع</label>
+            <div class="row g-2 mb-2">
+                <div class="col-12">
+                    <label class="sub-lbl"><i class="fas fa-credit-card me-1"></i> طريقة الدفع الرئيسية</label>
                     <select id="payMethod" class="form-select" onchange="togglePayLogic()">
-                        <option value="cash">نقدي (كاش)</option>
+                        <option value="cash">نقدي (كاش بالكامل)</option>
+                        <option value="wallet">محفظة إلكترونية (بالكامل)</option>
+                        <option value="mixed">مختلط (كاش + محفظة)</option>
                         <option value="credit">آجل (على الحساب)</option>
                     </select>
                 </div>
+            </div>
+            <div class="row g-2">
                 <div class="col-6">
-                    <label class="sub-lbl">المبلغ المدفوع</label>
-                    <input type="number" id="paidAmount" class="form-control" value="0" oninput="handleInput()">
+                    <label class="sub-lbl"><i class="fas fa-money-bill-wave me-1"></i> سداد نقدي (كاش)</label>
+                    <input type="number" id="cashAmount" class="form-control" value="0" oninput="handleInput()">
+                </div>
+                <div class="col-6">
+                    <label class="sub-lbl"><i class="fas fa-mobile-alt me-1"></i> سداد محفظة</label>
+                    <input type="number" id="walletAmount" class="form-control" value="0" oninput="handleInput()">
                 </div>
             </div>
+            <input type="hidden" id="paidAmount" value="0">
         </div>
 
         <div class="total-box">
@@ -309,7 +318,7 @@
             <div style="display: block; width: 100%; margin-bottom: 12px;">
                 <span style="font-size: 15px; font-weight: 700; color: #222; display: inline-block;">لزيوت وفلاتر السيارات</span>
             </div>
-               <div style="display: block; width: 100%; margin-bottom: 12px;">
+            <div style="display: block; width: 100%; margin-bottom: 12px;">
                 <span style="font-size: 15px; font-weight: 700; color: #222; display: inline-block;">اداره محاسب/ احمد محمود الزيادى </span>
             </div>
             <div style="margin-top: 12px; display: block; width: 100%;">
@@ -349,8 +358,18 @@
                 <span>حساب سابق  (+):</span>
                 <span id="recOldBalance" style="font-weight: 700;">0.00</span>
             </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #2a9d8f;">
-                <span>سداد(-):</span>
+            
+            <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; padding-right: 15px; color: #555;">
+                <span>سداد كاش (-):</span>
+                <span id="recCashPaid">0.00</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; padding-right: 15px; color: #555;">
+                <span>سداد محفظة (-):</span>
+                <span id="recWalletPaid">0.00</span>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px; color: #2a9d8f; font-weight: bold;">
+                <span>إجمالي المدفوع:</span>
                 <span id="recPaid" style="font-weight: 700;">0.00</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: 17px; margin-top: 8px; padding-top: 6px; border-top: 1px solid #000;">
@@ -387,8 +406,6 @@
     let customers = [];
     let editId = new URLSearchParams(window.location.search).get('edit');
     let isChanged = false;
-
-    // متغير لتخزين الحساب السابق الصافي المسترجع وقت اختيار العميل (لاستخدامه عند طباعة الفاتورة بالتعديل الجديد)
     let currentFetchedOldBalance = 0;
 
     async function getRealBalance(customerId, initialBalance = 0) {
@@ -397,7 +414,7 @@
             const snapInvoices = await getDocs(qInvoices);
             let invoiceDebt = 0;
             snapInvoices.forEach(doc => { 
-                if (editId && doc.id === editId) return; // عند التعديل، نتجاهل الفاتورة نفسها من الحساب السابق
+                if (editId && doc.id === editId) return; 
                 invoiceDebt += (Number(doc.data().remaining) || 0); 
             });
 
@@ -460,8 +477,11 @@
                     document.getElementById('customerSelect').value = data.customerId;
                     document.getElementById('customerSearch').value = data.customerName;
                     document.getElementById('invTime').value = data.time;
-                    document.getElementById('payMethod').value = data.paymentMethod;
-                    document.getElementById('paidAmount').value = data.paid;
+                    document.getElementById('payMethod').value = data.paymentMethod || "cash";
+                    
+                    // استرجاع مبالغ الكاش والمحفظة المنفصلة عند التعديل
+                    document.getElementById('cashAmount').value = data.cashAmount || 0;
+                    document.getElementById('walletAmount').value = data.walletAmount || 0;
 
                     const cust = customers.find(c => c.id === data.customerId);
                     if (cust) {
@@ -474,6 +494,7 @@
                     data.items?.forEach(item => addNewRow(item));
                 }
                 isChanged = false;
+                calc();
             }
         } catch (e) { console.error(e); }
     }
@@ -597,7 +618,14 @@
             r.querySelector('.p-subtotal').value = sub.toFixed(2);
             total += sub;
         });
-        const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
+
+        // احتساب المدفوع بناءاً على قيم الكاش والمحفظة
+        const cashPaid = parseFloat(document.getElementById('cashAmount').value) || 0;
+        const walletPaid = parseFloat(document.getElementById('walletAmount').value) || 0;
+        const paid = cashPaid + walletPaid;
+        
+        document.getElementById('paidAmount').value = paid;
+
         document.getElementById('displayTotal').innerText = total.toLocaleString('en-US', {minimumFractionDigits: 2});
         document.getElementById('displayPaid').innerText = paid.toLocaleString('en-US', {minimumFractionDigits: 2});
         document.getElementById('displayRemaining').innerText = (total - paid).toLocaleString('en-US', {minimumFractionDigits: 2});
@@ -607,13 +635,28 @@
             badge.innerText = document.querySelectorAll('.product-row').length;
         }
 
-        return { total, paid, remaining: total - paid };
+        return { total, paid, remaining: total - paid, cashPaid, walletPaid };
     };
 
     window.togglePayLogic = () => {
         const method = document.getElementById('payMethod').value;
-        const total = parseFloat(document.getElementById('displayTotal').innerText.replace(/,/g, '')) || 0;
-        document.getElementById('paidAmount').value = (method === 'cash') ? total : 0;
+        let total = 0;
+        document.querySelectorAll('.product-row').forEach(r => {
+            const qty = parseFloat(r.querySelector('.p-qty').value) || 0;
+            const price = parseFloat(r.querySelector('.p-price').value) || 0;
+            total += (qty * price);
+        });
+
+        if (method === 'cash') {
+            document.getElementById('cashAmount').value = total;
+            document.getElementById('walletAmount').value = 0;
+        } else if (method === 'wallet') {
+            document.getElementById('cashAmount').value = 0;
+            document.getElementById('walletAmount').value = total;
+        } else if (method === 'credit') {
+            document.getElementById('cashAmount').value = 0;
+            document.getElementById('walletAmount').value = 0;
+        }
         handleInput();
     };
 
@@ -621,7 +664,7 @@
         const saveBtn = document.getElementById('saveBtn');
 
         try {
-            const { total, paid, remaining } = calc();
+            const { total, paid, remaining, cashPaid, walletPaid } = calc();
             const customerId = document.getElementById('customerSelect').value;
             const customerName = document.getElementById('customerSearch').value;
 
@@ -650,6 +693,8 @@
                 total,
                 paid,
                 remaining,
+                cashAmount: cashPaid,       // حفظ الكاش منفصلاً في قاعدة البيانات
+                walletAmount: walletPaid,   // حفظ المحفظة منفصلاً في قاعدة البيانات
                 paymentMethod: document.getElementById('payMethod').value,
                 time: document.getElementById('invTime').value,
                 timestamp: serverTimestamp(),
@@ -670,100 +715,92 @@
 
                 if (oldSnap.exists()) {
                     const oldData = oldSnap.data();
-                    if (oldData.items) {
-                        for (const item of oldData.items) {
-                            const p = inventory.find(i => i.id === item.stockId);
-                            const qtyBack = item.unit === 'box' ? item.qty * (p.unitFactor || 1) : item.qty;
-                            await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(qtyBack) });
-                        }
+                    
+                    // إرجاع الكميات القديمة للمخزن قبل التحديث الجديد
+                    for (const oldItem of oldData.items || []) {
+                        const p = inventory.find(i => i.id === oldItem.stockId);
+                        const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * (p?.unitFactor || 1) : oldItem.qty;
+                        await updateDoc(doc(db, "inventory", oldItem.stockId), { totalPcs: increment(oldQtyPcs) });
                     }
+
+                    // خصم الكميات الجديدة المحدثة
                     for (const item of items) {
                         const p = inventory.find(i => i.id === item.stockId);
-                        const qtyMinus = item.unit === 'box' ? item.qty * (p.unitFactor || 1) : item.qty;
-                        await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyMinus) });
+                        const qtyPcs = item.unit === 'box' ? item.qty * (p?.unitFactor || 1) : item.qty;
+                        await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
                     }
+
+                    await updateDoc(oldRef, invoiceData);
                 }
-                await updateDoc(oldRef, invoiceData);
             }
 
-            // --- عملية تعبئة الفاتورة الحرارية للشير بالحساب السابق ---
-            const oldBalance = currentFetchedOldBalance;
-            const finalRemainingTotal = oldBalance + total - paid; // الحساب السابق + إجمالي الفاتورة - المدفوع
-
-            document.getElementById('recCustomer').innerText = customerName;
-            document.getElementById('recDate').innerText = invoiceData.time;
-            document.getElementById('recTotal').innerText = total.toFixed(2) + " ج.م";
-            document.getElementById('recOldBalance').innerText = oldBalance.toFixed(2) + " ج.م";
-            document.getElementById('recPaid').innerText = paid.toFixed(2) + " ج.م";
-            document.getElementById('recRemaining').innerText = finalRemainingTotal.toFixed(2) + " ج.م";
-
-            const recItemsTbody = document.getElementById('recItems');
-            recItemsTbody.innerHTML = "";
-            items.forEach(item => {
-                const unitText = item.unit === 'box' ? 'كرتونة' : 'قطعة';
-                const itemSubtotal = item.qty * item.price;
-                recItemsTbody.innerHTML += `
-                    <tr style="border-bottom: 1px dotted #ccc;">
-                        <td style="padding: 10px 0; font-weight: 700; word-break: break-word; line-height:1.4;">${item.name}</td>
-                        <td style="padding: 10px 0; text-align: center;">${item.qty} ${unitText}</td>
-                        <td style="padding: 10px 0; text-align: left;">${item.price.toFixed(2)}</td>
-                        <td style="padding: 10px 0; text-align: left; font-weight: 700;">${itemSubtotal.toFixed(2)}</td>
-                    </tr>
-                `;
-            });
-
             isChanged = false;
-            saveBtn.disabled = false;
-            saveBtn.innerText = "حفظ وتحديث البيانات";
-
-            const modal = document.getElementById('shareModal');
-            modal.style.display = 'flex';
-
-            document.getElementById('confirmShareBtn').onclick = async () => {
-                document.getElementById('confirmShareBtn').innerText = "جاري تحضير الصورة...";
-                const receiptEl = document.getElementById('thermalReceipt');
-                
-                const canvas = await html2canvas(receiptEl, { scale: 2.5, useCORS: true });
-                
-                canvas.toBlob(async (blob) => {
-                    const file = new File([blob], `فاتورة_${customerName}.png`, { type: 'image/png' });
-                    
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        try {
-                            await navigator.share({
-                                files: [file],
-                                title: 'فاتورة مبيعات - شركة الزيادي',
-                                text: `فاتورة العميل: ${customerName}`
-                            });
-                            window.location.href = "sales-history.html";
-                        } catch (err) { window.location.href = "sales-history.html"; }
-                    } else {
-                        const a = document.createElement('a');
-                        a.href = canvas.toDataURL('image/png');
-                        a.download = `فاتورة_${customerName}.png`;
-                        a.click();
-                        
-                        const textFallback = `🧾 فاتورة شركة الزيادي\n👤 العميل: ${customerName}\n💰 إجمالي الفاتورة: ${total.toFixed(2)} ج.م\n💵 الحساب المتبقي الكلي: ${finalRemainingTotal.toFixed(2)} ج.م`;
-                        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(textFallback)}`, '_blank');
-                        window.location.href = "sales-history.html";
-                    }
-                }, 'image/png');
-            };
-
-            document.getElementById('cancelShareBtn').onclick = () => {
-                modal.style.display = 'none';
-                window.location.href = "sales-history.html";
-            };
+            prepareThermalReceipt(invoiceData, currentFetchedOldBalance);
+            
+            // إظهار مودال المشاركة عبر واتساب
+            document.getElementById('shareModal').style.display = 'flex';
 
         } catch (e) {
-            alert("خطأ: " + e.message);
+            console.error(e);
+            alert("حدث خطأ أثناء حفظ الفاتورة");
+        } finally {
             saveBtn.disabled = false;
             saveBtn.innerText = "حفظ وتحديث البيانات";
         }
     };
 
+    function prepareThermalReceipt(data, oldBalance) {
+        document.getElementById('recCustomer').innerText = data.customerName;
+        document.getElementById('recDate').innerText = data.time;
+        document.getElementById('recTotal').innerText = data.total.toFixed(2);
+        document.getElementById('recOldBalance').innerText = oldBalance.toFixed(2);
+        
+        // تعبئة حقول السداد المنفصلة في الإيصال الحراري
+        document.getElementById('recCashPaid').innerText = (data.cashAmount || 0).toFixed(2);
+        document.getElementById('recWalletPaid').innerText = (data.walletAmount || 0).toFixed(2);
+        
+        document.getElementById('recPaid').innerText = data.paid.toFixed(2);
+        
+        const netRemaining = oldBalance + data.remaining;
+        document.getElementById('recRemaining').innerText = netRemaining.toFixed(2) + " ج.م";
+
+        const tbody = document.getElementById('recItems');
+        tbody.innerHTML = data.items.map(item => `
+            <tr style="border-bottom: 1px dotted #000;">
+                <td style="padding: 8px 0; font-weight:700;">${item.name} <br><small style="color:#333;">بـ (${item.unit === 'box' ? 'كرتونة' : 'قطعة'})</small></td>
+                <td style="padding: 8px 0; text-align: center;">${item.qty}</td>
+                <td style="padding: 8px 0; text-align: left;">${item.price.toFixed(2)}</td>
+                <td style="padding: 8px 0; text-align: left; font-weight:700;">${(item.qty * item.price).toFixed(2)}</td>
+            </tr>
+        `).join('');
+    }
+
+    document.getElementById('cancelShareBtn').onclick = () => {
+        document.getElementById('shareModal').style.display = 'none';
+        window.location.href = "sales-history.html";
+    };
+
+    document.getElementById('confirmShareBtn').onclick = () => {
+        const receipt = document.getElementById('thermalReceipt');
+        html2canvas(receipt, { scale: 2, useCORS: true }).then(canvas => {
+            canvas.toBlob(blob => {
+                const file = new File([blob], `invoice_${editId}.png`, { type: 'image/png' });
+                if (navigator.share) {
+                    navigator.share({
+                        files: [file],
+                        title: 'فاتورة مبيعات',
+                        text: `فاتورة العميل: ${document.getElementById('recCustomer').innerText}`
+                    }).then(() => {
+                        window.location.href = "sales-history.html";
+                    }).catch(err => console.log(err));
+                } else {
+                    alert("خاصية المشاركة المباشرة غير مدعومة في هذا المتصفح، يمكنك تصوير الشاشة.");
+                }
+            }, 'image/png');
+        });
+    };
+
     init();
 </script>
-
 </body>
 </html>
