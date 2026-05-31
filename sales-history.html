@@ -171,14 +171,14 @@
 
 <div class="container px-2 mt-1">
 
-    <!-- لوحة إدارة وحذف كل العملاء (منطقة خطرة) -->
+    <!-- لوحة إدارة وحذف كل العملاء -->
     <div class="danger-zone-card mt-2 d-flex justify-content-between align-items-center">
         <div>
-            <span class="fw-bold text-danger d-block" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle me-1"></i> صيانة قاعدة البيانات</span>
-            <small class="text-muted" style="font-size: 0.68rem;">حذف جميع العملاء المسجلين وفواتيرهم ومعاملاتهم نهائياً لتصفير السيستم.</small>
+            <span class="fw-bold text-danger d-block" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle me-1"></i> صيانة قاعدة Databases</span>
+            <small class="text-muted" style="font-size: 0.68rem;">حذف جميع العملاء والعمليات لتصفير السيستم نهائياً.</small>
         </div>
         <button class="btn btn-danger btn-sm fw-bold px-3" id="deleteAllCustomersBtn" style="font-size: 0.72rem; border-radius: 6px;">
-            <i class="fas fa-users-slash me-1"></i> حذف كل العملاء والداتا
+            <i class="fas fa-users-slash me-1"></i> حذف الداتا بالكامل
         </button>
     </div>
     
@@ -261,12 +261,12 @@
     <div id="invoicesList">
         <div class="text-center py-5 text-muted">
             <i class="fas fa-spinner fa-spin fa-2x"></i>
-            <p class="mt-2 fw-bold">جاري تحميل البيانات...</p>
+            <p class="mt-2 fw-bold">جاري تحميل البيانات وتدقيق الإحصائيات...</p>
         </div>
     </div>
 </div>
 
-<!-- مودال الواتساب والمشاركة الحرارية -->
+<!-- مودال المشاركة عبر الواتساب والطباعة الحرارية -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
     <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: 14px; text-align: center;">
         <div style="width: 50px; height: 50px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">
@@ -333,15 +333,36 @@
     let activeShareData = null;
     let currentFilterType = null;
 
+    // دالة محسنة ومضمونة لمنع ظهور تاريخين والاحتفاظ بالتاريخ القديم الأصلي للفاتورة فقط
     function cleanDateString(dateStr) {
         if (!dateStr) return "";
-        let cleaned = dateStr.replace(/[،,]/g, '').trim();
+        
+        // إزالة الحروف الخاصة الشائعة الناتجة عن الدمج التلقائي
+        let cleaned = dateStr.replace(/[،,]/g, ' ').trim();
+        
+        // تقسيم النص بناءً على المسافات للبحث عن التواريخ
         let parts = cleaned.split(/\s+/);
+        let foundDates = [];
+        
+        for (let part of parts) {
+            // مطابقة صيغ التواريخ القياسية مثل YYYY-MM-DD أو YYYY/MM/DD
+            if (/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/.test(part)) {
+                foundDates.push(part);
+            }
+        }
+        
+        // إذا وجدنا تاريخين أو أكثر، نلتزم تماماً بالتاريخ الأول والأقدم (الأصلي)
+        if (foundDates.length > 0) {
+            return foundDates[0];
+        }
+        
+        // كخطة بديلة إذا كان التاريخ مدمج بنصوص أخرى
         for (let part of parts) {
             if (part.includes('-') || part.includes('/')) {
                 return part;
             }
         }
+        
         return parts[0] || "";
     }
 
@@ -418,8 +439,9 @@
         }
     }
 
+    // تصحيح دالة الإحصائيات لضبط الإجمالي للآجل والعمليات اليومية بشكل مطابق تماماً
     function calculateStats() {
-        let totalCash = 0; let totalWallet = 0; let totalRemaining = 0; let totalSales = 0;
+        let totalCash = 0; let totalWallet = 0; let totalSales = 0;
         let todayCash = 0; let todayWallet = 0; let todayRemaining = 0; let todaySales = 0;
 
         const todayStr = new Date().toLocaleDateString('en-CA'); 
@@ -427,7 +449,6 @@
         allInvoices.forEach(inv => {
             totalCash += inv.calculatedCash;
             totalWallet += inv.calculatedWallet;
-            totalRemaining += (Number(inv.remaining) || 0);
             totalSales += (Number(inv.total) || 0);
 
             const invDateStr = parseInvoiceDate(inv);
@@ -440,6 +461,9 @@
                 todaySales += (Number(inv.total) || 0);
             }
         });
+
+        // المعادلة المحاسبية المعتمدة لضبط الآجل الكلي: المبيعات الكلية - (النقدي + المحفظة)
+        let totalRemaining = totalSales - (totalCash + totalWallet);
 
         document.getElementById('statCash').innerText = totalCash.toFixed(1);
         document.getElementById('statWallet').innerText = totalWallet.toFixed(1);
@@ -511,34 +535,24 @@
     }
 
     document.getElementById('deleteAllCustomersBtn').onclick = async () => {
-        const passwordCheck = prompt("🔒 هذه العملية ستقوم بحذف جميع العملاء والفواتير والعمليات وتصفير الحسابات تماماً!\nالرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة:");
-        if (passwordCheck !== "الزيادي") {
-            if (passwordCheck !== null) alert("كلمة التأكيد غير صحيحة، تم إلغاء العملية.");
-            return;
-        }
+        const passwordCheck = prompt("🔒 تصفير كامل للسيستم:\nالرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة:");
+        if (passwordCheck !== "الزيادي") return;
 
-        const finalConfirm = confirm("🛑 هل أنت متأكد للمرة الأخيرة؟ لا يمكن استعادة الداتا بعد الحذف.");
+        const finalConfirm = confirm("🛑 هل أنت متأكد للمرة الأخيرة؟ لا يمكن التراجع.");
         if (!finalConfirm) return;
 
         try {
-            const custSnap = await getDocs(collection(db, "customers"));
-            for (const docBox of custSnap.docs) {
-                await deleteDoc(doc(db, "customers", docBox.id));
+            const collections = ["customers", "invoices", "transactions"];
+            for (const colName of collections) {
+                const snap = await getDocs(collection(db, colName));
+                for (const d of snap.docs) {
+                    await deleteDoc(doc(db, colName, d.id));
+                }
             }
-            const invSnap = await getDocs(collection(db, "invoices"));
-            for (const docBox of invSnap.docs) {
-                await deleteDoc(doc(db, "invoices", docBox.id));
-            }
-            const transSnap = await getDocs(collection(db, "transactions"));
-            for (const docBox of transSnap.docs) {
-                await deleteDoc(doc(db, "transactions", docBox.id));
-            }
-
-            alert("🚀 تم تصفير وحذف جميع العملاء وجميع محتويات قاعدة البيانات بنجاح تام.");
+            alert("🚀 تم تصفير قاعدة البيانات بنجاح.");
             location.reload();
         } catch (err) {
-            alert("حدث خطأ أثناء تصفير الداتا.");
-            console.error(err);
+            alert("حدث خطأ في عملية الحذف.");
         }
     };
 
@@ -557,28 +571,28 @@
 
             switch(type) {
                 case 'today-cash':
-                    statusLabel = "فواتير ساهمت في [نقدي اليوم]";
+                    statusLabel = "نقدي اليوم";
                     return isToday && inv.calculatedCash > 0;
                 case 'today-wallet':
-                    statusLabel = "فواتير ساهمت في [محفظة اليوم]";
+                    statusLabel = "محفظة اليوم";
                     return isToday && inv.calculatedWallet > 0;
                 case 'today-remaining':
-                    statusLabel = "فواتير ساهمت في [آجل اليوم]";
+                    statusLabel = "آجل اليوم";
                     return isToday && Number(inv.remaining) > 0;
                 case 'today-total':
-                    statusLabel = "جميع فواتير مبيعات اليوم";
+                    statusLabel = "مبيعات اليوم";
                     return isToday;
                 case 'all-cash':
-                    statusLabel = "جميع الفواتير التي تحتوي على دفع [نقدي]";
+                    statusLabel = "كل النقدي";
                     return inv.calculatedCash > 0;
                 case 'all-wallet':
-                    statusLabel = "جميع الفواتير التي تحتوي على دفع [محفظة]";
+                    statusLabel = "كل المحفظة";
                     return inv.calculatedWallet > 0;
                 case 'all-remaining':
-                    statusLabel = "جميع الفواتير المتبقي عليها [آجل]";
+                    statusLabel = "كل الآجل المتبقي";
                     return Number(inv.remaining) > 0;
                 case 'all-total':
-                    statusLabel = "كل فواتير المبيعات المسجلة بالسيستم";
+                    statusLabel = "كل مبيعات السيستم";
                     return true;
                 default:
                     return true;
@@ -601,7 +615,7 @@
     window.filterInvoices = () => {
         const query = document.getElementById('searchInput').value.toLowerCase().trim();
         if(!query) {
-            if(currentFilterType) { return; } 
+            if(currentFilterType) return;
             renderInvoices(allInvoices);
             return;
         }
@@ -671,7 +685,6 @@
 
     document.getElementById('exportExcelBtn').onclick = () => {
         if (allInvoices.length === 0) return;
-        
         let customRows = [];
 
         allInvoices.forEach(inv => {
@@ -707,17 +720,12 @@
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(item => {
                     const nameLower = item.name.toLowerCase();
-                    let qtyJarkan = "";
-                    let qtyCarton = "";
-                    let priceJarkan = "";
-                    let priceCarton = "";
+                    let qtyJarkan = ""; let qtyCarton = ""; let priceJarkan = ""; let priceCarton = "";
 
                     if (nameLower.includes("جركن") || nameLower.includes("جالون") || nameLower.includes("جركان")) {
-                        qtyJarkan = item.qty || "";
-                        priceJarkan = item.price || "";
+                        qtyJarkan = item.qty || ""; priceJarkan = item.price || "";
                     } else {
-                        qtyCarton = item.qty || "";
-                        priceCarton = item.price || "";
+                        qtyCarton = item.qty || ""; priceCarton = item.price || "";
                     }
 
                     customRows.push({
@@ -731,26 +739,12 @@
                         "سعر الكرتونه": priceCarton
                     });
                 });
-            } else {
-                if (Number(inv.total) > 0 && inv.calculatedCash === 0 && inv.calculatedWallet === 0) {
-                    customRows.push({
-                        "التاريخ": invoiceDate,
-                        "الحركه": "بيع",
-                        "اسم العميل": clientName,
-                        "البيان": "بيع بضاعة إجمالي",
-                        "عدد جركن": "",
-                        "عدد كرتونه": "",
-                        "سعر جركن": "",
-                        "سعر الكرتونه": inv.total
-                    });
-                }
             }
         });
 
         const worksheet = XLSX.utils.json_to_sheet(customRows);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "كشف الحركة المطور");
-        
+        XLSX.utils.book_append_sheet(workbook, worksheet, "كشف الحركة");
         worksheet['!dir'] = "rtl";
         XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);
     };
