@@ -198,6 +198,14 @@
     const db = getFirestore(app);
     let allInvoices = [];
 
+    // دالة فحص ذكية وموسعة جداً للمحفظة عشان تلم كل الاحتمالات الممكنة
+    function isWalletMethod(method) {
+        if (!method) return false;
+        const cleaned = method.toString().trim().toLowerCase();
+        // بتفحص لو الكلمة تحتوي على (محفظ) أو كلمة wallet أو فودافون أو اتصالات إلخ..
+        return cleaned.includes("محفظ") || cleaned.includes("wallet") || cleaned.includes("vodafone") || cleaned.includes("cash") || cleaned.includes("كاش");
+    }
+
     async function getRealDebt(customerId, initialBalance = 0) {
         try {
             const qInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
@@ -250,7 +258,7 @@
             const dateObj = inv.timestamp?.toDate?.() || inv.time || new Date();
             const method = inv.paymentMethod || "نقدي";
             
-            const حركة_السداد = (method === "محفظة") ? "سداد منه محفظة" : "سداد منه نقدى";
+            const حركة_السداد = isWalletMethod(method) ? "سداد منه محفظة" : "سداد منه نقدى";
 
             (inv.items || []).forEach(item => {
                 const isBox = item.unit === "box";
@@ -305,10 +313,10 @@
         invoices.forEach(inv => {
             totalSales += Number(inv.total || 0);
             const paid = Number(inv.total || 0) - Number(inv.remaining || 0);
-            const method = inv.paymentMethod || "نقدي"; 
+            const method = inv.paymentMethod; 
             const invDate = inv.timestamp || inv.time;
 
-            if (method === "محفظة") {
+            if (isWalletMethod(method)) {
                 totalPaidWallet += paid;
                 if (isToday(invDate)) todayWalletSum += paid;
             } else {
@@ -319,10 +327,10 @@
 
         transactions.forEach(tr => {
             const amount = Number(tr.amount || 0);
-            const method = tr.paymentMethod || "نقدي"; 
+            const method = tr.paymentMethod; 
             const trDate = tr.timestamp || tr.date;
 
-            if (method === "محفظة") {
+            if (isWalletMethod(method)) {
                 totalPaidWallet += amount;
                 if (isToday(trDate)) todayWalletSum += amount;
             } else {
@@ -348,12 +356,12 @@
             return;
         }
         container.innerHTML = allInvoices.map(inv => {
-            const method = inv.paymentMethod || "نقدي";
+            const method = inv.paymentMethod || "غير محدد";
             let badgeHtml = "";
             if (inv.remaining > 0) {
                 badgeHtml = `<div class="rem-badge mt-1">آجل: ${Math.round(inv.remaining).toLocaleString('ar-EG')}</div>`;
             } else {
-                badgeHtml = method === "محفظة" 
+                badgeHtml = isWalletMethod(method)
                     ? `<div class="wallet-badge mt-1">محفظة ✅</div>` 
                     : `<div class="cash-badge mt-1">خالص نقدي ✅</div>`;
             }
@@ -365,7 +373,7 @@
                             <b class="d-block mb-1" style="color: var(--accent); font-size: 1rem;">${inv.customerName || 'عميل نقدي'}</b>
                             <small class="text-muted fw-bold" style="font-size: 0.7rem;">
                                 <i class="far fa-clock me-1"></i> ${inv.time} 
-                                <span class="ms-2 text-dark">(${method})</span>
+                                <span class="ms-2 text-danger" style="background: #fff3cd; padding: 2px 5px; border-radius: 4px;">النوع الفعلي: [${method}]</span>
                             </small>
                         </div>
                         <div class="text-end">
