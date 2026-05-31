@@ -230,8 +230,8 @@
                 </div>
             </div>
             <div class="col-5">
-                <label class="sub-lbl"><i class="fas fa-calendar-alt me-1"></i> التاريخ</label>
-                <input type="text" id="invTime" class="form-control" style="font-size: 0.75rem; background-color: #f8faf9 !important;" readonly>
+                <label class="sub-lbl"><i class="fas fa-calendar-alt me-1"></i> التاريخ والوقت</label>
+                <input type="text" id="invTime" class="form-control" style="font-size: 0.75rem;" oninput="handleInput()">
             </div>
         </div>
 
@@ -243,16 +243,7 @@
 
         <div class="payment-box">
             <div class="row g-2 mb-2">
-                <div class="col-6">
-                    <label class="sub-lbl">طريقة الدفع</label>
-                    <select id="payMethod" class="form-select" onchange="togglePayLogic()">
-                        <option value="نقدي">نقدي (كاش)</option>
-                        <option value="محفظة">محفظة</option>
-                        <option value="كاش ومحفظة">كاش ومحفظة</option>
-                        <option value="آجل">آجل (على الحساب)</option>
-                    </select>
-                </div>
-                <div class="col-6">
+                <div class="col-12">
                     <label class="sub-lbl">إجمالي المدفوع</label>
                     <input type="number" id="paidAmount" class="form-control" value="0" readonly style="background-color: #eee !important;">
                 </div>
@@ -442,17 +433,8 @@
     window.handleInput = () => { isChanged = true; calc(); };
 
     window.handleSplitInput = () => {
-        const method = document.getElementById('payMethod').value;
         let cash = parseFloat(document.getElementById('cashAmount').value) || 0;
         let wallet = parseFloat(document.getElementById('walletAmount').value) || 0;
-        
-        if (method === 'نقدي') {
-            wallet = 0;
-            document.getElementById('walletAmount').value = 0;
-        } else if (method === 'محفظة') {
-            cash = 0;
-            document.getElementById('cashAmount').value = 0;
-        }
         
         document.getElementById('paidAmount').value = cash + wallet;
         window.handleInput();
@@ -465,7 +447,9 @@
 
     async function init() {
         try {
-            document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
+            if (!editId) {
+                document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
+            }
 
             const cachedCustomers = localStorage.getItem(CACHE_KEYS.customers);
             const cachedInventory = localStorage.getItem(CACHE_KEYS.inventory);
@@ -496,20 +480,6 @@
                     document.getElementById('customerSearch').value = data.customerName || 'عميل نقدي';
                     document.getElementById('invTime').value = data.time;
                     
-                    let restoredMethod = data.paymentMethod || "نقدي";
-                    if (restoredMethod === "سداد نقدي" || restoredMethod === "نقدي") {
-                        restoredMethod = "نقدي";
-                    } else if (restoredMethod === "سداد محفظة" || restoredMethod === "محفظة") {
-                        restoredMethod = "محفظة";
-                    } else if (restoredMethod === "سداد كاش ومحفظة" || restoredMethod === "كاش ومحفظة") {
-                        restoredMethod = "كاش ومحفظة";
-                    } else if (restoredMethod === "آجل") {
-                        restoredMethod = "آجل";
-                    } else {
-                        restoredMethod = "نقدي";
-                    }
-                    
-                    document.getElementById('payMethod').value = restoredMethod;
                     document.getElementById('cashAmount').value = data.cashAmount || 0;
                     document.getElementById('walletAmount').value = data.walletAmount || 0;
                     document.getElementById('paidAmount').value = data.paid || 0;
@@ -523,12 +493,8 @@
 
                     document.getElementById("itemsContainer").innerHTML = "";
                     data.items?.forEach(item => addNewRow(item));
-                    
-                    togglePayLogic(false);
                 }
                 isChanged = false;
-            } else {
-                togglePayLogic(true);
             }
         } catch (e) { console.error(e); }
     }
@@ -673,52 +639,6 @@
         return { total, paid, remaining: total - paid };
     };
 
-    window.togglePayLogic = (resetValues = true) => {
-        const method = document.getElementById('payMethod').value;
-        const total = parseFloat(document.getElementById('displayTotal').innerText.replace(/,/g, '')) || 0;
-        const splitSection = document.getElementById('splitPaymentDetails');
-        const cashInput = document.getElementById('cashAmount');
-        const walletInput = document.getElementById('walletAmount');
-
-        if (method === 'نقدي') {
-            splitSection.style.display = 'flex';
-            cashInput.readOnly = false;
-            walletInput.readOnly = true;
-            if (resetValues) {
-                cashInput.value = total;
-                walletInput.value = 0;
-            }
-        } else if (method === 'محفظة') {
-            splitSection.style.display = 'flex';
-            cashInput.readOnly = true;
-            walletInput.readOnly = false;
-            if (resetValues) {
-                cashInput.value = 0;
-                walletInput.value = total;
-            }
-        } else if (method === 'كاش ومحفظة') {
-            splitSection.style.display = 'flex';
-            cashInput.readOnly = false;
-            walletInput.readOnly = false;
-            if (resetValues) {
-                cashInput.value = (total / 2).toFixed(2);
-                walletInput.value = (total / 2).toFixed(2);
-            }
-        } else {
-            splitSection.style.display = 'none';
-            if (resetValues) {
-                cashInput.value = 0;
-                walletInput.value = 0;
-            }
-        }
-        
-        const cash = parseFloat(cashInput.value) || 0;
-        const wallet = parseFloat(walletInput.value) || 0;
-        document.getElementById('paidAmount').value = (method === 'آجل') ? 0 : (cash + wallet);
-        
-        handleInput();
-    };
-
     window.saveInvoice = async () => {
         const saveBtn = document.getElementById('saveBtn');
 
@@ -746,32 +666,24 @@
             saveBtn.disabled = true;
             saveBtn.innerText = "جاري الحفظ...";
 
-            const methodSelection = document.getElementById('payMethod').value;
+            let finalCash = parseFloat(document.getElementById('cashAmount').value) || 0;
+            let finalWallet = parseFloat(document.getElementById('walletAmount').value) || 0;
+            
             let finalMethod = "آجل";
-            let finalCash = 0;
-            let finalWallet = 0;
-
-            if (methodSelection !== 'آجل') {
-                finalCash = parseFloat(document.getElementById('cashAmount').value) || 0;
-                finalWallet = parseFloat(document.getElementById('walletAmount').value) || 0;
-                
-                if (finalCash > 0 && finalWallet > 0) {
-                    finalMethod = "سداد كاش ومحفظة";
-                } else if (finalWallet > 0) {
-                    finalMethod = "سداد محفظة";
-                } else if (finalCash > 0) {
-                    finalMethod = "سداد نقدي";
-                } else {
-                    finalMethod = "سداد نقدي";
-                }
+            if (finalCash > 0 && finalWallet > 0) {
+                finalMethod = "سداد كاش ومحفظة";
+            } else if (finalWallet > 0) {
+                finalMethod = "سداد محفظة";
+            } else if (finalCash > 0) {
+                finalMethod = "سداد نقدي";
             }
 
             const invoiceData = {
                 customerId,
                 customerName,
                 total,
-                paid: (finalMethod === "آجل") ? 0 : (finalCash + finalWallet),
-                remaining: (finalMethod === "آجل") ? total : (total - (finalCash + finalWallet)),
+                paid: finalCash + finalWallet,
+                remaining: total - (finalCash + finalWallet),
                 paymentMethod: finalMethod,
                 cashAmount: finalCash,     
                 walletAmount: finalWallet, 
