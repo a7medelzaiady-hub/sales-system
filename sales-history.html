@@ -259,11 +259,7 @@
     window.exportToExcel = () => {
         if (allInvoices.length === 0) return alert("لا توجد بيانات للتصدير");
         let excelData = [["التاريخ", "الحركة", "اسم العميل", "اسم الصنف", "عدد جركن", "عدد كرتونة", "سعر جركن", "سعر كرتونة"]];
-let totalCash = 0;
-let totalWallet = 0;
 
-let todayCash = 0;
-let todayWallet = 0;
         allInvoices.forEach(inv => {
             const total = Number(inv.total || 0);
             const remaining = Number(inv.remaining || 0);
@@ -304,40 +300,41 @@ let todayWallet = 0;
                 return timeB - timeA;
             });
 
-            // مستمع السندات الفرعي مدمج لحساب الإجماليات بدقة
-            onSnapshot(qTransactions, (transSnap) => {
-                let totalSales = 0;
-                let totalPaidAtInvoiceTime = 0;
-                
-                // متغيرات اليوم الحالي فقط
-                let todaySalesSum = 0;
-                let todayPaidSum = 0;
-                let todayRemSum = 0;
+           onSnapshot(qTransactions, (transSnap) => {
 
-                allInvoices.forEach(inv => {
-                    const currentTotal = Number(inv.total || 0);
-                    const currentRem = Number(inv.remaining || 0);
-                    const currentPaid = currentTotal - currentRem;
-const cashPaid = Number(inv.cashPaid || 0);
-const walletPaid = Number(inv.walletPaid || 0);
+    let totalSales = 0;
+    let totalPaidAtInvoiceTime = 0;
 
-totalCash += cashPaid;
-totalWallet += walletPaid;
+    let todaySalesSum = 0;
+    let todayPaidSum = 0;
+    let todayRemSum = 0;
 
-if (isToday(inv.time)) {
-    todayCash += cashPaid;
-    todayWallet += walletPaid;
-}
-                    totalSales += currentTotal;
-                    totalPaidAtInvoiceTime += currentPaid;
+    let totalCash = 0;
+    let totalWallet = 0;
 
-                    // تجميع حسابات اليوم الحالي إذا تطابق التاريخ
-                    if (isToday(inv.time)) {
-                        todaySalesSum += currentTotal;
-                        todayPaidSum += currentPaid;
-                        todayRemSum += currentRem;
-                    }
-                });
+    let todayCash = 0;
+    let todayWallet = 0;
+
+    allInvoices.forEach(inv => {
+
+        const currentTotal = Number(inv.total || 0);
+        const currentRem = Number(inv.remaining || 0);
+        const currentPaid = currentTotal - currentRem;
+
+        const cashPaid = Number(inv.cashPaid || 0);
+        const walletPaid = Number(inv.walletPaid || 0);
+
+        totalCash += cashPaid;
+        totalWallet += walletPaid;
+
+        if (isToday(inv.time)) {
+            todayCash += cashPaid;
+            todayWallet += walletPaid;
+        }
+
+        ...
+    });
+});
 
                 let totalFromReceipts = 0;
                 let todayFromReceipts = 0;
@@ -358,7 +355,7 @@ if (isToday(inv.time)) {
 
                 // رص الحسابات العامة
                 document.getElementById('totalAll').innerText = Math.round(totalSales).toLocaleString('ar-EG') + " ج.م";
-                document.getElementById('remAll').innerText = Math.round(totalSales - actualPaid).toLocaleString('ar-EG') + " ج.m";
+                document.getElementById('remAll').innerText = Math.round(totalSales - actualPaid).toLocaleString('ar-EG') + "  ج.م";
           document.getElementById('cashAll').innerText =
 Math.round(totalCash).toLocaleString('ar-EG');
 
