@@ -333,14 +333,11 @@
     let activeShareData = null;
     let currentFilterType = null;
 
-    // دالة مساعدة لتوحيد تنسيق صيغة التاريخ ومقارنتها بشكل سليم وصحيح 100%
     function parseInvoiceDate(inv) {
         if (inv.date) {
-            // لو التاريخ مسجل بصيغة YYYY-MM-DD يرجعها علطول
             if (inv.date.includes('-') && inv.date.split('-')[0].length === 4) {
                 return inv.date;
             }
-            // لو التنسيق متبخبط برة الفورمات بنحوله إلى الصيغة القياسية
             try {
                 const d = new Date(inv.date);
                 if (!isNaN(d.getTime())) {
@@ -429,7 +426,6 @@
             totalRemaining += (Number(inv.remaining) || 0);
             totalSales += (Number(inv.total) || 0);
 
-            // استخدام دالة معالجة وفحص التاريخ الموحدة لضمان الدقة
             const invDateStr = parseInvoiceDate(inv);
             const isToday = (invDateStr === todayStr);
 
@@ -510,7 +506,6 @@
         }).join('');
     }
 
-    // زرار حذف جميع العملاء وكافة البيانات المرتبطة بهم نهائياً من السيستم لتصفير قاعدة البيانات
     document.getElementById('deleteAllCustomersBtn').onclick = async () => {
         const passwordCheck = prompt("🔒 هذه العملية ستقوم بحذف جميع العملاء والفواتير والعمليات وتصفير الحسابات تماماً!\nالرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة:");
         if (passwordCheck !== "الزيادي") {
@@ -522,17 +517,14 @@
         if (!finalConfirm) return;
 
         try {
-            // 1. حذف العملاء
             const custSnap = await getDocs(collection(db, "customers"));
             for (const docBox of custSnap.docs) {
                 await deleteDoc(doc(db, "customers", docBox.id));
             }
-            // 2. حذف الفواتير
             const invSnap = await getDocs(collection(db, "invoices"));
             for (const docBox of invSnap.docs) {
                 await deleteDoc(doc(db, "invoices", docBox.id));
             }
-            // 3. حذف السندات والعمليات المالية
             const transSnap = await getDocs(collection(db, "transactions"));
             for (const docBox of transSnap.docs) {
                 await deleteDoc(doc(db, "transactions", docBox.id));
@@ -673,7 +665,7 @@
         } catch (e) { alert("حدث خطأ"); }
     };
 
-    // كود تصدير الإكسيل المعدل والمنظم بكامل الشروط المطلوبة حرفياً لشركة الزيادي وبأعلى دقة حسابية
+    // كود تصدير الإكسيل المعدل والمنظم بإضافة عمود اسم العميل بعد عمود الحركة مباشرة
     document.getElementById('exportExcelBtn').onclick = () => {
         if (allInvoices.length === 0) return;
         
@@ -681,12 +673,14 @@
 
         allInvoices.forEach(inv => {
             const invoiceDate = inv.date || parseInvoiceDate(inv);
+            const clientName = inv.customerName || "عميل نقدي";
             
-            // 1. معالجة عمليات السداد المستقلة (لو العميل دفع نقدي)
+            // 1. معالجة عمليات السداد المستقلة كاش
             if (inv.calculatedCash > 0) {
                 customRows.push({
                     "التاريخ": invoiceDate,
                     "الحركه": "سداد منه نقدي",
+                    "اسم العميل": clientName,
                     "البيان": "سداد نقدي",
                     "عدد جركن": "",
                     "عدد كرتونه": 1,
@@ -695,11 +689,12 @@
                 });
             }
 
-            // 2. معالجة عمليات السداد المستقلة (لو العميل دفع محفظة)
+            // 2. معالجة عمليات السداد المستقلة محفظة
             if (inv.calculatedWallet > 0) {
                 customRows.push({
                     "التاريخ": invoiceDate,
                     "الحركه": "سداد منه محفظة",
+                    "اسم العميل": clientName,
                     "البيان": "سداد نقدي",
                     "عدد جركن": "",
                     "عدد كرتونه": 1,
@@ -708,7 +703,7 @@
                 });
             }
 
-            // 3. معالجة بنود البيع (الأصناف المشتراة داخل الفاتورة نفسها)
+            // 3. معالجة بنود البيع لكل صنف
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(item => {
                     const nameLower = item.name.toLowerCase();
@@ -717,7 +712,6 @@
                     let priceJarkan = "";
                     let priceCarton = "";
 
-                    // توزيع تلقائي دقيق حسب اسم الصنف للجركن والكرتونة
                     if (nameLower.includes("جركن") || nameLower.includes("جالون") || nameLower.includes("جركان")) {
                         qtyJarkan = item.qty || "";
                         priceJarkan = item.price || "";
@@ -729,6 +723,7 @@
                     customRows.push({
                         "التاريخ": invoiceDate,
                         "الحركه": "بيع",
+                        "اسم العميل": clientName,
                         "البيان": item.name,
                         "عدد جركن": qtyJarkan,
                         "عدد كرتونه": qtyCarton,
@@ -737,11 +732,11 @@
                     });
                 });
             } else {
-                // لو فاتورة بيع بدون تفاصيل أصناف (مثلاً مسجلة كإجمالي فقط)
                 if (Number(inv.total) > 0 && inv.calculatedCash === 0 && inv.calculatedWallet === 0) {
                     customRows.push({
                         "التاريخ": invoiceDate,
                         "الحركه": "بيع",
+                        "اسم العميل": clientName,
                         "البيان": "بيع بضاعة إجمالي",
                         "عدد جركن": "",
                         "عدد كرتونه": "",
