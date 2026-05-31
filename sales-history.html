@@ -96,7 +96,6 @@
             padding: 12px;
             margin-bottom: 10px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.02);
-            transition: all 0.2s ease;
         }
 
         .detail-badge {
@@ -109,6 +108,7 @@
             display: inline-flex;
             align-items: center;
             gap: 4px;
+            direction: ltr; /* لعرض التاريخ الإنجليزي والوقت بشكل منظم */
         }
 
         .financial-grid {
@@ -171,11 +171,11 @@
 
 <div class="container px-2 mt-1">
 
-    <!-- لوحة إدارة وحذف كل العملاء -->
+    <!-- لوحة صيانة قاعدة البيانات -->
     <div class="danger-zone-card mt-2 d-flex justify-content-between align-items-center">
         <div>
-            <span class="fw-bold text-danger d-block" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle me-1"></i> صيانة قاعدة Databases</span>
-            <small class="text-muted" style="font-size: 0.68rem;">حذف جميع العملاء والعمليات لتصفير السيستم نهائياً.</small>
+            <span class="fw-bold text-danger d-block" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle me-1"></i> تصفير النظام السيستم</span>
+            <small class="text-muted" style="font-size: 0.68rem;">حذف جميع العملاء والعمليات والفواتير نهائياً.</small>
         </div>
         <button class="btn btn-danger btn-sm fw-bold px-3" id="deleteAllCustomersBtn" style="font-size: 0.72rem; border-radius: 6px;">
             <i class="fas fa-users-slash me-1"></i> حذف الداتا بالكامل
@@ -183,7 +183,7 @@
     </div>
     
     <!-- إحصائيات اليوم -->
-    <div class="stats-section-title"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم (اضغط للفلترة)</div>
+    <div class="stats-section-title"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم (من واقع الفواتير الحالية)</div>
     <div class="row g-1 mb-2">
         <div class="col-3">
             <div class="stat-card" onclick="filterByStat('today-cash', this)">
@@ -215,8 +215,8 @@
         </div>
     </div>
 
-    <!-- إحصائيات الكل -->
-    <div class="stats-section-title"><i class="fas fa-chart-pie me-1"></i> إحصائيات الكل (اضغط للفلترة)</div>
+    <!-- إحصائيات الكل من أرض الواقع -->
+    <div class="stats-section-title"><i class="fas fa-chart-pie me-1"></i> إحصائيات الكل (تجميع مباشر منفصل لكل خانة)</div>
     <div class="row g-1 mb-2">
         <div class="col-3">
             <div class="stat-card" onclick="filterByStat('all-cash', this)">
@@ -261,12 +261,12 @@
     <div id="invoicesList">
         <div class="text-center py-5 text-muted">
             <i class="fas fa-spinner fa-spin fa-2x"></i>
-            <p class="mt-2 fw-bold">جاري تحميل البيانات وتدقيق الإحصائيات...</p>
+            <p class="mt-2 fw-bold">جاري قراءة الحسابات الحقيقية من أرض الواقع...</p>
         </div>
     </div>
 </div>
 
-<!-- مودال المشاركة عبر الواتساب والطباعة الحرارية -->
+<!-- مودال الطباعة والمشاركة -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
     <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: 14px; text-align: center;">
         <div style="width: 50px; height: 50px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">
@@ -333,37 +333,68 @@
     let activeShareData = null;
     let currentFilterType = null;
 
-    // دالة محسنة ومضمونة لمنع ظهور تاريخين والاحتفاظ بالتاريخ القديم الأصلي للفاتورة فقط
+    // دالة تحويل الأرقام العربية الهندية إلى أرقام إنجليزية قياسية لتوحيد شكل التاريخ
+    function convertToEnglishNumbers(str) {
+        const arabicNumbers = [/٠/g, /١/g, /٢/g, /٣/g, /٤/g, /٥/g, /٦/g, /٧/g, /٨/g, /٩/g];
+        for (let i = 0; i < 10; i++) {
+            str = str.replace(arabicNumbers[i], i);
+        }
+        return str;
+    }
+
+    // دالة استخلاص التاريخ القديم والأصلي فقط بالإنجليزية وحذف أي تواريخ إضافية ناتجة عن التعديل
     function cleanDateString(dateStr) {
         if (!dateStr) return "";
         
-        // إزالة الحروف الخاصة الشائعة الناتجة عن الدمج التلقائي
-        let cleaned = dateStr.replace(/[،,]/g, ' ').trim();
+        // تحويل أي أرقام عربي إلى إنجليزي فوراً
+        let engStr = convertToEnglishNumbers(dateStr);
         
-        // تقسيم النص بناءً على المسافات للبحث عن التواريخ
+        // تنظيف الفواصل والرموز المدمجة
+        let cleaned = engStr.replace(/[،,]/g, ' ').trim();
         let parts = cleaned.split(/\s+/);
-        let foundDates = [];
         
+        let foundDates = [];
         for (let part of parts) {
-            // مطابقة صيغ التواريخ القياسية مثل YYYY-MM-DD أو YYYY/MM/DD
-            if (/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/.test(part)) {
+            // التحقق من الصيغ القياسية للتاريخ المقروء إلكترونياً (سواء سلاش أو شرطة)
+            if (/^\d{4}[-\/]\d{1,2}[-\/]\d{1,2}$/.test(part) || /^\d{1,2}[-\/]\d{1,2}[-\/]\d{4}$/.test(part)) {
                 foundDates.push(part);
             }
         }
         
-        // إذا وجدنا تاريخين أو أكثر، نلتزم تماماً بالتاريخ الأول والأقدم (الأصلي)
+        // الاحتفاظ بالتاريخ الأول (القديم المسجل أول مرة) ومنع استقبال تاريخ التعديل الثاني
         if (foundDates.length > 0) {
             return foundDates[0];
         }
         
-        // كخطة بديلة إذا كان التاريخ مدمج بنصوص أخرى
         for (let part of parts) {
             if (part.includes('-') || part.includes('/')) {
                 return part;
             }
         }
-        
         return parts[0] || "";
+    }
+
+    // معالجة وتجهيز الوقت ليظهر بالساعة والدقيقة فقط (بدون ثواني) وبالتنسيق الانجليزي الموحد
+    function formatInvoiceTime(timeStr) {
+        if (!timeStr) return "";
+        let engTime = convertToEnglishNumbers(timeStr).trim();
+        
+        // البحث عن مؤشرات صباحاً ومساءً وتوحيدها
+        let period = "";
+        if (engTime.includes("م") || engTime.toLowerCase().includes("pm")) period = "م";
+        else if (engTime.includes("ص") || engTime.toLowerCase().includes("am")) period = "ص";
+        
+        // تنظيف النص من المؤشرات لعمل تصفية للأرقام فقط
+        let cleanDigits = engTime.replace(/[أإآاصمAMPM]/gi, '').trim();
+        let parts = cleanDigits.split(':');
+        
+        if (parts.length >= 2) {
+            let hours = parts[0].trim();
+            let minutes = parts[1].trim();
+            return `${hours}:${minutes} ${period}`.trim();
+        }
+        
+        return engTime;
     }
 
     function parseInvoiceDate(inv) {
@@ -439,16 +470,18 @@
         }
     }
 
-    // تصحيح دالة الإحصائيات لضبط الإجمالي للآجل والعمليات اليومية بشكل مطابق تماماً
+    // تجميع الحسابات من أرض الواقع مباشرة: كل خانة مستقلة تماماً وتعتمد على الجمع المباشر لحقلها
     function calculateStats() {
-        let totalCash = 0; let totalWallet = 0; let totalSales = 0;
+        let totalCash = 0; let totalWallet = 0; let totalRemaining = 0; let totalSales = 0;
         let todayCash = 0; let todayWallet = 0; let todayRemaining = 0; let todaySales = 0;
 
         const todayStr = new Date().toLocaleDateString('en-CA'); 
 
         allInvoices.forEach(inv => {
+            // تجميع مباشر كلي منفصل لكل حقل مستقل
             totalCash += inv.calculatedCash;
             totalWallet += inv.calculatedWallet;
+            totalRemaining += (Number(inv.remaining) || 0); // تجميع حقل الآجل مباشرة من واقع الفاتورة
             totalSales += (Number(inv.total) || 0);
 
             const invDateStr = parseInvoiceDate(inv);
@@ -461,9 +494,6 @@
                 todaySales += (Number(inv.total) || 0);
             }
         });
-
-        // المعادلة المحاسبية المعتمدة لضبط الآجل الكلي: المبيعات الكلية - (النقدي + المحفظة)
-        let totalRemaining = totalSales - (totalCash + totalWallet);
 
         document.getElementById('statCash').innerText = totalCash.toFixed(1);
         document.getElementById('statWallet').innerText = totalWallet.toFixed(1);
@@ -490,13 +520,14 @@
             else if(inv.paymentMethod === "آجل") methodBadgeColor = "bg-warning text-dark";
 
             const totalPaid = inv.calculatedCash + inv.calculatedWallet;
+            const displayTime = formatInvoiceTime(inv.time);
 
             return `
                 <div class="invoice-item">
                     <div class="d-flex justify-content-between align-items-start mb-1">
                         <div>
                             <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.85rem;">${inv.customerName || 'عميل نقدي'}</h6>
-                            <span class="detail-badge"><i class="far fa-clock"></i> ${parseInvoiceDate(inv)} ${inv.time || ''}</span>
+                            <span class="detail-badge"><i class="far fa-clock"></i> ${parseInvoiceDate(inv)} ${displayTime}</span>
                             <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.65rem;">${inv.paymentMethod || 'غير محدد'}</span>
                         </div>
                         <div class="d-flex gap-1">
@@ -535,7 +566,7 @@
     }
 
     document.getElementById('deleteAllCustomersBtn').onclick = async () => {
-        const passwordCheck = prompt("🔒 تصفير كامل للسيستم:\nالرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة:");
+        const passwordCheck = prompt("🔒 تصفير النظام السيستم:\nالرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة:");
         if (passwordCheck !== "الزيادي") return;
 
         const finalConfirm = confirm("🛑 هل أنت متأكد للمرة الأخيرة؟ لا يمكن التراجع.");
