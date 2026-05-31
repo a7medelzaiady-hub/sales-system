@@ -97,7 +97,6 @@
     </div>
 </div>
 
-<!-- الإحصائيات العامة والسحابة التخزينية المحدثة -->
 <div class="stats-container">
     <div class="stat-card">
         <div class="stat-title">إجمالي المبيعات</div>
@@ -117,14 +116,13 @@
     </div>
 </div>
 
-<!-- إحصائيات اليوم النقدية والمحفظة -->
 <div class="stats-container pt-0">
     <div class="stat-card" style="background: #ebf9eb; border-color: #c3e6cb;">
         <div class="stat-title text-success">نقدي اليوم (الكاش)</div>
         <div class="stat-value text-success" id="todayCash">0</div>
     </div>
     <div class="stat-card" style="background: #f3f0ff; border-color: #dcd3ff;">
-        <div class="stat-title style-purple" style="color: var(--purple)">محفظة اليوم</div>
+        <div class="stat-title" style="color: var(--purple)">محفظة اليوم</div>
         <div class="stat-value" style="color: var(--purple)" id="todayWallet">0</div>
     </div>
 </div>
@@ -157,6 +155,7 @@
         <small id="s-date"></small>
     </div>
     <p><b>العميل:</b> <span id="s-client"></span></p>
+    <p><b>طريقة الدفع:</b> <span id="s-method-badge" style="font-weight: bold; color: var(--accent);"></span></p>
     <table class="share-table">
         <thead><tr><th style="text-align:right;">الصنف</th><th>ك</th><th>سعر</th><th style="text-align:left;">إجمالي</th></tr></thead>
         <tbody id="s-body"></tbody>
@@ -164,7 +163,6 @@
     <div class="share-total-sec">
         <div class="share-row" style="font-weight:800; font-size:18px;"><span>إجمالي الفاتورة:</span><span id="s-total"></span></div>
         <div class="share-row"><span>المسدد:</span><span id="s-paid"></span></div>
-        <div class="share-row" id="s-method-row"><span>طريقة الدفع:</span><span id="s-method"></span></div>
         <div class="share-row" id="s-rem-row" style="color:red; font-weight:bold;"><span>متبقي من الفاتورة:</span><span id="s-rem"></span></div>
         <div id="s-balance-box"></div> </div>
     <div style="text-align:center; margin-top:20px; border-top:1px dashed #000; padding-top:10px; font-size:12px;">
@@ -228,7 +226,6 @@
         return `${day}-${month}`;
     }
 
-    // التحقق من تاريخ اليوم (بصيغة YYYY-MM-DD) لمقارنة فواتير اليوم وعمليات القبض
     function isToday(dateInput) {
         const todayStr = new Date().toISOString().split('T')[0];
         let compareStr = "";
@@ -253,6 +250,9 @@
             const paid = total - remaining;
             const dateObj = inv.timestamp?.toDate?.() || inv.time || new Date();
             const method = inv.paymentMethod || "نقدي";
+            
+            // تحديد مسمى الحركة بناء على نوع السداد
+            const حركة_السداد = (method === "محفظة") ? "سداد منه محفظة" : "سداد منه نقدى";
 
             (inv.items || []).forEach(item => {
                 const isBox = item.unit === "box";
@@ -265,7 +265,7 @@
 
             if (paid > 0) {
                 excelData.push([
-                    formatDateArabic(dateObj), `سداد منه (${method})`, inv.customerName || "النقدي", method, "سداد فاتورة", 0, 1, 0, Math.round(paid)
+                    formatDateArabic(dateObj), حركة_السداد, inv.customerName || "النقدي", method, "سداد فاتورة", 0, 1, 0, Math.round(paid)
                 ]);
             }
         });
@@ -276,23 +276,18 @@
         XLSX.writeFile(workbook, "المبيعات_والكاش.xlsx");
     };
 
-    // دالة التحميل مع الكاش لحفظ استهلاك فايربيس
     window.loadInvoices = async (forceRefresh = false) => {
         try {
-            // الاستعانة بـ LocalStorage لتجنب جلب البيانات مراراً وتكراراً
             const cachedInvoices = localStorage.getItem("cached_all_invoices");
             const cachedTotals = localStorage.getItem("cached_totals_data");
 
             if (!forceRefresh && cachedInvoices && cachedTotals) {
                 allInvoices = JSON.parse(cachedInvoices);
-                const totals = JSON.parse(cachedTotals);
-                
-                displayTotals(totals);
+                displayTotals(JSON.parse(cachedTotals));
                 render();
                 return;
             }
 
-            // في حالة التحديث اليدوي أو عدم وجود كاش، يتم جلب البيانات من السيرفر
             const [invSnap, transSnap] = await Promise.all([
                 getDocs(query(collection(db, "invoices"), orderBy("timestamp", "desc"))),
                 getDocs(query(collection(db, "transactions"), where("type", "==", "قبض")))
@@ -306,11 +301,10 @@
             let todayCashSum = 0;
             let todayWalletSum = 0;
 
-            // حسابات الفواتير
             allInvoices.forEach(inv => {
                 totalSales += Number(inv.total || 0);
                 const paid = Number(inv.total || 0) - Number(inv.remaining || 0);
-                const method = inv.paymentMethod || "نقدي"; // نقدي أو محفظة
+                const method = inv.paymentMethod || "نقدي"; 
                 const invDate = inv.timestamp || inv.time;
 
                 if (method === "محفظة") {
@@ -322,7 +316,6 @@
                 }
             });
 
-            // حسابات أوراق القبض (التحصيلات الخارجية الإضافية)
             transSnap.forEach(t => {
                 const tr = t.data();
                 const amount = Number(tr.amount || 0);
@@ -348,7 +341,6 @@
                 todayWalletSum
             };
 
-            // تخزين البيانات في الكاش المحلي
             localStorage.setItem("cached_all_invoices", JSON.stringify(allInvoices));
             localStorage.setItem("cached_totals_data", JSON.stringify(totalsData));
 
@@ -356,7 +348,6 @@
             render();
         } catch (e) { 
             console.error(e); 
-            // إذا فشل الاتصال بالإنترنت، اعرض من الكاش تلقائياً
             if(localStorage.getItem("cached_all_invoices")) {
                 allInvoices = JSON.parse(localStorage.getItem("cached_all_invoices"));
                 displayTotals(JSON.parse(localStorage.getItem("cached_totals_data")));
@@ -366,12 +357,13 @@
     };
 
     function displayTotals(data) {
+        // تم إزالة كلمة "ج.م" من العرض بناءً على طلبك
         document.getElementById('totalAll').innerText = Math.round(data.totalSales).toLocaleString('ar-EG');
         document.getElementById('paidCashAll').innerText = Math.round(data.totalPaidCash).toLocaleString('ar-EG');
         document.getElementById('paidWalletAll').innerText = Math.round(data.totalPaidWallet).toLocaleString('ar-EG');
         document.getElementById('remAll').innerText = Math.round(data.totalRemaining).toLocaleString('ar-EG');
-        document.getElementById('todayCash').innerText = Math.round(data.todayCashSum).toLocaleString('ar-EG') + " ج.م";
-        document.getElementById('todayWallet').innerText = Math.round(data.todayWalletSum).toLocaleString('ar-EG') + " ج.م";
+        document.getElementById('todayCash').innerText = Math.round(data.todayCashSum).toLocaleString('ar-EG');
+        document.getElementById('todayWallet').innerText = Math.round(data.todayWalletSum).toLocaleString('ar-EG');
     }
 
     function render() {
@@ -435,16 +427,16 @@
 
         document.getElementById('s-date').innerText = inv.time;
         document.getElementById('s-client').innerText = inv.customerName || 'عميل نقدي';
-        document.getElementById('s-total').innerText = Math.round(inv.total).toLocaleString() + " ج.م";
-        document.getElementById('s-paid').innerText = Math.round(inv.total - inv.remaining).toLocaleString() + " ج.م";
-        document.getElementById('s-method').innerText = inv.paymentMethod || "نقدي";
-        document.getElementById('s-rem').innerText = Math.round(inv.remaining).toLocaleString() + " ج.م";
+        document.getElementById('s-method-badge').innerText = inv.paymentMethod || "نقدي";
+        document.getElementById('s-total').innerText = Math.round(inv.total).toLocaleString();
+        document.getElementById('s-paid').innerText = Math.round(inv.total - inv.remaining).toLocaleString();
+        document.getElementById('s-rem').innerText = Math.round(inv.remaining).toLocaleString();
         document.getElementById('s-rem-row').style.display = inv.remaining > 0 ? 'flex' : 'none';
 
         document.getElementById('s-balance-box').innerHTML = `
-            <div class="share-row" style="font-size: 14px; color: #444;"><span>مديونية سابقة:</span><span>${Math.round(previousBalance).toLocaleString()} ج.م</span></div>
+            <div class="share-row" style="font-size: 14px; color: #444;"><span>مديونية سابقة:</span><span>${Math.round(previousBalance).toLocaleString()}</span></div>
             <div class="share-row" style="margin-top:10px; border-top:1.5px solid #000; padding-top:10px; font-weight:800; font-size:18px;">
-                <span>إجمالي الحساب:</span><span>${Math.round(realDebt).toLocaleString()} ج.م</span>
+                <span>إجمالي الحساب:</span><span>${Math.round(realDebt).toLocaleString()}</span>
             </div>
         `;
 
@@ -457,18 +449,6 @@
                     <td style="text-align:center;">${Math.round(item.price || 0)}</td>
                     <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0))}</td>
                 </tr>`;
-            });
-        } else {
-            Object.keys(inv).forEach(k => {
-                if (!isNaN(k) && inv[k]) {
-                    const item = inv[k];
-                    rows += `<tr>
-                        <td style="text-align:right;">${item.name || ''}</td>
-                        <td style="text-align:center;">${item.qty || 0}</td>
-                        <td style="text-align:center;">${Math.round(item.price || 0)}</td>
-                        <td style="text-align:left;">${Math.round((item.qty || 0) * (item.price || 0))}</td>
-                    </tr>`;
-                }
             });
         }
         document.getElementById('s-body').innerHTML = rows;
@@ -484,20 +464,6 @@
             else { const link = document.createElement('a'); link.href = canvas.toDataURL(); link.download = `فاتورة.png`; link.click(); }
         } catch (err) { console.error(err); shareContainer.style.display = 'none'; }
         btn.innerHTML = icon;
-    };
-
-    window.deleteAllInvoices = async () => {
-        if (!confirm("⚠️ هل تريد حذف جميع الفواتير نهائياً؟")) return;
-        try {
-            const snap = await getDocs(collection(db, "invoices"));
-            if (snap.empty) return alert("لا توجد فواتير للحذف");
-            for (const docSnap of snap.docs) {
-                await deleteDoc(doc(db, "invoices", docSnap.id));
-            }
-            alert(`تم مسح الفواتير بنجاح ✅`);
-            localStorage.clear(); // مسح الكاش لإجبار السيرفر على التحديث
-            loadInvoices(true);
-        } catch (e) { alert("خطأ: " + e.message); }
     };
 
     window.printInv = async (id) => {
@@ -545,19 +511,20 @@
                     <small>${inv.time}</small>
                 </div>
                 <p style="margin:5px 0;"><b>العميل:</b> ${inv.customerName || 'عميل نقدي'}</p>
+                <!-- إضافة طريقة الدفع هنا للفاتورة المطبوعة -->
                 <p style="margin:5px 0;"><b>طريقة الدفع:</b> ${inv.paymentMethod || 'نقدي'}</p>
                 <table>
                     <thead><tr><th style="text-align:right;">الصنف</th><th>ك</th><th>سعر</th><th style="text-align:left;">إجمالي</th></tr></thead>
                     <tbody>${rows}</tbody>
                 </table>
                 <div class="total-sec">
-                    <div class="row-val bold"><span>إجمالي الفاتورة:</span><span>${Math.round(total).toLocaleString()} ج.م</span></div>
-                    <div class="row-val"><span>المسدد:</span><span>${Math.round(paid).toLocaleString()} ج.م</span></div>
-                    ${remaining > 0 ? `<div class="row-val"><span>متبقي من الفاتورة:</span><span>${Math.round(remaining).toLocaleString()} ج.م</span></div>` : ''}
-                    <div class="row-val" style="margin-top:5px; font-size:12px; color:#555;"><span>مديونية سابقة:</span><span>${Math.round(previousBalance).toLocaleString()} ج.م</span></div>
+                    <div class="row-val bold"><span>إجمالي الفاتورة:</span><span>${Math.round(total).toLocaleString()}</span></div>
+                    <div class="row-val"><span>المسدد:</span><span>${Math.round(paid).toLocaleString()}</span></div>
+                    ${remaining > 0 ? `<div class="row-val"><span>متبقي من الفاتورة:</span><span>${Math.round(remaining).toLocaleString()}</span></div>` : ''}
+                    <div class="row-val" style="margin-top:5px; font-size:12px; color:#555;"><span>مديونية سابقة:</span><span>${Math.round(previousBalance).toLocaleString()}</span></div>
                     <div class="row-val bold" style="margin-top:5px; border-top:1.5px solid #000; padding-top:5px;">
                         <span>إجمالي الحساب:</span>
-                        <span>${Math.round(realDebt).toLocaleString()} ج.م</span>
+                        <span>${Math.round(realDebt).toLocaleString()}</span>
                     </div>
                 </div>
                 <div class="footer">برجاء مراجعه الفاتوره بعد استلامها <br>تواصل معنا: 01027830834</div>
@@ -593,11 +560,9 @@
 
     window.deleteInv = async (id) => {
         if (!confirm("⚠️ حذف الفاتورة؟ سيتم تعديل المخزون والمديونية تلقائياً.")) return;
-        const inv = allInvoices.find(i => i.id === id);
         try {
-            // كود تعديل المخزون المعتاد...
             await deleteDoc(doc(db, "invoices", id));
-            localStorage.clear(); // مسح الكاش ليقوم السيرفر بالتحديث الفعلي
+            localStorage.clear();
             alert("تم حذف الفاتورة بنجاح ✅");
             loadInvoices(true);
         } catch (e) { alert("خطأ: " + e.message); }
@@ -610,7 +575,6 @@
         });
     };
 
-    // التشغيل الأول (يقرأ الكاش تلقائياً إن وُجد لتوفير الإنترنت)
     loadInvoices(false);
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
