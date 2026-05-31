@@ -8,6 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- مكتبة Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { 
             --accent: #0b5e3d;        
@@ -21,7 +23,7 @@
             --success: #2d6a4f;
             --warning: #ffb703;
             --purple: #6f42c1;
-            --card-radius: 10px;
+            --card-radius: 8px;
             --input-radius: 10px;
         }
         
@@ -62,16 +64,19 @@
             background: var(--white);
             border: 1px solid var(--border);
             border-radius: var(--card-radius);
-            padding: 5px 6px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.01);
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            padding: 4px 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.01);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
         }
-        .stat-icon {
-            width: 26px; height: 26px; border-radius: 6px;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 0.8rem; color: white; flex-shrink: 0;
+        
+        .stat-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
         }
 
         .invoice-item {
@@ -127,6 +132,10 @@
         }
         .items-preview-table th { background: #ebf9eb; padding: 4px; border: 1px solid var(--border); font-weight: 700; text-align: center; }
         .items-preview-table td { padding: 4px; border: 1px solid var(--border); text-align: center; }
+        
+        .action-icon-btn {
+            background: none; border: none; padding: 4px; font-size: 0.85rem; transition: color 0.2s;
+        }
     </style>
 </head>
 <body>
@@ -134,7 +143,11 @@
 <div class="header-nav">
     <a href="index.html" class="add-btn"><i class="fas fa-arrow-right"></i></a>
     <h6 class="m-0 fw-bold" style="font-size: 0.9rem;"><i class="fas fa-history me-1"></i> سجل الإحصائيات والمبيعات</h6>
-    <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>
+    <div class="d-flex gap-2">
+        <!-- زر تصدير إكسيل -->
+        <button class="add-btn" id="exportExcelBtn" title="تصدير إكسيل"><i class="fas fa-file-excel"></i></button>
+        <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>
+    </div>
 </div>
 
 <div class="container px-2 mt-1">
@@ -144,38 +157,30 @@
     <div class="row g-1 mb-2">
         <div class="col-3">
             <div class="stat-card">
-                <div class="stat-icon" style="background: var(--accent);"><i class="fas fa-money-bill-wave"></i></div>
-                <div class="overflow-hidden">
-                    <small class="text-muted d-block text-truncate" style="font-size: 0.58rem; font-weight:700;">النقدى اليوم</small>
-                    <span class="fw-bold d-block text-truncate" id="todayCash" style="font-size: 0.72rem;">0.0</span>
-                </div>
+                <div class="stat-bar" style="background: var(--accent);"></div>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">نقدى اليوم</small>
+                <span class="fw-bold d-block text-truncate text-success" id="todayCash" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
             <div class="stat-card">
-                <div class="stat-icon" style="background: var(--purple);"><i class="fas fa-mobile-alt"></i></div>
-                <div class="overflow-hidden">
-                    <small class="text-muted d-block text-truncate" style="font-size: 0.58rem; font-weight:700;">المحفظة اليوم</small>
-                    <span class="fw-bold d-block text-truncate" id="todayWallet" style="font-size: 0.72rem;">0.0</span>
-                </div>
+                <div class="stat-bar" style="background: var(--purple);"></div>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">محفظة اليوم</small>
+                <span class="fw-bold d-block text-truncate text-primary" id="todayWallet" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
             <div class="stat-card">
-                <div class="stat-icon" style="background: var(--warning);"><i class="fas fa-hand-holding-usd"></i></div>
-                <div class="overflow-hidden">
-                    <small class="text-muted d-block text-truncate" style="font-size: 0.58rem; font-weight:700;">الآجل اليوم</small>
-                    <span class="fw-bold d-block text-truncate" id="todayRemaining" style="font-size: 0.72rem;">0.0</span>
-                </div>
+                <div class="stat-bar" style="background: var(--warning);"></div>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">آجل اليوم</small>
+                <span class="fw-bold d-block text-truncate text-warning" id="todayRemaining" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
             <div class="stat-card">
-                <div class="stat-icon" style="background: #212529;"><i class="fas fa-calculator"></i></div>
-                <div class="overflow-hidden">
-                    <small class="text-muted d-block text-truncate" style="font-size: 0.58rem; font-weight:700;">المبيعات اليوم</small>
-                    <span class="fw-bold d-block text-truncate" id="todayTotalSales" style="font-size: 0.72rem;">0.0</span>
-                </div>
+                <div class="stat-bar" style="background: #212529;"></div>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">مبيعات اليوم</small>
+                <span class="fw-bold d-block text-truncate text-dark" id="todayTotalSales" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
     </div>
@@ -185,38 +190,30 @@
     <div class="row g-1 mb-3">
         <div class="col-3">
             <div class="stat-card">
-                <div class="stat-icon" style="background: var(--accent);"><i class="fas fa-money-bill-wave"></i></div>
-                <div class="overflow-hidden">
-                    <small class="text-muted d-block text-truncate" style="font-size: 0.58rem; font-weight:700;">إجمالي النقدى</small>
-                    <span class="fw-bold d-block text-truncate" id="statCash" style="font-size: 0.72rem;">0.0</span>
-                </div>
+                <div class="stat-bar" style="background: var(--accent);"></div>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">ا.النقدى</small>
+                <span class="fw-bold d-block text-truncate text-success" id="statCash" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
             <div class="stat-card">
-                <div class="stat-icon" style="background: var(--purple);"><i class="fas fa-mobile-alt"></i></div>
-                <div class="overflow-hidden">
-                    <small class="text-muted d-block text-truncate" style="font-size: 0.58rem; font-weight:700;">إجمالي المحفظة</small>
-                    <span class="fw-bold d-block text-truncate" id="statWallet" style="font-size: 0.72rem;">0.0</span>
-                </div>
+                <div class="stat-bar" style="background: var(--purple);"></div>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">ا.المحفظة</small>
+                <span class="fw-bold d-block text-truncate text-primary" id="statWallet" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
             <div class="stat-card">
-                <div class="stat-icon" style="background: var(--warning);"><i class="fas fa-hand-holding-usd"></i></div>
-                <div class="overflow-hidden">
-                    <small class="text-muted d-block text-truncate" style="font-size: 0.58rem; font-weight:700;">إجمالي الآجل</small>
-                    <span class="fw-bold d-block text-truncate" id="statRemaining" style="font-size: 0.72rem;">0.0</span>
-                </div>
+                <div class="stat-bar" style="background: var(--warning);"></div>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">ا.الآجل</small>
+                <span class="fw-bold d-block text-truncate text-warning" id="statRemaining" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
         <div class="col-3">
             <div class="stat-card">
-                <div class="stat-icon" style="background: #212529;"><i class="fas fa-calculator"></i></div>
-                <div class="overflow-hidden">
-                    <small class="text-muted d-block text-truncate" style="font-size: 0.58rem; font-weight:700;">المبيعات الكلية</small>
-                    <span class="fw-bold d-block text-truncate" id="statTotalSales" style="font-size: 0.72rem;">0.0</span>
-                </div>
+                <div class="stat-bar" style="background: #212529;"></div>
+                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.62rem; margin-top: 2px;">ا.المبيعات</small>
+                <span class="fw-bold d-block text-truncate text-dark" id="statTotalSales" style="font-size: 0.78rem;">0.0</span>
             </div>
         </div>
     </div>
@@ -423,13 +420,11 @@
                 }
             }
 
-            // تجميع الكل
             totalCash += cash;
             totalWallet += wallet;
             totalRemaining += (Number(inv.remaining) || 0);
             totalSales += (Number(inv.total) || 0);
 
-            // تجميع اليوم
             let isToday = false;
             if (inv.date) {
                 isToday = (inv.date === todayStr);
@@ -446,13 +441,11 @@
             }
         });
 
-        // تعبئة واجهة الكل
         document.getElementById('statCash').innerText = totalCash.toFixed(1);
         document.getElementById('statWallet').innerText = totalWallet.toFixed(1);
         document.getElementById('statRemaining').innerText = totalRemaining.toFixed(1);
         document.getElementById('statTotalSales').innerText = totalSales.toFixed(1);
 
-        // تعبئة واجهة اليوم
         document.getElementById('todayCash').innerText = todayCash.toFixed(1);
         document.getElementById('todayWallet').innerText = todayWallet.toFixed(1);
         document.getElementById('todayRemaining').innerText = todayRemaining.toFixed(1);
@@ -664,6 +657,50 @@
                 location.reload();
             }
         } catch (e) { alert("حدث خطأ أثناء الحذف"); console.error(e); }
+    };
+
+    // كود تصدير ملف الإكسيل الشامل
+    document.getElementById('exportExcelBtn').onclick = () => {
+        if (allInvoices.length === 0) {
+            alert("لا توجد بيانات لتصديرها حالياً");
+            return;
+        }
+
+        const excelData = allInvoices.map(inv => {
+            let cashPaid = 0; let walletPaid = 0;
+            if (inv.cashAmount !== undefined || inv.walletAmount !== undefined) {
+                cashPaid = Number(inv.cashAmount) || 0;
+                walletPaid = Number(inv.walletAmount) || 0;
+            } else {
+                let p = Number(inv.paid) || 0;
+                if (inv.paymentMethod === "سداد محفظة" || inv.paymentMethod === "محفظة") walletPaid = p;
+                else cashPaid = p;
+            }
+
+            const itemsStr = (inv.items || []).map(i => `${i.name} (${i.qty})`).join(' - ');
+
+            return {
+                "التاريخ والوقت": inv.time || "",
+                "اسم العميل": inv.customerName || "عميل نقدي",
+                "طريقة السداد": inv.paymentMethod || "",
+                "إجمالي الفاتورة": Number(inv.total) || 0,
+                "المسدد نقدي": cashPaid,
+                "المسدد محفظة": walletPaid,
+                "إجمالي المسدد": cashPaid + walletPaid,
+                "الآجل (المتبقي)": Number(inv.remaining) || 0,
+                "الحساب السابق": Number(inv.previousBalance) || 0,
+                "الأصناف المبيعة": itemsStr
+            };
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "سجل المبيعات");
+
+        // ضبط اتجاه الصفحة للعربية
+        worksheet['!dir'] = "rtl";
+
+        XLSX.writeFile(workbook, `سجل_مبيعات_شركة_الزيادي_${new Date().toLocaleDateString('en-CA')}.xlsx`);
     };
 
     loadCustomersAndInvoices();
