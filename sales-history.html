@@ -339,7 +339,7 @@
     function convertToEnglishNumbers(str) {
         if (!str) return "";
         const arabicNumbers = [/٠/g, /١/g, /٢/g, /٣/g, /٤/g, /٥/g, /٦/g, /٧/g, /٨/g, /٩/g];
-        let res = str.toString().trim();
+        let res = str.toString();
         for (let i = 0; i < 10; i++) {
             res = res.replace(arabicNumbers[i], i);
         }
@@ -355,27 +355,31 @@
         return match ? match[0] : dateStr;
     }
 
-    // [تطبيق دالتك المقترحة بالكامل مع ضبط القلب البرمجي للصيغ النصية لتوافق معيار YYYY-MM-DD]
     function parseInvoiceDate(inv) {
-        if (!inv) return "";
-        
-        if (inv.timestamp?.seconds) {
+        let dateStr = "";
+
+        if (inv.originalDate) {
+            dateStr = inv.originalDate;
+        } else if (inv.date) {
+            dateStr = cleanDateString(inv.date);
+        } else if (inv.timestamp?.seconds) {
             const d = new Date(inv.timestamp.seconds * 1000);
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
-            return `${y}-${m}-${day}`;
+            return d.toISOString().split('T')[0];
         }
 
-        let rawDate = cleanDateString(inv.originalDate || inv.date || "");
-        
-        // التحقق لقلب التنسيق إذا كان قادماً بصيغة DD/MM/YYYY ليصبح YYYY-MM-DD
-        const parts = rawDate.split(/[-\/]/);
-        if (parts.length === 3 && parts[0].length !== 4) {
-            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        dateStr = convertToEnglishNumbers(dateStr);
+
+        let m = dateStr.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+        if (m) {
+            return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
         }
-        
-        return rawDate;
+
+        m = dateStr.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+        if (m) {
+            return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+        }
+
+        return dateStr;
     }
 
     function formatInvoiceTime(timeStr, dateStr) {
@@ -661,4 +665,129 @@
         if(!inv) return;
         activeShareData = inv;
 
-        const originalDate = parseInvoiceDate
+        const originalDate = parseInvoiceDate(inv);
+        const displayTime = formatInvoiceTime(inv.time, inv.date);
+
+        // تعديل تعبئة الداتا لتطابق فواتير الشير المعتمدة في السيستم
+        document.getElementById('recCustomer').innerText = inv.customerName || 'عميل نقدي';
+        document.getElementById('recDate').innerText = originalDate + " " + displayTime;
+        document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || 'غير محدد';
+        document.getElementById('recTotal').innerText = Number(inv.total).toFixed(2);
+        document.getElementById('recPaid').innerText = (inv.calculatedCash + inv.calculatedWallet).toFixed(2);
+        document.getElementById('recOldBalance').innerText = Number(inv.previousBalance).toFixed(2);
+        
+        // إجمالي الحساب المتبقي الآجل الكلي للعميل
+        document.getElementById('recRemaining').innerText = (Number(inv.previousBalance) + Number(inv.remaining)).toFixed(2);
+
+        const tbody = document.getElementById('recItems');
+        tbody.innerHTML = (inv.items || []).map(item => `
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 5px 4px; font-weight: 600;">${item.name}</td>
+                <td style="text-align: center; padding: 5px 4px;">${item.qty}</td>
+                <td style="text-align: left; padding: 5px 4px;">${Number(item.price).toFixed(2)}</td>
+                <td style="text-align: left; padding: 5px 4px; font-weight: 600;">${(Number(item.qty) * Number(item.price)).toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+        document.getElementById('shareModal').style.display = 'flex';
+    };
+
+    document.getElementById('confirmShareBtn').onclick = () => {
+        if(!activeShareData) return;
+        const receipt = document.getElementById('thermalReceipt');
+        html2canvas(receipt, { scale: 2, useCORS: true }).then(canvas => {
+            canvas.toBlob(blob => {
+                const file = new File([blob], `invoice_${activeShareData.id}.png`, { type: 'image/png' });
+                if (navigator.share) {
+                    navigator.share({ files: [file], title: 'فاتورة مبيعات', text: `شركة الزيادي` })
+                    .then(() => document.getElementById('shareModal').style.display = 'none')
+                    .catch(err => console.log(err));
+                } else { alert("المشاركة غير مدعومة بجهازك"); }
+            }, 'image/png');
+        });
+    };
+
+    // [تعديل الاحتفاظ بالتاريخ القديم]: عند التعديل، نرسل الداتا إلى شاشة الإدخال دون المساس بالتاريخ الأصلي في قاعدة البيانات
+    window.editInvoice = (id) => { 
+        window.location.href = `sales-invoice.html?edit=${id}`; 
+    };
+
+    window.deleteInvoice = async (id) => {
+        if (!confirm("هل متأكد من حذف الفاتورة؟")) return;
+        try {
+            await deleteDoc(doc(db, "invoices", id));
+            alert("تم الحذف بنجاح");
+            location.reload();
+        } catch (e) { alert("حدث خطأ"); }
+    };
+
+    document.getElementById('exportExcelBtn').onclick = () => {
+        if (allInvoices.length === 0) return;
+        let customRows = [];
+
+        allInvoices.forEach(inv => {
+            const invoiceDate = parseInvoiceDate(inv);
+            const clientName = inv.customerName || "عميل نقدي";
+            
+            if (inv.calculatedCash > 0) {
+                customRows.push({
+                    "التاريخ": invoiceDate,
+                    "الحركه": "سداد منه نقدي",
+                    "اسم العميل": clientName,
+                    "البيان": "سداد نقدي",
+                    "عدد جركن": "",
+                    "عدد كرتونه": 1,
+                    "سعر جركن": "",
+                    "سعر الكرتونه": inv.calculatedCash
+                });
+            }
+
+            if (inv.calculatedWallet > 0) {
+                customRows.push({
+                    "التاريخ": invoiceDate,
+                    "الحركه": "سداد منه محفظة",
+                    "اسم العميل": clientName,
+                    "البيان": "سداد نقدي",
+                    "عدد جركن": "",
+                    "عدد كرتونه": 1,
+                    "سعر جركن": "",
+                    "سعر الكرتونه": inv.calculatedWallet
+                });
+            }
+
+            if (inv.items && inv.items.length > 0) {
+                inv.items.forEach(item => {
+                    const nameLower = item.name.toLowerCase();
+                    let qtyJarkan = ""; let qtyCarton = ""; let priceJarkan = ""; let priceCarton = "";
+
+                    if (nameLower.includes("جركن") || nameLower.includes("جالون") || nameLower.includes("جركان")) {
+                        qtyJarkan = item.qty || ""; priceJarkan = item.price || "";
+                    } else {
+                        qtyCarton = item.qty || ""; priceCarton = item.price || "";
+                    }
+
+                    customRows.push({
+                        "التاريخ": invoiceDate,
+                        "الحركه": "بيع",
+                        "اسم العميل": clientName,
+                        "البيان": item.name,
+                        "عدد جركن": qtyJarkan,
+                        "عدد كرتونه": qtyCarton,
+                        "سعر جركن": priceJarkan,
+                        "سعر الكرتونه": priceCarton
+                    });
+                });
+            }
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(customRows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "كشف الحركة");
+        worksheet['!dir'] = "rtl";
+        XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);
+    };
+
+    loadData();
+</script>
+</body>
+</html>
