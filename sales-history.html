@@ -778,7 +778,89 @@ onclick="printInvoice('${inv.id}')">
         worksheet['!dir'] = "rtl";  
         XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);  
     };  
+  window.printInvoice = (id) => {
+    const inv = allInvoices.find(i => i.id === id);
+    if (!inv) return;
 
+    const originalDate = parseInvoiceDate(inv);
+    const displayTime = formatInvoiceTime(inv.time, inv.date);
+
+    document.getElementById('recCustomer').innerText =
+        inv.customerName || 'عميل نقدي';
+
+    document.getElementById('recDate').innerText =
+        originalDate + " " + displayTime;
+
+    document.getElementById('recPaymentMethod').innerText =
+        inv.paymentMethod || 'غير محدد';
+
+    document.getElementById('recTotal').innerText =
+        Number(inv.total || 0).toFixed(2);
+
+    document.getElementById('recPaid').innerText =
+        (Number(inv.calculatedCash || 0) +
+        Number(inv.calculatedWallet || 0)).toFixed(2);
+
+    document.getElementById('recOldBalance').innerText =
+        Number(inv.previousBalance || 0).toFixed(2);
+
+    document.getElementById('recRemaining').innerText =
+        (Number(inv.previousBalance || 0) +
+        Number(inv.remaining || 0)).toFixed(2);
+
+    document.getElementById('recItems').innerHTML =
+        (inv.items || []).map(item => `
+            <tr>
+                <td>${item.name}</td>
+                <td style="text-align:center">${item.qty}</td>
+                <td style="text-align:left">${Number(item.price||0).toFixed(2)}</td>
+                <td style="text-align:left">${(Number(item.qty||0)*Number(item.price||0)).toFixed(2)}</td>
+            </tr>
+        `).join('');
+
+    const receipt = document.getElementById('thermalReceipt');
+
+    html2canvas(receipt, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: "#ffffff"
+    }).then(canvas => {
+
+        const imageUrl = canvas.toDataURL("image/png");
+
+        const win = window.open("", "_blank");
+
+        win.document.write(`
+            <html>
+            <head>
+                <title>طباعة الفاتورة</title>
+                <style>
+                    body{
+                        margin:0;
+                        text-align:center;
+                        background:#eee;
+                    }
+                    img{
+                        max-width:100%;
+                    }
+                </style>
+            </head>
+            <body>
+                <img src="${imageUrl}">
+                <script>
+                    window.onload = function(){
+                        setTimeout(()=>{
+                            window.print();
+                        },500);
+                    }
+                <\/script>
+            </body>
+            </html>
+        `);
+
+        win.document.close();
+    });
+};
     loadData();  
 </script>  </body>  
 </html>  
