@@ -789,9 +789,12 @@
         worksheet['!dir'] = "rtl";
         XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);
     };
-    window.printInvoice = (id) => {
+    window.printInvoice = function(id) {
     const inv = allInvoices.find(i => i.id === id);
-    if (!inv) return;
+    if (!inv) {
+        alert("لم يتم العثور على الفاتورة");
+        return;
+    }
 
     const originalDate = parseInvoiceDate(inv);
     const displayTime = formatInvoiceTime(inv.time, inv.date);
@@ -799,66 +802,59 @@
     document.getElementById('recCustomer').innerText = inv.customerName || 'عميل نقدي';
     document.getElementById('recDate').innerText = originalDate + " " + displayTime;
     document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || 'غير محدد';
-    document.getElementById('recTotal').innerText = Number(inv.total).toFixed(2);
-    document.getElementById('recPaid').innerText = (inv.calculatedCash + inv.calculatedWallet).toFixed(2);
-    document.getElementById('recOldBalance').innerText = Number(inv.previousBalance).toFixed(2);
+    document.getElementById('recTotal').innerText = Number(inv.total || 0).toFixed(2);
+    document.getElementById('recPaid').innerText = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);
+    document.getElementById('recOldBalance').innerText = Number(inv.previousBalance || 0).toFixed(2);
     document.getElementById('recRemaining').innerText =
-        (Number(inv.previousBalance) + Number(inv.remaining)).toFixed(2);
+        (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);
 
-    const tbody = document.getElementById('recItems');
-
-    tbody.innerHTML = (inv.items || []).map(item => `
-        <tr style="border-bottom:1px solid #eee;">
-            <td style="padding:5px 4px;">${item.name}</td>
-            <td style="text-align:center;padding:5px 4px;">${item.qty}</td>
-            <td style="text-align:left;padding:5px 4px;">${Number(item.price).toFixed(2)}</td>
-            <td style="text-align:left;padding:5px 4px;">${(Number(item.qty) * Number(item.price)).toFixed(2)}</td>
+    document.getElementById('recItems').innerHTML = (inv.items || []).map(item => `
+        <tr>
+            <td>${item.name || ''}</td>
+            <td style="text-align:center">${item.qty || 0}</td>
+            <td style="text-align:left">${Number(item.price || 0).toFixed(2)}</td>
+            <td style="text-align:left">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>
         </tr>
     `).join('');
 
-    const receipt = document.getElementById('thermalReceipt');
+    const printWindow = window.open('', '', 'width=400,height=700');
 
-    const w = window.open('', '_blank');
-
-    w.document.write(`
-    <html dir="rtl">
-    <head>
-        <title>فاتورة</title>
-        <style>
-            @page{
-                size:80mm auto;
-                margin:0;
-            }
-
-            body{
-                width:80mm;
-                margin:0;
-                padding:0;
-                font-family:Cairo,sans-serif;
-            }
-
-            #thermalReceipt{
-                width:80mm !important;
-                padding:5mm !important;
-                box-sizing:border-box;
-            }
-        </style>
-    </head>
-    <body>
-        ${receipt.outerHTML}
-    </body>
-    </html>
+    printWindow.document.write(`
+        <html dir="rtl">
+        <head>
+            <meta charset="UTF-8">
+            <title>فاتورة</title>
+            <style>
+                body{
+                    font-family: Cairo, Arial, sans-serif;
+                    margin:0;
+                    padding:0;
+                }
+                #thermalReceipt{
+                    width:80mm;
+                    margin:auto;
+                }
+                @media print{
+                    body{
+                        margin:0;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            ${document.getElementById('thermalReceipt').outerHTML}
+        </body>
+        </html>
     `);
 
-    w.document.close();
+    printWindow.document.close();
 
-    setTimeout(() => {
-        w.focus();
-        w.print();
-    }, 500);
+    printWindow.onload = function() {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+    };
 };
-loadData();
-    loadData();
 </script>
 </body>
 </html>
