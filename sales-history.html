@@ -799,32 +799,67 @@ onclick="printInvoice('${inv.id}')">
 
     document.getElementById('recPaid').innerText =
         (Number(inv.calculatedCash || 0) +
-         Number(inv.calculatedWallet || 0)).toFixed(2);
+        Number(inv.calculatedWallet || 0)).toFixed(2);
 
     document.getElementById('recOldBalance').innerText =
         Number(inv.previousBalance || 0).toFixed(2);
 
     document.getElementById('recRemaining').innerText =
         (Number(inv.previousBalance || 0) +
-         Number(inv.remaining || 0)).toFixed(2);
+        Number(inv.remaining || 0)).toFixed(2);
 
-    const tbody = document.getElementById('recItems');
+    document.getElementById('recItems').innerHTML =
+        (inv.items || []).map(item => `
+            <tr>
+                <td>${item.name}</td>
+                <td style="text-align:center">${item.qty}</td>
+                <td style="text-align:left">${Number(item.price||0).toFixed(2)}</td>
+                <td style="text-align:left">${(Number(item.qty||0)*Number(item.price||0)).toFixed(2)}</td>
+            </tr>
+        `).join('');
 
-    tbody.innerHTML = (inv.items || []).map(item => `
-        <tr>
-            <td>${item.name}</td>
-            <td style="text-align:center">${item.qty}</td>
-            <td style="text-align:left">${Number(item.price || 0).toFixed(2)}</td>
-            <td style="text-align:left">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>
-        </tr>
-    `).join('');
+    const receipt = document.getElementById('thermalReceipt');
 
-    const receiptHtml = document.getElementById('thermalReceipt').innerText;
+    html2canvas(receipt, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: "#ffffff"
+    }).then(canvas => {
 
-    const encoded = encodeURIComponent(receiptHtml);
+        const imageUrl = canvas.toDataURL("image/png");
 
-    window.location.href =
-        "rawbt:base64," + btoa(unescape(encodeURIComponent(receiptHtml)));
+        const win = window.open("", "_blank");
+
+        win.document.write(`
+            <html>
+            <head>
+                <title>طباعة الفاتورة</title>
+                <style>
+                    body{
+                        margin:0;
+                        text-align:center;
+                        background:#eee;
+                    }
+                    img{
+                        max-width:100%;
+                    }
+                </style>
+            </head>
+            <body>
+                <img src="${imageUrl}">
+                <script>
+                    window.onload = function(){
+                        setTimeout(()=>{
+                            window.print();
+                        },500);
+                    }
+                <\/script>
+            </body>
+            </html>
+        `);
+
+        win.document.close();
+    });
 };
     loadData();  
 </script>  </body>  
