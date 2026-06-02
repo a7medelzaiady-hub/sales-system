@@ -521,6 +521,11 @@
                         </div>  
                         <div class="d-flex gap-1">  
                             <button class="btn btn-sm btn-outline-success" style="padding: 2px 6px; font-size:0.7rem;" onclick="triggerShare('${inv.id}')"><i class="fab fa-whatsapp"></i> شير</button>  
+                            <button class="btn btn-sm btn-outline-dark"
+style="padding: 2px 6px; font-size:0.7rem;"
+onclick="printInvoice('${inv.id}')">
+<i class="fas fa-print"></i> طباعة
+</button>
                             <button class="btn btn-sm btn-outline-info text-dark" style="padding: 2px 6px; font-size:0.7rem;" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> الاصناف</button>  
                             <button class="btn btn-sm btn-outline-primary" style="padding: 2px 6px; font-size:0.7rem;" onclick="editInvoice('${inv.id}')"><i class="fas fa-edit"></i></button>  
                             <button class="btn btn-sm btn-outline-danger" style="padding: 2px 6px; font-size:0.7rem;" onclick="deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>  
@@ -773,7 +778,54 @@
         worksheet['!dir'] = "rtl";  
         XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);  
     };  
-  
+  window.printInvoice = (id) => {
+    const inv = allInvoices.find(i => i.id === id);
+    if (!inv) return;
+
+    const originalDate = parseInvoiceDate(inv);
+    const displayTime = formatInvoiceTime(inv.time, inv.date);
+
+    document.getElementById('recCustomer').innerText =
+        inv.customerName || 'عميل نقدي';
+
+    document.getElementById('recDate').innerText =
+        originalDate + " " + displayTime;
+
+    document.getElementById('recPaymentMethod').innerText =
+        inv.paymentMethod || 'غير محدد';
+
+    document.getElementById('recTotal').innerText =
+        Number(inv.total || 0).toFixed(2);
+
+    document.getElementById('recPaid').innerText =
+        (Number(inv.calculatedCash || 0) +
+         Number(inv.calculatedWallet || 0)).toFixed(2);
+
+    document.getElementById('recOldBalance').innerText =
+        Number(inv.previousBalance || 0).toFixed(2);
+
+    document.getElementById('recRemaining').innerText =
+        (Number(inv.previousBalance || 0) +
+         Number(inv.remaining || 0)).toFixed(2);
+
+    const tbody = document.getElementById('recItems');
+
+    tbody.innerHTML = (inv.items || []).map(item => `
+        <tr>
+            <td>${item.name}</td>
+            <td style="text-align:center">${item.qty}</td>
+            <td style="text-align:left">${Number(item.price || 0).toFixed(2)}</td>
+            <td style="text-align:left">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>
+        </tr>
+    `).join('');
+
+    const receiptHtml = document.getElementById('thermalReceipt').innerText;
+
+    const encoded = encodeURIComponent(receiptHtml);
+
+    window.location.href =
+        "rawbt:base64," + btoa(unescape(encodeURIComponent(receiptHtml)));
+};
     loadData();  
 </script>  </body>  
 </html>  
