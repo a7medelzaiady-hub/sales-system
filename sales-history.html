@@ -62,6 +62,7 @@
         .items-preview-table td { padding: 4px; border: 1px solid var(--border); text-align: center; font-weight: 600; }  
         .filter-status-bar { display: none; background: #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; align-items: center; justify-content: space-between; }  
         .danger-zone-card { background: #fff5f5; border: 1px dashed #feb2b2; border-radius: 10px; padding: 12px; margin-bottom: 12px; }  
+        .admin-notes-box { background: #fffdf5; border: 1px solid #fbe9a7; border-radius: 6px; padding: 6px 10px; font-size: 0.78rem; font-weight: 700; color: #b7791f; margin-top: 8px; }  
     </style>
 </head>  
 <body>  
@@ -174,7 +175,7 @@
 
 </div>  
 
-<!-- مودال الشير عبر الواتساب -->
+<!-- مودال الشير عبر الواتساب (ممسوح منه كلمة ملاحظات واسم العميل) -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">  
     <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: 14px; text-align: center; font-family: 'Cairo';">  
         <div style="width: 50px; height: 50px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">  
@@ -189,7 +190,7 @@
     </div>  
 </div>  
 
-<!-- الحاوية الوهمية لطباعة الريسيت الحراري -->
+<!-- الحاوية الوهمية لطباعة الريسيت الحراري (ممسوح منها كلمة الملاحظات رسمياً) -->
 <div id="thermalReceiptContainer" style="position: absolute; left: -9999px; top: -9999px;">  
     <div id="thermalReceipt" style="width: 380px; background: #fff; padding: 25px 20px; font-family: 'Cairo'; direction: rtl; color: #000;">  
         <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 10px;">  
@@ -198,7 +199,7 @@
             <div style="margin-top: 8px;"><span style="font-size: 13px; border: 1px solid #000; padding: 2px 15px; font-weight: 800; border-radius: 4px;">فاتورة مبيعات</span></div>  
         </div>  
         <div style="border-bottom: 1px dashed #000; margin-bottom: 12px; padding-bottom: 8px; font-size: 13px; line-height: 1.6;">  
-            <div style="display: flex; justify-content: space-between;"><span><b>اسم العميل:</b></span><span id="recCustomer" style="font-weight:700;"></span></div>  
+            <div style="display: flex; justify-content: space-between;"><span><b>العميل:</b></span><span id="recCustomer" style="font-weight:700;"></span></div>  
             <div style="display: flex; justify-content: space-between;"><span><b>التاريخ والوقت:</b></span><span id="recDate" style="direction: ltr;"></span></div>  
             <div style="display: flex; justify-content: space-between;"><span><b>طريقة السداد:</b></span><span id="recPaymentMethod" style="font-weight:700;"></span></div>  
         </div>  
@@ -407,7 +408,7 @@
         }  
     };  
   
-    // الدالة الرسمية الدقيقة لعرض ما تم تعديله بالظبط بنقاط مرقمة
+    // تقرير التعديلات الدقيق جداً
     window.showModificationDetails = (invId) => {  
         const inv = allInvoices.find(i => i.id === invId);  
         if (!inv) return;  
@@ -415,13 +416,11 @@
         let report = `ماتم تعديله:\n`;  
         let index = 1;  
   
-        // ١- تعديل التاريخ من كذا لكذا  
         if (inv.originalDate && inv.date && inv.originalDate !== inv.date) {  
             report += `${index}- تعديل التاريخ من ${inv.originalDate} لكذا ${inv.date}\n`;  
             index++;  
         }  
   
-        // ٢- تعديل عدد كذا من كذا لكذا  
         if (inv.items && Array.isArray(inv.items)) {  
             inv.items.forEach(item => {  
                 if (item.originalQty !== undefined && item.qty !== undefined && Number(item.originalQty) !== Number(item.qty)) {  
@@ -431,9 +430,8 @@
             });  
         }  
   
-        // إذا كان التعديل مالي فقط أو لا توجد فروق واضحة مسجلة  
         if (index === 1) {  
-            report = `ماتم تعديله:\n١- تم تعديل الحسابات والمبالغ المالية للفاتورة لتتطابق مع الوضع الحالي الحالي.`;  
+            report = `ماتم تعديله:\n١- تم تعديل الحسابات والمبالغ المالية للفاتورة لتتطابق مع الوضع الحالي.`;  
         }  
   
         alert(report);  
@@ -462,8 +460,7 @@
                 shortDate = `${parts[2]}/${parts[1]}`;  
             }  
   
-            // يظهر الرابط الأحمر فقط إذا كانت الفاتورة معدلة (تحتوي على حقل الحفظ القديم أو علامة تعديل)
-            const isModified = inv.originalDate || (inv.items && inv.items.some(i => i.originalQty !== undefined)) || inv.notes === "معدلة";
+            const isModified = inv.originalDate || (inv.items && inv.items.some(i => i.originalQty !== undefined)) || inv.notes === "معدلة";  
   
             return `  
                 <div class="invoice-item">  
@@ -490,7 +487,9 @@
                         <div class="fin-box text-secondary">حساب سابق كان كام <span>${(Number(inv.previousBalance) || 0).toFixed(2)}</span></div>  
                     </div>  
   
+                    <!-- صندوق عرض الملحوظات الإدارية وتفاصيل الأصناف للأدمن فقط -->
                     <div id="details_box_${inv.id}" style="display:none;">  
+                        ${inv.notes ? `<div class="admin-notes-box"><i class="fas fa-sticky-note me-1"></i> ملحوظة النظام الإدارية: ${inv.notes}</div>` : ''}  
                         <table class="items-preview-table">  
                             <thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>  
                             <tbody>  
