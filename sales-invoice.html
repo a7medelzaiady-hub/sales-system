@@ -299,7 +299,7 @@
             <i class="fab fa-whatsapp" style="color: #25D366; font-size: 2.2rem;"></i>
         </div>
         <h5 style="font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">تم الحفظ بنجاح! 🎉</h5>
-        <p style="color: #555; font-size: 0.85rem; margin-bottom: 18px; line-height: 1.4;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل؟</p>
+        <p style="color: #555; font-size: 0.85rem; margin-bottom: 18px; line-height: 1.4;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل?</p>
         <div style="display: flex; flex-direction: column; gap: 8px;">
             <button id="confirmShareBtn" style="background: #25D366; color: white; border: none; padding: 10px; border-radius: 10px; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
                 <i class="fab fa-whatsapp"></i> مشاركة الفاتورة كصورة
@@ -334,6 +334,11 @@
             <div style="display: flex; justify-content: space-between;">
                 <span><b>طريقة السداد:</b></span>
                 <span id="recPaymentMethod" style="font-weight: 700;"></span>
+            </div>
+            <!-- حقل عرض ملاحظة التعديل بالفاتورة الحرارية إن وجد -->
+            <div id="recNotesZone" style="display: none; margin-top: 4px; color: #d90429; font-weight: bold;">
+                <span><b>تنبيه:</b></span>
+                <span id="recNotesText"></span>
             </div>
         </div>
 
@@ -409,6 +414,7 @@
     let editId = new URLSearchParams(window.location.search).get('edit');
     let isChanged = false;
     let currentFetchedOldBalance = 0;
+    let originalInvoiceTime = ""; // متغير لحفظ تاريخ الفاتورة الأصلي المسترجع من الداتابيز لمنع تغييره
 
     async function getRealBalance(customerId, initialBalance = 0) {
         try {
@@ -489,8 +495,13 @@
                     const data = invDoc.data();
                     document.getElementById('customerSelect').value = data.customerId;
                     document.getElementById('customerSearch').value = data.customerName || 'عميل نقدي';
-                    document.getElementById('invTime').value = data.time;
                     
+                    // حفظ تاريخ الطلبية الأصلي في المتغير والخانة النصية
+                    originalInvoiceTime = data.time || "";
+                    document.getElementById('invTime').value = originalInvoiceTime;
+                    // جعل حقل التاريخ غير قابل للتعديل يدوياً لحمايته
+                    document.getElementById('invTime').readOnly = true;
+
                     document.getElementById('cashAmount').value = data.cashAmount || 0;
                     document.getElementById('walletAmount').value = data.walletAmount || 0;
                     document.getElementById('paidAmount').value = data.paid || 0;
@@ -645,8 +656,6 @@
         } catch (error) {
             console.error("حدث خطأ أثناء معالجة بيانات العميل: ", error);
             alert("حدث خطأ، برجاء المحاولة مرة أخرى");
-        } catch (e) {
-            console.error(e);
         } finally {
             btnSaveCustomer.disabled = false;
         }
@@ -794,6 +803,20 @@
                 finalMethod = "سداد نقدي";
             }
 
+            // إعداد كود ملحوظة التعديل التلقائي
+            let invoiceNotes = "";
+            let targetTime = document.getElementById('invTime').value;
+
+            if (editId) {
+                // إذا كنا في وضع التعديل، نجبر السيرفر على الاحتفاظ بالتاريخ الأصلي المسترجع عند البداية
+                if (originalInvoiceTime) {
+                    targetTime = originalInvoiceTime;
+                }
+                // إنشاء نص الملحوظة التلقائي بوقت التعديل الحالي
+                const currentTimeStr = new Date().toLocaleString('ar-EG');
+                invoiceNotes = `تم تعديل هذه الطلبية في: ${currentTimeStr}`;
+            }
+
             const invoiceData = {
                 customerId,
                 customerName,
@@ -803,7 +826,8 @@
                 paymentMethod: finalMethod,
                 cashAmount: finalCash,     
                 walletAmount: finalWallet, 
-                time: document.getElementById('invTime').value,
+                time: targetTime, // التاريخ الأصلي ثابت لا يتغير
+                notes: invoiceNotes, // كتابة ملحوظة التعديل
                 timestamp: serverTimestamp(),
                 items
             };
@@ -855,6 +879,15 @@
         document.getElementById('recOldBalance').innerText = oldBalance.toFixed(2);
         document.getElementById('recPaid').innerText = data.paid.toFixed(2);
         document.getElementById('recRemaining').innerText = (oldBalance + data.remaining).toFixed(2);
+
+        // إظهار الملحوظة بالتعديل في الإيصال الحراري في حال وجودها
+        const recNotesZone = document.getElementById('recNotesZone');
+        if (data.notes) {
+            recNotesZone.style.display = 'block';
+            document.getElementById('recNotesText').innerText = data.notes;
+        } else {
+            recNotesZone.style.display = 'none';
+        }
 
         const recSplitZone = document.getElementById('recSplitDetails');
         if (data.cashAmount > 0 || data.walletAmount > 0) {
