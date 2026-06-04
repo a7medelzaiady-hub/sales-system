@@ -513,8 +513,19 @@
         }
     };
 
-    window.showModificationDetails = (noteText) => {
-        alert("📝 تفاصيل التغييرات على الفاتورة:\n\n" + noteText);
+    window.showModificationDetails = (invId) => {
+        const inv = allInvoices.find(i => i.id === invId);
+        if (!inv) return;
+        
+        let msg = "📝 تفاصيل التغييرات على الفاتورة:\n\n";
+        msg += "• حالة الفاتورة: " + (inv.notes || "تم تعديلها") + "\n";
+        if (inv.originalDate) {
+            msg += "• التاريخ الأصلي قبل التعديل: " + inv.originalDate + "\n";
+        }
+        msg += "• التاريخ الحالي المعتمد: " + parseInvoiceDate(inv) + "\n";
+        msg += "• توقيت الفاتورة: " + formatInvoiceTime(inv.time, inv.date);
+        
+        alert(msg);
     };
 
     function renderInvoices(invoices) {  
@@ -540,8 +551,6 @@
                 shortDate = `${parts[2]}/${parts[1]}`;  
             }  
   
-            const escapedNotes = inv.notes ? inv.notes.replace(/['"]/g, '\\$&') : '';
-
             return `  
                 <div class="invoice-item">  
                     <div class="d-flex justify-content-between align-items-start mb-1">  
@@ -549,7 +558,7 @@
                             <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.88rem;">${inv.customerName || 'عميل نقدي'}</h6>  
                             <span class="detail-badge"><i class="far fa-clock"></i> ${shortDate} ${displayTime}</span>  
                             <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير محدد'}</span>  
-                            ${inv.notes ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${escapedNotes}')"><i class="fas fa-exclamation-circle me-1"></i> اضغط لمعرفة ما تم تعديله بالظبط</div>` : ''}
+                            ${inv.notes ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-exclamation-circle me-1"></i> اضغط لمعرفة ما تم تعديله بالظبط</div>` : ''}
                         </div>  
                         <div class="d-flex gap-1">  
                             <button class="btn btn-sm btn-outline-success" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="triggerShare('${inv.id}')"><i class="fab fa-whatsapp"></i> شير</button>  
@@ -808,7 +817,7 @@
     };  
   window.printInvoice = (id) => {
     const inv = allInvoices.find(i => i.id === id);
-    if (!inv) return;
+    if (!win) return;
 
     const originalDate = parseInvoiceDate(inv);
     const displayTime = formatInvoiceTime(inv.time, inv.date);
