@@ -518,12 +518,27 @@
         if (!inv) return;
         
         let msg = "📝 تفاصيل التغييرات على الفاتورة:\n\n";
-        msg += "• حالة الفاتورة: " + (inv.notes || "تم تعديلها") + "\n";
-        if (inv.originalDate) {
-            msg += "• التاريخ الأصلي قبل التعديل: " + inv.originalDate + "\n";
+        msg += "• البيان المسجل: " + (inv.notes || "تم تعديلها") + "\n\n";
+        
+        if (inv.items && inv.items.length > 0) {
+            msg += "📋 الأصناف والأسعار الحالية بالفاتورة:\n";
+            inv.items.forEach((item, index) => {
+                msg += `   ${index + 1}. ${item.name} -> الكمية: ${item.qty} | السعر: ${Number(item.price || 0).toFixed(2)} | الإجمالي: ${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}\n`;
+            });
+            msg += "\n";
         }
-        msg += "• التاريخ الحالي المعتمد: " + parseInvoiceDate(inv) + "\n";
-        msg += "• توقيت الفاتورة: " + formatInvoiceTime(inv.time, inv.date);
+        
+        msg += "💰 القيم المالية المعتمدة حالياً:\n";
+        msg += "• إجمالي الفاتورة: " + Number(inv.total || 0).toFixed(2) + " جنيه\n";
+        msg += "• المدفوع نقدي (كاش): " + Number(inv.calculatedCash || 0).toFixed(2) + " جنيه\n";
+        msg += "• المدفوع محفظة: " + Number(inv.calculatedWallet || 0).toFixed(2) + " جنيه\n";
+        msg += "• المتبقي الآجل: " + Number(inv.remaining || 0).toFixed(2) + " جنيه\n\n";
+        
+        if (inv.originalDate) {
+            msg += "📅 التاريخ الأصلي قبل التعديل: " + inv.originalDate + "\n";
+        }
+        msg += "📅 التاريخ الحالي: " + parseInvoiceDate(inv) + "\n";
+        msg += "⏰ التوقيت المعتمد: " + formatInvoiceTime(inv.time, inv.date);
         
         alert(msg);
     };
@@ -817,7 +832,7 @@
     };  
   window.printInvoice = (id) => {
     const inv = allInvoices.find(i => i.id === id);
-    if (!win) return;
+    if (!inv) return;
 
     const originalDate = parseInvoiceDate(inv);
     const displayTime = formatInvoiceTime(inv.time, inv.date);
