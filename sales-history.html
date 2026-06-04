@@ -62,7 +62,7 @@
         .items-preview-table td { padding: 4px; border: 1px solid var(--border); text-align: center; font-weight: 600; }  
         .filter-status-bar { display: none; background: #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; align-items: center; justify-content: space-between; }  
         .danger-zone-card { background: #fff5f5; border: 1px dashed #feb2b2; border-radius: 10px; padding: 12px; margin-bottom: 12px; }  
-        .admin-notes-box { background: #fffdf5; border: 1px solid #fbe9a7; border-radius: 6px; padding: 6px 10px; font-size: 0.78rem; font-weight: 700; color: #b7791f; margin-top: 8px; }  
+        .admin-notes-box { background: #fffdf5; border: 1px solid #fbe9a7; border-radius: 6px; padding: 8px 10px; font-size: 0.8rem; font-weight: 700; color: #b7791f; margin-top: 8px; border-right: 4px solid #dd9c3c; }  
     </style>
 </head>  
 <body>  
@@ -175,7 +175,7 @@
 
 </div>  
 
-<!-- مودال الشير عبر الواتساب (ممسوح منه كلمة ملاحظات واسم العميل) -->
+<!-- مودال الشير عبر الواتساب (ممسوح منه الملاحظات والعميل) -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">  
     <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: 14px; text-align: center; font-family: 'Cairo';">  
         <div style="width: 50px; height: 50px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">  
@@ -408,7 +408,6 @@
         }  
     };  
   
-    // تقرير التعديلات الدقيق جداً
     window.showModificationDetails = (invId) => {  
         const inv = allInvoices.find(i => i.id === invId);  
         if (!inv) return;  
@@ -471,10 +470,14 @@
                             <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير محدد'}</span>  
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة ما تم تعديله بالظبط</div>` : ''}  
                         </div>  
-                        <div class="d-flex gap-1">  
+                        <div class="d-flex gap-1 flex-wrap justify-content-end" style="max-width: 60%;">  
                             <button class="btn btn-sm btn-outline-success" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="triggerShare('${inv.id}')"><i class="fab fa-whatsapp"></i> شير</button>  
                             <button class="btn btn-sm btn-outline-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="printInvoice('${inv.id}')"><i class="fas fa-print"></i> طباعة</button>  
                             <button class="btn btn-sm btn-outline-info text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> الاصناف</button>  
+                            
+                            <!-- زر الملاحظات المضاف لفتح حقل الأدمن المكتوم -->
+                            <button class="btn btn-sm btn-outline-warning text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleNotes('${inv.id}')"><i class="fas fa-sticky-note"></i> الملاحظة</button>  
+                            
                             <button class="btn btn-sm btn-outline-primary" style="padding: 2px 6px; font-size:0.75rem;" onclick="editInvoice('${inv.id}')"><i class="fas fa-edit"></i></button>  
                             <button class="btn btn-sm btn-outline-danger" style="padding: 2px 6px; font-size:0.75rem;" onclick="deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>  
                         </div>  
@@ -487,9 +490,16 @@
                         <div class="fin-box text-secondary">حساب سابق كان كام <span>${(Number(inv.previousBalance) || 0).toFixed(2)}</span></div>  
                     </div>  
   
-                    <!-- صندوق عرض الملحوظات الإدارية وتفاصيل الأصناف للأدمن فقط -->
+                    <!-- صندوق الملحوظة الإدارية للأدمن (مستقل تماماً الآن) -->
+                    <div id="notes_box_${inv.id}" style="display:none;">  
+                        <div class="admin-notes-box">  
+                            <i class="fas fa-user-shield me-1"></i> <b>ملحوظة النظام الإدارية:</b>   
+                            ${inv.notes ? inv.notes : '<span class="text-muted font-monospace">لا توجد ملاحظات مسجلة على هذه الفاتورة.</span>'}  
+                        </div>  
+                    </div>  
+
+                    <!-- صندوق تفاصيل الأصناف -->
                     <div id="details_box_${inv.id}" style="display:none;">  
-                        ${inv.notes ? `<div class="admin-notes-box"><i class="fas fa-sticky-note me-1"></i> ملحوظة النظام الإدارية: ${inv.notes}</div>` : ''}  
                         <table class="items-preview-table">  
                             <thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>  
                             <tbody>  
@@ -578,6 +588,12 @@
   
     window.toggleDetails = (id) => {  
         const element = document.getElementById(`details_box_${id}`);  
+        element.style.display = (element.style.display === "none") ? "block" : "none";  
+    };  
+
+    // دالة فتح وإغلاق الملاحظات الجديدة التابعة للزر الجديد
+    window.toggleNotes = (id) => {  
+        const element = document.getElementById(`notes_box_${id}`);  
         element.style.display = (element.style.display === "none") ? "block" : "none";  
     };  
   
