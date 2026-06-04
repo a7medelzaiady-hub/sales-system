@@ -517,30 +517,57 @@
         const inv = allInvoices.find(i => i.id === invId);
         if (!inv) return;
         
-        let msg = "📝 تفاصيل التغييرات على الفاتورة:\n\n";
-        msg += "• البيان المسجل: " + (inv.notes || "تم تعديلها") + "\n\n";
-        
-        if (inv.items && inv.items.length > 0) {
-            msg += "📋 الأصناف والأسعار الحالية بالفاتورة:\n";
-            inv.items.forEach((item, index) => {
-                msg += `   ${index + 1}. ${item.name} -> الكمية: ${item.qty} | السعر: ${Number(item.price || 0).toFixed(2)} | الإجمالي: ${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}\n`;
-            });
-            msg += "\n";
+        let report = `📝 تقرير التعديلات للفاتورة الحالية:\n`;
+        let index = 1;
+
+        // 1. فحص تعديل التاريخ والوقت
+        if (inv.originalDate && inv.date && inv.originalDate !== inv.date) {
+            report += `${index}- تعديل التاريخ من (${inv.originalDate}) إلى (${inv.date})\n`;
+            index++;
+        } else if (inv.notes && (inv.notes.includes("تاريخ") || inv.notes.includes("الوقت"))) {
+            report += `${index}- تم تعديل تاريخ الفاتورة أو وقتها.\n`;
+            index++;
         }
-        
-        msg += "💰 القيم المالية المعتمدة حالياً:\n";
-        msg += "• إجمالي الفاتورة: " + Number(inv.total || 0).toFixed(2) + " جنيه\n";
-        msg += "• المدفوع نقدي (كاش): " + Number(inv.calculatedCash || 0).toFixed(2) + " جنيه\n";
-        msg += "• المدفوع محفظة: " + Number(inv.calculatedWallet || 0).toFixed(2) + " جنيه\n";
-        msg += "• المتبقي الآجل: " + Number(inv.remaining || 0).toFixed(2) + " جنيه\n\n";
-        
-        if (inv.originalDate) {
-            msg += "📅 التاريخ الأصلي قبل التعديل: " + inv.originalDate + "\n";
+
+        // 2. فحص تعديل الأصناف والكميات والأسعار ذكياً
+        let itemNotesFound = false;
+        if (inv.notes) {
+            // محاولة استخراج الأرقام من النصوص المسجلة في الملاحظات مثل (من 5 إلى 3) أو (تعديل كمية)
+            const qtyRegex = /(?:كمية|عدد|جركن|كرتونه).*?(\d+).*?(?:إلى|ليصبح|بقى)\s*(\d+)/i;
+            const match = inv.notes.match(qtyRegex);
+            
+            if (match) {
+                report += `${index}- تعديل عدد الصنف من [ ${match[1]} ] إلى [ ${match[2]} ]\n`;
+                itemNotesFound = true;
+                index++;
+            }
         }
-        msg += "📅 التاريخ الحالي: " + parseInvoiceDate(inv) + "\n";
-        msg += "⏰ التوقيت المعتمد: " + formatInvoiceTime(inv.time, inv.date);
-        
-        alert(msg);
+
+        // إذا لم يتم استخراجها بالتفصيل الرياضي، نذكر النص المسجل مباشرة بنظام مرقم
+        if (!itemNotesFound && inv.notes) {
+            // تنظيف النص وعرض التعديل الحاصل
+            let cleanNote = inv.notes.replace(/تم تعديل الفاتورة|تعديل/g, "").trim();
+            if (cleanNote.length > 2) {
+                report += `${index}- تعديل في الأصناف والبيانات: (${cleanNote})\n`;
+                index++;
+            } else {
+                report += `${index}- تم تعديل الكميات والأسعار الإجمالية داخل الفاتورة.\n`;
+                index++;
+            }
+        }
+
+        // 3. فحص الفروق المالية العامة
+        if (inv.notes && (inv.notes.includes("سعر") || inv.notes.includes("مبلغ") || inv.notes.includes("الحساب"))) {
+            report += `${index}- إعادة ضبط قيم السداد والإجمالي المستحق.\n`;
+            index++;
+        }
+
+        // في حال كانت الملاحظة فارغة تماماً ولكن الحقل نشط
+        if (index === 1) {
+            report += `1- تم تعديل بيانات الفاتورة والكميات الإجمالية للتطابق الحسابي الحالي.`;
+        }
+
+        alert(report);
     };
 
     function renderInvoices(invoices) {  
