@@ -163,13 +163,15 @@
         <button class="add-btn" id="exportExcelBtn" title="تصدير كشف حركة احترافي"><i class="fas fa-file-excel"></i></button>  
         <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>  
     </div>  
-</div>  <div class="container px-2 mt-1">  <div class="danger-zone-card mt-2 d-flex justify-content-between align-items-center">  
+</div>  <div class="container px-2 mt-1">  
+
+<div class="danger-zone-card mt-2 d-flex justify-content-between align-items-center">  
     <div>  
-        <span class="fw-bold text-danger d-block" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle me-1"></i> تصفير النظام السيستم</span>  
-        <small class="text-muted" style="font-size: 0.68rem;">حذف جميع العملاء والعمليات والفواتير نهائياً.</small>  
+        <span class="fw-bold text-danger d-block" style="font-size: 0.8rem;"><i class="fas fa-exclamation-triangle me-1"></i> تصفير النظام</span>  
+        <small class="text-muted" style="font-size: 0.68rem;">سيتم حذف جميع العملاء والعمليات والفواتير نهائياً.</small>  
     </div>  
-    <button class="btn btn-danger btn-sm fw-bold px-3" id="deleteAllCustomersBtn" style="font-size: 0.72rem; border-radius: 6px;">  
-        <i class="fas fa-users-slash me-1"></i> حذف الداتا بالكامل  
+    <button class="btn btn-danger btn-sm fw-bold px-3" id="deleteAllCustomersBtn" style="font-size: 0.75rem; border-radius: 6px;">  
+        <i class="fas fa-users-slash me-1"></i> حذف كل العملاء  
     </button>  
 </div>  
   
@@ -241,6 +243,13 @@
     <span id="filterStatusText">عرض فلاتر مخصصة</span>  
     <button class="btn btn-sm btn-dark py-0" onclick="resetStatFilter()" style="font-size:0.65rem;">عرض الكل</button>  
 </div>  
+
+<div class="mb-2 bg-white p-2 border rounded" style="border-radius: var(--input-radius);">
+    <label for="dateFilterInput" class="fw-bold mb-1 text-success d-block" style="font-size: 0.75rem;">
+        <i class="fas fa-filter me-1"></i> استعلام عن إحصائيات يوم محدد:
+    </label>
+    <input type="date" id="dateFilterInput" class="form-control" style="font-size: 0.85rem; font-weight: 600;" onchange="window.handleDateFilterChange()">
+</div>
 
 <div class="mb-2">  
     <input type="text" id="searchInput" class="form-control search-box" placeholder="البحث باسم العميل أو طريقة السداد..." oninput="filterInvoices()">  
@@ -452,17 +461,25 @@
         let totalCash = 0; let totalWallet = 0; let totalRemaining = 0; let totalSales = 0;  
         let todayCash = 0; let todayWallet = 0; let todayRemaining = 0; let todaySales = 0;  
   
-        const todayStr = new Date().toLocaleDateString('en-CA');   
+        // قراءة التاريخ المستعلم عنه وإلا الاعتماد على تاريخ اليوم الافتراضي
+        const filterInput = document.getElementById('dateFilterInput')?.value;
+        const targetDateStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');   
   
+        // تحديث عنوان إحصائيات اليوم ديناميكياً
+        const statsTitle = document.querySelector('.stats-section-title');
+        if (statsTitle) {
+            statsTitle.innerHTML = `<i class="fas fa-calendar-day me-1"></i> إحصائيات يوم (${targetDateStr})`;
+        }
+
         allInvoices.forEach(inv => {  
             const invDateStr = parseInvoiceDate(inv);  
-            const isToday = (invDateStr === todayStr);  
+            const isTargetDate = (invDateStr === targetDateStr);  
   
             totalCash += inv.calculatedCash;  
             totalWallet += inv.calculatedWallet;  
             totalSales += (Number(inv.total) || 0);  
   
-            if (isToday) {  
+            if (isTargetDate) {  
                 todayCash += inv.calculatedCash;  
                 todayWallet += inv.calculatedWallet;  
                 todaySales += (Number(inv.total) || 0);  
@@ -471,7 +488,7 @@
             let rawRemaining = Number(inv.remaining) || 0;  
             if (rawRemaining > 0) {  
                 totalRemaining += rawRemaining;  
-                if (isToday) {  
+                if (isTargetDate) {  
                     todayRemaining += rawRemaining;  
                 }  
             }  
@@ -488,6 +505,18 @@
         document.getElementById('todayTotalSales').innerText = todaySales.toFixed(1);  
     }  
   
+    // معالجة التغيير في خانة اختيار التاريخ
+    window.handleDateFilterChange = () => {
+        calculateStats();
+        const filterInput = document.getElementById('dateFilterInput').value;
+        if (filterInput) {
+            const filtered = allInvoices.filter(inv => parseInvoiceDate(inv) === filterInput);
+            renderInvoices(filtered);
+        } else {
+            renderInvoices(allInvoices);
+        }
+    };
+
     function renderInvoices(invoices) {  
         const container = document.getElementById('invoicesList');  
         if (invoices.length === 0) {  
@@ -517,15 +546,11 @@
                         <div>  
                             <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.85rem;">${inv.customerName || 'عميل نقدي'}</h6>  
                             <span class="detail-badge"><i class="far fa-clock"></i> ${shortDate} ${displayTime}</span>  
-                            <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.65rem;">${inv.paymentMethod || 'غير محدد'}</span>  
+                            <span class="badge ${methodBadgeColor} ms-1} style="font-size:0.65rem;">${inv.paymentMethod || 'غير محدد'}</span>  
                         </div>  
                         <div class="d-flex gap-1">  
                             <button class="btn btn-sm btn-outline-success" style="padding: 2px 6px; font-size:0.7rem;" onclick="triggerShare('${inv.id}')"><i class="fab fa-whatsapp"></i> شير</button>  
-                            <button class="btn btn-sm btn-outline-dark"
-style="padding: 2px 6px; font-size:0.7rem;"
-onclick="printInvoice('${inv.id}')">
-<i class="fas fa-print"></i> طباعة
-</button>
+                            <button class="btn btn-sm btn-outline-dark" style="padding: 2px 6px; font-size:0.7rem;" onclick="printInvoice('${inv.id}')"><i class="fas fa-print"></i> طباعة</button>  
                             <button class="btn btn-sm btn-outline-info text-dark" style="padding: 2px 6px; font-size:0.7rem;" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> الاصناف</button>  
                             <button class="btn btn-sm btn-outline-primary" style="padding: 2px 6px; font-size:0.7rem;" onclick="editInvoice('${inv.id}')"><i class="fas fa-edit"></i></button>  
                             <button class="btn btn-sm btn-outline-danger" style="padding: 2px 6px; font-size:0.7rem;" onclick="deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>  
@@ -560,7 +585,7 @@ onclick="printInvoice('${inv.id}')">
     }  
   
     document.getElementById('deleteAllCustomersBtn').onclick = async () => {  
-        const passwordCheck = prompt("🔒 تصفير النظام السيستم:\nالرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة:");  
+        const passwordCheck = prompt("🔒 تصفير النظام:\nالرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة:");  
         if (passwordCheck !== "الزيادي") return;  
         const finalConfirm = confirm("🛑 هل أنت متأكد للمرة الأخيرة؟ لا يمكن التراجع.");  
         if (!finalConfirm) return;  
@@ -582,7 +607,8 @@ onclick="printInvoice('${inv.id}')">
         cardElement.classList.add('active-filter');  
         currentFilterType = type;  
   
-        const todayStr = new Date().toLocaleDateString('en-CA');  
+        const filterInput = document.getElementById('dateFilterInput')?.value;
+        const todayStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');  
         let filtered = [];  
         let statusLabel = "";  
   
@@ -592,16 +618,16 @@ onclick="printInvoice('${inv.id}')">
   
             switch(type) {  
                 case 'today-cash':  
-                    statusLabel = "نقدي اليوم";  
+                    statusLabel = `نقدي يوم (${todayStr})`;  
                     return isToday && inv.calculatedCash > 0;  
                 case 'today-wallet':  
-                    statusLabel = "محفظة اليوم";  
+                    statusLabel = `محفظة يوم (${todayStr})`;  
                     return isToday && inv.calculatedWallet > 0;  
                 case 'today-remaining':  
-                    statusLabel = "آجل اليوم";  
+                    statusLabel = `آجل يوم (${todayStr})`;  
                     return isToday && Number(inv.remaining) > 0;  
                 case 'today-total':  
-                    statusLabel = "مبيعات اليوم";  
+                    statusLabel = `مبيعات يوم (${todayStr})`;  
                     return isToday;  
                 case 'all-cash':  
                     statusLabel = "كل النقدي";  
@@ -630,6 +656,8 @@ onclick="printInvoice('${inv.id}')">
         document.getElementById('filterStatusBar').style.display = "none";  
         currentFilterType = null;  
         document.getElementById('searchInput').value = "";  
+        document.getElementById('dateFilterInput').value = ""; 
+        calculateStats();
         renderInvoices(allInvoices);  
     };  
   
@@ -660,7 +688,6 @@ onclick="printInvoice('${inv.id}')">
         const originalDate = parseInvoiceDate(inv);  
         const displayTime = formatInvoiceTime(inv.time, inv.date);  
   
-        // تعديل تعبئة الداتا لتطابق فواتير الشير المعتمدة في السيستم  
         document.getElementById('recCustomer').innerText = inv.customerName || 'عميل نقدي';  
         document.getElementById('recDate').innerText = originalDate + " " + displayTime;  
         document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || 'غير محدد';  
@@ -668,7 +695,6 @@ onclick="printInvoice('${inv.id}')">
         document.getElementById('recPaid').innerText = (inv.calculatedCash + inv.calculatedWallet).toFixed(2);  
         document.getElementById('recOldBalance').innerText = Number(inv.previousBalance).toFixed(2);  
           
-        // إجمالي الحساب المتبقي الآجل الكلي للعميل  
         document.getElementById('recRemaining').innerText = (Number(inv.previousBalance) + Number(inv.remaining)).toFixed(2);  
   
         const tbody = document.getElementById('recItems');  
@@ -699,7 +725,6 @@ onclick="printInvoice('${inv.id}')">
         });  
     };  
   
-    // [تعديل الاحتفاظ بالتاريخ القديم]: عند التعديل، نرسل الداتا إلى شاشة الإدخال دون المساس بالتاريخ الأصلي في قاعدة البيانات  
     window.editInvoice = (id) => {   
         window.location.href = `sales-invoice.html?edit=${id}`;   
     };  
@@ -785,28 +810,13 @@ onclick="printInvoice('${inv.id}')">
     const originalDate = parseInvoiceDate(inv);
     const displayTime = formatInvoiceTime(inv.time, inv.date);
 
-    document.getElementById('recCustomer').innerText =
-        inv.customerName || 'عميل نقدي';
-
-    document.getElementById('recDate').innerText =
-        originalDate + " " + displayTime;
-
-    document.getElementById('recPaymentMethod').innerText =
-        inv.paymentMethod || 'غير محدد';
-
-    document.getElementById('recTotal').innerText =
-        Number(inv.total || 0).toFixed(2);
-
-    document.getElementById('recPaid').innerText =
-        (Number(inv.calculatedCash || 0) +
-        Number(inv.calculatedWallet || 0)).toFixed(2);
-
-    document.getElementById('recOldBalance').innerText =
-        Number(inv.previousBalance || 0).toFixed(2);
-
-    document.getElementById('recRemaining').innerText =
-        (Number(inv.previousBalance || 0) +
-        Number(inv.remaining || 0)).toFixed(2);
+    document.getElementById('recCustomer').innerText = inv.customerName || 'عميل نقدي';
+    document.getElementById('recDate').innerText = originalDate + " " + displayTime;
+    document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || 'غير محدد';
+    document.getElementById('recTotal').innerText = Number(inv.total || 0).toFixed(2);
+    document.getElementById('recPaid').innerText = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);
+    document.getElementById('recOldBalance').innerText = Number(inv.previousBalance || 0).toFixed(2);
+    document.getElementById('recRemaining').innerText = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);
 
     document.getElementById('recItems').innerHTML =
         (inv.items || []).map(item => `
@@ -825,42 +835,30 @@ onclick="printInvoice('${inv.id}')">
         useCORS: true,
         backgroundColor: "#ffffff"
     }).then(canvas => {
-
         const imageUrl = canvas.toDataURL("image/png");
-
         const win = window.open("", "_blank");
-
         win.document.write(`
             <html>
             <head>
                 <title>طباعة الفاتورة</title>
                 <style>
-                    body{
-                        margin:0;
-                        text-align:center;
-                        background:#eee;
-                    }
-                    img{
-                        max-width:100%;
-                    }
+                    body{margin:0; text-align:center; background:#eee;}
+                    img{max-width:100%;}
                 </style>
             </head>
             <body>
                 <img src="${imageUrl}">
                 <script>
                     window.onload = function(){
-                        setTimeout(()=>{
-                            window.print();
-                        },500);
+                        setTimeout(()=>{ window.print(); },500);
                     }
                 <\/script>
             </body>
             </html>
         `);
-
         win.document.close();
     });
 };
     loadData();  
 </script>  </body>  
-</html>  
+</html>
