@@ -222,11 +222,22 @@
         <div class="row g-2 mb-3">
             <div class="col-7 position-relative">
                 <label class="sub-lbl"><i class="fas fa-user me-1"></i> العميل</label>
-                <input type="text" id="customerSearch" class="form-control" placeholder="ابحث عن عميل..." oninput="searchCustomer(this)" autocomplete="off">
+                <div class="d-flex gap-1">
+                    <input type="text" id="customerSearch" class="form-control" placeholder="ابحث عن عميل..." oninput="searchCustomer(this)" autocomplete="off">
+                    <input type="number" id="newCustomerInitialBalance" class="form-control d-none" placeholder="رصيد افتتاحي" style="width: 120px;">
+                </div>
                 <input type="hidden" id="customerSelect" value="">
                 <div id="customerResults" class="search-results"></div>
+                
+                <button type="button" id="btnAddNewCustomer" class="btn btn-sm btn-success mt-2 w-100 d-none" onclick="saveOrUpdateCustomerDirectly()">
+                    <i class="fas fa-save me-1"></i> حفظ بيانات العميل بالرصيد الافتتاحي
+                </button>
+
                 <div id="customerBalanceInfo">
-                    <i class="fas fa-wallet me-1"></i> الرصيد الحالي: <span id="curBalanceVal">0.00</span> ج.م
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span><i class="fas fa-wallet me-1"></i> الرصيد الحالي: <span id="curBalanceVal">0.00</span> ج.م</span>
+                        <button type="button" id="btnTriggerEditBalance" class="btn btn-sm p-0 text-primary fw-bold" style="font-size: 0.75rem; text-decoration: underline;" onclick="enableBalanceEditing()">تعديل الرصيد الافتتاحي</button>
+                    </div>
                 </div>
             </div>
             <div class="col-5">
@@ -503,26 +514,46 @@
         const term = input.value.toLowerCase().trim();
         const resultsDiv = document.getElementById('customerResults');
         const balanceDiv = document.getElementById('customerBalanceInfo');
+        const initialBalanceInput = document.getElementById('newCustomerInitialBalance');
+        const btnSaveCustomer = document.getElementById('btnAddNewCustomer');
         
         if (term.length < 1) { 
             resultsDiv.style.display = 'none'; 
             balanceDiv.style.display = 'none';
+            initialBalanceInput.classList.add('d-none');
+            btnSaveCustomer.classList.add('d-none');
+            document.getElementById('customerSelect').value = "";
             return; 
         }
 
         const filtered = customers.filter(c => c.name.toLowerCase().includes(term));
-        resultsDiv.innerHTML = filtered.map(c => `
-            <div class="search-item" onclick="selectCustomer('${c.id}', '${c.name}', ${c.initialBalance || 0})">
-                <b>${c.name}</b>
-            </div>
-        `).join('');
-        resultsDiv.style.display = filtered.length > 0 ? 'block' : 'none';
+        
+        if (filtered.length > 0) {
+            resultsDiv.innerHTML = filtered.map(c => `
+                <div class="search-item" onclick="selectCustomer('${c.id}', '${c.name}', ${c.initialBalance || 0})">
+                    <b>${c.name}</b>
+                </div>
+            `).join('');
+            resultsDiv.style.display = 'block';
+            initialBalanceInput.classList.add('d-none');
+            btnSaveCustomer.classList.add('d-none');
+        } else {
+            resultsDiv.style.display = 'none';
+            initialBalanceInput.classList.remove('d-none');
+            btnSaveCustomer.classList.remove('d-none');
+            btnSaveCustomer.innerHTML = '<i class="fas fa-user-plus me-1"></i> حفظ كعميل جديد بالرصيد الافتتاحي';
+            document.getElementById('customerSelect').value = ""; 
+            balanceDiv.style.display = 'none';
+        }
     };
 
     window.selectCustomer = async (id, name, initialBalance) => {
         document.getElementById('customerSearch').value = name;
         document.getElementById('customerSelect').value = id;
         document.getElementById('customerResults').style.display = 'none';
+        
+        document.getElementById('newCustomerInitialBalance').classList.add('d-none');
+        document.getElementById('btnAddNewCustomer').classList.add('d-none');
         
         const balanceDiv = document.getElementById('customerBalanceInfo');
         const balanceSpan = document.getElementById('curBalanceVal');
@@ -534,6 +565,91 @@
         showBalance(realDebt);
         isChanged = true;
         calc();
+    };
+
+    window.enableBalanceEditing = () => {
+        const customerId = document.getElementById('customerSelect').value;
+        if (!customerId) return;
+
+        const cust = customers.find(c => c.id === customerId);
+        if (cust) {
+            const balanceInput = document.getElementById('newCustomerInitialBalance');
+            const btnSaveCustomer = document.getElementById('btnAddNewCustomer');
+
+            balanceInput.value = cust.initialBalance || 0; 
+            balanceInput.classList.remove('d-none'); 
+            
+            btnSaveCustomer.classList.remove('d-none'); 
+            btnSaveCustomer.innerHTML = '<i class="fas fa-user-edit me-1"></i> تحديث الرصيد الافتتاحي للعميل الحالي';
+        }
+    };
+
+    window.saveOrUpdateCustomerDirectly = async () => {
+        const idInput = document.getElementById('customerSelect');
+        const nameInput = document.getElementById('customerSearch');
+        const balanceInput = document.getElementById('newCustomerInitialBalance');
+        const btnSaveCustomer = document.getElementById('btnAddNewCustomer');
+        
+        const customerId = idInput.value;
+        const customerName = nameInput.value.trim();
+        const newInitialBalance = parseFloat(balanceInput.value) || 0;
+
+        if (!customerName) {
+            alert("برجاء تحديد أو كتابة اسم العميل أولاً");
+            return;
+        }
+
+        try {
+            btnSaveCustomer.disabled = true;
+            btnSaveCustomer.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ والتحديث...';
+
+            if (!customerId) {
+                const docRef = await addDoc(collection(db, "customers"), {
+                    name: customerName,
+                    initialBalance: newInitialBalance,
+                    createdAt: serverTimestamp()
+                });
+
+                const newCustomerObj = { id: docRef.id, name: customerName, initialBalance: newInitialBalance };
+                customers.push(newCustomerObj);
+                idInput.value = docRef.id;
+
+                currentFetchedOldBalance = newInitialBalance;
+                showBalance(newInitialBalance);
+                alert(`تم حفظ العميل الجديد "${customerName}" بنجاح.`);
+            } else {
+                const customerRef = doc(db, "customers", customerId);
+                await updateDoc(customerRef, {
+                    initialBalance: newInitialBalance
+                });
+
+                const custIndex = customers.findIndex(c => c.id === customerId);
+                if (custIndex !== -1) {
+                    customers[custIndex].initialBalance = newInitialBalance;
+                }
+
+                const updatedRealBalance = await getRealBalance(customerId, newInitialBalance);
+                currentFetchedOldBalance = updatedRealBalance;
+                showBalance(updatedRealBalance);
+                alert(`تم تحديث الرصيد الافتتاحي للعميل "${customerName}" بنجاح.`);
+            }
+
+            localStorage.setItem(CACHE_KEYS.customers, JSON.stringify(customers));
+
+            balanceInput.classList.add('d-none');
+            btnSaveCustomer.classList.add('d-none');
+            
+            isChanged = true;
+            calc();
+
+        } catch (error) {
+            console.error("حدث خطأ أثناء معالجة بيانات العميل: ", error);
+            alert("حدث خطأ، برجاء المحاولة مرة أخرى");
+        } catch (e) {
+            console.error(e);
+        } finally {
+            btnSaveCustomer.disabled = false;
+        }
     };
 
     function showBalance(balance) {
