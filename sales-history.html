@@ -63,7 +63,7 @@
         .filter-status-bar { display: none; background: #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; align-items: center; justify-content: space-between; }  
         .danger-zone-card { background: #fff5f5; border: 1px dashed #feb2b2; border-radius: 10px; padding: 12px; margin-bottom: 12px; }  
         .admin-notes-box { background: #fffdf5; border: 1px solid #fbe9a7; border-radius: 6px; padding: 8px 10px; font-size: 0.8rem; font-weight: 700; color: #b7791f; margin-top: 8px; border-right: 4px solid #dd9c3c; }  
-    </style>
+    </style>  
 </head>  
 <body>  
 
@@ -175,7 +175,6 @@
 
 </div>  
 
-<!-- مودال الشير عبر الواتساب (ممسوح منه الملاحظات والعميل) -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">  
     <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: 14px; text-align: center; font-family: 'Cairo';">  
         <div style="width: 50px; height: 50px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">  
@@ -190,7 +189,6 @@
     </div>  
 </div>  
 
-<!-- الحاوية الوهمية لطباعة الريسيت الحراري (ممسوح منها كلمة الملاحظات رسمياً) -->
 <div id="thermalReceiptContainer" style="position: absolute; left: -9999px; top: -9999px;">  
     <div id="thermalReceipt" style="width: 380px; background: #fff; padding: 25px 20px; font-family: 'Cairo'; direction: rtl; color: #000;">  
         <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 10px;">  
@@ -231,7 +229,7 @@
 
 <script type="module">  
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";  
-    import { getFirestore, collection, getDocs, query, orderBy, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
+    import { getFirestore, collection, getDocs, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
   
     const firebaseConfig = {  
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",  
@@ -409,69 +407,56 @@
     };  
   
     window.showModificationDetails = (invId) => {  
-    const inv = allInvoices.find(i => i.id === invId);  
-    if (!inv) return;  
-      
-    let report = `📝 تقرير التعديلات الدقيق للفاتورة:\n`;  
-    let index = 1;  
-
-    // 1. فحص تعديل التاريخ
-    if (inv.originalDate && inv.date && inv.originalDate !== inv.date) {  
-        report += `${index}- 📅 تعديل التاريخ: من (${inv.originalDate}) إلى (${inv.date})\n`;  
-        index++;  
-    }  
-
-    // تحضير قوائم الأصناف للمقارنة
-    const currentItems = inv.items || [];
-    const originalItems = inv.originalItems || []; // تأكد أن السيستم يرفع المجموعات القديمة هنا عند التعديل
-
-    // 2. فحص الأصناف الحالية (تعديل كمية/سعر أو أصناف مضافة جديدة)
-    currentItems.forEach(item => {
-        // البحث عن الصنف في الفاتورة الأصلية
-        const origItem = originalItems.find(oi => oi.name === item.name);
-
-        if (origItem) {
-            // أ) الصنف موجود لكن تعدلت كميته
-            if (Number(origItem.qty) !== Number(item.qty)) {
-                report += `${index}- 🔢 تعديل كمية [${item.name}]: كانت (${origItem.qty}) أصبحت (${item.qty})\n`;
-                index++;
-            }
-            // ب) الصنف موجود لكن تعدل سعره
-            if (Number(origItem.price) !== Number(item.price)) {
-                report += `${index}- 💰 تعديل سعر [${item.name}]: كان (${Number(origItem.price).toFixed(2)}) أصبح (${Number(item.price).toFixed(2)})\n`;
-                index++;
-            }
-        } else {
-            // ج) صنف جديد تماماً لم يكن موجوداً في الأصل
-            report += `${index}- ➕ صنف مُضاف جديد: [${item.name}] بكمية (${item.qty}) وسعر (${Number(item.price).toFixed(2)})\n`;
-            index++;
-        }
-    });
-
-    // 3. فحص الأصناف المحذوفة (كانت موجودة في الأصل واختفت الآن)
-    originalItems.forEach(origItem => {
-        const stillExists = currentItems.some(ci => ci.name === origItem.name);
-        if (!stillExists) {
-            report += `${index}- ❌ صنف تم حذفه تماماً: [${origItem.name}] (كان بكمية: ${origItem.qty} وسعر: ${Number(origItem.price).toFixed(2)})\n`;
-            index++;
-        }
-    });
-
-    // 4. حالة احتياطية إذا لم يتوفر مصفوفة مقارنة تفصيلية
-    if (index === 1 && (inv.originalDate || inv.notes === "معدلة")) {  
-        report += `١- 📊 تم إعادة احتساب المبالغ المالية، نسب الخصم، أو طريقة السداد لتتوافق مع الوضع الحالي.\n`;  
-        
-        // إظهار الملاحظة المكتوبة يدوياً إن وجدت
-        if(inv.notes && inv.notes !== "معدلة") {
-            report += `✍️ ملحوظة مسجلة: ${inv.notes}\n`;
-        }
-    } else if (index === 1) {
-        report = `✅ لا توجد اختلافات دقيقة مخزنة، الفاتورة مطابقة للحسابات الحالية.`;
-    }  
-
-    alert(report);  
-};
-
+        const inv = allInvoices.find(i => i.id === invId);  
+        if (!inv) return;  
+          
+        let report = `📝 تقرير التعديلات الدقيق للفاتورة:\n`;  
+        let index = 1;  
+  
+        if (inv.originalDate && inv.date && inv.originalDate !== inv.date) {  
+            report += `${index}- 📅 تعديل التاريخ: من (${inv.originalDate}) إلى (${inv.date})\n`;  
+            index++;  
+        }  
+  
+        const currentItems = inv.items || [];  
+        const originalItems = inv.originalItems || [];  
+  
+        currentItems.forEach(item => {  
+            const origItem = originalItems.find(oi => oi.name === item.name);  
+            if (origItem) {  
+                if (Number(origItem.qty) !== Number(item.qty)) {  
+                    report += `${index}- 🔢 تعديل كمية [${item.name}]: كانت (${origItem.qty}) أصبحت (${item.qty})\n`;  
+                    index++;  
+                }  
+                if (Number(origItem.price) !== Number(item.price)) {  
+                    report += `${index}- 💰 تعديل سعر [${item.name}]: كان (${Number(origItem.price).toFixed(2)}) أصبح (${Number(item.price).toFixed(2)})\n`;  
+                    index++;  
+                }  
+            } else {  
+                report += `${index}- ➕ صنف مُضاف جديد: [${item.name}] بكمية (${item.qty}) وسعر (${Number(item.price).toFixed(2)})\n`;  
+                index++;  
+            }  
+        });  
+  
+        originalItems.forEach(origItem => {  
+            const stillExists = currentItems.some(ci => ci.name === origItem.name);  
+            if (!stillExists) {  
+                report += `${index}- ❌ صنف تم حذفه تماماً: [${origItem.name}] (كان بكمية: ${origItem.qty} وسعر: ${Number(origItem.price).toFixed(2)})\n`;  
+                index++;  
+            }  
+        });  
+  
+        if (index === 1 && (inv.originalDate || inv.notes === "معدلة")) {  
+            report += `١- 📊 تم إعادة احتساب الحسابات المالية وطريقة السداد لتتوافق مع الوضع الحالي.\n`;  
+            if(inv.notes && inv.notes !== "معدلة") {  
+                report += `✍️ ملحوظة مسجلة: ${inv.notes}\n`;  
+            }  
+        } else if (index === 1) {  
+            report = `✅ لا توجد اختلافات دقيقة مخزنة، الفاتورة مطابقة للحسابات الحالية.`;  
+        }  
+  
+        alert(report);  
+    };  
   
     function renderInvoices(invoices) {  
         const container = document.getElementById('invoicesList');  
@@ -511,10 +496,7 @@
                             <button class="btn btn-sm btn-outline-success" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="triggerShare('${inv.id}')"><i class="fab fa-whatsapp"></i> شير</button>  
                             <button class="btn btn-sm btn-outline-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="printInvoice('${inv.id}')"><i class="fas fa-print"></i> طباعة</button>  
                             <button class="btn btn-sm btn-outline-info text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> الاصناف</button>  
-                            
-                            <!-- زر الملاحظات المضاف لفتح حقل الأدمن المكتوم -->
                             <button class="btn btn-sm btn-outline-warning text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleNotes('${inv.id}')"><i class="fas fa-sticky-note"></i> الملاحظة</button>  
-                            
                             <button class="btn btn-sm btn-outline-primary" style="padding: 2px 6px; font-size:0.75rem;" onclick="editInvoice('${inv.id}')"><i class="fas fa-edit"></i></button>  
                             <button class="btn btn-sm btn-outline-danger" style="padding: 2px 6px; font-size:0.75rem;" onclick="deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>  
                         </div>  
@@ -527,15 +509,13 @@
                         <div class="fin-box text-secondary">حساب سابق كان كام <span>${(Number(inv.previousBalance) || 0).toFixed(2)}</span></div>  
                     </div>  
   
-                    <!-- صندوق الملحوظة الإدارية للأدمن (مستقل تماماً الآن) -->
                     <div id="notes_box_${inv.id}" style="display:none;">  
                         <div class="admin-notes-box">  
                             <i class="fas fa-user-shield me-1"></i> <b>ملحوظة النظام الإدارية:</b>   
                             ${inv.notes ? inv.notes : '<span class="text-muted font-monospace">لا توجد ملاحظات مسجلة على هذه الفاتورة.</span>'}  
                         </div>  
                     </div>  
-
-                    <!-- صندوق تفاصيل الأصناف -->
+  
                     <div id="details_box_${inv.id}" style="display:none;">  
                         <table class="items-preview-table">  
                             <thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>  
@@ -577,196 +557,4 @@
         cardElement.classList.add('active-filter');  
         currentFilterType = type;  
   
-        const filterInput = document.getElementById('dateFilterInput')?.value;  
-        const todayStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');  
-        let filtered = []; let statusLabel = "";  
-  
-        filtered = allInvoices.filter(inv => {  
-            const invDateStr = parseInvoiceDate(inv);  
-            const isToday = (invDateStr === todayStr);  
-  
-            switch(type) {  
-                case 'today-cash': statusLabel = `نقدي يوم (${todayStr})`; return isToday && inv.calculatedCash > 0;  
-                case 'today-wallet': statusLabel = `محفظة يوم (${todayStr})`; return isToday && inv.calculatedWallet > 0;  
-                case 'today-remaining': statusLabel = `آجل يوم (${todayStr})`; return isToday && Number(inv.remaining) > 0;  
-                case 'today-total': statusLabel = `مبيعات يوم (${todayStr})`; return isToday;  
-                case 'all-cash': statusLabel = "كل النقدي"; return inv.calculatedCash > 0;  
-                case 'all-wallet': statusLabel = "كل المحفظة"; return inv.calculatedWallet > 0;  
-                case 'all-remaining': statusLabel = "كل الآجل المتبقي"; return Number(inv.remaining) > 0;  
-                case 'all-total': statusLabel = "كل مبيعات السيستم"; return true;  
-                default: return true;  
-            }  
-        });  
-  
-        document.getElementById('filterStatusText').innerText = `${statusLabel} (${filtered.length} فاتورة)`;  
-        document.getElementById('filterStatusBar').style.display = "flex";  
-        renderInvoices(filtered);  
-    };  
-  
-    window.resetStatFilter = () => {  
-        document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active-filter'));  
-        document.getElementById('filterStatusBar').style.display = "none";  
-        currentFilterType = null;  
-        document.getElementById('searchInput').value = "";  
-        document.getElementById('dateFilterInput').value = "";   
-        calculateStats();  
-        renderInvoices(allInvoices);  
-    };  
-  
-    window.filterInvoices = () => {  
-        const query = document.getElementById('searchInput').value.toLowerCase().trim();  
-        if(!query) { if(currentFilterType) return; renderInvoices(allInvoices); return; }  
-        const filtered = allInvoices.filter(inv =>   
-            (inv.customerName && inv.customerName.toLowerCase().includes(query)) ||   
-            (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(query))  
-        );  
-        renderInvoices(filtered);  
-    };  
-  
-    window.toggleDetails = (id) => {  
-        const element = document.getElementById(`details_box_${id}`);  
-        element.style.display = (element.style.display === "none") ? "block" : "none";  
-    };  
-
-    // دالة فتح وإغلاق الملاحظات الجديدة التابعة للزر الجديد
-    window.toggleNotes = (id) => {  
-        const element = document.getElementById(`notes_box_${id}`);  
-        element.style.display = (element.style.display === "none") ? "block" : "none";  
-    };  
-  
-    window.triggerShare = (id) => {  
-        const inv = allInvoices.find(i => i.id === id);  
-        if(!inv) return;  
-        activeShareData = inv;  
-  
-        const originalDate = parseInvoiceDate(inv);  
-        const displayTime = formatInvoiceTime(inv.time, inv.date);  
-  
-        document.getElementById('recCustomer').innerText = inv.customerName || 'عميل نقدي';  
-        document.getElementById('recDate').innerText = originalDate + " " + displayTime;  
-        document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || 'غير محدد';  
-        document.getElementById('recTotal').innerText = Number(inv.total).toFixed(2);  
-        document.getElementById('recPaid').innerText = (inv.calculatedCash + inv.calculatedWallet).toFixed(2);  
-        document.getElementById('recOldBalance').innerText = Number(inv.previousBalance).toFixed(2);  
-        document.getElementById('recRemaining').innerText = (Number(inv.previousBalance) + Number(inv.remaining)).toFixed(2);  
-  
-        const tbody = document.getElementById('recItems');  
-        tbody.innerHTML = (inv.items || []).map(item => `  
-            <tr style="border-bottom: 1px solid #eee;">  
-                <td style="padding: 5px 4px; font-weight: 600;">${item.name}</td>  
-                <td style="text-align: center; padding: 5px 4px;">${item.qty}</td>  
-                <td style="text-align: left; padding: 5px 4px;">${Number(item.price).toFixed(2)}</td>  
-                <td style="text-align: left; padding: 5px 4px; font-weight: 600;">${(Number(item.qty) * Number(item.price)).toFixed(2)}</td>  
-            </tr>  
-        `).join('');  
-  
-        document.getElementById('shareModal').style.display = 'flex';  
-    };  
-  
-    document.getElementById('confirmShareBtn').onclick = () => {  
-        if(!activeShareData) return;  
-        const receipt = document.getElementById('thermalReceipt');  
-        html2canvas(receipt, { scale: 2, useCORS: true }).then(canvas => {  
-            canvas.toBlob(blob => {  
-                const file = new File([blob], `invoice_${activeShareData.id}.png`, { type: 'image/png' });  
-                if (navigator.share) {  
-                    navigator.share({ files: [file], title: 'فاتورة مبيعات', text: `شركة الزيادي` })  
-                    .then(() => document.getElementById('shareModal').style.display = 'none')  
-                    .catch(err => console.log(err));  
-                } else { alert("المشاركة غير مدعومة بجهازك"); }  
-            }, 'image/png');  
-        });  
-    };  
-  
-    window.editInvoice = (id) => {   
-        window.location.href = `sales-invoice.html?edit=${id}&allowDateEdit=true`;   
-    };  
-  
-    window.deleteInvoice = async (id) => {  
-        if (!confirm("هل متأكد من حذف الفاتورة؟")) return;  
-        try {  
-            await deleteDoc(doc(db, "invoices", id));  
-            alert("تم الحذف بنجاح");  
-            location.reload();  
-        } catch (e) { alert("حدث خطأ"); }  
-    };  
-  
-    document.getElementById('exportExcelBtn').onclick = () => {  
-        if (allInvoices.length === 0) return;  
-        let customRows = [];  
-  
-        allInvoices.forEach(inv => {  
-            const invoiceDate = parseInvoiceDate(inv);  
-            const clientName = inv.customerName || "عميل نقدي";  
-              
-            if (inv.calculatedCash > 0) {  
-                customRows.push({ "التاريخ": invoiceDate, "الحركه": "سداد منه نقدي", "اسم العميل": clientName, "البيان": "سداد نقدي", "عدد جركن": "", "عدد كرتونه": 1, "سعر جركن": "", "سعر الكرتونه": inv.calculatedCash });  
-            }  
-            if (inv.calculatedWallet > 0) {  
-                customRows.push({ "التاريخ": invoiceDate, "الحركه": "سداد منه محفظة", "اسم العميل": clientName, "البيان": "سداد نقدي", "عدد جركن": "", "عدد كرتونه": 1, "سعر جركن": "", "سعر الكرتونه": inv.calculatedWallet });  
-            }  
-            if (inv.items && inv.items.length > 0) {  
-                inv.items.forEach(item => {  
-                    const nameLower = item.name.toLowerCase();  
-                    let qtyJarkan = ""; let qtyCarton = ""; let priceJarkan = ""; let priceCarton = "";  
-                    if (nameLower.includes("جركن") || nameLower.includes("جالون") || nameLower.includes("جركان")) { qtyJarkan = item.qty || ""; priceJarkan = item.price || ""; }  
-                    else { qtyCarton = item.qty || ""; priceCarton = item.price || ""; }  
-                    customRows.push({ "التاريخ": invoiceDate, "الحركه": "بيع", "اسم العميل": clientName, "البيان": item.name, "عدد جركن": qtyJarkan, "عدد كرتونه": qtyCarton, "سعر جركن": priceJarkan, "سعر الكرتونه": priceCarton });  
-                });  
-            }  
-        });  
-  
-        const worksheet = XLSX.utils.json_to_sheet(customRows);  
-        const workbook = XLSX.utils.book_new();  
-        XLSX.utils.book_append_sheet(workbook, worksheet, "كشف الحركة");  
-        worksheet['!dir'] = "rtl";  
-        XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);  
-    };  
-  
-    window.printInvoice = (id) => {  
-        const inv = allInvoices.find(i => i.id === id);  
-        if (!inv) return;  
-        const originalDate = parseInvoiceDate(inv);  
-        const displayTime = formatInvoiceTime(inv.time, inv.date);  
-  
-        document.getElementById('recCustomer').innerText = inv.customerName || 'عميل نقدي';  
-        document.getElementById('recDate').innerText = originalDate + " " + displayTime;  
-        document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || 'غير محدد';  
-        document.getElementById('recTotal').innerText = Number(inv.total || 0).toFixed(2);  
-        document.getElementById('recPaid').innerText = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);  
-        document.getElementById('recOldBalance').innerText = Number(inv.previousBalance || 0).toFixed(2);  
-        document.getElementById('recRemaining').innerText = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);  
-  
-        document.getElementById('recItems').innerHTML = (inv.items || []).map(item => `  
-            <tr>  
-                <td>${item.name}</td>  
-                <td style="text-align:center">${item.qty}</td>  
-                <td style="text-align:left">${Number(item.price||0).toFixed(2)}</td>  
-                <td style="text-align:left">${(Number(item.qty||0)*Number(item.price||0)).toFixed(2)}</td>  
-            </tr>  
-        `).join('');  
-  
-        const receipt = document.getElementById('thermalReceipt');  
-        html2canvas(receipt, { scale: 3, useCORS: true, backgroundColor: "#ffffff" }).then(canvas => {  
-            const imageUrl = canvas.toDataURL("image/png");  
-            const win = window.open("", "_blank");  
-            win.document.write(`  
-                <html>  
-                <head>  
-                    <title>طباعة الفاتورة</title>  
-                    <style> body{margin:0; text-align:center; background:#eee; font-family:'Cairo';} img{max-width:100%;} </style>  
-                </head>  
-                <body>  
-                    <img src="${imageUrl}">  
-                    <script> window.onload = function(){ setTimeout(()=>{ window.print(); },500); } <\/script>  
-                </body>  
-                </html>  
-            `);  
-            win.document.close();  
-        });  
-    };  
-  
-    loadData();  
-</script>  
-</body>  
-</html>
+        const filterInput = document.getElementById('dateFilterInput
