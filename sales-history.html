@@ -409,32 +409,69 @@
     };  
   
     window.showModificationDetails = (invId) => {  
-        const inv = allInvoices.find(i => i.id === invId);  
-        if (!inv) return;  
-          
-        let report = `ماتم تعديله:\n`;  
-        let index = 1;  
-  
-        if (inv.originalDate && inv.date && inv.originalDate !== inv.date) {  
-            report += `${index}- تعديل التاريخ من ${inv.originalDate} لكذا ${inv.date}\n`;  
-            index++;  
-        }  
-  
-        if (inv.items && Array.isArray(inv.items)) {  
-            inv.items.forEach(item => {  
-                if (item.originalQty !== undefined && item.qty !== undefined && Number(item.originalQty) !== Number(item.qty)) {  
-                    report += `${index}- تعديل عدد ${item.name} من ${item.originalQty} لكذا ${item.qty}\n`;  
-                    index++;  
-                }  
-            });  
-        }  
-  
-        if (index === 1) {  
-            report = `ماتم تعديله:\n١- تم تعديل الحسابات والمبالغ المالية للفاتورة لتتطابق مع الوضع الحالي.`;  
-        }  
-  
-        alert(report);  
-    };  
+    const inv = allInvoices.find(i => i.id === invId);  
+    if (!inv) return;  
+      
+    let report = `📝 تقرير التعديلات الدقيق للفاتورة:\n`;  
+    let index = 1;  
+
+    // 1. فحص تعديل التاريخ
+    if (inv.originalDate && inv.date && inv.originalDate !== inv.date) {  
+        report += `${index}- 📅 تعديل التاريخ: من (${inv.originalDate}) إلى (${inv.date})\n`;  
+        index++;  
+    }  
+
+    // تحضير قوائم الأصناف للمقارنة
+    const currentItems = inv.items || [];
+    const originalItems = inv.originalItems || []; // تأكد أن السيستم يرفع المجموعات القديمة هنا عند التعديل
+
+    // 2. فحص الأصناف الحالية (تعديل كمية/سعر أو أصناف مضافة جديدة)
+    currentItems.forEach(item => {
+        // البحث عن الصنف في الفاتورة الأصلية
+        const origItem = originalItems.find(oi => oi.name === item.name);
+
+        if (origItem) {
+            // أ) الصنف موجود لكن تعدلت كميته
+            if (Number(origItem.qty) !== Number(item.qty)) {
+                report += `${index}- 🔢 تعديل كمية [${item.name}]: كانت (${origItem.qty}) أصبحت (${item.qty})\n`;
+                index++;
+            }
+            // ب) الصنف موجود لكن تعدل سعره
+            if (Number(origItem.price) !== Number(item.price)) {
+                report += `${index}- 💰 تعديل سعر [${item.name}]: كان (${Number(origItem.price).toFixed(2)}) أصبح (${Number(item.price).toFixed(2)})\n`;
+                index++;
+            }
+        } else {
+            // ج) صنف جديد تماماً لم يكن موجوداً في الأصل
+            report += `${index}- ➕ صنف مُضاف جديد: [${item.name}] بكمية (${item.qty}) وسعر (${Number(item.price).toFixed(2)})\n`;
+            index++;
+        }
+    });
+
+    // 3. فحص الأصناف المحذوفة (كانت موجودة في الأصل واختفت الآن)
+    originalItems.forEach(origItem => {
+        const stillExists = currentItems.some(ci => ci.name === origItem.name);
+        if (!stillExists) {
+            report += `${index}- ❌ صنف تم حذفه تماماً: [${origItem.name}] (كان بكمية: ${origItem.qty} وسعر: ${Number(origItem.price).toFixed(2)})\n`;
+            index++;
+        }
+    });
+
+    // 4. حالة احتياطية إذا لم يتوفر مصفوفة مقارنة تفصيلية
+    if (index === 1 && (inv.originalDate || inv.notes === "معدلة")) {  
+        report += `١- 📊 تم إعادة احتساب المبالغ المالية، نسب الخصم، أو طريقة السداد لتتوافق مع الوضع الحالي.\n`;  
+        
+        // إظهار الملاحظة المكتوبة يدوياً إن وجدت
+        if(inv.notes && inv.notes !== "معدلة") {
+            report += `✍️ ملحوظة مسجلة: ${inv.notes}\n`;
+        }
+    } else if (index === 1) {
+        report = `✅ لا توجد اختلافات دقيقة مخزنة، الفاتورة مطابقة للحسابات الحالية.`;
+    }  
+
+    alert(report);  
+};
+
   
     function renderInvoices(invoices) {  
         const container = document.getElementById('invoicesList');  
