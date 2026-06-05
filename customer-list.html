@@ -73,7 +73,7 @@
             font-weight: 600;
         }
         
-        /* زر التحديث الجديد */
+        /* زر التحديث الذكي */
         .btn-refresh {
             background: #ffffff;
             border: none;
@@ -93,7 +93,7 @@
             background: #eaf2ee;
         }
         .spin {
-            animation: fast-spin 0.8s linear infinite;
+            animation: fast-spin 1s linear infinite;
         }
         @keyframes fast-spin {
             0% { transform: rotate(0deg); }
@@ -210,13 +210,13 @@
                 <a href="trashl.html" class="text-white"><i class="fas fa-trash-alt"></i></a>
             </div>
         </div>
-        <!-- منطقة البحث وزر التحديث -->
+        <!-- منطقة البحث وزر التحديث الذكي -->
         <div class="search-area-wrapper">
             <div class="search-box">
                 <i class="fas fa-search"></i>
                 <input type="text" id="searchInput" placeholder="ابحث باسم العميل أو رقم الهاتف..." oninput="filterCustomers()">
             </div>
-            <button class="btn-refresh" id="refreshBtn" onclick="manualRefreshData()" title="تحديث البيانات">
+            <button class="btn-refresh" id="refreshBtn" onclick="recalculateAndRefreshBalances()" title="تحديث وإعادة حساب الأرصدة فوراً">
                 <i class="fas fa-sync-alt fs-5" id="refreshIcon"></i>
             </button>
         </div>
@@ -264,7 +264,6 @@
         let unsubscribe = null;
 
         function listenToCustomers() {
-            // إلغاء الاستماع القديم إن وجد لتفادي تكرار العمليات
             if(unsubscribe) unsubscribe();
 
             const q = query(collection(db, "customers"));
@@ -285,29 +284,81 @@
                 });
 
                 renderCustomers(allCustomers);
-                stopRefreshAnimation();
             }, (error) => {
                 document.getElementById('customersContainer').innerHTML = `<div class="alert alert-danger mx-3 text-center">خطأ: ${error.message}</div>`;
-                stopRefreshAnimation();
             });
         }
 
-        // دالة التحديث اليدوي عند الضغط على الزر
-        window.manualRefreshData = () => {
+        /**
+         * 🌟 زر التحديث الخارجي الذكي:
+         * يقوم بجلب فواتير وسندات كل عميل على حدة، يعيد حساب المبالغ بدقة،
+         * ويقوم بتحديث حقل الحساب الحالي 'currentBalance' مباشرة في الفايربيز دون الحاجة لفتح الحساب يدويًا.
+         */
+        window.recalculateAndRefreshBalances = async () => {
             const icon = document.getElementById('refreshIcon');
-            icon.classList.add('spin'); // تشغيل حركة الدوران
+            if (icon.classList.contains('spin')) return; // منع النقرات المتكررة أثناء المعالجة
             
-            // تفريغ خانة البحث عند التحديث لإعادة عرض كل البيانات
-            document.getElementById('searchInput').value = ''; 
-            
-            // إعادة تشغيل المزامنة الفورية وقراءة الحقول الجديدة
-            listenToCustomers();
-        };
+            icon.classList.add('spin');
+            document.getElementById('searchInput').value = ''; // تفريغ صندوق البحث
 
-        function stopRefreshAnimation() {
-            const icon = document.getElementById('refreshIcon');
-            if(icon) icon.classList.remove('spin');
-        }
+            try {
+                // 1. جلب كافة العملاء الحاليين (غير المحذوفين)
+                const querySnapshot = await getDocs(collection(db, "customers"));
+                
+                // استخدام writeBatch لتسريع عمليات الحفظ الجماعي إلى السيرفر دفعة واحدة
+                const batch = writeBatch(db);
+                let needsUpdate = false;
+
+                for (const customerDoc of querySnapshot.docs) {
+                    const customerId = customerDoc.id;
+                    const customerData = customerDoc.data();
+                    
+                    if (customerData.isDeleted === true) continue;
+
+                    // 2. جلب الحركات المالية لكل عميل (الفواتير أو السندات)
+                    // 💡 ملاحظة: تأكد من تطابق اسم المجموعة الفرعية 'transactions' مع تطبيقك (مثل 'invoices' أو 'payments')
+                    const transactionsSnapshot = await getDocs(collection(db, `customers/${customerId}/transactions`));
+                    
+                    let computedBalance = 0;
+
+                    transactionsSnapshot.forEach(transDoc => {
+                        const trans = transDoc.data();
+                        // نقوم بجمع قيم المبيعات (مدين) وطرح الدفعات (دائن)
+                        // قم بتعديل الشروط والحقول بناءً على هيكلة البيانات لديك إذا دعت الحاجة
+                        const amount = Number(trans.amount || 0);
+                        if (trans.type === 'invoice' || trans.type === 'مبيعات' || trans.type === 'مدين') {
+                            computedBalance += amount;
+                        } else if (trans.type === 'payment' || trans.type === 'سند' || trans.type === 'دائن') {
+                            computedBalance -= amount;
+                        } else {
+                            // إذا كنت تخزن الصافي جاهزاً بالإشارات (+ أو -) داخل الحركات
+                            computedBalance += Number(trans.finalAmount || trans.netAmount || 0);
+                        }
+                    });
+
+                    // 3. مقارنة الحساب القديم بالجديد، وإذا وجد اختلاف نقوم بوضعه في الدفعة للتحديث
+                    if (Number(customerData.currentBalance || 0) !== computedBalance) {
+                        const customerRef = doc(db, "customers", customerId);
+                        batch.update(customerRef, { currentBalance: computedBalance });
+                        needsUpdate = true;
+                    }
+                }
+
+                // 4. تنفيذ التحديث الجماعي في الفايربيز
+                if (needsUpdate) {
+                    await batch.commit();
+                }
+                
+                // إعادة قراءة الحسابات والمزامنة الفورية للقائمة
+                listenToCustomers();
+                
+            } catch (error) {
+                console.error("خطأ أثناء تحديث الحسابات الشامل:", error);
+                alert("تعذر تحديث الحسابات تلقائياً: " + error.message);
+            } finally {
+                icon.classList.remove('spin');
+            }
+        };
 
         function updateSummaryCounters(list) {
             let totalDebts = 0;
@@ -409,7 +460,6 @@
             renderCustomers(filtered);
         }
 
-        // بدء التشغيل التلقائي عند فتح الصفحة
         listenToCustomers();
     </script>
 </body>
