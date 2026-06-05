@@ -710,25 +710,48 @@
         }
     };
 
-    window.exportToExcel = () => {
-        if (allVouchers.length === 0) {
-            alert("لا توجد بيانات لتصديرها.");
-            return;
-        }
-        const dataToExport = allVouchers.map(v => ({
-            'التاريخ': v.date,
-            'النوع': v.type,
-            'الطرف': v.partyType,
-            'الاسم': partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'غير معروف',
-            'البيان': v.note,
-            'المبلغ': v.amount
-        }));
+window.exportToExcel = () => {
+    if (allVouchers.length === 0) {
+        alert("لا توجد بيانات لتصديرها.");
+        return;
+    }
 
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "السندات");
-        XLSX.writeFile(workbook, `سندات_القبض_والصرف_${new Date().toISOString().split('T')[0]}.xlsx`);
-    };
+    const dataToExport = allVouchers.map(v => {
+
+        let movement = "";
+
+        if (v.partyType === "عميل" && v.type === "قبض") {
+            movement = "سداد منه نقدى";
+        } else if (v.partyType === "مورد" && v.type === "صرف") {
+            movement = "سداد له نقدى";
+        } else {
+            movement = v.type;
+        }
+
+        return {
+            "التاريخ": v.date,
+            "الحركة": movement,
+            "اسم العميل": partiesMap[v.partyId]
+                ? partiesMap[v.partyId].name
+                : "غير معروف",
+            "البيان": "سداد نقدى",
+            "عدد جركن": 0,
+            "عدد كرتونة": 1,
+            "سعر جركن": 0,
+            "سعر كرتونة": Number(v.amount || 0)
+        };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "الحركات");
+
+    XLSX.writeFile(
+        workbook,
+        `حركات_السداد_${new Date().toISOString().split('T')[0]}.xlsx`
+    );
+};
 </script>
 </body>
 </html>
