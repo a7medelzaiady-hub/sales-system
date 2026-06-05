@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>قائمة العملاء - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- مكتبة تحويل الصفحة إلى PDF احترافي -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
@@ -52,10 +53,6 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.08);
             transition: 0.2s;
             flex-grow: 1;
-        }
-        .search-box:focus-within {
-            border-color: #9dd8b9;
-            box-shadow: 0 0 0 4px rgba(255,255,255,0.15);
         }
         .search-box i {
             color: #0b5e3d;
@@ -142,7 +139,6 @@
             border-radius: 20px;
             padding: 18px;
             margin-bottom: 12px;
-            transition: 0.3s;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -184,7 +180,6 @@
             align-items: center;
             justify-content: center;
             text-decoration: none;
-            transition: 0.2s;
             font-size: 1rem;
             border: none;
         }
@@ -212,35 +207,11 @@
             font-size: 0.75rem;
         }
 
-        .report-header-print {
-            display: none;
-            text-align: center;
-            border-bottom: 3px double var(--accent);
-            padding-bottom: 12px;
-            margin-bottom: 25px;
-        }
-
+        /* تنسيقات الطباعة الافتراضية للمتصفح */
         @media print {
-            body {
-                background: #ffffff !important;
-                color: #000000 !important;
-            }
-            .header-section, .action-container, .btn-delete-all, .search-area-wrapper {
-                display: none !important;
-            }
-            .report-header-print {
-                display: block !important;
-            }
-            .summary-box {
-                border: 2px solid #000000 !important;
-                box-shadow: none !important;
-            }
-            .customer-card {
-                border: 1px solid #ccc !important;
-                border-right: 6px solid #0b5e3d !important;
-                box-shadow: none !important;
-                page-break-inside: avoid;
-            }
+            body { background: white !important; color: black !important; }
+            .header-section, .action-container, .btn-delete-all, .search-area-wrapper { display: none !important; }
+            .customer-card { border: 1px solid #ccc !important; border-right: 5px solid #0b5e3d !important; page-break-inside: avoid; }
         }
     </style>
 </head>
@@ -267,26 +238,21 @@
                 <i class="fas fa-search"></i>
                 <input type="text" id="searchInput" placeholder="ابحث باسم العميل أو رقم الهاتف..." oninput="filterCustomers()">
             </div>
-            <button class="btn-action-round" id="refreshBtn" onclick="syncAndRecalculateBalances()" title="تحديث تلقائي شامل لجميع الأرصدة">
+            <button class="btn-action-round" id="refreshBtn" onclick="syncAndRecalculateBalances()" title="تحديث تلقائي">
                 <i class="fas fa-sync-alt" id="refreshIcon"></i>
             </button>
-            <button class="btn-action-round btn-print-color" id="printBtn" onclick="window.print()" title="طباعة الورقة الحالية">
+            <button class="btn-action-round btn-print-color" id="printBtn" onclick="window.print()" title="طباعة">
                 <i class="fas fa-print"></i>
             </button>
-            <button class="btn-action-round btn-pdf-color" id="pdfBtn" onclick="downloadReportPDF()" title="تحميل الملف كـ PDF">
+            <button class="btn-action-round btn-pdf-color" id="pdfBtn" onclick="downloadReportPDF()" title="تحميل PDF">
                 <i class="fas fa-file-pdf"></i>
             </button>
         </div>
     </div>
 
+    <!-- حاوية العرض الرئيسية للمستخدم -->
     <div class="container py-3" id="printableArea">
-        
-        <div class="report-header-print" id="pdfHeader" style="display:none;">
-            <h2 style="color: #0b5e3d; font-weight: bold; margin-bottom: 5px; text-align: center;">شركة الزيادي للتجارة</h2>
-            <p style="font-size: 1rem; color: #555; margin: 0; text-align: center;">كشف الأرصدة الإجمالي والمركز المالي للعملاء</p>
-            <p style="color: #888; font-size:0.85rem; text-align: center;">تاريخ الاستخراج: <span id="printDate"></span></p>
-        </div>
-
+        <!-- قسم الإجماليات -->
         <div class="summary-box row mx-1 text-center g-2">
             <div class="col-4 border-end">
                 <div class="summary-title">مطلوب (عليهم)</div>
@@ -302,6 +268,7 @@
             </div>
         </div>
 
+        <!-- قائمة كروت العملاء -->
         <div id="customersContainer">
             <div class="text-center py-5" id="initialLoader">
                 <div class="spinner-border text-success"></div>
@@ -329,13 +296,9 @@
         let allCustomers = [];
         let unsubscribe = null;
 
-        document.getElementById('printDate').innerText = new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
         function listenToCustomers() {
             if(unsubscribe) unsubscribe();
-
             const q = query(collection(db, "customers"));
-            
             unsubscribe = onSnapshot(q, (snap) => {
                 allCustomers = [];
                 snap.forEach(d => {
@@ -344,13 +307,7 @@
                         allCustomers.push({ id: d.id, ...data });
                     }
                 });
-
-                allCustomers.sort((a, b) => {
-                    const balanceA = Number(a.currentBalance || 0);
-                    const balanceB = Number(b.currentBalance || 0);
-                    return balanceB - balanceA; 
-                });
-
+                allCustomers.sort((a, b) => Number(b.currentBalance || 0) - Number(a.currentBalance || 0));
                 renderCustomers(allCustomers);
             }, (error) => {
                 document.getElementById('customersContainer').innerHTML = `<div class="alert alert-danger mx-3 text-center">خطأ: ${error.message}</div>`;
@@ -360,10 +317,7 @@
         window.syncAndRecalculateBalances = async () => {
             const icon = document.getElementById('refreshIcon');
             if (icon.classList.contains('spin')) return; 
-            
             icon.classList.add('spin');
-            document.getElementById('searchInput').value = ''; 
-
             try {
                 const querySnapshot = await getDocs(collection(db, "customers"));
                 const batch = writeBatch(db);
@@ -376,7 +330,6 @@
 
                     let computedBalance = 0;
                     let processedAnySubCollection = false;
-
                     const targetSubCollections = ['invoices', 'transactions', 'sales', 'payments', 'orders'];
                     
                     for (const subName of targetSubCollections) {
@@ -387,178 +340,174 @@
                                 const tData = docItem.data();
                                 const val = Number(tData.amount || tData.value || tData.total || tData.price || tData.net || 0);
                                 const type = String(tData.type || tData.status || tData.category || '').toLowerCase();
-
-                                if (type.includes('invoice') || type.includes('بيع') || type.includes('مدين') || type.includes('فاتورة') || type.includes('plus')) {
-                                    computedBalance += val;
-                                } else if (type.includes('payment') || type.includes('سند') || type.includes('دائن') || type.includes('قبض') || type.includes('minus') || type.includes('سداد')) {
-                                    computedBalance -= val;
-                                } else {
-                                    computedBalance += Number(tData.finalAmount || tData.netAmount || 0);
-                                }
+                                if (type.includes('invoice') || type.includes('بيع') || type.includes('مدين') || type.includes('فاتورة')) computedBalance += val;
+                                else if (type.includes('payment') || type.includes('سند') || type.includes('دائن') || type.includes('قبض') || type.includes('سداد')) computedBalance -= val;
                             });
                         }
                     }
-
-                    if (!processedAnySubCollection && (customerData.invoices || customerData.transactions)) {
-                        const list = customerData.invoices || customerData.transactions || [];
-                        list.forEach(item => {
-                            const val = Number(item.amount || item.value || 0);
-                            const type = String(item.type || '').toLowerCase();
-                            if (type.includes('invoice') || type.includes('بيع') || type.includes('فاتورة')) {
-                                computedBalance += val;
-                            } else {
-                                computedBalance -= val;
-                            }
-                        });
-                        processedAnySubCollection = true;
-                    }
-
-                    if (!processedAnySubCollection) {
-                        computedBalance = Number(customerData.currentBalance || customerData.balance || customerData.totalBalance || 0);
-                    }
-
+                    if (!processedAnySubCollection) computedBalance = Number(customerData.currentBalance || 0);
                     if (Number(customerData.currentBalance || 0) !== computedBalance) {
-                        const customerRef = doc(db, "customers", customerId);
-                        batch.update(customerRef, { currentBalance: computedBalance });
+                        batch.update(doc(db, "customers", customerId), { currentBalance: computedBalance });
                         needsUpdate = true;
                     }
                 }
-
-                if (needsUpdate) {
-                    await batch.commit();
-                }
+                if (needsUpdate) await batch.commit();
                 listenToCustomers();
-            } catch (error) {
-                console.error(error);
-                listenToCustomers();
-            } finally {
-                icon.classList.remove('spin');
-            }
+            } catch (error) { console.error(error); listenToCustomers(); }
+            finally { icon.classList.remove('spin'); }
         };
 
         function updateSummaryCounters(list) {
-            let totalDebts = 0;
-            let totalCredits = 0;
-
+            let totalDebts = 0, totalCredits = 0;
             list.forEach(cust => {
                 const balance = Number(cust.currentBalance || 0);
-                if (balance > 0.01) {
-                    totalDebts += balance;
-                } else if (balance < -0.01) {
-                    totalCredits += Math.abs(balance);
-                }
+                if (balance > 0.01) totalDebts += balance;
+                else if (balance < -0.01) totalCredits += Math.abs(balance);
             });
-
             const netBalance = totalDebts - totalCredits;
-            const netElement = document.getElementById('netGeneralBalance');
-
-            document.getElementById('totalDebts').innerText = totalDebts.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ج.م';
-            document.getElementById('totalCredits').innerText = totalCredits.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ج.م';
-            
-            netElement.innerText = Math.abs(netBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ج.م';
-            if(netBalance > 0.01) {
-                netElement.className = "summary-amount text-debt";
-            } else if(netBalance < -0.01) {
-                netElement.className = "summary-amount text-clear";
-            } else {
-                netElement.className = "summary-amount text-dark";
-            }
+            document.getElementById('totalDebts').innerText = totalDebts.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
+            document.getElementById('totalCredits').innerText = totalCredits.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
+            document.getElementById('netGeneralBalance').innerText = Math.abs(netBalance).toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
         }
 
         window.renderCustomers = (list) => {
             updateSummaryCounters(list);
-
             const container = document.getElementById('customersContainer');
             if(list.length === 0) {
                 container.innerHTML = `<div class="text-center py-5 opacity-50 fw-bold">لا توجد نتائج</div>`;
                 return;
             }
-            
             container.innerHTML = list.map((cust, index) => {
                 const balance = Number(cust.currentBalance || 0); 
-                let statusText = 'خالص';
-                let cardClass = 'is-clear';
-                let textClass = 'text-clear';
-
-                if (balance > 0.01) {
-                    statusText = 'عليه';
-                    cardClass = 'has-debt';
-                    textClass = 'text-debt';
-                } else if (balance < -0.01) {
-                    statusText = 'له';
-                    cardClass = 'is-clear'; 
-                    textClass = 'text-clear';
-                }
+                let statusText = balance > 0.01 ? 'عليه' : (balance < -0.01 ? 'له' : 'خالص');
+                let cardClass = balance > 0.01 ? 'has-debt' : 'is-clear';
+                let textClass = balance > 0.01 ? 'text-debt' : 'text-clear';
 
                 return `
-                <div id="card-${cust.id}" class="customer-card ${cardClass}">
+                <div class="customer-card ${cardClass}" data-name="${cust.name}" data-serial="${index + 1}" data-phone="${cust.phone || 'بدون هاتف'}" data-balance="${Math.abs(balance).toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م (${statusText})" data-color="${textClass}">
                     <div>
                         <div class="d-flex align-items-center mb-1">
                             <span class="serial-badge">${index + 1}</span>
                             <h6 class="customer-name m-0">${cust.name}</h6>
                         </div>
                         <small class="phone-sub"><i class="fas fa-phone-alt me-1"></i> ${cust.phone || 'بدون هاتف'}</small>
-                        <span id="balance-${cust.id}" class="balance-value ${textClass}">
-                            ${Math.abs(balance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ج.م <small>(${statusText})</small>
-                        </span>
+                        <span class="balance-value ${textClass}">${Math.abs(balance).toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م <small>(${statusText})</small></span>
                     </div>
                     <div class="action-container">
-                        <a href="customer-details.html?id=${cust.id}" class="action-btn btn-info" title="التفاصيل"><i class="fas fa-user-tag"></i></a>
-                        <a href="customer-payment.html?id=${cust.id}" class="action-btn btn-pay" title="دفع"><i class="fas fa-hand-holding-dollar"></i></a>
-                        <button onclick="moveToTrash('${cust.id}', '${cust.name}')" class="action-btn btn-trash-item" title="نقل للسلة"><i class="fas fa-trash-alt"></i></button>
+                        <a href="customer-details.html?id=${cust.id}" class="action-btn btn-info"><i class="fas fa-user-tag"></i></a>
+                        <a href="customer-payment.html?id=${cust.id}" class="action-btn btn-pay"><i class="fas fa-hand-holding-dollar"></i></a>
+                        <button onclick="moveToTrash('${cust.id}', '${cust.name}')" class="action-btn btn-trash-item"><i class="fas fa-trash-alt"></i></button>
                     </div>
                 </div>`;
             }).join('');
         }
 
-        // 📥 دالة الحفظ كـ PDF الذكية والمحدثة لمنع ظهور الصفحات البيضاء:
+        // 📥 الحل النهائي الفعّال لإنشاء الـ PDF بدون أي صفحات بيضاء:
         window.downloadReportPDF = () => {
-            // 1. أخذ نسخة افتراضية مطابقة تماماً للمنطقة المطبوعة
-            const element = document.getElementById('printableArea');
-            const clone = element.cloneNode(true);
-            
-            // 2. إظهار ترويسة الشركة داخل النسخة المنسوخة فقط
-            const pdfHeader = clone.querySelector('#pdfHeader');
-            if(pdfHeader) pdfHeader.style.display = 'block';
+            const totalDebts = document.getElementById('totalDebts').innerText;
+            const totalCredits = document.getElementById('totalCredits').innerText;
+            const netGeneral = document.getElementById('netGeneralBalance').innerText;
+            const today = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
 
-            // 3. حذف أزرار العمليات والتعديل تماماً من النسخة المنسوخة لمنع التداخل واللون الأبيض
-            const actionContainers = clone.querySelectorAll('.action-container');
-            actionContainers.forEach(el => el.remove());
+            // بناء كود HTML نظيف مخصص ومستقل تماماً ومحمي من الفقدان والصفحات البيضاء
+            let pdfHTML = `
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">
+            <head>
+                <meta charset="UTF-8">
+                <title>تقرير شركة الزيادي</title>
+                <style>
+                    body { font-family: 'Cairo', sans-serif; direction: rtl; text-align: right; padding: 20px; color: #1b2e26; background: #fff; }
+                    .header { text-align: center; border-bottom: 3px double #0b5e3d; padding-bottom: 10px; margin-bottom: 20px; }
+                    .header h2 { color: #0b5e3d; margin: 0 0 5px 0; font-size: 22px; }
+                    .header p { margin: 0; color: #555; font-size: 14px; }
+                    .stats-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; text-align: center; }
+                    .stats-table th, .stats-table td { border: 1px solid #dce3de; padding: 10px; font-weight: bold; }
+                    .stats-table th { background: #f4f7f6; color: #7a8b83; font-size: 12px; }
+                    .stats-table td { font-size: 15px; }
+                    .text-debt { color: #dc3545; }
+                    .text-clear { color: #28a745; }
+                    .cust-row { display: flex; justify-content: space-between; align-items: center; border: 1px solid #dce3de; border-right: 5px solid #0b5e3d; padding: 12px; margin-bottom: 8px; border-radius: 8px; page-break-inside: avoid; }
+                    .cust-info { display: flex; align-items: center; gap: 10px; }
+                    .serial { background: #edf2f0; color: #0b5e3d; font-weight: bold; padding: 3px 8px; border-radius: 5px; font-size: 13px; }
+                    .name { font-size: 14px; font-weight: bold; margin: 0; }
+                    .phone { font-size: 11px; color: #707b7c; margin-top: 2px; }
+                    .amount { font-weight: bold; font-size: 14px; white-space: nowrap; }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <h2>شركة الزيادي للتجارة</h2>
+                    <p>كشف أرصدة العملاء والمركز المالي الإجمالي</p>
+                    <p style="font-size:11px; color:#888; margin-top:5px;">تاريخ الاستخراج: ${today}</p>
+                </div>
+                
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th>مطلوب (عليهم)</th>
+                            <th>دائن (لهم)</th>
+                            <th>الصافي العام</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="text-debt">${totalDebts}</td>
+                            <td class="text-clear">${totalCredits}</td>
+                            <td>${netGeneral}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                
+                <div>
+            `;
 
-            // 4. إعدادات المكتبة المتوافقة مع كافة الشاشات والمتصفحات
+            // قراءة كافة كروت العملاء المعروضة حالياً وتصدير نصوصها الصافية فقط إلى الـ PDF
+            const cards = document.querySelectorAll('.customer-card');
+            cards.forEach(card => {
+                const name = card.getAttribute('data-name');
+                const serial = card.getAttribute('data-serial');
+                const phone = card.getAttribute('data-phone');
+                const balance = card.getAttribute('data-balance');
+                const colorClass = card.getAttribute('data-color');
+
+                pdfHTML += `
+                <div class="cust-row">
+                    <div>
+                        <div class="cust-info">
+                            <span class="serial">${serial}</span>
+                            <span class="name">${name}</span>
+                        </div>
+                        <div class="phone">${phone}</div>
+                    </div>
+                    <div class="amount ${colorClass}">${balance}</div>
+                </div>`;
+            });
+
+            pdfHTML += `</div></body></html>`;
+
+            // إعدادات مكتبة التصدير المباشر لضمان دقة الأبعاد والجودة
             const opt = {
-                margin:       [12, 12, 12, 12],
-                filename:     `تقرير_أرصدة_العملاء_شركة_الزيادي.pdf`,
+                margin:       [10, 10, 10, 10],
+                filename:     `كشف_أرصدة_شركة_الزيادي_${new Date().toISOString().slice(0,10)}.pdf`,
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { 
-                    scale: 2, 
-                    useCORS: true, 
-                    logging: false,
-                    letterRendering: true
-                },
+                html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
             };
 
-            // 5. تشغيل معالجة ملف الـ PDF بعد تأخير 300 مللي ثانية للتأكد من رندرة الألوان
-            setTimeout(() => {
-                html2pdf().set(opt).from(clone).save().then(() => {
-                    console.log("تم استخراج التقرير بنجاح دون صفحات بيضاء.");
-                });
-            }, 300);
+            // تشغيل محرك تحويل البيانات النظيفة مباشرة إلى PDF
+            html2pdf().set(opt).from(pdfHTML).save();
         };
 
         window.moveToTrash = async (id, name) => {
             if (!confirm(`نقل العميل (${name}) للسلة؟`)) return;
-            try {
-                await updateDoc(doc(db, "customers", id), { isDeleted: true, deletedAt: new Date().toISOString() });
-            } catch (e) { alert(e.message); }
+            try { await updateDoc(doc(db, "customers", id), { isDeleted: true, deletedAt: new Date().toISOString() }); } catch (e) { alert(e.message); }
         };
 
         window.deleteAllCustomersPermanently = async () => {
-            if (!confirm("⚠️ هل تريد حذف جميع العملاء نهائياً؟")) return;
+            if (!confirm("⚠️ حذف جميع العملاء نهائياً؟")) return;
             try {
                 const snap = await getDocs(collection(db, "customers"));
-                if (snap.empty) return;
                 const batch = writeBatch(db);
                 snap.forEach((docSnap) => { batch.delete(doc(db, "customers", docSnap.id)); });
                 await batch.commit();
