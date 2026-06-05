@@ -73,8 +73,8 @@
             font-weight: 600;
         }
         
-        /* زر التحديث المعدل */
-        .btn-refresh {
+        /* أزرار التحكم (تحديث + طباعة) */
+        .btn-action-round {
             background: #ffffff;
             border: none;
             color: var(--accent);
@@ -88,9 +88,12 @@
             transition: transform 0.2s, background-color 0.2s;
             cursor: pointer;
         }
-        .btn-refresh:active {
+        .btn-action-round:active {
             transform: scale(0.92);
             background: #eaf2ee;
+        }
+        .btn-print-color {
+            color: #495057;
         }
         .spin {
             animation: fast-spin 1s linear infinite;
@@ -192,6 +195,39 @@
             border-radius: 8px;
             font-size: 0.75rem;
         }
+
+        /* 🖨️ تنسيقات مخصصة للطباعة لتبدو كتقرير رسمي */
+        @media print {
+            body {
+                background: #ffffff !important;
+                color: #000000 !important;
+            }
+            .header-section, .action-container, .btn-delete-all, .search-area-wrapper {
+                display: none !important; /* إخفاء الأزرار وأشرطة البحث */
+            }
+            .summary-box {
+                border: 2px solid #000000 !important;
+                box-shadow: none !important;
+                margin-top: 20px;
+            }
+            .customer-card {
+                border: 1px solid #ccc !important;
+                border-right: 6px solid #000 !important;
+                box-shadow: none !important;
+                page-break-inside: avoid;
+            }
+            /* إضافة عنوان علوي للطباعة فقط */
+            body::before {
+                content: "تقرير أرصدة العملاء - شركة الزيادي";
+                display: block;
+                text-align: center;
+                font-size: 1.5rem;
+                font-weight: bold;
+                margin-bottom: 20px;
+                border-bottom: 2px solid #0b5e3d;
+                padding-bottom: 10px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -211,20 +247,25 @@
                 <a href="trashl.html" class="text-white"><i class="fas fa-trash-alt"></i></a>
             </div>
         </div>
-        <!-- شريط البحث وزر التحديث الذكي -->
+        <!-- شريط البحث ومعه زر التحديث التلقائي وزر الطباعة الجديد -->
         <div class="search-area-wrapper">
             <div class="search-box">
                 <i class="fas fa-search"></i>
                 <input type="text" id="searchInput" placeholder="ابحث باسم العميل أو رقم الهاتف..." oninput="filterCustomers()">
             </div>
-            <button class="btn-refresh" id="refreshBtn" onclick="syncAndRecalculateBalances()" title="تحديث الفواتير وإعادة حساب الأرصدة فوراً">
+            <!-- زر التحديث التلقائي -->
+            <button class="btn-action-round" id="refreshBtn" onclick="syncAndRecalculateBalances()" title="تحديث الفواتير وإعادة حساب الأرصدة فوراً">
                 <i class="fas fa-sync-alt fs-5" id="refreshIcon"></i>
+            </button>
+            <!-- زر الطباعة المضاف -->
+            <button class="btn-action-round btn-print-color" id="printBtn" onclick="window.print()" title="طباعة كشف الحسابات الحالي">
+                <i class="fas fa-print fs-5"></i>
             </button>
         </div>
     </div>
 
     <div class="container py-3">
-        <!-- قسم إجمالي الحسابات العلوي المطور -->
+        <!-- قسم إجمالي الحسابات العلوي -->
         <div class="summary-box row mx-1 text-center g-2">
             <div class="col-4 border-end">
                 <div class="summary-title">مطلوب (عليهم)</div>
@@ -294,11 +335,6 @@
             });
         }
 
-        /**
-         * 🌟 دالة ربط وضبط زر التحديث:
-         * تقرأ الفواتير الداخلية لجميع مسميات المجموعات والمسارات المحتملة لـ 0QLRA2JnYUhNxsUwJCD5 والعملاء الآخرين،
-         * وتقوم بإعادة احتساب الصافي الفعلي وترحيله تلقائيًا لحقل 'currentBalance' دون الدخول لصفحة العميل.
-         */
         window.syncAndRecalculateBalances = async () => {
             const icon = document.getElementById('refreshIcon');
             if (icon.classList.contains('spin')) return; 
@@ -320,7 +356,6 @@
                     let computedBalance = 0;
                     let processedAnySubCollection = false;
 
-                    // مسح المجموعات الداخلية المحتملة في مشروع الفايربيز (invoices, transactions, sales_payments)
                     const targetSubCollections = ['invoices', 'transactions', 'sales', 'payments', 'orders'];
                     
                     for (const subName of targetSubCollections) {
@@ -330,8 +365,6 @@
                             processedAnySubCollection = true;
                             subSnapshot.forEach(docItem => {
                                 const tData = docItem.data();
-                                
-                                // طرق الفحص المالي المرن لقيم المستندات
                                 const val = Number(tData.amount || tData.value || tData.total || tData.price || tData.net || 0);
                                 const type = String(tData.type || tData.status || tData.category || '').toLowerCase();
 
@@ -340,14 +373,12 @@
                                 } else if (type.includes('payment') || type.includes('سند') || type.includes('دائن') || type.includes('قبض') || type.includes('minus') || type.includes('سداد')) {
                                     computedBalance -= val;
                                 } else {
-                                    // إذا كان الحقل يحمل إشارة سالبة أو موجبة جاهزة
                                     computedBalance += Number(tData.finalAmount || tData.netAmount || 0);
                                 }
                             });
                         }
                     }
 
-                    // في حال كانت الحركات مسجلة داخل مصفوفة في المستند الأساسي مباشرة وليس كـ sub-collection
                     if (!processedAnySubCollection && (customerData.invoices || customerData.transactions)) {
                         const list = customerData.invoices || customerData.transactions || [];
                         list.forEach(item => {
@@ -362,12 +393,10 @@
                         processedAnySubCollection = true;
                     }
 
-                    // إذا لم توجد حركات فرعية مسجلة، يتم الاعتماد على الرصيد الافتتاحي أو الأساسي للمستند
                     if (!processedAnySubCollection) {
                         computedBalance = Number(customerData.currentBalance || customerData.balance || customerData.totalBalance || 0);
                     }
 
-                    // تحديث حقل الحساب الأساسي للعميل إذا اختلف عن المحسوب حالياً
                     if (Number(customerData.currentBalance || 0) !== computedBalance) {
                         const customerRef = doc(db, "customers", customerId);
                         batch.update(customerRef, { currentBalance: computedBalance });
@@ -409,7 +438,6 @@
             document.getElementById('totalDebts').innerText = totalDebts.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ج.م';
             document.getElementById('totalCredits').innerText = totalCredits.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ج.م';
             
-            // تلوين الصافي العام ديناميكياً حسب وضع الشركة المالي
             netElement.innerText = Math.abs(netBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ج.م';
             if(netBalance > 0.01) {
                 netElement.className = "summary-amount text-debt";
