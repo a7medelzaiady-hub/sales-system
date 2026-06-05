@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- مكتبة تحويل الصفحة إلى PDF احترافي -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
     <style>
         :root {
             --accent: #0b5e3d;
@@ -36,7 +40,7 @@
         .search-area-wrapper {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             margin: 12px 15px 0;
         }
         .search-box {
@@ -73,13 +77,13 @@
             font-weight: 600;
         }
         
-        /* أزرار التحكم (تحديث + طباعة) */
+        /* أزرار التحكم والعمليات العلوية */
         .btn-action-round {
             background: #ffffff;
             border: none;
             color: var(--accent);
-            width: 44px;
-            height: 44px;
+            width: 42px;
+            height: 42px;
             border-radius: 14px;
             display: flex;
             align-items: center;
@@ -92,9 +96,9 @@
             transform: scale(0.92);
             background: #eaf2ee;
         }
-        .btn-print-color {
-            color: #495057;
-        }
+        .btn-print-color { color: #495057; }
+        .btn-pdf-color { color: #dc3545; }
+        
         .spin {
             animation: fast-spin 1s linear infinite;
         }
@@ -103,7 +107,7 @@
             100% { transform: rotate(-360deg); }
         }
         
-        /* صندوق الملخص المطور */
+        /* شريط الحسابات الإجمالي */
         .summary-box {
             background: var(--white);
             border: 1px solid var(--border);
@@ -123,6 +127,19 @@
             font-weight: 800;
         }
 
+        /* المسلسل التلقائي */
+        .serial-badge {
+            background: #edf2f0;
+            color: var(--accent);
+            font-size: 0.85rem;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 9px;
+            margin-left: 10px;
+            border: 1px solid rgba(11, 94, 61, 0.15);
+            display: inline-block;
+        }
+
         .customer-card {
             background: var(--white);
             border: 1px solid var(--border);
@@ -138,18 +155,21 @@
         }
         .customer-card.has-debt { border-right-color: var(--neon-red); }
         .customer-card.is-clear { border-right-color: var(--neon-green); }
+        
         .customer-name {
             color: var(--text-primary);
             font-weight: 700;
             font-size: 1rem;
             margin: 0;
+            display: inline-block;
+            vertical-align: middle;
         }
         .phone-sub {
             font-size: 0.75rem;
             color: #707b7c;
             font-weight: 600;
             display: block;
-            margin-top: 2px;
+            margin-top: 5px;
         }
         .balance-value {
             font-weight: 800;
@@ -196,36 +216,36 @@
             font-size: 0.75rem;
         }
 
-        /* 🖨️ تنسيقات مخصصة للطباعة لتبدو كتقرير رسمي */
+        /* ترويسة مخصصة تظهر فقط في الطباعة والـ PDF */
+        .report-header-print {
+            display: none;
+            text-align: center;
+            border-bottom: 3px double var(--accent);
+            padding-bottom: 12px;
+            margin-bottom: 25px;
+        }
+
+        /* 🖨️ إعدادات الطباعة وتحميل ملفات الـ PDF */
         @media print {
             body {
                 background: #ffffff !important;
                 color: #000000 !important;
             }
             .header-section, .action-container, .btn-delete-all, .search-area-wrapper {
-                display: none !important; /* إخفاء الأزرار وأشرطة البحث */
+                display: none !important;
+            }
+            .report-header-print {
+                display: block !important;
             }
             .summary-box {
                 border: 2px solid #000000 !important;
                 box-shadow: none !important;
-                margin-top: 20px;
             }
             .customer-card {
                 border: 1px solid #ccc !important;
-                border-right: 6px solid #000 !important;
+                border-right: 6px solid #0b5e3d !important;
                 box-shadow: none !important;
                 page-break-inside: avoid;
-            }
-            /* إضافة عنوان علوي للطباعة فقط */
-            body::before {
-                content: "تقرير أرصدة العملاء - شركة الزيادي";
-                display: block;
-                text-align: center;
-                font-size: 1.5rem;
-                font-weight: bold;
-                margin-bottom: 20px;
-                border-bottom: 2px solid #0b5e3d;
-                padding-bottom: 10px;
             }
         }
     </style>
@@ -247,25 +267,36 @@
                 <a href="trashl.html" class="text-white"><i class="fas fa-trash-alt"></i></a>
             </div>
         </div>
-        <!-- شريط البحث ومعه زر التحديث التلقائي وزر الطباعة الجديد -->
+        
+        <!-- أدوات البحث والتحكم والـ PDF -->
         <div class="search-area-wrapper">
             <div class="search-box">
                 <i class="fas fa-search"></i>
                 <input type="text" id="searchInput" placeholder="ابحث باسم العميل أو رقم الهاتف..." oninput="filterCustomers()">
             </div>
-            <!-- زر التحديث التلقائي -->
-            <button class="btn-action-round" id="refreshBtn" onclick="syncAndRecalculateBalances()" title="تحديث الفواتير وإعادة حساب الأرصدة فوراً">
-                <i class="fas fa-sync-alt fs-5" id="refreshIcon"></i>
+            <button class="btn-action-round" id="refreshBtn" onclick="syncAndRecalculateBalances()" title="تحديث تلقائي شامل لجميع الأرصدة">
+                <i class="fas fa-sync-alt" id="refreshIcon"></i>
             </button>
-            <!-- زر الطباعة المضاف -->
-            <button class="btn-action-round btn-print-color" id="printBtn" onclick="window.print()" title="طباعة كشف الحسابات الحالي">
-                <i class="fas fa-print fs-5"></i>
+            <button class="btn-action-round btn-print-color" id="printBtn" onclick="window.print()" title="طباعة الورقة الحالية">
+                <i class="fas fa-print"></i>
+            </button>
+            <button class="btn-action-round btn-pdf-color" id="pdfBtn" onclick="downloadReportPDF()" title="تحميل الملف كـ PDF">
+                <i class="fas fa-file-pdf"></i>
             </button>
         </div>
     </div>
 
-    <div class="container py-3">
-        <!-- قسم إجمالي الحسابات العلوي -->
+    <!-- منطقة محتوى التقرير (المخصصة للاستخراج والطباعة) -->
+    <div class="container py-3" id="printableArea">
+        
+        <!-- عنوان مستند الطباعة الخفي -->
+        <div class="report-header-print">
+            <h2 style="color: #0b5e3d; font-weight: bold; margin-bottom: 5px;">شركة الزيادي للتجارة</h2>
+            <p style="font-size: 1rem; color: #555; margin: 0;">كشف الأرصدة الإجمالي والمركز المالي للعملاء</p>
+            <small style="color: #888;">تاريخ الاستخراج: <span id="printDate"></span></small>
+        </div>
+
+        <!-- قسم الإجماليات -->
         <div class="summary-box row mx-1 text-center g-2">
             <div class="col-4 border-end">
                 <div class="summary-title">مطلوب (عليهم)</div>
@@ -277,11 +308,11 @@
             </div>
             <div class="col-4">
                 <div class="summary-title">الصافي العام</div>
-                <div class="summary-amount text-dark" id="netGeneralBalance">0.00 ج.م</div>
+                <div class="summary-amount text-dark" id="netGeneralBalance">0.00 ج.m</div>
             </div>
         </div>
 
-        <!-- حاوية كروت العملاء -->
+        <!-- قائمة كروت العملاء (مدرج بها المسلسل الذكي) -->
         <div id="customersContainer">
             <div class="text-center py-5" id="initialLoader">
                 <div class="spinner-border text-success"></div>
@@ -308,6 +339,9 @@
         const db = initializeFirestore(app, { localCache: persistentLocalCache() });
         let allCustomers = [];
         let unsubscribe = null;
+
+        // وضع تاريخ اليوم التلقائي للتقرير
+        document.getElementById('printDate').innerText = new Date().toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
         function listenToCustomers() {
             if(unsubscribe) unsubscribe();
@@ -350,7 +384,6 @@
                 for (const customerDoc of querySnapshot.docs) {
                     const customerId = customerDoc.id;
                     const customerData = customerDoc.data();
-                    
                     if (customerData.isDeleted === true) continue;
 
                     let computedBalance = 0;
@@ -360,7 +393,6 @@
                     
                     for (const subName of targetSubCollections) {
                         const subSnapshot = await getDocs(collection(db, `customers/${customerId}/${subName}`));
-                        
                         if (!subSnapshot.empty) {
                             processedAnySubCollection = true;
                             subSnapshot.forEach(docItem => {
@@ -407,12 +439,9 @@
                 if (needsUpdate) {
                     await batch.commit();
                 }
-                
                 listenToCustomers();
-                
             } catch (error) {
-                console.error("خطأ التحديث المباشر للفايربيز:", error);
-                alert("تم تحديث الواجهة. عذراً تعذر ترحيل الفواتير الفرعية تلقائياً: " + error.message);
+                console.error(error);
                 listenToCustomers();
             } finally {
                 icon.classList.remove('spin');
@@ -456,9 +485,10 @@
                 container.innerHTML = `<div class="text-center py-5 opacity-50 fw-bold">لا توجد نتائج</div>`;
                 return;
             }
-            container.innerHTML = list.map(cust => {
+            
+            // تم تضمين index + 1 لتمثيل المسلسل بشكل صحيح وتلقائي
+            container.innerHTML = list.map((cust, index) => {
                 const balance = Number(cust.currentBalance || 0); 
-                
                 let statusText = 'خالص';
                 let cardClass = 'is-clear';
                 let textClass = 'text-clear';
@@ -476,58 +506,72 @@
                 return `
                 <div id="card-${cust.id}" class="customer-card ${cardClass}">
                     <div>
-                        <h6 class="customer-name">${cust.name}</h6>
+                        <div class="d-flex align-items-center mb-1">
+                            <span class="serial-badge">${index + 1}</span>
+                            <h6 class="customer-name m-0">${cust.name}</h6>
+                        </div>
                         <small class="phone-sub"><i class="fas fa-phone-alt me-1"></i> ${cust.phone || 'بدون هاتف'}</small>
                         <span id="balance-${cust.id}" class="balance-value ${textClass}">
                             ${Math.abs(balance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} ج.م <small>(${statusText})</small>
                         </span>
                     </div>
                     <div class="action-container">
-                        <a href="customer-details.html?id=${cust.id}" class="action-btn btn-info"><i class="fas fa-user-tag"></i></a>
-                        <a href="customer-payment.html?id=${cust.id}" class="action-btn btn-pay"><i class="fas fa-hand-holding-dollar"></i></a>
-                        <button onclick="moveToTrash('${cust.id}', '${cust.name}')" class="action-btn btn-trash-item"><i class="fas fa-trash-alt"></i></button>
+                        <a href="customer-details.html?id=${cust.id}" class="action-btn btn-info" title="التفاصيل"><i class="fas fa-user-tag"></i></a>
+                        <a href="customer-payment.html?id=${cust.id}" class="action-btn btn-pay" title="دفع"><i class="fas fa-hand-holding-dollar"></i></a>
+                        <button onclick="moveToTrash('${cust.id}', '${cust.name}')" class="action-btn btn-trash-item" title="نقل للسلة"><i class="fas fa-trash-alt"></i></button>
                     </div>
                 </div>`;
             }).join('');
         }
 
+        // 📥 دالة استخراج وحفظ التقرير بصيغة PDF منسقة ومعدة للمقاسات القياسية
+        window.downloadReportPDF = () => {
+            const element = document.getElementById('printableArea');
+            
+            // إخفاء حاويات الأزرار مؤقتاً لضمان نظافة ملف الـ PDF
+            const actions = document.querySelectorAll('.action-container');
+            actions.forEach(el => el.style.visibility = 'hidden');
+            
+            // إظهار هيدر الشركة في الـ PDF
+            const printHeader = document.querySelector('.report-header-print');
+            if(printHeader) printHeader.style.display = 'block';
+
+            const opt = {
+                margin:       [10, 10, 10, 10],
+                filename:     `تقرير_عملاء_شركة_الزيادي_${new Date().toLocaleDateString('en-US')}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opt).from(element).save().then(() => {
+                // إعادة الأزرار لطبيعتها بعد الاستخراج فوراً
+                actions.forEach(el => el.style.visibility = 'visible');
+                if(printHeader) printHeader.style.display = 'none';
+            });
+        };
+
         window.moveToTrash = async (id, name) => {
             if (!confirm(`نقل العميل (${name}) للسلة؟`)) return;
             try {
-                await updateDoc(doc(db, "customers", id), {
-                    isDeleted: true,
-                    deletedAt: new Date().toISOString()
-                });
-            } catch (e) {
-                alert("خطأ: " + e.message);
-            }
+                await updateDoc(doc(db, "customers", id), { isDeleted: true, deletedAt: new Date().toISOString() });
+            } catch (e) { alert(e.message); }
         };
 
         window.deleteAllCustomersPermanently = async () => {
             if (!confirm("⚠️ هل تريد حذف جميع العملاء نهائياً؟")) return;
             try {
                 const snap = await getDocs(collection(db, "customers"));
-                if (snap.empty) {
-                    alert("لا يوجد عملاء للحذف");
-                    return;
-                }
+                if (snap.empty) return;
                 const batch = writeBatch(db);
-                snap.forEach((docSnap) => {
-                    batch.delete(doc(db, "customers", docSnap.id));
-                });
+                snap.forEach((docSnap) => { batch.delete(doc(db, "customers", docSnap.id)); });
                 await batch.commit();
-                alert("تم حذف جميع العملاء بنجاح");
-            } catch (e) {
-                alert("خطأ: " + e.message);
-            }
+            } catch (e) { alert(e.message); }
         };
 
         window.filterCustomers = () => {
             const term = document.getElementById('searchInput').value.toLowerCase();
-            const filtered = allCustomers.filter(c => 
-                (c.name?.toLowerCase().includes(term)) || 
-                (c.phone?.includes(term))
-            );
+            const filtered = allCustomers.filter(c => (c.name?.toLowerCase().includes(term)) || (c.phone?.includes(term)));
             renderCustomers(filtered);
         }
 
