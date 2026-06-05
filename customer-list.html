@@ -73,7 +73,7 @@
             font-weight: 600;
         }
         
-        /* زر التحديث الذكي */
+        /* زر التحديث المعدل */
         .btn-refresh {
             background: #ffffff;
             border: none;
@@ -100,6 +100,7 @@
             100% { transform: rotate(-360deg); }
         }
         
+        /* صندوق الملخص المطور */
         .summary-box {
             background: var(--white);
             border: 1px solid var(--border);
@@ -109,13 +110,13 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.03);
         }
         .summary-title {
-            font-size: 0.85rem;
+            font-size: 0.82rem;
             font-weight: 700;
             color: #7a8b83;
             margin-bottom: 4px;
         }
         .summary-amount {
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: 800;
         }
 
@@ -210,32 +211,36 @@
                 <a href="trashl.html" class="text-white"><i class="fas fa-trash-alt"></i></a>
             </div>
         </div>
-        <!-- منطقة البحث وزر التحديث الذكي -->
+        <!-- شريط البحث وزر التحديث الذكي -->
         <div class="search-area-wrapper">
             <div class="search-box">
                 <i class="fas fa-search"></i>
                 <input type="text" id="searchInput" placeholder="ابحث باسم العميل أو رقم الهاتف..." oninput="filterCustomers()">
             </div>
-            <button class="btn-refresh" id="refreshBtn" onclick="recalculateAndRefreshBalances()" title="تحديث وإعادة حساب الأرصدة فوراً">
+            <button class="btn-refresh" id="refreshBtn" onclick="syncAndRecalculateBalances()" title="تحديث الفواتير وإعادة حساب الأرصدة فوراً">
                 <i class="fas fa-sync-alt fs-5" id="refreshIcon"></i>
             </button>
         </div>
     </div>
 
     <div class="container py-3">
-        <!-- قسم إجمالي الحسابات العلوي -->
+        <!-- قسم إجمالي الحسابات العلوي المطور -->
         <div class="summary-box row mx-1 text-center g-2">
-            <div class="col-6 border-end">
-                <div class="summary-title">إجمالي المطلوبات (عليهم)</div>
+            <div class="col-4 border-end">
+                <div class="summary-title">مطلوب (عليهم)</div>
                 <div class="summary-amount text-debt" id="totalDebts">0.00 ج.م</div>
             </div>
-            <div class="col-6">
-                <div class="summary-title">إجمالي الدائنة (لهم)</div>
+            <div class="col-4 border-end">
+                <div class="summary-title">دائن (لهم)</div>
                 <div class="summary-amount text-clear" id="totalCredits">0.00 ج.م</div>
+            </div>
+            <div class="col-4">
+                <div class="summary-title">الصافي العام</div>
+                <div class="summary-amount text-dark" id="netGeneralBalance">0.00 ج.م</div>
             </div>
         </div>
 
-        <!-- حاوية عرض الكروت -->
+        <!-- حاوية كروت العملاء -->
         <div id="customersContainer">
             <div class="text-center py-5" id="initialLoader">
                 <div class="spinner-border text-success"></div>
@@ -290,22 +295,19 @@
         }
 
         /**
-         * 🌟 زر التحديث الخارجي الذكي:
-         * يقوم بجلب فواتير وسندات كل عميل على حدة، يعيد حساب المبالغ بدقة،
-         * ويقوم بتحديث حقل الحساب الحالي 'currentBalance' مباشرة في الفايربيز دون الحاجة لفتح الحساب يدويًا.
+         * 🌟 دالة ربط وضبط زر التحديث:
+         * تقرأ الفواتير الداخلية لجميع مسميات المجموعات والمسارات المحتملة لـ 0QLRA2JnYUhNxsUwJCD5 والعملاء الآخرين،
+         * وتقوم بإعادة احتساب الصافي الفعلي وترحيله تلقائيًا لحقل 'currentBalance' دون الدخول لصفحة العميل.
          */
-        window.recalculateAndRefreshBalances = async () => {
+        window.syncAndRecalculateBalances = async () => {
             const icon = document.getElementById('refreshIcon');
-            if (icon.classList.contains('spin')) return; // منع النقرات المتكررة أثناء المعالجة
+            if (icon.classList.contains('spin')) return; 
             
             icon.classList.add('spin');
-            document.getElementById('searchInput').value = ''; // تفريغ صندوق البحث
+            document.getElementById('searchInput').value = ''; 
 
             try {
-                // 1. جلب كافة العملاء الحاليين (غير المحذوفين)
                 const querySnapshot = await getDocs(collection(db, "customers"));
-                
-                // استخدام writeBatch لتسريع عمليات الحفظ الجماعي إلى السيرفر دفعة واحدة
                 const batch = writeBatch(db);
                 let needsUpdate = false;
 
@@ -315,28 +317,57 @@
                     
                     if (customerData.isDeleted === true) continue;
 
-                    // 2. جلب الحركات المالية لكل عميل (الفواتير أو السندات)
-                    // 💡 ملاحظة: تأكد من تطابق اسم المجموعة الفرعية 'transactions' مع تطبيقك (مثل 'invoices' أو 'payments')
-                    const transactionsSnapshot = await getDocs(collection(db, `customers/${customerId}/transactions`));
-                    
                     let computedBalance = 0;
+                    let processedAnySubCollection = false;
 
-                    transactionsSnapshot.forEach(transDoc => {
-                        const trans = transDoc.data();
-                        // نقوم بجمع قيم المبيعات (مدين) وطرح الدفعات (دائن)
-                        // قم بتعديل الشروط والحقول بناءً على هيكلة البيانات لديك إذا دعت الحاجة
-                        const amount = Number(trans.amount || 0);
-                        if (trans.type === 'invoice' || trans.type === 'مبيعات' || trans.type === 'مدين') {
-                            computedBalance += amount;
-                        } else if (trans.type === 'payment' || trans.type === 'سند' || trans.type === 'دائن') {
-                            computedBalance -= amount;
-                        } else {
-                            // إذا كنت تخزن الصافي جاهزاً بالإشارات (+ أو -) داخل الحركات
-                            computedBalance += Number(trans.finalAmount || trans.netAmount || 0);
+                    // مسح المجموعات الداخلية المحتملة في مشروع الفايربيز (invoices, transactions, sales_payments)
+                    const targetSubCollections = ['invoices', 'transactions', 'sales', 'payments', 'orders'];
+                    
+                    for (const subName of targetSubCollections) {
+                        const subSnapshot = await getDocs(collection(db, `customers/${customerId}/${subName}`));
+                        
+                        if (!subSnapshot.empty) {
+                            processedAnySubCollection = true;
+                            subSnapshot.forEach(docItem => {
+                                const tData = docItem.data();
+                                
+                                // طرق الفحص المالي المرن لقيم المستندات
+                                const val = Number(tData.amount || tData.value || tData.total || tData.price || tData.net || 0);
+                                const type = String(tData.type || tData.status || tData.category || '').toLowerCase();
+
+                                if (type.includes('invoice') || type.includes('بيع') || type.includes('مدين') || type.includes('فاتورة') || type.includes('plus')) {
+                                    computedBalance += val;
+                                } else if (type.includes('payment') || type.includes('سند') || type.includes('دائن') || type.includes('قبض') || type.includes('minus') || type.includes('سداد')) {
+                                    computedBalance -= val;
+                                } else {
+                                    // إذا كان الحقل يحمل إشارة سالبة أو موجبة جاهزة
+                                    computedBalance += Number(tData.finalAmount || tData.netAmount || 0);
+                                }
+                            });
                         }
-                    });
+                    }
 
-                    // 3. مقارنة الحساب القديم بالجديد، وإذا وجد اختلاف نقوم بوضعه في الدفعة للتحديث
+                    // في حال كانت الحركات مسجلة داخل مصفوفة في المستند الأساسي مباشرة وليس كـ sub-collection
+                    if (!processedAnySubCollection && (customerData.invoices || customerData.transactions)) {
+                        const list = customerData.invoices || customerData.transactions || [];
+                        list.forEach(item => {
+                            const val = Number(item.amount || item.value || 0);
+                            const type = String(item.type || '').toLowerCase();
+                            if (type.includes('invoice') || type.includes('بيع') || type.includes('فاتورة')) {
+                                computedBalance += val;
+                            } else {
+                                computedBalance -= val;
+                            }
+                        });
+                        processedAnySubCollection = true;
+                    }
+
+                    // إذا لم توجد حركات فرعية مسجلة، يتم الاعتماد على الرصيد الافتتاحي أو الأساسي للمستند
+                    if (!processedAnySubCollection) {
+                        computedBalance = Number(customerData.currentBalance || customerData.balance || customerData.totalBalance || 0);
+                    }
+
+                    // تحديث حقل الحساب الأساسي للعميل إذا اختلف عن المحسوب حالياً
                     if (Number(customerData.currentBalance || 0) !== computedBalance) {
                         const customerRef = doc(db, "customers", customerId);
                         batch.update(customerRef, { currentBalance: computedBalance });
@@ -344,17 +375,16 @@
                     }
                 }
 
-                // 4. تنفيذ التحديث الجماعي في الفايربيز
                 if (needsUpdate) {
                     await batch.commit();
                 }
                 
-                // إعادة قراءة الحسابات والمزامنة الفورية للقائمة
                 listenToCustomers();
                 
             } catch (error) {
-                console.error("خطأ أثناء تحديث الحسابات الشامل:", error);
-                alert("تعذر تحديث الحسابات تلقائياً: " + error.message);
+                console.error("خطأ التحديث المباشر للفايربيز:", error);
+                alert("تم تحديث الواجهة. عذراً تعذر ترحيل الفواتير الفرعية تلقائياً: " + error.message);
+                listenToCustomers();
             } finally {
                 icon.classList.remove('spin');
             }
@@ -373,8 +403,21 @@
                 }
             });
 
+            const netBalance = totalDebts - totalCredits;
+            const netElement = document.getElementById('netGeneralBalance');
+
             document.getElementById('totalDebts').innerText = totalDebts.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ج.م';
             document.getElementById('totalCredits').innerText = totalCredits.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ج.م';
+            
+            // تلوين الصافي العام ديناميكياً حسب وضع الشركة المالي
+            netElement.innerText = Math.abs(netBalance).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ج.م';
+            if(netBalance > 0.01) {
+                netElement.className = "summary-amount text-debt";
+            } else if(netBalance < -0.01) {
+                netElement.className = "summary-amount text-clear";
+            } else {
+                netElement.className = "summary-amount text-dark";
+            }
         }
 
         window.renderCustomers = (list) => {
