@@ -225,29 +225,46 @@
             inventory = iSnap.docs.map(d => ({id: d.id, ...d.data()}));
             customers = cSnap.docs.map(d => ({id: d.id, ...d.data()}));
             
-            if(editId) {
-                document.getElementById('modeText').innerText = "تعديل";
-                const invDoc = await getDoc(doc(db, "invoices", editId));
-                if(invDoc.exists()) {
-                    const data = invDoc.data();
-                    document.getElementById('customerSelect').value = data.customerId;
-                    document.getElementById('customerSearch').value = data.customerName;
-                    document.getElementById('invTime').value = data.time;
-                    document.getElementById('payMethod').value = data.paymentMethod;
-                    document.getElementById('paidAmount').value = data.paid;
-                    
-                    const cust = customers.find(c => c.id === data.customerId);
-                    if(cust) {
-                        const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
-                        showBalance(realB);
-                    }
-                    Object.keys(data).forEach(k => { if(!isNaN(k)) addNewRow(data[k]); });
-                }
-                isChanged = false;
-            } else { addNewRow(); }
-            calc();
-        } catch (e) { console.error(e); }
+          if (editId) {
+
+    document.getElementById('modeText').innerText = "تعديل";
+
+    const invDoc = await getDoc(doc(db, "invoices", editId));
+
+    if (invDoc.exists()) {
+        const data = invDoc.data();
+
+        document.getElementById('customerSelect').value = data.customerId;
+        document.getElementById('customerSearch').value = data.customerName;
+        document.getElementById('invTime').value = data.time;
+        document.getElementById('payMethod').value = data.paymentMethod;
+        document.getElementById('paidAmount').value = data.paid || 0;
+
+        const cust = customers.find(c => c.id === data.customerId);
+
+        if (cust) {
+            const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
+            showBalance(realB);
+        }
+
+        // ⭐ هنا الإصلاح الحقيقي
+        if (Array.isArray(data.items)) {
+            data.items.forEach(item => {
+                addNewRow({
+                    name: item.name,
+                    stockId: item.stockId,
+                    unit: item.unit,
+                    qty: item.qty,
+                    price: item.price
+                });
+            });
+        }
     }
+
+    isChanged = false;
+} else {
+    addNewRow();
+}
 
     window.searchCustomer = (input) => {
         const term = input.value.toLowerCase().trim();
