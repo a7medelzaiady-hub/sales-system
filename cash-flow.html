@@ -203,7 +203,76 @@
                     });
                 });
             } catch(e) { console.error("خطأ بالسندات:", e); }
+            
+// 2.1 جلب سدادات فواتير المبيعات من invoices
+try {
 
+    const invoicesSnap =
+        await getDocs(collection(db, "invoices"));
+
+    invoicesSnap.forEach(doc => {
+
+        const data = doc.data();
+
+        const cashAmount =
+            Number(data.cashAmount || 0);
+
+        const walletAmount =
+            Number(data.walletAmount || 0);
+
+        if (cashAmount > 0) {
+
+            masterCashArray.push({
+
+                date: data.date || "---",
+
+                timestamp:
+                    parseDateToTimestamp(data.date),
+
+                type: "قبض",
+
+                customerName:
+                    data.customerName || "عميل",
+
+                notes:
+                    "سداد نقدي فاتورة مبيعات",
+
+                amount: cashAmount
+
+            });
+
+        }
+
+        if (walletAmount > 0) {
+
+            masterCashArray.push({
+
+                date: data.date || "---",
+
+                timestamp:
+                    parseDateToTimestamp(data.date),
+
+                type: "قبض",
+
+                customerName:
+                    data.customerName || "عميل",
+
+                notes:
+                    "سداد محفظة فاتورة مبيعات",
+
+                amount: walletAmount
+
+            });
+
+        }
+
+    });
+
+} catch(e) {
+
+    console.error("خطأ فواتير المبيعات", e);
+
+}
             // 3. جلب المدفوعات النقدية الفورية من فواتير المبيعات (sales)
             try {
                 const snapSales = await getDocs(collection(db, "sales"));
@@ -253,6 +322,46 @@
                     }
                 });
             } catch(e) { console.error("خطأ بفواتير الشراء:", e); }
+            // 4.1 سندات الموردين
+try {
+
+    const supplierTrans =
+        await getDocs(collection(db, "supplierTransactions"));
+
+    supplierTrans.forEach(doc => {
+
+        const data = doc.data();
+
+        masterCashArray.push({
+
+            date: data.date || "---",
+
+            timestamp:
+                parseDateToTimestamp(data.date),
+
+            type:
+                data.type === "قبض"
+                ? "قبض"
+                : "صرف",
+
+            customerName:
+                data.supplierName || "مورد",
+
+            notes:
+                data.notes || "سند مورد",
+
+            amount:
+                Number(data.amount) || 0
+
+        });
+
+    });
+
+} catch(e) {
+
+    console.log("supplierTransactions not found");
+
+}
 
             // 5. جلب المصروفات العامة والتشغيلية (expenses) لدمجها كـ صادر
             try {
