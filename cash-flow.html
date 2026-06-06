@@ -47,7 +47,7 @@
 
 <div class="header-section">
     <a href="index.html" class="text-white"><i class="fas fa-home"></i></a>
-    <h6 class="fw-bold">حركة النقدية (الخزينة)</h6>
+    <h6 class="fw-bold">حركة النقدية (الخزينة الشاملة)</h6>
     <span class="badge bg-light text-dark fw-bold" id="totalRecordsCount" style="font-size: 0.7rem;">0 حركة</span>
 </div>
 
@@ -56,19 +56,19 @@
     <div class="row g-2 mb-2">
         <div class="col-4">
             <div class="summary-card text-center">
-                <small>إجمالي الوارد</small>
+                <small>إجمالي الوارد (مبيعات + سدادات)</small>
                 <h6 class="text-success" id="sumIn">0 ج.م</h6>
             </div>
         </div>
         <div class="col-4">
             <div class="summary-card text-center">
-                <small>إجمالي الصادر</small>
+                <small>إجمالي الصادر (مشتريات + مصروفات)</small>
                 <h6 class="text-danger" id="sumOut">0 ج.م</h6>
             </div>
         </div>
         <div class="col-4">
             <div class="summary-card text-center" style="background: #edf7f4;">
-                <small>صافي الخزنة</small>
+                <small>صافي الخزنة الحالي</small>
                 <h6 style="color: var(--accent);" id="netCache">0 ج.م</h6>
             </div>
         </div>
@@ -86,25 +86,25 @@
                 الصادر
             </button>
         </div>
-        <input type="text" id="cashSearchBar" class="form-control search-input" placeholder="ابحث باسم العميل، المورد أو البيان...">
+        <input type="text" id="cashSearchBar" class="form-control search-input" placeholder="ابحث باسم العميل، المورد، البند أو البيان...">
     </div>
 
     <div class="bg-white rounded-3 shadow-sm overflow-hidden">
         <div class="table-responsive">
-            <table class="table cash-table table-hover m-0 text-center align-middle">
+            <table class="table table-hover m-0 text-center align-middle cash-table">
                 <thead>
                     <tr>
                         <th style="width: 15%;">التاريخ</th>
-                        <th style="width: 15%;">الحركة</th>
-                        <th style="width: 30%;">الاسم / الحساب</th>
-                        <th style="width: 25%;">البيان</th>
+                        <th style="width: 15%;">النوع</th>
+                        <th style="width: 30%;">الاسم / الحساب / البند</th>
+                        <th style="width: 25%;">البيان / التفاصيل</th>
                         <th style="width: 15%;">المبلغ</th>
                     </tr>
                 </thead>
                 <tbody id="cashFlowTableBody">
                     <tr>
                         <td colspan="5" class="text-center text-muted py-4">
-                            <i class="fas fa-spinner fa-spin me-1"></i> جاري قراءة وتجميع الحركات النقدية...
+                            <i class="fas fa-spinner fa-spin me-1"></i> جاري قراءة وتجميع الحركات النقدية والمصروفات...
                         </td>
                     </tr>
                 </tbody>
@@ -134,16 +134,13 @@
     let masterCashArray = [];
     let currentTypeFilter = "all";
 
-    // دالة مرنة للغاية لاستخراج المبلغ المدفوع كاش من مستندات الفاتورة مهما كان اسم الحقل
     function extractPaidAmount(data) {
-        // فحص مباشر للحقول الشائعة
         if (data.paidAmount !== undefined) return Number(data.paidAmount) || 0;
         if (data.paid !== undefined) return Number(data.paid) || 0;
         if (data.cashPaid !== undefined) return Number(data.cashPaid) || 0;
         if (data.cash !== undefined) return Number(data.cash) || 0;
         if (data.amountPaid !== undefined) return Number(data.amountPaid) || 0;
         
-        // فحص ديناميكي ذكي لمفاتيح الحقول إذا اختلف الاسم تماماً
         for (let key in data) {
             const lowerKey = key.toLowerCase();
             if (lowerKey.includes('paid') || lowerKey.includes('cash') || lowerKey.includes('مدفوع')) {
@@ -173,7 +170,7 @@
             let namesCache = {};
             masterCashArray = [];
 
-            // 1. جلب كاش أسماء العملاء والموردين
+            // 1. جلب أسماء العملاء والموردين للكاش والربط الذكي
             try {
                 const custSnap = await getDocs(collection(db, "customers"));
                 custSnap.forEach(cDoc => { namesCache[cDoc.id] = cDoc.data().name; });
@@ -184,7 +181,7 @@
                 suppSnap.forEach(sDoc => { namesCache[sDoc.id] = sDoc.data().name; });
             } catch(e){}
 
-            // 2. جلب السندات المالية (transactions)
+            // 2. جلب السندات المباشرة المقبوضة والمصروفة (transactions)
             try {
                 const snapTrans = await getDocs(collection(db, "transactions"));
                 snapTrans.forEach(doc => {
@@ -193,7 +190,7 @@
                     let partyId = data.partyId || data.supplierId || "";
 
                     if (!resolvedName || resolvedName === "عميل غير مدرج الاسم" || resolvedName.includes("حركة عامة")) {
-                        resolvedName = (partyId && namesCache[partyId]) ? namesCache[partyId] : "حساب نقدي عام";
+                        resolvedName = (partyId && namesCache[partyId]) ? namesCache[partyId] : "سند مالي مباشر";
                     }
 
                     masterCashArray.push({
@@ -201,13 +198,13 @@
                         timestamp: parseDateToTimestamp(data.date),
                         type: data.type || "قبض", 
                         customerName: resolvedName,
-                        notes: data.notes || "سند مالي مباشر",
+                        notes: data.notes || (data.type === "صرف" ? "سند صرف نقدي" : "سند قبض نقدي"),
                         amount: Number(data.amount) || 0
                     });
                 });
             } catch(e) { console.error("خطأ بالسندات:", e); }
 
-            // 3. جلب فواتير البيع (sales)
+            // 3. جلب المدفوعات النقدية الفورية من فواتير المبيعات (sales)
             try {
                 const snapSales = await getDocs(collection(db, "sales"));
                 snapSales.forEach(doc => {
@@ -223,7 +220,7 @@
                         masterCashArray.push({
                             date: data.date || "---",
                             timestamp: parseDateToTimestamp(data.date),
-                            type: "قبض", // كاش داخل = وارد
+                            type: "قبض", // مبيعات نقدية = كاش داخل الخزنة
                             customerName: custName || "عميل نقدي (فاتورة بيع)",
                             notes: `فاتورة بيع رقم: ${data.invoiceNumber || data.invNo || doc.id.substring(0,6)}`,
                             amount: paidAmount
@@ -232,7 +229,7 @@
                 });
             } catch(e) { console.error("خطأ بفواتير البيع:", e); }
 
-            // 4. جلب فواتير الشراء (purchases)
+            // 4. جلب المدفوعات النقدية الفورية من فواتير المشتريات (purchases)
             try {
                 const snapPurchases = await getDocs(collection(db, "purchases"));
                 snapPurchases.forEach(doc => {
@@ -248,7 +245,7 @@
                         masterCashArray.push({
                             date: data.date || "---",
                             timestamp: parseDateToTimestamp(data.date),
-                            type: "صرف", // كاش خارج = صادر
+                            type: "صرف", // مشتريات نقدية = كاش خارج من الخزنة
                             customerName: suppName || "مورد نقدي (فاتورة شراء)",
                             notes: `فاتورة شراء رقم: ${data.invoiceNumber || data.invNo || doc.id.substring(0,6)}`,
                             amount: paidAmount
@@ -257,7 +254,27 @@
                 });
             } catch(e) { console.error("خطأ بفواتير الشراء:", e); }
 
-            // 5. ترتيب مصفوفة النقدية تنازلياً
+            // 5. جلب المصروفات العامة والتشغيلية (expenses) لدمجها كـ صادر
+            try {
+                const snapExpenses = await getDocs(collection(db, "expenses"));
+                snapExpenses.forEach(doc => {
+                    const data = doc.data();
+                    const expenseAmount = Number(data.amount) || Number(data.value) || 0;
+                    
+                    if (expenseAmount > 0) {
+                        masterCashArray.push({
+                            date: data.date || "---",
+                            timestamp: parseDateToTimestamp(data.date),
+                            type: "صرف", // مصروفات تشغيلية = خارج من الخزنة
+                            customerName: data.category || data.expenseName || data.title || "مصروفات تشغيلية وعامة",
+                            notes: data.notes || data.statement || "إيصال مصروفات",
+                            amount: expenseAmount
+                        });
+                    }
+                });
+            } catch(e) { console.error("خطأ في قراءة المصروفات:", e); }
+
+            // ترتيب مصفوفة النقدية الشاملة من الأحدث إلى الأقدم
             masterCashArray.sort((a, b) => b.timestamp - a.timestamp);
 
             applyFilters();
@@ -298,7 +315,7 @@
         tbody.innerHTML = "";
         
         if(filteredData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">لا توجد نتائج مطابقة للحسابات أو الفواتير.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center text-muted py-4">لا توجد نتائج مطابقة لفلترة البحث الحالية.</td></tr>`;
         } else {
             filteredData.forEach(item => {
                 const isIncoming = item.type === "قبض";
@@ -336,6 +353,7 @@
 
     document.getElementById('cashSearchBar').addEventListener('input', applyFilters);
 
+    // تفعيل جلب البيانات فور تحميل الصفحة
     fetchCashFlow();
 </script>
 </body>
