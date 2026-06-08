@@ -137,7 +137,6 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    // تم إصلاح الاستدعاء هنا وإضافة getDoc و setDoc بشكل صحيح
     import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -156,7 +155,7 @@
     const loader = document.getElementById('loader');
     const loginContent = document.getElementById('loginContent');
 
-    // دالة تقوم بإنشاء وتأمين حساب الموظف تلقائيًا في الخلفية فور فتح الصفحة دون أدنى عناء
+    // تهيئة مستخدم افتراضي باسم "user" إذا لم يكن موجوداً
     async function autoInitializeUser() {
         try {
             const targetRef = doc(db, "users", "user");
@@ -174,7 +173,7 @@
     }
 
     document.addEventListener("DOMContentLoaded", () => {
-        autoInitializeUser(); // تفعيل الحساب فورًا بالخلفية
+        autoInitializeUser(); 
         
         const loggedUser = sessionStorage.getItem('isLoggedIn');
         if (loggedUser === 'true') {
@@ -203,14 +202,16 @@
 
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> جاري التحقق...';
+        err.innerText = ""; // تصفية الأخطاء السابقة قبل الفحص الجديد
 
         try {
+            // جلب المستند بناءً على اسم المستخدم المدخل بدقة
             const userRef = doc(db, "users", userVal);
             const userSnap = await getDoc(userRef);
 
             if (userSnap.exists()) {
                 const userData = userSnap.data();
-                if (userData.pass === passVal) {
+                if (String(userData.pass).trim() === String(passVal).trim()) {
                     sessionStorage.setItem('isLoggedIn', 'true');
                     sessionStorage.setItem('username', userVal);
                     sessionStorage.setItem('role', userData.role || 'restricted'); 
@@ -219,10 +220,16 @@
                     err.innerText = "كلمة المرور غير صحيحة";
                 }
             } else {
-                err.innerText = "اسم المستخدم غير موجود";
+                err.innerText = "اسم المستخدم غير موجود بالنظام";
             }
         } catch (e) {
-            err.innerText = "خطأ في الاتصال بالخادم";
+            console.error("Firebase Login Error Details:", e);
+            // إظهار تفاصيل أدق للمطور في حالة وجود خلل في القواعد الأمنية للفايربيس
+            if (e.message && e.message.includes("permission-denied")) {
+                err.innerText = "خطأ: تم رفض الوصول من السيرفر (راجع قواعد الحماية Cloud Firestore Rules)";
+            } else {
+                err.innerText = "خطأ في الاتصال بالخادم. تأكد من إنترنت الموبايل";
+            }
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i> دخول النظام';
