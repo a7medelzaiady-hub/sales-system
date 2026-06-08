@@ -175,7 +175,7 @@
 
 </div>  
 
-<!-- مودال الشير عبر الواتساب -->
+<!-- مودال الشير عبر الواتساب (يعتمد على الصور للأهمية والتنسيق) -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">  
     <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: 14px; text-align: center; font-family: 'Cairo';">  
         <div style="width: 50px; height: 50px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">  
@@ -190,7 +190,7 @@
     </div>  
 </div>  
 
-<!-- الحاوية الوهمية لطباعة الريسيت الحراري -->
+<!-- الحاوية الوهمية لطباعة ريسيت الواتساب كصورة فقط عند الحاجة للشير -->
 <div id="thermalReceiptContainer" style="position: absolute; left: -9999px; top: -9999px;">  
     <div id="thermalReceipt" style="width: 380px; background: #fff; padding: 25px 20px; font-family: 'Cairo'; direction: rtl; color: #000;">  
         <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 10px;">  
@@ -224,8 +224,7 @@
             </div>  
         </div>  
         <div style="text-align: center; margin-top: 25px; border-top: 1px solid #000; padding-top: 8px; font-size: 11px; font-weight: 700;">  
-            شكراً لتعاملكم معنا برجاء مراجعه الفاتوره عند استلامها
-            01027830834🌹  
+            شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹  
         </div>  
     </div>  
 </div>  
@@ -294,7 +293,6 @@
         return "00:00 م";  
     }  
 
-    // تعريف دوال الفلترة والرندرة أولاً لمنع أخطاء الـ Scope أثناء التحميل المباشر
     window.renderInvoices = (invoices) => {  
         const container = document.getElementById('invoicesList');  
         if (invoices.length === 0) {  
@@ -326,7 +324,7 @@
                         <div>  
                             <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.88rem;">${inv.customerName || 'عميل نقدي'}</h6>  
                             <span class="detail-badge"><i class="far fa-clock"></i> ${shortDate} ${displayTime}</span>  
-                            <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير محدد'}</span>  
+                            <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير مححدد'}</span>  
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة ما تم تعديله بالظبط</div>` : ''}  
                         </div>  
                         <div class="d-flex gap-1 flex-wrap justify-content-end" style="max-width: 60%;">  
@@ -415,7 +413,6 @@
         document.getElementById('todayTotalSales').innerText = todaySales.toFixed(1);  
     }  
   
-    // دالة جلب البيانات الأساسية من Firebase  
     async function loadData() {  
         try {  
             const custSnap = await getDocs(collection(db, "customers"));  
@@ -706,119 +703,111 @@
         worksheet['!dir'] = "rtl";  
         XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);  
     };  
-window.printInvoice = (id) => {  
-    const inv = allInvoices.find(i => i.id === id);  
-    if (!inv) return;  
-    
-    const originalDate = parseInvoiceDate(inv);  
-    const displayTime = formatInvoiceTime(inv.time, inv.date);  
-    const totalPaid = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);
-    const finalRemaining = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);
-
-    // بناء جدول الأصناف نصياً وبسرعة فائقة
-    const itemsRows = (inv.items || []).map(item => `  
-        <tr style="border-bottom: 1px dashed #000;">  
-            <td style="padding: 6px 0; text-align: right; font-weight: 700;">${item.name}</td>  
-            <td style="text-align: center; padding: 6px 0;">${item.qty}</td>  
-            <td style="text-align: left; padding: 6px 0;">${Number(item.price || 0).toFixed(2)}</td>  
-            <td style="text-align: left; padding: 6px 0; font-weight: 700;">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>  
-        </tr>  
-    `).join('');  
-
-    // فتح نافذة طباعة فورية بدون انتظار مكتبة الكانفاس الرسومية الثقيلة
-    const win = window.open("", "_blank");  
-    if (!win) {
-        alert("يرجى السماح بالنوافذ المنبثقة (Pop-ups) للمتصفح لتتمكن من الطباعة الفورية!");
-        return;
-    }
-
-    win.document.write(`  
-        <!DOCTYPE html>
-        <html lang="ar" dir="rtl">  
-        <head>  
-            <meta charset="UTF-8">
-            <title>طباعة فاتورة - شركة الزيادي</title>  
-            <style>   
-                @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
-                @page { size: auto; margin: 0mm; } 
-                body {   
-                    margin: 0;   
-                    padding: 10px;   
-                    font-family: 'Cairo', sans-serif;   
-                    color: #000;   
-                    background: #fff;   
-                    font-size: 14px;
-                    width: 76mm; /* مهيأ تماماً لمقاس الـ 80mm مع هوامش الأمان */
-                }   
-                .receipt-header { text-align: center; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 8px; }
-                .receipt-title { font-size: 20px; font-weight: 800; margin: 0; }
-                .receipt-subtitle { font-size: 13px; font-weight: 600; margin: 2px 0; }
-                .badge-title { display: inline-block; border: 1px solid #000; padding: 2px 15px; font-weight: 800; border-radius: 4px; margin-top: 5px; font-size: 13px; }
-                .info-table { width: 100%; font-size: 13px; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 6px; line-height: 1.6; }
-                .items-table { width: 100%; font-size: 13px; text-align: right; margin-bottom: 10px; border-collapse: collapse; }
-                .items-table th { border-bottom: 1.5px solid #000; font-weight: 800; padding: 4px 0; }
-                .totals-box { font-size: 13px; line-height: 1.6; }
-                .flex-row { display: flex; justify-content: space-between; }
-                .final-total { font-size: 15px; border-top: 1.5px dashed #000; padding-top: 4px; margin-top: 4px; font-weight: 800; }
-                .footer-text { text-align: center; margin-top: 20px; border-top: 1px solid #000; padding-top: 6px; font-size: 11px; font-weight: 700; }
-            </style>  
-        </head>  
-        <body>  
-            <div class="receipt-header">  
-                <h4 class="receipt-title">شركة الزيادي</h4>  
-                <p class="receipt-subtitle">لزيوت وفلاتر السيارات</p>  
-                <div class="badge-title">فاتورة مبيعات</div>  
-            </div>  
-            
-            <div class="info-table">  
-                <div class="flex-row"><span><b>العميل:</b></span><span style="font-weight:700;">${inv.customerName || 'عميل نقدي'}</span></div>  
-                <div class="flex-row"><span><b>التاريخ والوقت:</b></span><span style="direction: ltr;">${originalDate} ${displayTime}</span></div>  
-                <div class="flex-row"><span><b>طريقة السداد:</b></span><span style="font-weight:700;">${inv.paymentMethod || 'غير محدد'}</span></div>  
-            </div>  
-            
-            <table class="items-table">  
-                <thead>  
-                    <tr>  
-                        <th style="text-align: right;">الصنف</th>  
-                        <th style="text-align: center;">الكمية</th>  
-                        <th style="text-align: left;">السعر</th>  
-                        <th style="text-align: left;">الإجمالي</th>  
-                    </tr>  
-                </thead>  
-                <tbody>  
-                    ${itemsRows}  
-                </tbody>  
-            </table>  
-            
-            <div class="totals-box">  
-                <div class="flex-row"><span>إجمالي الفاتورة:</span><span style="font-weight:700;">${Number(inv.total || 0).toFixed(2)}</span></div>  
-                <div class="flex-row"><span>المسدد الشامل:</span><span style="font-weight:700;">${totalPaid}</span></div>  
-                <div class="flex-row"><span>حساب سابق للعميل:</span><span style="font-weight:700;">${Number(inv.previousBalance || 0).toFixed(2)}</span></div>  
-                <div class="flex-row final-total">  
-                    <span>إجمالي الحساب المتبقي الآجل:</span>  
-                    <span>${finalRemaining}</span>  
-                </div>  
-            </div>  
-            
-            <div class="footer-text">  
-                شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹  
-            </div>  
-
-            <script>   
-                // تنفيذ الطباعة المباشرة بمجرد تحميل النصوص والخطوط فوراً
-                window.onload = function() {  
-                    window.print();  
-                    window.close();  
-                };  
-            <\/script>  
-        </body>  
-        </html>  
-    `);  
-    win.document.close();  
-};
-
   
-    // استدعاء جلب البيانات الفعلي في آخر سطر بعد اكتمال بناء الـ Scope بالكامل  
+    // --- دالة الطباعة الفورية الصاروخية باستخدام نظام الـ iframe لمنع الحظر ---
+    window.printInvoice = (id) => {  
+        const inv = allInvoices.find(i => i.id === id);  
+        if (!inv) return;  
+        
+        const originalDate = parseInvoiceDate(inv);  
+        const displayTime = formatInvoiceTime(inv.time, inv.date);  
+        const totalPaid = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);  
+        const finalRemaining = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);  
+  
+        const itemsRows = (inv.items || []).map(item => `  
+            <tr style="border-bottom: 1px dashed #000;">  
+                <td style="padding: 6px 0; text-align: right; font-weight: 700;">${item.name}</td>  
+                <td style="text-align: center; padding: 6px 0;">${item.qty}</td>  
+                <td style="text-align: left; padding: 6px 0;">${Number(item.price || 0).toFixed(2)}</td>  
+                <td style="text-align: left; padding: 6px 0; font-weight: 700;">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>  
+            </tr>  
+        `).join('');  
+  
+        const printContent = `
+            <div style="width: 76mm; font-family: 'Cairo', sans-serif; color: #000; direction: rtl; text-align: right; margin: 0 auto;">
+                <div style="text-align: center; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 8px;">  
+                    <h4 style="font-size: 20px; font-weight: 800; margin: 0;">شركة الزيادي</h4>  
+                    <p style="font-size: 13px; font-weight: 600; margin: 2px 0;">لزيوت وفلاتر السيارات</p>  
+                    <div style="display: inline-block; border: 1px solid #000; padding: 2px 15px; font-weight: 800; border-radius: 4px; margin-top: 5px; font-size: 13px;">فاتورة مبيعات</div>  
+                </div>  
+                
+                <div style="width: 100%; font-size: 13px; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 6px; line-height: 1.6;">  
+                    <div style="display: flex; justify-content: space-between;"><span><b>العميل:</b></span><span style="font-weight:700;">${inv.customerName || 'عميل نقدي'}</span></div>  
+                    <div style="display: flex; justify-content: space-between;"><span><b>التاريخ والوقت:</b></span><span style="direction: ltr;">${originalDate} ${displayTime}</span></div>  
+                    <div style="display: flex; justify-content: space-between;"><span><b>طريقة السداد:</b></span><span style="font-weight:700;">${inv.paymentMethod || 'غير محدد'}</span></div>  
+                </div>  
+                
+                <table style="width: 100%; font-size: 13px; text-align: right; margin-bottom: 10px; border-collapse: collapse;">  
+                    <thead>  
+                        <tr>  
+                            <th style="text-align: right; border-bottom: 1.5px solid #000; font-weight: 800; padding: 4px 0;">الصنف</th>  
+                            <th style="text-align: center; border-bottom: 1.5px solid #000; font-weight: 800; padding: 4px 0;">الكمية</th>  
+                            <th style="text-align: left; border-bottom: 1.5px solid #000; font-weight: 800; padding: 4px 0;">السعر</th>  
+                            <th style="text-align: left; border-bottom: 1.5px solid #000; font-weight: 800; padding: 4px 0;">الإجمالي</th>  
+                        </tr>  
+                    </thead>  
+                    <tbody>  
+                        ${itemsRows}  
+                    </tbody>  
+                </table>  
+                
+                <div style="font-size: 13px; line-height: 1.6;">  
+                    <div style="display: flex; justify-content: space-between;"><span>إجمالي الفاتورة:</span><span style="font-weight:700;">${Number(inv.total || 0).toFixed(2)}</span></div>  
+                    <div style="display: flex; justify-content: space-between;"><span>المسدد الشامل:</span><span style="font-weight:700;">${totalPaid}</span></div>  
+                    <div style="display: flex; justify-content: space-between;"><span>حساب سابق للعميل:</span><span style="font-weight:700;">${Number(inv.previousBalance || 0).toFixed(2)}</span></div>  
+                    <div style="display: flex; justify-content: space-between; font-size: 15px; border-top: 1.5px dashed #000; padding-top: 4px; margin-top: 4px; font-weight: 800;">  
+                        <span>إجمالي الحساب المتبقي الآجل:</span>  
+                        <span>${finalRemaining}</span>  
+                    </div>  
+                </div>  
+                
+                <div style="text-align: center; margin-top: 20px; border-top: 1px solid #000; padding-top: 6px; font-size: 11px; font-weight: 700;">  
+                    شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹  
+                </div>  
+            </div>
+        `;
+  
+        // إنشاء وإعداد الآي فرام المخفي للطباعة فورا بدون نوافذ منبثقة محظورة
+        let printFrame = document.getElementById('receiptPrintFrame');  
+        if (!printFrame) {  
+            printFrame = document.createElement('iframe');  
+            printFrame.id = 'receiptPrintFrame';  
+            printFrame.style.position = 'fixed';  
+            printFrame.style.bottom = '0';  
+            printFrame.style.right = '0';  
+            printFrame.style.width = '0';  
+            printFrame.style.height = '0';  
+            printFrame.style.border = 'none';  
+            document.body.appendChild(printFrame);  
+        }  
+  
+        const frameDoc = printFrame.contentWindow.document;  
+        frameDoc.open();  
+        frameDoc.write(`  
+            <!DOCTYPE html>  
+            <html>  
+            <head>  
+                <title>طباعة الريسيت</title>  
+                <style>  
+                    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');  
+                    @page { size: auto; margin: 0mm; }  
+                    body { margin: 0; padding: 10px; background: #fff; font-family: 'Cairo', sans-serif; }  
+                </style>  
+            </head>  
+            <body>  
+                ${printContent}  
+                <script>  
+                    window.onload = function() {  
+                        window.focus();  
+                        window.print();  
+                    };  
+                <\/script>  
+            </body>  
+            </html>  
+        `);  
+        frameDoc.close();  
+    };  
+  
     loadData();  
 </script>  
 </body>  
