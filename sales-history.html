@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>سجل المبيعات - شركة الزيادي</title>
-    <!-- استيراد خط القاهرة للمظهر الاحترافي -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         body {
@@ -63,22 +62,23 @@
         .btn-edit:hover { background-color: #e68a00; }
         .btn-print { background-color: #1e88e5; color: white; }
         .btn-print:hover { background-color: #1565c0; }
-        .loading-badge {
+        .sync-badge {
             display: inline-block;
             padding: 5px 10px;
-            background: #ffe0b2;
-            color: #b78103;
+            background: #e8f5e9;
+            color: #2e7d32;
             border-radius: 4px;
             font-size: 12px;
             margin-bottom: 10px;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>سجل المبيعات الفوري</h2>
-    <div id="syncStatus" class="loading-badge" style="display: none;">جاري تحديث البيانات من السيرفر...</div>
+    <h2>سجل المبيعات</h2>
+    <div id="syncStatus" class="sync-badge">متصل ومحدث تلقائياً (الكاش نشط)</div>
     
     <div class="table-responsive">
         <table>
@@ -94,14 +94,13 @@
             </thead>
             <tbody id="invoicesTableBody">
                 <tr>
-                    <td colspan="6">جاري تحميل السجل الفوري...</td>
+                    <td colspan="6">جاري تحميل البيانات ومزامنة الكاش...</td>
                 </tr>
             </tbody>
         </table>
     </div>
 </div>
 
-<!-- إعداد Firebase وربط السجل الفوري بالكاش المحسن -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { 
@@ -113,7 +112,6 @@
         enableIndexedDbPersistence 
     } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-    // إعدادات الـ Firebase الخاصة بـ Al-Zayady Company
     const firebaseConfig = {
         apiKey: "YOUR_API_KEY",
         authDomain: "YOUR_AUTH_DOMAIN",
@@ -126,38 +124,25 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // تفعيل التخزين المؤقت المحلي (Offline Persistence) بشكل صارم لتقليل استهلاك البيانات
     enableIndexedDbPersistence(db).catch((err) => {
         if (err.code == 'failed-precondition') {
-            console.warn("التخزين المؤقت لم يفعل: مفتوح في علامات تبويب متعددة");
+            console.warn("المتصفح مفتوح في تبويبات متعددة، الكاش يعمل في التبويب الأول فقط.");
         } else if (err.code == 'unimplemented') {
-            console.warn("المتصفح الحالي لا يدعم التخزين المؤقت المحلي");
+            console.warn("المتصفح لا يدعم التخزين المؤقت المستمر.");
         }
     });
 
     let allInvoices = [];
 
-    // دالة الاستماع للسيرفر وتحديث الكاش المحلي فوراً عند حدوث أي (تعديل)
     function listenToInvoices() {
-        const syncStatus = document.getElementById('syncStatus');
         const q = query(collection(db, "invoices"), orderBy("date", "desc"));
 
-        // onSnapshot تقرأ من الكاش فوراً وإذا حدث تعديل تجلبه في الخلفية دون استهلاك بيانات إضافية
         onSnapshot(q, { includeMetadataChanges: true }, (snapshot) => {
-            
-            // إشعار المستخدم إذا كانت البيانات قادمة من السيرفر (تحديث) أو الكاش
-            if (snapshot.metadata.hasPendingWrites || snapshot.metadata.fromCache) {
-                syncStatus.style.display = "none"; 
-            } else {
-                syncStatus.style.display = "inline-block";
-                setTimeout(() => syncStatus.style.display = "none", 1500);
-            }
-
             allInvoices = [];
+            
             snapshot.forEach((doc) => {
                 const data = doc.data();
                 
-                // حسابات الخزينة وسجل المحفظة لمنع التداخل أثناء رندرة الجدول
                 let calculatedCash = 0;
                 let calculatedWallet = 0;
 
@@ -180,12 +165,22 @@
             });
 
             renderInvoicesTable();
+            
+            const syncStatus = document.getElementById('syncStatus');
+            if (snapshot.metadata.fromCache) {
+                syncStatus.innerText = "عرض من الكاش المحلي (أوفلاين)";
+                syncStatus.style.background = "#fff3e0";
+                syncStatus.style.color = "#e65100";
+            } else {
+                syncStatus.innerText = "متصل مباشر - الكاش محدث بالكامل";
+                syncStatus.style.background = "#e8f5e9";
+                syncStatus.style.color = "#2e7d32";
+            }
         }, (error) => {
-            console.error("خطأ في جلب بيانات السجل:", error);
+            console.error("خطأ في جلب المزامنة:", error);
         });
     }
 
-    // رندرة الجدول وعرض البيانات المحدثة بالكاش
     function renderInvoicesTable() {
         const tbody = document.getElementById('invoicesTableBody');
         if (allInvoices.length === 0) {
@@ -205,7 +200,7 @@
                     <td style="direction: ltr;">${displayDate} ${inv.time || ''}</td>
                     <td>${clientName}</td>
                     <td style="font-weight: bold; color: #2e7d32;">${totalAmount}</td>
-                    <td><span class="loading-badge" style="background:#e3f2fd; color:#0d47a1; margin:0;">${paymentType}</span></td>
+                    <td><span style="padding:4px 8px; background:#e3f2fd; color:#0d47a1; border-radius:4px; font-size:12px;">${paymentType}</span></td>
                     <td>
                         <button class="btn btn-edit" onclick="editInvoice('${inv.id}')">تعديل</button>
                         <button class="btn btn-print" onclick="printInvoice('${inv.id}')">طباعة 80mm</button>
@@ -215,7 +210,6 @@
         }).join('');
     }
 
-    // دالة التعديل: تنقل المستخدم لصفحة الفاتورة ومزودة ببيانات الكاش والمحفظة الدقيقة في الرابط لفرض التحديث
     window.editInvoice = (id) => {
         const inv = allInvoices.find(i => i.id === id);
         if (!inv) return;
@@ -223,11 +217,9 @@
         const cashParam = inv.calculatedCash || 0;
         const walletParam = inv.calculatedWallet || 0;
 
-        // إرسال المعطيات لصفحة التعديل الأساسية مع تمرير القيم لمنع التداخل البرمجي
         window.location.href = `sales-invoice.html?edit=${id}&allowDateEdit=true&cashAmount=${cashParam}&walletAmount=${walletParam}`;
     };
 
-    // دالة الطباعة الفورية المتوافقة مع طابعات الإيصالات 80mm وحسابات العميل التراكمية
     window.printInvoice = (id) => {
         const inv = allInvoices.find(i => i.id === id);
         if (!inv) return;
@@ -310,7 +302,6 @@
         win.document.close();
     };
 
-    // تشغيل نظام الاستماع الذكي بمجرد تحميل الصفحة
     listenToInvoices();
 </script>
 
