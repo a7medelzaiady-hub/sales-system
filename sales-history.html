@@ -178,21 +178,22 @@
 
 </div>  
 
-<!-- مودال خيارات الفاتورة: شير واتساب أو طباعة -->
+<!-- مودال خيارات الفاتورة: مشاركة شاملة للتطبيقات أو طباعة مباشر حراري -->
 <div id="shareModal" class="custom-popup-overlay" style="display: none;">  
     <div class="custom-popup-box">  
         <div style="width: 45px; height: 45px; background: #eef2f5; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">  
-            <i class="fas fa-sliders-h" style="color: #0b5e3d; font-size: 1.4rem;"></i>  
+            <i class="fas fa-share-nodes" style="color: #0b5e3d; font-size: 1.4rem;"></i>  
         </div>  
-        <h6 class="fw-bold mb-1" style="font-size: 1rem;">خيارات الفاتورة السريعة</h6>  
+        <h6 class="fw-bold mb-1" style="font-size: 1rem;">خيارات الفاتورة الذكية</h6>  
         <p style="color: #666; font-size: 0.78rem; margin-bottom: 18px;">اختر الإجراء المطلوب لتنفيذه في ثوانٍ وبدون تحميل</p>  
         
         <div class="d-flex flex-column gap-2">  
-            <button id="confirmShareBtn" class="btn btn-success btn-sm w-100 fw-bold py-2" style="font-family:'Cairo'; font-size: 0.85rem; border-radius: 8px;">  
-                <i class="fab fa-whatsapp me-1"></i> مشاركة للفاتورة (واتساب)  
+            <!-- الزر المعدل للمشاركة الشاملة (واتساب، ماسنجر، طابعات مشاركة، إلخ) -->
+            <button id="confirmShareBtn" class="btn btn-success btn-sm w-100 fw-bold py-2" style="font-family:'Cairo'; font-size: 0.85rem; border-radius: 8px; background: #2d6a4f;">  
+                <i class="fas fa-paper-plane me-1"></i> إرسال ومشاركة الفاتورة للعميل  
             </button>  
             <button id="modalPrintBtn" class="btn btn-dark btn-sm w-100 fw-bold py-2" style="font-family:'Cairo'; font-size: 0.85rem; border-radius: 8px; background: #212529;">  
-                <i class="fas fa-print me-1"></i> طباعة الريسيت فورا  
+                <i class="fas fa-print me-1"></i> طباعة ريسيت 80مم فورا  
             </button>  
             <hr class="my-2" style="color: #eee;">  
             <button onclick="document.getElementById('shareModal').style.display='none'" class="btn btn-link btn-sm w-100 fw-bold text-muted text-decoration-none" style="font-family:'Cairo'; font-size: 0.8rem;">  
@@ -202,14 +203,13 @@
     </div>  
 </div>  
 
-<!-- مودال التنبيهات العام والتقارير بديل الـ alert والـ confirm والـ prompt لمنع ظهور روابط المتصفح -->
+<!-- مودال التنبيهات العام والتقارير بديل الـ alert والـ confirm لمنع ظهور روابط المتصفح -->
 <div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">  
     <div class="custom-popup-box" style="max-width: 420px;">  
         <div id="customModalIcon" style="width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;"></div>  
         <h6 class="fw-bold mb-2" id="customModalTitle" style="font-size: 1rem;">تنبيه النظام</h6>  
         <div id="customModalBody" style="font-size: 0.82rem; color: #4a5568; margin-bottom: 18px; text-align: right; white-space: pre-line; line-height: 1.6; max-height: 300px; overflow-y: auto; padding: 5px;"></div>  
         
-        <!-- حقل خاص بالـ Prompt المخصص لتصفير الحسابات -->
         <input type="text" id="customModalInput" class="form-control text-center mb-3 fw-bold" style="display:none; font-family:'Cairo'; font-size:0.9rem;" placeholder="اكتب كلمة التأكيد هنا...">  
         
         <div class="d-flex gap-2 justify-content-center" id="customModalActions"></div>  
@@ -238,7 +238,6 @@
     let activeShareData = null;  
     let currentFilterType = null;  
 
-    // دالة محاكاة تمنع الروابط وتظهر نوافذ نظام داخلية مخصصة  
     window.showCustomUi = (options) => {  
         const modal = document.getElementById('customGlobalModal');  
         const title = document.getElementById('customModalTitle');  
@@ -355,7 +354,6 @@
   
             const totalPaid = inv.calculatedCash + inv.calculatedWallet;  
             const displayTime = formatInvoiceTime(inv.time, inv.date);  
-  
             const originalDate = parseInvoiceDate(inv);  
             let shortDate = originalDate;  
             if (originalDate.includes('-')) {  
@@ -387,7 +385,7 @@
                         <div class="fin-box text-dark">إجمالي الفاتورة <span>${(Number(inv.total) || 0).toFixed(2)}</span></div>  
                         <div class="fin-box text-success">المسدد الشامل <span>${totalPaid.toFixed(2)}</span></div>  
                         <div class="fin-box text-danger">الأجل (المتبقي) <span>${(Number(inv.remaining) || 0).toFixed(2)}</span></div>  
-                        <div class="fin-box text-secondary">حساب سابق كان كام <span>${(Number(inv.previousBalance) || 0).toFixed(2)}</span></div>  
+                        <div class="fin-box text-secondary">حساب سابق كان كام <span>${(Number(inv.previousBalance || 0) || 0).toFixed(2)}</span></div>  
                     </div>  
   
                     <div id="notes_box_${inv.id}" style="display:none;">  
@@ -700,7 +698,8 @@
         document.getElementById('shareModal').style.display = 'flex';  
     };  
   
-    document.getElementById('confirmShareBtn').onclick = () => {  
+    // تحديث دالة الإرسال لتدعم قائمة مشاركة النظام الشاملة (تفتح لك الواتساب، ماسنجر، بلوتوث، طابعة، إلخ)  
+    document.getElementById('confirmShareBtn').onclick = async () => {  
         if (!activeShareData) return;  
         
         const inv = activeShareData;  
@@ -714,7 +713,7 @@
             itemsText += `📦 ${item.name}\n    الكمية: ${item.qty} | السعر: ${Number(item.price).toFixed(2)} | الإجمالي: ${(Number(item.qty) * Number(item.price)).toFixed(2)} ج.م\n`;  
         });  
   
-        const whatsappMessage = encodeURIComponent(  
+        const textContent =   
 `🧾 *فاتورة مبيعات - شركة الزيادي*  
 ----------------------------------------  
 👤 *العميل:* ${inv.customerName || 'عميل نقدي'}  
@@ -729,12 +728,25 @@ ${itemsText}
 📊 *حساب سابق للعميل:* ${Number(inv.previousBalance || 0).toFixed(2)} ج.م  
 🛑 *إجمالي الحساب المتبقي الآجل:* ${finalRemaining} ج.م  
 
-🌹 شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹`  
-        );  
+🌹 شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹`;  
   
-        const whatsappUrl = `https://api.whatsapp.com/send?text=${whatsappMessage}`;  
-        window.open(whatsappUrl, '_blank');  
         document.getElementById('shareModal').style.display = 'none';  
+  
+        // استخدام Web Share API لفتح قائمة النظام الكاملة  
+        if (navigator.share) {  
+            try {  
+                await navigator.share({  
+                    title: `فاتورة ${inv.customerName || 'عميل نقدي'}`,  
+                    text: textContent  
+                });  
+            } catch (err) {  
+                console.log("تم إلغاء عملية المشاركة الشاملة أو حدث خطأ:", err);  
+            }  
+        } else {  
+            // في حالة عدم دعم المتصفح للمشاركة الشاملة (مثل بعض المتصفحات القديمة على الكمبيوتر)، يفتح واتساب كبديل  
+            const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(textContent)}`;  
+            window.open(whatsappUrl, '_blank');  
+        }  
     };  
   
     document.getElementById('modalPrintBtn').onclick = () => {  
