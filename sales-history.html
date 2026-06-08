@@ -8,6 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">  
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">  
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
+    <!-- مكتبة تحويل الكود إلى صورة احترافية -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>  
         :root {   
             --accent: #0b5e3d;          
@@ -177,21 +179,24 @@
 
 </div>  
 
+<!-- حاوية مخفية لإنشاء الفاتورة بداخلها تمهيداً لتحويلها لصورة دقيقة -->
+<div id="invoiceRenderContainer" style="position: absolute; left: -9999px; top: -9999px;"></div>
+
 <!-- مودال خيارات الفاتورة -->
 <div id="shareModal" class="custom-popup-overlay" style="display: none;">  
     <div class="custom-popup-box">  
         <div style="width: 45px; height: 45px; background: #eef2f5; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">  
             <i class="fas fa-share-nodes" style="color: #0b5e3d; font-size: 1.4rem;"></i>  
         </div>  
-        <h6 class="fw-bold mb-1" style="font-size: 1rem;">خيارات الفاتورة الذكية</h6>  
-        <p style="color: #666; font-size: 0.78rem; margin-bottom: 18px;">اختر الإجراء المطلوب لتنفيذه في ثوانٍ وبدون تحميل</p>  
+        <h6 class="fw-bold mb-1" style="font-size: 1rem;">خيارات الفاتورة الصورة</h6>  
+        <p style="color: #666; font-size: 0.78rem; margin-bottom: 18px;">سيتم توليد الفاتورة كصورة احترافية تلقائياً</p>  
         
         <div class="d-flex flex-column gap-2">  
             <button id="confirmShareBtn" class="btn btn-success btn-sm w-100 fw-bold py-2" style="font-family:'Cairo'; font-size: 0.85rem; border-radius: 8px; background: #2d6a4f;">  
-                <i class="fas fa-paper-plane me-1"></i> إرسال ومشاركة الفاتورة للعميل  
+                <i class="fas fa-image me-1"></i> مشاركة الفاتورة كصورة للعميل  
             </button>  
             <button id="modalPrintBtn" class="btn btn-dark btn-sm w-100 fw-bold py-2" style="font-family:'Cairo'; font-size: 0.85rem; border-radius: 8px; background: #212529;">  
-                <i class="fas fa-print me-1"></i> طباعة ريسيت 80مم فورا  
+                <i class="fas fa-print me-1"></i> طباعة الصورة ريسيت 80مم  
             </button>  
             <hr class="my-2" style="color: #eee;">  
             <button onclick="document.getElementById('shareModal').style.display='none'" class="btn btn-link btn-sm w-100 fw-bold text-muted text-decoration-none" style="font-family:'Cairo'; font-size: 0.8rem;">  
@@ -695,60 +700,169 @@
         activeShareData = inv;  
         document.getElementById('shareModal').style.display = 'flex';  
     };  
-  
-    // دالة المشاركة الذكية الشاملة  
-    document.getElementById('confirmShareBtn').onclick = async () => {  
-        if (!activeShareData) return;  
-        
-        const inv = activeShareData;  
+
+    // دالة مساعدة لإنشاء HTML الفاتورة داخل الحاوية المخفية بدقة متناهية تمهيداً للتصوير
+    function generateInvoiceHtmlStructure(inv) {
         const originalDate = parseInvoiceDate(inv);  
         const displayTime = formatInvoiceTime(inv.time, inv.date);  
-        const totalPaid = (inv.calculatedCash + inv.calculatedWallet).toFixed(2);  
+        const totalPaid = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);  
         const finalRemaining = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);  
   
-        let itemsText = "";  
-        (inv.items || []).forEach((item) => {  
-            itemsText += `📦 ${item.name}\n    الكمية: ${item.qty} | السعر: ${Number(item.price).toFixed(2)} | الإجمالي: ${(Number(item.qty) * Number(item.price)).toFixed(2)} ج.م\n`;  
-        });  
-  
-        const textContent =   
-`🧾 *فاتورة مبيعات - شركة الزيادي*  
-----------------------------------------  
-👤 *العميل:* ${inv.customerName || 'عميل نقدي'}  
-📅 *التاريخ:* ${originalDate} | ${displayTime}  
-💳 *طريقة السداد:* ${inv.paymentMethod || 'غير محدد'}  
-----------------------------------------  
-*الأصناف وبيان العملية:*  
-${itemsText}  
-----------------------------------------  
-💰 *إجمالي الفاتورة:* ${Number(inv.total).toFixed(2)} ج.م  
-💵 *المسدد الشامل:* ${totalPaid} ج.م  
-📊 *حساب سابق للعميل:* ${Number(inv.previousBalance || 0).toFixed(2)} ج.م  
-🛑 *إجمالي الحساب المتبقي الآجل:* ${finalRemaining} ج.م  
+        const itemsRows = (inv.items || []).map(item => `  
+            <tr style="border-bottom: 1px dashed #000;">  
+                <td style="padding: 6px 0; font-weight: 700; text-align: right;">${item.name}</td>  
+                <td style="text-align: center; font-weight: 700;">${item.qty}</td>  
+                <td style="text-align: left; font-weight: 700;">${Number(item.price || 0).toFixed(2)}</td>  
+                <td style="text-align: left; font-weight: 700;">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>  
+            </tr>  
+        `).join('');  
 
-🌹 شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹`;  
+        return `
+            <div id="captureArea" style="width: 380px; padding: 20px; background: #ffffff; font-family: 'Cairo', sans-serif; color: #000000; direction: rtl; box-sizing: border-box;">  
+                <div style="text-align: center; margin-bottom: 15px;">  
+                    <h2 style="margin: 0; font-size: 24px; font-weight: 800; color: #000;">شركة الزيادي</h2>  
+                    <p style="margin: 2px 0; font-size: 14px; font-weight: 600; color: #333;">لزيوت وفلاتر السيارات</p>  
+                    <h3 style="margin: 8px 0 0 0; font-size: 16px; font-weight: 700; border-bottom: 2px solid #000; padding-bottom: 5px; display: inline-block;">فاتورة مبيعات مخصصة</h3>  
+                </div>  
+                  
+                <table style="width: 100%; font-size: 14px; margin-bottom: 12px; line-height: 1.6;">  
+                    <tr><td style="text-align: right;"><b>العميل:</b></td><td style="text-align: left; font-weight: 700;">${inv.customerName || 'عميل نقدي'}</td></tr>  
+                    <tr><td style="text-align: right;"><b>التاريخ:</b></td><td style="text-align: left; direction: ltr; font-weight: 600;">${originalDate} ${displayTime}</td></tr>  
+                    <tr><td style="text-align: right;"><b>طريقة السداد:</b></td><td style="text-align: left; font-weight: 700;">${inv.paymentMethod || 'غير محدد'}</td></tr>  
+                </table>  
+                  
+                <table style="width: 100%; font-size: 13px; border-collapse: collapse; margin-bottom: 15px;">  
+                    <thead>  
+                        <tr style="border-bottom: 2px solid #000;">  
+                            <th style="text-align: right; padding-bottom: 6px;">الصنف</th>  
+                            <th style="text-align: center; padding-bottom: 6px;">الكمية</th>  
+                            <th style="text-align: left; padding-bottom: 6px;">السعر</th>  
+                            <th style="text-align: left; padding-bottom: 6px;">الإجمالي</th>  
+                        </tr>  
+                    </thead>  
+                    <tbody>  
+                        ${itemsRows}  
+                    </tbody>  
+                </table>  
+                  
+                <div style="font-size: 14px; line-height: 1.7; border-top: 1px solid #000; padding-top: 6px;">  
+                    <table style="width: 100%;">  
+                        <tr><td style="text-align: right;">إجمالي الفاتورة:</td><td style="text-align: left; font-weight: 700;">${Number(inv.total || 0).toFixed(2)} ج.م</td></tr>  
+                        <tr><td style="text-align: right;">المسدد الشامل:</td><td style="text-align: left; font-weight: 700;">${totalPaid} ج.م</td></tr>  
+                        <tr><td style="text-align: right;">حساب سابق للعميل:</td><td style="text-align: left; font-weight: 700;">${Number(inv.previousBalance || 0).toFixed(2)} ج.م</td></tr>  
+                        <tr style="font-size: 15px; font-weight: 800; border-top: 2px dashed #000;">  
+                            <td style="padding-top: 6px; text-align: right;">إجمالي الحساب المتبقي الآجل:</td>  
+                            <td style="text-align: left; padding-top: 6px; color: #d90429;">${finalRemaining} ج.م</td>  
+                        </tr>  
+                    </table>  
+                </div>  
+                  
+                <div style="text-align: center; margin-top: 25px; border-top: 1px solid #000; padding-top: 8px; font-size: 12px; font-weight: 700;">  
+                    شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹  
+                </div>  
+            </div>
+        `;
+    }
   
+    // دالة توليد الصورة الذكية والمشاركة الفورية كملف صورة احترافي
+    document.getElementById('confirmShareBtn').onclick = async () => {  
+        if (!activeShareData) return;  
         document.getElementById('shareModal').style.display = 'none';  
-  
-        if (navigator.share) {  
-            try {  
-                await navigator.share({  
-                    title: `فاتورة ${inv.customerName || 'عميل نقدي'}`,  
-                    text: textContent  
-                });  
-            } catch (err) {  
-                console.log("تم إلغاء عملية المشاركة الشاملة أو حدث خطأ:", err);  
-            }  
-        } else {  
-            const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(textContent)}`;  
-            window.open(whatsappUrl, '_blank');  
-        }  
+        
+        // بناء الهيكل داخل المنطقة المخفية
+        const renderContainer = document.getElementById('invoiceRenderContainer');
+        renderContainer.innerHTML = generateInvoiceHtmlStructure(activeShareData);
+        
+        // تحويل الهيكل إلى Blob صورة دقيق عبر الحساب الخفي
+        setTimeout(async () => {
+            const element = document.getElementById('captureArea');
+            try {
+                const canvas = await html2canvas(element, { useCORS: true, scale: 2, backgroundColor: "#ffffff" });
+                canvas.toBlob(async (blob) => {
+                    const file = new File([blob], `فاتورة_${activeShareData.customerName || 'عميل'}.png`, { type: 'image/png' });
+                    
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        try {
+                            await navigator.share({
+                                files: [file],
+                                title: `فاتورة ${activeShareData.customerName || 'عميل'}`,
+                                text: `فاتورة شركة الزيادي مبيعات`
+                            });
+                        } catch (err) {
+                            console.log("ألغيت عملية مشاركة ملف الصورة:", err);
+                        }
+                    } else {
+                        // إذا كان المتصفح لا يدعم مشاركة الملفات، يتم تنزيل الصورة مباشرة لتسهيل إرسالها يدويًا
+                        const link = document.createElement('a');
+                        link.download = `فاتورة_${activeShareData.customerName || 'عميل'}.png`;
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                    }
+                    renderContainer.innerHTML = ""; // تنظيف الحاوية
+                }, 'image/png');
+            } catch (error) {
+                console.error("خطأ أثناء تحويل الصورة:", error);
+            }
+        }, 100);
     };  
   
+    // دالة طباعة الصورة مباشرة داخل الـ iframe لضمان ثبات الأبعاد
     document.getElementById('modalPrintBtn').onclick = () => {  
         if (!activeShareData) return;  
-        window.printInvoice(activeShareData.id);  
         document.getElementById('shareModal').style.display = 'none';  
+
+        const renderContainer = document.getElementById('invoiceRenderContainer');
+        renderContainer.innerHTML = generateInvoiceHtmlStructure(activeShareData);
+
+        setTimeout(async () => {
+            const element = document.getElementById('captureArea');
+            try {
+                const canvas = await html2canvas(element, { useCORS: true, scale: 2, backgroundColor: "#ffffff" });
+                const imgDataUrl = canvas.toDataURL('image/png');
+
+                let printFrame = document.getElementById('receiptPrintFrame');  
+                if (!printFrame) {  
+                    printFrame = document.createElement('iframe');  
+                    printFrame.id = 'receiptPrintFrame';  
+                    printFrame.style.position = 'fixed';  
+                    printFrame.style.bottom = '0';  
+                    printFrame.style.right = '0';  
+                    printFrame.style.width = '0';  
+                    printFrame.style.height = '0';  
+                    printFrame.style.border = 'none';  
+                    document.body.appendChild(printFrame);  
+                }  
+  
+                const frameDoc = printFrame.contentWindow.document;  
+                frameDoc.open();  
+                frameDoc.write(`  
+                    <!DOCTYPE html>  
+                    <html>  
+                    <head>  
+                        <title>طباعة ريسيت الصورة</title>  
+                        <style>  
+                            @page { size: auto; margin: 0mm; }  
+                            body { margin: 0; padding: 0; background: #fff; text-align: center; }  
+                            img { width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto; }  
+                        </style>  
+                    </head>  
+                    <body>  
+                        <img src="${imgDataUrl}" />  
+                        <script>  
+                            window.onload = function() {  
+                                window.focus();  
+                                window.print();  
+                            };  
+                        <\/script>  
+                    </body>  
+                    </html>  
+                `);  
+                frameDoc.close();
+                renderContainer.innerHTML = ""; // تنظيف
+            } catch (err) {
+                console.error("خطأ أثناء معالجة الطباعة كصورة:", err);
+            }
+        }, 100);
     };  
   
     window.editInvoice = (id) => {   
@@ -807,111 +921,6 @@ ${itemsText}
         XLSX.utils.book_append_sheet(workbook, worksheet, "كشف الحركة");  
         worksheet['!dir'] = "rtl";  
         XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);  
-    };  
-  
-    // إرجاع دالة الطباعة بالشكل الأصلي القديم تماماً (الجدول والتنسيق الأصلي)
-    window.printInvoice = (id) => {  
-        const inv = allInvoices.find(i => i.id === id);  
-        if (!inv) return;  
-        
-        const originalDate = parseInvoiceDate(inv);  
-        const displayTime = formatInvoiceTime(inv.time, inv.date);  
-        const totalPaid = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);  
-        const finalRemaining = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);  
-  
-        const itemsRows = (inv.items || []).map(item => `  
-            <tr style="border-bottom: 1px dashed #000;">  
-                <td style="padding: 5px 0; font-weight: 700;">${item.name}</td>  
-                <td style="text-align: center;">${item.qty}</td>  
-                <td style="text-align: left;">${Number(item.price || 0).toFixed(2)}</td>  
-                <td style="text-align: left; font-weight: 700;">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>  
-            </tr>  
-        `).join('');  
-  
-        const printContent = `  
-            <div style="width: 100%; font-family: 'Cairo', sans-serif; color: #000; direction: rtl; text-align: right;">  
-                <div style="text-align: center; margin-bottom: 15px;">  
-                    <h2 style="margin: 0; font-size: 22px; font-weight: 800;">شركة الزيادي</h2>  
-                    <p style="margin: 2px 0; font-size: 14px; font-weight: 600;">لزيوت وفلاتر السيارات</p>  
-                    <h3 style="margin: 5px 0 0 0; font-size: 16px; font-weight: 700; border-bottom: 2px solid #000; padding-bottom: 5px; display: inline-block;">فاتورة مبيعات</h3>  
-                </div>  
-                  
-                <table style="width: 100%; font-size: 14px; margin-bottom: 10px; line-height: 1.5;">  
-                    <tr><td><b>العميل:</b></td><td style="text-align: left; font-weight: 700;">${inv.customerName || 'عميل نقدي'}</td></tr>  
-                    <tr><td><b>التاريخ:</b></td><td style="text-align: left; direction: ltr;">${originalDate} ${displayTime}</td></tr>  
-                    <tr><td><b>طريقة السداد:</b></td><td style="text-align: left; font-weight: 700;">${inv.paymentMethod || 'غير محدد'}</td></tr>  
-                </table>  
-                  
-                <table style="width: 100%; font-size: 13px; border-collapse: collapse; margin-bottom: 15px;">  
-                    <thead>  
-                        <tr style="border-bottom: 2px solid #000;">  
-                            <th style="text-align: right; padding-bottom: 5px;">الصنف</th>  
-                            <th style="text-align: center; padding-bottom: 5px;">الكمية</th>  
-                            <th style="text-align: left; padding-bottom: 5px;">السعر</th>  
-                            <th style="text-align: left; padding-bottom: 5px;">الإجمالي</th>  
-                        </tr>  
-                    </thead>  
-                    <tbody>  
-                        ${itemsRows}  
-                    </tbody>  
-                </table>  
-                  
-                <div style="font-size: 14px; line-height: 1.6; border-top: 1px solid #000; padding-top: 5px;">  
-                    <table style="width: 100%;">  
-                        <tr><td>إجمالي الفاتورة:</td><td style="text-align: left; font-weight: 700;">${Number(inv.total || 0).toFixed(2)}</td></tr>  
-                        <tr><td>المسدد الشامل:</td><td style="text-align: left; font-weight: 700;">${totalPaid}</td></tr>  
-                        <tr><td>حساب سابق للعميل:</td><td style="text-align: left; font-weight: 700;">${Number(inv.previousBalance || 0).toFixed(2)}</td></tr>  
-                        <tr style="font-size: 16px; font-weight: 800; border-top: 2px dashed #000;">  
-                            <td style="padding-top: 5px;">إجمالي الحساب المتبقي الآجل:</td>  
-                            <td style="text-align: left; padding-top: 5px;">${finalRemaining}</td>  
-                        </tr>  
-                    </table>  
-                </div>  
-                  
-                <div style="text-align: center; margin-top: 25px; border-top: 1px solid #000; padding-top: 5px; font-size: 12px; font-weight: 700;">  
-                    شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹  
-                </div>  
-            </div>  
-        `;  
-  
-        let printFrame = document.getElementById('receiptPrintFrame');  
-        if (!printFrame) {  
-            printFrame = document.createElement('iframe');  
-            printFrame.id = 'receiptPrintFrame';  
-            printFrame.style.position = 'fixed';  
-            printFrame.style.bottom = '0';  
-            printFrame.style.right = '0';  
-            printFrame.style.width = '0';  
-            printFrame.style.height = '0';  
-            printFrame.style.border = 'none';  
-            document.body.appendChild(printFrame);  
-        }  
-  
-        const frameDoc = printFrame.contentWindow.document;  
-        frameDoc.open();  
-        frameDoc.write(`  
-            <!DOCTYPE html>  
-            <html>  
-            <head>  
-                <title>طباعة الريسيت</title>  
-                <style>  
-                    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');  
-                    @page { size: auto; margin: 0mm; }  
-                    body { margin: 0; padding: 10px; background: #fff; font-family: 'Cairo', sans-serif; }  
-                </style>  
-            </head>  
-            <body>  
-                ${printContent}  
-                <script>  
-                    window.onload = function() {  
-                        window.focus();  
-                        window.print();  
-                    };  
-                <\/script>  
-            </body>  
-            </html>  
-        `);  
-        frameDoc.close();  
     };  
   
     loadData();  
