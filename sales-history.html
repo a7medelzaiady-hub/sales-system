@@ -67,6 +67,17 @@
         
         .custom-popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }  
         .custom-popup-box { background: white; width: 90%; max-width: 360px; padding: 22px; border-radius: 16px; text-align: center; font-family: 'Cairo'; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }  
+        
+        /* تحسين وضع حاوية المعالجة لضمان تنفيذ تصوير الفاتورة فوراً وبدون أي تهنيج */
+        #invoiceRenderContainer {   
+            position: fixed;   
+            top: 0;   
+            left: 0;   
+            width: 380px;   
+            z-index: -9999;   
+            opacity: 0;   
+            pointer-events: none;  
+        }
     </style>  
 </head>  
 <body>  
@@ -179,8 +190,8 @@
 
 </div>  
 
-<!-- حاوية مخفية لإنشاء الفاتورة بداخلها تمهيداً لتحويلها لصورة دقيقة -->
-<div id="invoiceRenderContainer" style="position: absolute; left: -9999px; top: -9999px;"></div>
+<!-- حاوية معالجة حية غير مخفية بالكامل لمنع تعليق أو فشل مكتبة الصور -->
+<div id="invoiceRenderContainer"></div>
 
 <!-- مودال التنبيهات العام والتقارير -->
 <div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">  
@@ -351,9 +362,8 @@
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة ما تم تعديله بالظبط</div>` : ''}  
                         </div>  
                         <div class="d-flex gap-1 flex-wrap justify-content-end" style="max-width: 60%;">  
-                            <!-- تم فصل الأزرار هنا لتصبح مباشرة -->
-                            <button class="btn btn-sm btn-dark fw-bold" style="font-size:0.73rem; font-family:'Cairo'; border-radius:6px; padding: 4px 8px;" onclick="directPrintInvoice('${inv.id}')"><i class="fas fa-print me-1"></i> طباعة ريسيت</button>  
-                            <button class="btn btn-sm btn-success fw-bold" style="font-size:0.73rem; font-family:'Cairo'; border-radius:6px; padding: 4px 8px; background: #2d6a4f;" onclick="directShareInvoice('${inv.id}')"><i class="fas fa-share-nodes me-1"></i> مشاركة</button>  
+                            <button class="btn btn-sm btn-dark fw-bold" id="btnPrint_${inv.id}" style="font-size:0.73rem; font-family:'Cairo'; border-radius:6px; padding: 4px 8px;" onclick="directPrintInvoice('${inv.id}')"><i class="fas fa-print me-1"></i> طباعة ريسيت</button>  
+                            <button class="btn btn-sm btn-success fw-bold" id="btnShare_${inv.id}" style="font-size:0.73rem; font-family:'Cairo'; border-radius:6px; padding: 4px 8px; background: #2d6a4f;" onclick="directShareInvoice('${inv.id}')"><i class="fas fa-share-nodes me-1"></i> مشاركة</button>  
                             <button class="btn btn-sm btn-outline-info text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> الاصناف</button>  
                             <button class="btn btn-sm btn-outline-warning text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleNotes('${inv.id}')"><i class="fas fa-sticky-note"></i> الملاحظة</button>  
                             <button class="btn btn-sm btn-outline-primary" style="padding: 2px 6px; font-size:0.75rem;" onclick="editInvoice('${inv.id}')"><i class="fas fa-edit"></i></button>  
@@ -671,7 +681,7 @@
         element.style.display = (element.style.display === "none") ? "block" : "none";  
     };  
 
-    // دالة مساعدة لإنشاء HTML الفاتورة داخل الحاوية المخفية بدقة متناهية تمهيداً للتصوير
+    // دالة إنشاء هيكل الفاتورة النظيف والمثالي للتصوير الفوري
     function generateInvoiceHtmlStructure(inv) {
         const originalDate = parseInvoiceDate(inv);  
         const displayTime = formatInvoiceTime(inv.time, inv.date);  
@@ -688,26 +698,26 @@
         `).join('');  
 
         return `
-            <div id="captureArea" style="width: 380px; padding: 20px; background: #ffffff; font-family: 'Cairo', sans-serif; color: #000000; direction: rtl; box-sizing: border-box;">  
+            <div id="captureArea" style="width: 360px; padding: 15px; background: #ffffff; font-family: 'Cairo', sans-serif; color: #000000; direction: rtl; box-sizing: border-box;">  
                 <div style="text-align: center; margin-bottom: 15px;">  
-                    <h2 style="margin: 0; font-size: 24px; font-weight: 800; color: #000;">شركة الزيادي</h2>  
-                    <p style="margin: 2px 0; font-size: 14px; font-weight: 600; color: #333;">لزيوت وفلاتر السيارات</p>  
-                    <h3 style="margin: 8px 0 0 0; font-size: 16px; font-weight: 700; border-bottom: 2px solid #000; padding-bottom: 5px; display: inline-block;">فاتورة مبيعات مخصصة</h3>  
+                    <h2 style="margin: 0; font-size: 22px; font-weight: 800; color: #000;">شركة الزيادي</h2>  
+                    <p style="margin: 2px 0; font-size: 13px; font-weight: 600; color: #333;">لزيوت وفلاتر السيارات</p>  
+                    <h3 style="margin: 6px 0 0 0; font-size: 15px; font-weight: 700; border-bottom: 2px solid #000; padding-bottom: 4px; display: inline-block;">فاتورة مبيعات</h3>  
                 </div>  
                   
-                <table style="width: 100%; font-size: 14px; margin-bottom: 12px; line-height: 1.6;">  
+                <table style="width: 100%; font-size: 13px; margin-bottom: 10px; line-height: 1.5;">  
                     <tr><td style="text-align: right;"><b>العميل:</b></td><td style="text-align: left; font-weight: 700;">${inv.customerName || 'عميل نقدي'}</td></tr>  
                     <tr><td style="text-align: right;"><b>التاريخ:</b></td><td style="text-align: left; direction: ltr; font-weight: 600;">${originalDate} ${displayTime}</td></tr>  
                     <tr><td style="text-align: right;"><b>طريقة السداد:</b></td><td style="text-align: left; font-weight: 700;">${inv.paymentMethod || 'غير محدد'}</td></tr>  
                 </table>  
                   
-                <table style="width: 100%; font-size: 13px; border-collapse: collapse; margin-bottom: 15px;">  
+                <table style="width: 100%; font-size: 12px; border-collapse: collapse; margin-bottom: 12px;">  
                     <thead>  
                         <tr style="border-bottom: 2px solid #000;">  
-                            <th style="text-align: right; padding-bottom: 6px;">الصنف</th>  
-                            <th style="text-align: center; padding-bottom: 6px;">الكمية</th>  
-                            <th style="text-align: left; padding-bottom: 6px;">السعر</th>  
-                            <th style="text-align: left; padding-bottom: 6px;">الإجمالي</th>  
+                            <th style="text-align: right; padding-bottom: 4px;">الصنف</th>  
+                            <th style="text-align: center; padding-bottom: 4px;">الكمية</th>  
+                            <th style="text-align: left; padding-bottom: 4px;">السعر</th>  
+                            <th style="text-align: left; padding-bottom: 4px;">الإجمالي</th>  
                         </tr>  
                     </thead>  
                     <tbody>  
@@ -715,124 +725,149 @@
                     </tbody>  
                 </table>  
                   
-                <div style="font-size: 14px; line-height: 1.7; border-top: 1px solid #000; padding-top: 6px;">  
+                <div style="font-size: 13px; line-height: 1.6; border-top: 1px solid #000; padding-top: 4px;">  
                     <table style="width: 100%;">  
                         <tr><td style="text-align: right;">إجمالي الفاتورة:</td><td style="text-align: left; font-weight: 700;">${Number(inv.total || 0).toFixed(2)} ج.م</td></tr>  
                         <tr><td style="text-align: right;">المسدد الشامل:</td><td style="text-align: left; font-weight: 700;">${totalPaid} ج.م</td></tr>  
                         <tr><td style="text-align: right;">حساب سابق للعميل:</td><td style="text-align: left; font-weight: 700;">${Number(inv.previousBalance || 0).toFixed(2)} ج.م</td></tr>  
-                        <tr style="font-size: 15px; font-weight: 800; border-top: 2px dashed #000;">  
-                            <td style="padding-top: 6px; text-align: right;">إجمالي الحساب المتبقي الآجل:</td>  
-                            <td style="text-align: left; padding-top: 6px; color: #d90429;">${finalRemaining} ج.م</td>  
+                        <tr style="font-size: 14px; font-weight: 800; border-top: 1px dashed #000;">  
+                            <td style="padding-top: 4px; text-align: right;">إجمالي الحساب الآجل المتبقي:</td>  
+                            <td style="text-align: left; padding-top: 4px; color: #d90429;">${finalRemaining} ج.م</td>  
                         </tr>  
                     </table>  
                 </div>  
                   
-                <div style="text-align: center; margin-top: 25px; border-top: 1px solid #000; padding-top: 8px; font-size: 12px; font-weight: 700;">  
+                <div style="text-align: center; margin-top: 20px; border-top: 1px solid #000; padding-top: 6px; font-size: 11px; font-weight: 700;">  
                     شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹  
                 </div>  
             </div>
         `;
     }
   
-    // 1. دالة زر المشاركة المباشر كصورة (واتساب وغيره)
+    // 1. زر المشاركة النظيف والحاسم (بدون لاج أو تجميد)
     window.directShareInvoice = async (id) => {  
+        const btn = document.getElementById(`btnShare_${id}`);
+        const originalHtml = btn.innerHTML;
+        
+        // تغيير مظهر الزر مؤقتاً لتوضيح جاري التجهيز
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> جاري...`;
+        btn.disabled = true;
+
         const inv = allInvoices.find(i => i.id === id);  
-        if (!inv) return;  
+        if (!inv) { btn.innerHTML = originalHtml; btn.disabled = false; return; }  
         
         const renderContainer = document.getElementById('invoiceRenderContainer');
         renderContainer.innerHTML = generateInvoiceHtmlStructure(inv);  
         
-        setTimeout(async () => {
+        try {
             const element = document.getElementById('captureArea');
-            try {
-                const canvas = await html2canvas(element, { useCORS: true, scale: 2, backgroundColor: "#ffffff" });
-                canvas.toBlob(async (blob) => {
-                    const file = new File([blob], `فاتورة_${inv.customerName || 'عميل'}.png`, { type: 'image/png' });
-                    
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        try {
-                            await navigator.share({
-                                files: [file],
-                                title: `فاتورة ${inv.customerName || 'عميل'}`,
-                                text: `فاتورة شركة الزيادي مبيعات`
-                            });
-                        } catch (err) {
-                            console.log("تم إلغاء عملية المشاركة:", err);
-                        }
-                    } else {
-                        // تنزيل الصورة إذا لم يكن النظام يدعم وظيفة التخصيص للمشاركة المباشرة
-                        const link = document.createElement('a');
-                        link.download = `فاتورة_${inv.customerName || 'عميل'}.png`;
-                        link.href = canvas.toDataURL('image/png');
-                        link.click();
-                    }
-                    renderContainer.innerHTML = ""; // إفراغ الحاوية فوراً لإعادة تحميل الفاتورة التالية بنجاح
-                }, 'image/png');
-            } catch (error) {
-                console.error("خطأ أثناء تحويل الصورة:", error);
-                renderContainer.innerHTML = "";
-            }
-        }, 100);
+            // إعدادات سريعة جداً وحاسمة للتصوير
+            const canvas = await html2canvas(element, { 
+                useCORS: true, 
+                scale: 1.5, 
+                logging: false,
+                backgroundColor: "#ffffff" 
+            });
+            
+            canvas.toBlob(async (blob) => {
+                if(!blob) { throw new Error("فشل إنشاء ملف الصورة"); }
+                const file = new File([blob], `فاتورة_${inv.customerName || 'عميل'}.png`, { type: 'image/png' });
+                
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: `فاتورة ${inv.customerName || 'عميل'}`,
+                        text: `فاتورة مبيعات شركة الزيادي`
+                    });
+                } else {
+                    // فتح التنزيل كبديل سريع إذا كان المتصفح لا يدعم تطبيق شير مباشر للويب
+                    const link = document.createElement('a');
+                    link.download = `فاتورة_${inv.customerName || 'عميل'}.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                }
+            }, 'image/png');
+        } catch (error) {
+            console.error(error);
+            alert("حدث خطأ أثناء إعداد الفاتورة للمشاركه.");
+        } finally {
+            // يرجع يحمل تاني فوراً بدون قيد أو شرط
+            renderContainer.innerHTML = ""; 
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
     };  
   
-    // 2. دالة زر طباعة ريسيت 80مم المباشر كصورة بدون وسيط
-    window.directPrintInvoice = (id) => {  
+    // 2. زر الطباعة النظيف والسريع جداً كصورة ريسيت
+    window.directPrintInvoice = async (id) => {  
+        const btn = document.getElementById(`btnPrint_${id}`);
+        const originalHtml = btn.innerHTML;
+        
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> جاري...`;
+        btn.disabled = true;
+
         const inv = allInvoices.find(i => i.id === id);  
-        if (!inv) return;  
+        if (!inv) { btn.innerHTML = originalHtml; btn.disabled = false; return; }  
 
         const renderContainer = document.getElementById('invoiceRenderContainer');
         renderContainer.innerHTML = generateInvoiceHtmlStructure(inv);  
 
-        setTimeout(async () => {
+        try {
             const element = document.getElementById('captureArea');
-            try {
-                const canvas = await html2canvas(element, { useCORS: true, scale: 2, backgroundColor: "#ffffff" });
-                const imgDataUrl = canvas.toDataURL('image/png');
+            const canvas = await html2canvas(element, { 
+                useCORS: true, 
+                scale: 1.5, 
+                logging: false,
+                backgroundColor: "#ffffff" 
+            });
+            const imgDataUrl = canvas.toDataURL('image/png');
 
-                let printFrame = document.getElementById('receiptPrintFrame');  
-                if (!printFrame) {  
-                    printFrame = document.createElement('iframe');  
-                    printFrame.id = 'receiptPrintFrame';  
-                    printFrame.style.position = 'fixed';  
-                    printFrame.style.bottom = '0';  
-                    printFrame.style.right = '0';  
-                    printFrame.style.width = '0';  
-                    printFrame.style.height = '0';  
-                    printFrame.style.border = 'none';  
-                    document.body.appendChild(printFrame);  
-                }  
+            let printFrame = document.getElementById('receiptPrintFrame');  
+            if (!printFrame) {  
+                printFrame = document.createElement('iframe');  
+                printFrame.id = 'receiptPrintFrame';  
+                printFrame.style.position = 'fixed';  
+                printFrame.style.bottom = '0';  
+                printFrame.style.right = '0';  
+                printFrame.style.width = '0';  
+                printFrame.style.height = '0';  
+                printFrame.style.border = 'none';  
+                document.body.appendChild(printFrame);  
+            }  
   
-                const frameDoc = printFrame.contentWindow.document;  
-                frameDoc.open();  
-                frameDoc.write(`  
-                    <!DOCTYPE html>  
-                    <html>  
-                    <head>  
-                        <title>طباعة ريسيت الصورة</title>  
-                        <style>  
-                            @page { size: auto; margin: 0mm; }  
-                            body { margin: 0; padding: 0; background: #fff; text-align: center; }  
-                            img { width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto; }  
-                        </style>  
-                    </head>  
-                    <body>  
-                        <img src="${imgDataUrl}" />  
-                        <script>  
-                            window.onload = function() {  
-                                window.focus();  
-                                window.print();  
-                            };  
-                        <\/script>  
-                    </body>  
-                    </html>  
-                `);  
-                frameDoc.close();
-                renderContainer.innerHTML = ""; // إفراغ وتصفية لمستند الطباعة القادم
-            } catch (err) {
-                console.error("خطأ أثناء معالجة الطباعة كصورة:", err);
-                renderContainer.innerHTML = "";
-            }
-        }, 100);
+            const frameDoc = printFrame.contentWindow.document;  
+            frameDoc.open();  
+            frameDoc.write(`  
+                <!DOCTYPE html>  
+                <html>  
+                <head>  
+                    <style>  
+                        @page { size: auto; margin: 0mm; }  
+                        body { margin: 0; padding: 0; background: #fff; text-align: center; }  
+                        img { width: 100%; height: auto; display: block; margin: 0 auto; }  
+                    </style>  
+                </head>  
+                <body>  
+                    <img src="${imgDataUrl}" />  
+                    <script>  
+                        window.onload = function() {  
+                            window.focus();  
+                            window.print();  
+                        };  
+                    <\/script>  
+                </body>  
+                </html>  
+            `);  
+            frameDoc.close();
+        } catch (err) {
+            console.error(err);
+            alert("حدث عطل أثناء التجهيز لأمر الطباعة.");
+        } finally {
+            // يرجع يحمل تاني ويفك الأزرار فوراً
+            renderContainer.innerHTML = ""; 
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
     };  
   
     window.editInvoice = (id) => {   
