@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>  
 <html lang="ar" dir="rtl">  
 <head>  
@@ -176,7 +175,7 @@
 
 </div>  
 
-<!-- مودال الشير عبر الواتساب -->
+<!-- مودال الشير عبر الواتساب (يحتاج الـ html2canvas لإرسالها كصورة احترافية بناء على طلبك السابق) -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">  
     <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: 14px; text-align: center; font-family: 'Cairo';">  
         <div style="width: 50px; height: 50px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">  
@@ -191,7 +190,7 @@
     </div>  
 </div>  
 
-<!-- الحاوية الوهمية لطباعة الريسيت الحراري -->
+<!-- الحاوية الوهمية لطباعة ريسيت الواتساب فقط كصورة -->
 <div id="thermalReceiptContainer" style="position: absolute; left: -9999px; top: -9999px;">  
     <div id="thermalReceipt" style="width: 380px; background: #fff; padding: 25px 20px; font-family: 'Cairo'; direction: rtl; color: #000;">  
         <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 10px;">  
@@ -294,7 +293,6 @@
         return "00:00 م";  
     }  
 
-    // تعريف دوال الفلترة والرندرة أولاً لمنع أخطاء الـ Scope أثناء التحميل المباشر
     window.renderInvoices = (invoices) => {  
         const container = document.getElementById('invoicesList');  
         if (invoices.length === 0) {  
@@ -326,7 +324,7 @@
                         <div>  
                             <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.88rem;">${inv.customerName || 'عميل نقدي'}</h6>  
                             <span class="detail-badge"><i class="far fa-clock"></i> ${shortDate} ${displayTime}</span>  
-                            <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير محدد'}</span>  
+                            <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير مححدد'}</span>  
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة ما تم تعديله بالظبط</div>` : ''}  
                         </div>  
                         <div class="d-flex gap-1 flex-wrap justify-content-end" style="max-width: 60%;">  
@@ -415,7 +413,6 @@
         document.getElementById('todayTotalSales').innerText = todaySales.toFixed(1);  
     }  
   
-    // دالة جلب البيانات الأساسية من Firebase
     async function loadData() {  
         try {  
             const custSnap = await getDocs(collection(db, "customers"));  
@@ -707,62 +704,124 @@
         XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);  
     };  
   
+    // تحديث دالة الطباعة بالكامل لتتوافق كلياً مع RawBT وطابعات الـ 80mm
     window.printInvoice = (id) => {  
         const inv = allInvoices.find(i => i.id === id);  
         if (!inv) return;  
+        
         const originalDate = parseInvoiceDate(inv);  
         const displayTime = formatInvoiceTime(inv.time, inv.date);  
+        const clientName = inv.customerName || 'عميل نقدي';  
+        const totalPaid = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);  
+        const totalRemaining = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);  
   
-        document.getElementById('recCustomer').innerText = inv.customerName || 'عميل نقدي';  
-        document.getElementById('recDate').innerText = originalDate + " " + displayTime;  
-        document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || 'غير محدد';  
-        document.getElementById('recTotal').innerText = Number(inv.total || 0).toFixed(2);  
-        document.getElementById('recPaid').innerText = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);  
-        document.getElementById('recOldBalance').innerText = Number(inv.previousBalance || 0).toFixed(2);  
-        document.getElementById('recRemaining').innerText = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);  
-  
-        document.getElementById('recItems').innerHTML = (inv.items || []).map(item => `  
+        const itemsRows = (inv.items || []).map(item => `  
             <tr>  
-                <td style="padding: 4px; text-align:right;">${item.name}</td>  
-                <td style="text-align:center; padding: 4px;">${item.qty}</td>  
-                <td style="text-align:left; padding: 4px;">${Number(item.price||0).toFixed(2)}</td>  
-                <td style="text-align:left; padding: 4px;">${(Number(item.qty||0)*Number(item.price||0)).toFixed(2)}</td>  
+                <td style="text-align: right; padding: 4px 0;">${item.name}</td>  
+                <td style="text-align: center; padding: 4px 0;">${item.qty}</td>  
+                <td style="text-align: left; padding: 4px 0;">${Number(item.price || 0).toFixed(2)}</td>  
+                <td style="text-align: left; padding: 4px 0; font-weight: bold;">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>  
             </tr>  
         `).join('');  
   
-        const receipt = document.getElementById('thermalReceipt');  
-        
-        html2canvas(receipt, { scale: 3, useCORS: true, backgroundColor: "#ffffff" }).then(canvas => {  
-            const imageUrl = canvas.toDataURL("image/png");  
-            const win = window.open("", "_blank");  
-            
-            win.document.write(`  
-                <html>  
-                <head>  
-                    <title>طباعة الفاتورة - شركة الزيادي</title>  
-                    <style>   
-                        body { margin:0; padding:0; text-align:center; background:#ffffff; }   
-                        img { max-width:100%; height:auto; display:block; margin:0 auto; }   
-                    </style>  
-                </head>  
-                <body>  
-                    <img id="receiptImg" src="${imageUrl}">  
-                    <script>   
-                        document.getElementById('receiptImg').onload = function() {  
-                            setTimeout(function(){  
-                                window.print();  
-                                window.close();  
-                            }, 300);  
-                        };  
-                    <\/script>  
-                </body>  
-                </html>  
-            `);  
-            win.document.close();  
-        });  
+        const win = window.open("", "_blank");  
+        win.document.write(`  
+            <!DOCTYPE html>
+            <html lang="ar" dir="rtl">  
+            <head>  
+                <meta charset="UTF-8">  
+                <title>فاتورة - شركة الزيادي</title>  
+                <style>   
+                    @page { 
+                        size: 80mm auto; 
+                        margin: 0; 
+                    }
+                    body { 
+                        width: 76mm; 
+                        margin: 0 auto; 
+                        padding: 5px 2mm; 
+                        font-family: 'Cairo', 'Arial', sans-serif; 
+                        font-size: 11px; 
+                        line-height: 1.4;
+                        color: #000;
+                        background: #fff;
+                    }   
+                    .text-center { text-align: center; }
+                    .fw-bold { font-weight: bold; }
+                    .header { border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 8px; }
+                    .header h4 { margin: 0; font-size: 16px; font-weight: 800; }
+                    .header p { margin: 2px 0 0 0; font-size: 11px; }
+                    .invoice-title { margin-top: 5px; display: inline-block; border: 1px solid #000; padding: 1px 10px; font-weight: bold; font-size: 11px; }
+                    
+                    .info-table { width: 100%; margin-bottom: 8px; font-size: 11px; border-collapse: collapse; }
+                    .info-table td { padding: 2px 0; }
+                    
+                    .items-table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 10.5px; }
+                    .items-table th { border-bottom: 1px solid #000; border-top: 1px solid #000; padding: 4px 0; font-weight: bold; }
+                    .items-table td { border-bottom: 1px dashed #eee; }
+                    
+                    .totals-section { border-top: 1px dashed #000; padding-top: 4px; font-size: 11px; }
+                    .flex-row { display: flex; justify-content: space-between; padding: 2px 0; }
+                    .final-total { font-size: 13px; border-top: 1.5px dashed #000; padding-top: 4px; margin-top: 4px; font-weight: bold; }
+                    
+                    .footer { text-align: center; margin-top: 15px; border-top: 1px dashed #000; padding-top: 6px; font-size: 10px; font-weight: bold; }
+                </style>  
+            </head>  
+            <body>  
+                <div class="header text-center">  
+                    <h4>شركة الزيادي</h4> 
+                    <p>لزيوت وفلاتر السيارات</p>  
+                    <div class="invoice-title">فاتورة مبيعات</div>  
+                </div>  
+                
+                <table class="info-table">
+                    <tr><td><b>العميل:</b></td><td style="text-align: left;">${clientName}</td></tr>
+                    <tr><td><b>التاريخ:</b></td><td style="text-align: left; direction: ltr;">${originalDate} ${displayTime}</td></tr>
+                    <tr><td><b>طريقة السداد:</b></td><td style="text-align: left;">${inv.paymentMethod || 'غير محدد'}</td></tr>
+                </table>
+  
+                <table class="items-table">  
+                    <thead>  
+                        <tr>  
+                            <th style="text-align: right; width: 45%;">الصنف</th>  
+                            <th style="text-align: center; width: 15%;">الكمية</th>  
+                            <th style="text-align: left; width: 20%;">السعر</th>  
+                            <th style="text-align: left; width: 20%;">الإجمالي</th>  
+                        </tr>  
+                    </thead>  
+                    <tbody>
+                        ${itemsRows}
+                    </tbody>  
+                </table>  
+  
+                <div class="totals-section">  
+                    <div class="flex-row"><span>إجمالي الفاتورة:</span><span>${(Number(inv.total) || 0).toFixed(2)}</span></div>  
+                    <div class="flex-row"><span>المسدد الشامل:</span><span>${totalPaid}</span></div>  
+                    <div class="flex-row"><span>حساب سابق للعميل:</span><span>${(Number(inv.previousBalance || 0)).toFixed(2)}</span></div>  
+                    <div class="flex-row final-total">  
+                        <span>إجمالي المتبقي الآجل:</span>  
+                        <span>${totalRemaining}</span>  
+                    </div>  
+                </div>  
+  
+                <div class="footer">  
+                    شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹  
+                </div>  
+  
+                <script>   
+                    window.onload = function() {  
+                        setTimeout(function(){  
+                            window.print();  
+                            window.close();  
+                        }, 150);  
+                    };  
+                <\/script>  
+            </body>  
+            </html>  
+        `);  
+        win.document.close();  
     };  
   
-    // استدعاء جلب البيانات الفعلي في آخر سطر بعد اكتمال بناء الـ Scope بالكامل
     loadData();  
 </script>  
 </body>  
