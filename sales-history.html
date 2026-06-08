@@ -706,64 +706,117 @@
         worksheet['!dir'] = "rtl";  
         XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);  
     };  
-  
-    window.printInvoice = (id) => {  
-        const inv = allInvoices.find(i => i.id === id);  
-        if (!inv) return;  
-        const originalDate = parseInvoiceDate(inv);  
-        const displayTime = formatInvoiceTime(inv.time, inv.date);  
-  
-        document.getElementById('recCustomer').innerText = inv.customerName || 'عميل نقدي';  
-        document.getElementById('recDate').innerText = originalDate + " " + displayTime;  
-        document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || 'غير محدد';  
-        document.getElementById('recTotal').innerText = Number(inv.total || 0).toFixed(2);  
-        document.getElementById('recPaid').innerText = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);  
-        document.getElementById('recOldBalance').innerText = Number(inv.previousBalance || 0).toFixed(2);  
-        document.getElementById('recRemaining').innerText = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);  
-  
-        document.getElementById('recItems').innerHTML = (inv.items || []).map(item => `  
-            <tr>  
-                <td style="padding: 4px; text-align:right;">${item.name}</td>  
-                <td style="text-align:center; padding: 4px;">${item.qty}</td>  
-                <td style="text-align:left; padding: 4px;">${Number(item.price||0).toFixed(2)}</td>  
-                <td style="text-align:left; padding: 4px;">${(Number(item.qty||0)*Number(item.price||0)).toFixed(2)}</td>  
-            </tr>  
-        `).join('');  
-  
-        const receipt = document.getElementById('thermalReceipt');  
-        
-        html2canvas(receipt, { scale: 3, useCORS: true, backgroundColor: "#ffffff" }).then(canvas => {  
-            const imageUrl = canvas.toDataURL("image/png");  
-            const win = window.open("", "_blank");  
+window.printInvoice = (id) => {  
+    const inv = allInvoices.find(i => i.id === id);  
+    if (!inv) return;  
+    
+    const originalDate = parseInvoiceDate(inv);  
+    const displayTime = formatInvoiceTime(inv.time, inv.date);  
+    const totalPaid = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);
+    const finalRemaining = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);
+
+    // بناء جدول الأصناف نصياً وبسرعة فائقة
+    const itemsRows = (inv.items || []).map(item => `  
+        <tr style="border-bottom: 1px dashed #000;">  
+            <td style="padding: 6px 0; text-align: right; font-weight: 700;">${item.name}</td>  
+            <td style="text-align: center; padding: 6px 0;">${item.qty}</td>  
+            <td style="text-align: left; padding: 6px 0;">${Number(item.price || 0).toFixed(2)}</td>  
+            <td style="text-align: left; padding: 6px 0; font-weight: 700;">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>  
+        </tr>  
+    `).join('');  
+
+    // فتح نافذة طباعة فورية بدون انتظار مكتبة الكانفاس الرسومية الثقيلة
+    const win = window.open("", "_blank");  
+    if (!win) {
+        alert("يرجى السماح بالنوافذ المنبثقة (Pop-ups) للمتصفح لتتمكن من الطباعة الفورية!");
+        return;
+    }
+
+    win.document.write(`  
+        <!DOCTYPE html>
+        <html lang="ar" dir="rtl">  
+        <head>  
+            <meta charset="UTF-8">
+            <title>طباعة فاتورة - شركة الزيادي</title>  
+            <style>   
+                @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+                @page { size: auto; margin: 0mm; } 
+                body {   
+                    margin: 0;   
+                    padding: 10px;   
+                    font-family: 'Cairo', sans-serif;   
+                    color: #000;   
+                    background: #fff;   
+                    font-size: 14px;
+                    width: 76mm; /* مهيأ تماماً لمقاس الـ 80mm مع هوامش الأمان */
+                }   
+                .receipt-header { text-align: center; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 8px; }
+                .receipt-title { font-size: 20px; font-weight: 800; margin: 0; }
+                .receipt-subtitle { font-size: 13px; font-weight: 600; margin: 2px 0; }
+                .badge-title { display: inline-block; border: 1px solid #000; padding: 2px 15px; font-weight: 800; border-radius: 4px; margin-top: 5px; font-size: 13px; }
+                .info-table { width: 100%; font-size: 13px; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 6px; line-height: 1.6; }
+                .items-table { width: 100%; font-size: 13px; text-align: right; margin-bottom: 10px; border-collapse: collapse; }
+                .items-table th { border-bottom: 1.5px solid #000; font-weight: 800; padding: 4px 0; }
+                .totals-box { font-size: 13px; line-height: 1.6; }
+                .flex-row { display: flex; justify-content: space-between; }
+                .final-total { font-size: 15px; border-top: 1.5px dashed #000; padding-top: 4px; margin-top: 4px; font-weight: 800; }
+                .footer-text { text-align: center; margin-top: 20px; border-top: 1px solid #000; padding-top: 6px; font-size: 11px; font-weight: 700; }
+            </style>  
+        </head>  
+        <body>  
+            <div class="receipt-header">  
+                <h4 class="receipt-title">شركة الزيادي</h4>  
+                <p class="receipt-subtitle">لزيوت وفلاتر السيارات</p>  
+                <div class="badge-title">فاتورة مبيعات</div>  
+            </div>  
             
-            win.document.write(`  
-                <html>  
-                <head>  
-                    <title>طباعة الفاتورة - شركة الزيادي</title>  
-                    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-                    <style>   
-                        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
-                        @page { size: auto; margin: 0mm; } 
-                        body { margin: 0; padding: 0; text-align: center; background: #ffffff; font-family: 'Cairo', sans-serif; }   
-                        img { width: 100%; max-width: 100%; height: auto; display: block; margin: 0 auto; padding: 0; }   
-                    </style>  
-                </head>  
-                <body>  
-                    <img id="receiptImg" src="${imageUrl}">  
-                    <script>   
-                        document.getElementById('receiptImg').onload = function() {  
-                            setTimeout(function(){  
-                                window.print();  
-                                window.close();  
-                            }, 300);  
-                        };  
-                    <\/script>  
-                </body>  
-                </html>  
-            `);  
-            win.document.close();  
-        });  
-    };  
+            <div class="info-table">  
+                <div class="flex-row"><span><b>العميل:</b></span><span style="font-weight:700;">${inv.customerName || 'عميل نقدي'}</span></div>  
+                <div class="flex-row"><span><b>التاريخ والوقت:</b></span><span style="direction: ltr;">${originalDate} ${displayTime}</span></div>  
+                <div class="flex-row"><span><b>طريقة السداد:</b></span><span style="font-weight:700;">${inv.paymentMethod || 'غير محدد'}</span></div>  
+            </div>  
+            
+            <table class="items-table">  
+                <thead>  
+                    <tr>  
+                        <th style="text-align: right;">الصنف</th>  
+                        <th style="text-align: center;">الكمية</th>  
+                        <th style="text-align: left;">السعر</th>  
+                        <th style="text-align: left;">الإجمالي</th>  
+                    </tr>  
+                </thead>  
+                <tbody>  
+                    ${itemsRows}  
+                </tbody>  
+            </table>  
+            
+            <div class="totals-box">  
+                <div class="flex-row"><span>إجمالي الفاتورة:</span><span style="font-weight:700;">${Number(inv.total || 0).toFixed(2)}</span></div>  
+                <div class="flex-row"><span>المسدد الشامل:</span><span style="font-weight:700;">${totalPaid}</span></div>  
+                <div class="flex-row"><span>حساب سابق للعميل:</span><span style="font-weight:700;">${Number(inv.previousBalance || 0).toFixed(2)}</span></div>  
+                <div class="flex-row final-total">  
+                    <span>إجمالي الحساب المتبقي الآجل:</span>  
+                    <span>${finalRemaining}</span>  
+                </div>  
+            </div>  
+            
+            <div class="footer-text">  
+                شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹  
+            </div>  
+
+            <script>   
+                // تنفيذ الطباعة المباشرة بمجرد تحميل النصوص والخطوط فوراً
+                window.onload = function() {  
+                    window.print();  
+                    window.close();  
+                };  
+            <\/script>  
+        </body>  
+        </html>  
+    `);  
+    win.document.close();  
+};
+
   
     // استدعاء جلب البيانات الفعلي في آخر سطر بعد اكتمال بناء الـ Scope بالكامل  
     loadData();  
