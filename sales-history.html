@@ -63,7 +63,6 @@
         .danger-zone-card { background: #fff5f5; border: 1px dashed #feb2b2; border-radius: 10px; padding: 12px; margin-bottom: 12px; }  
         .admin-notes-box { background: #fffdf5; border: 1px solid #fbe9a7; border-radius: 6px; padding: 8px 10px; font-size: 0.8rem; font-weight: 700; color: #b7791f; margin-top: 8px; border-right: 4px solid #dd9c3c; }  
         
-        /* استايل المودال المخصص العام والتنبيهات المكتوبة */
         .custom-popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }  
         .custom-popup-box { background: white; width: 90%; max-width: 360px; padding: 22px; border-radius: 16px; text-align: center; font-family: 'Cairo'; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }  
     </style>  
@@ -178,7 +177,7 @@
 
 </div>  
 
-<!-- مودال خيارات الفاتورة: مشاركة شاملة للتطبيقات أو طباعة مباشر حراري -->
+<!-- مودال خيارات الفاتورة -->
 <div id="shareModal" class="custom-popup-overlay" style="display: none;">  
     <div class="custom-popup-box">  
         <div style="width: 45px; height: 45px; background: #eef2f5; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">  
@@ -188,7 +187,6 @@
         <p style="color: #666; font-size: 0.78rem; margin-bottom: 18px;">اختر الإجراء المطلوب لتنفيذه في ثوانٍ وبدون تحميل</p>  
         
         <div class="d-flex flex-column gap-2">  
-            <!-- الزر المعدل للمشاركة الشاملة (واتساب، ماسنجر، طابعات مشاركة، إلخ) -->
             <button id="confirmShareBtn" class="btn btn-success btn-sm w-100 fw-bold py-2" style="font-family:'Cairo'; font-size: 0.85rem; border-radius: 8px; background: #2d6a4f;">  
                 <i class="fas fa-paper-plane me-1"></i> إرسال ومشاركة الفاتورة للعميل  
             </button>  
@@ -203,7 +201,7 @@
     </div>  
 </div>  
 
-<!-- مودال التنبيهات العام والتقارير بديل الـ alert والـ confirm لمنع ظهور روابط المتصفح -->
+<!-- مودال التنبيهات العام والتقارير -->
 <div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">  
     <div class="custom-popup-box" style="max-width: 420px;">  
         <div id="customModalIcon" style="width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;"></div>  
@@ -698,7 +696,7 @@
         document.getElementById('shareModal').style.display = 'flex';  
     };  
   
-    // تحديث دالة الإرسال لتدعم قائمة مشاركة النظام الشاملة (تفتح لك الواتساب، ماسنجر، بلوتوث، طابعة، إلخ)  
+    // دالة المشاركة الذكية الشاملة  
     document.getElementById('confirmShareBtn').onclick = async () => {  
         if (!activeShareData) return;  
         
@@ -732,7 +730,6 @@ ${itemsText}
   
         document.getElementById('shareModal').style.display = 'none';  
   
-        // استخدام Web Share API لفتح قائمة النظام الكاملة  
         if (navigator.share) {  
             try {  
                 await navigator.share({  
@@ -743,7 +740,6 @@ ${itemsText}
                 console.log("تم إلغاء عملية المشاركة الشاملة أو حدث خطأ:", err);  
             }  
         } else {  
-            // في حالة عدم دعم المتصفح للمشاركة الشاملة (مثل بعض المتصفحات القديمة على الكمبيوتر)، يفتح واتساب كبديل  
             const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(textContent)}`;  
             window.open(whatsappUrl, '_blank');  
         }  
@@ -813,6 +809,7 @@ ${itemsText}
         XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);  
     };  
   
+    // إرجاع دالة الطباعة بالشكل الأصلي القديم تماماً (الجدول والتنسيق الأصلي)
     window.printInvoice = (id) => {  
         const inv = allInvoices.find(i => i.id === id);  
         if (!inv) return;  
@@ -824,34 +821,34 @@ ${itemsText}
   
         const itemsRows = (inv.items || []).map(item => `  
             <tr style="border-bottom: 1px dashed #000;">  
-                <td style="padding: 6px 0; text-align: right; font-weight: 700;">${item.name}</td>  
-                <td style="text-align: center; padding: 6px 0;">${item.qty}</td>  
-                <td style="text-align: left; padding: 6px 0;">${Number(item.price || 0).toFixed(2)}</td>  
-                <td style="text-align: left; padding: 6px 0; font-weight: 700;">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>  
+                <td style="padding: 5px 0; font-weight: 700;">${item.name}</td>  
+                <td style="text-align: center;">${item.qty}</td>  
+                <td style="text-align: left;">${Number(item.price || 0).toFixed(2)}</td>  
+                <td style="text-align: left; font-weight: 700;">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>  
             </tr>  
         `).join('');  
   
         const printContent = `  
-            <div style="width: 76mm; font-family: 'Cairo', sans-serif; color: #000; direction: rtl; text-align: right; margin: 0 auto;">  
-                <div style="text-align: center; margin-bottom: 10px; border-bottom: 2px solid #000; padding-bottom: 8px;">  
-                    <h4 style="font-size: 20px; font-weight: 800; margin: 0;">شركة الزيادي</h4>  
-                    <p style="font-size: 13px; font-weight: 600; margin: 2px 0;">لزيوت وفلاتر السيارات</p>  
-                    <div style="display: inline-block; border: 1px solid #000; padding: 2px 15px; font-weight: 800; border-radius: 4px; margin-top: 5px; font-size: 13px;">فاتورة مبيعات</div>  
+            <div style="width: 100%; font-family: 'Cairo', sans-serif; color: #000; direction: rtl; text-align: right;">  
+                <div style="text-align: center; margin-bottom: 15px;">  
+                    <h2 style="margin: 0; font-size: 22px; font-weight: 800;">شركة الزيادي</h2>  
+                    <p style="margin: 2px 0; font-size: 14px; font-weight: 600;">لزيوت وفلاتر السيارات</p>  
+                    <h3 style="margin: 5px 0 0 0; font-size: 16px; font-weight: 700; border-bottom: 2px solid #000; padding-bottom: 5px; display: inline-block;">فاتورة مبيعات</h3>  
                 </div>  
                   
-                <div style="width: 100%; font-size: 13px; margin-bottom: 10px; border-bottom: 1px dashed #000; padding-bottom: 6px; line-height: 1.6;">  
-                    <div style="display: flex; justify-content: space-between;"><span><b>العميل:</b></span><span style="font-weight:700;">${inv.customerName || 'عميل نقدي'}</span></div>  
-                    <div style="display: flex; justify-content: space-between;"><span><b>التاريخ والوقت:</b></span><span style="direction: ltr;">${originalDate} ${displayTime}</span></div>  
-                    <div style="display: flex; justify-content: space-between;"><span><b>طريقة السداد:</b></span><span style="font-weight:700;">${inv.paymentMethod || 'غير محدد'}</span></div>  
-                </div>  
+                <table style="width: 100%; font-size: 14px; margin-bottom: 10px; line-height: 1.5;">  
+                    <tr><td><b>العميل:</b></td><td style="text-align: left; font-weight: 700;">${inv.customerName || 'عميل نقدي'}</td></tr>  
+                    <tr><td><b>التاريخ:</b></td><td style="text-align: left; direction: ltr;">${originalDate} ${displayTime}</td></tr>  
+                    <tr><td><b>طريقة السداد:</b></td><td style="text-align: left; font-weight: 700;">${inv.paymentMethod || 'غير محدد'}</td></tr>  
+                </table>  
                   
-                <table style="width: 100%; font-size: 13px; text-align: right; margin-bottom: 10px; border-collapse: collapse;">  
+                <table style="width: 100%; font-size: 13px; border-collapse: collapse; margin-bottom: 15px;">  
                     <thead>  
-                        <tr>  
-                            <th style="text-align: right; border-bottom: 1.5px solid #000; font-weight: 800; padding: 4px 0;">الصنف</th>  
-                            <th style="text-align: center; border-bottom: 1.5px solid #000; font-weight: 800; padding: 4px 0;">الكمية</th>  
-                            <th style="text-align: left; border-bottom: 1.5px solid #000; font-weight: 800; padding: 4px 0;">السعر</th>  
-                            <th style="text-align: left; border-bottom: 1.5px solid #000; font-weight: 800; padding: 4px 0;">الإجمالي</th>  
+                        <tr style="border-bottom: 2px solid #000;">  
+                            <th style="text-align: right; padding-bottom: 5px;">الصنف</th>  
+                            <th style="text-align: center; padding-bottom: 5px;">الكمية</th>  
+                            <th style="text-align: left; padding-bottom: 5px;">السعر</th>  
+                            <th style="text-align: left; padding-bottom: 5px;">الإجمالي</th>  
                         </tr>  
                     </thead>  
                     <tbody>  
@@ -859,17 +856,19 @@ ${itemsText}
                     </tbody>  
                 </table>  
                   
-                <div style="font-size: 13px; line-height: 1.6;">  
-                    <div style="display: flex; justify-content: space-between;"><span>إجمالي الفاتورة:</span><span style="font-weight:700;">${Number(inv.total || 0).toFixed(2)}</span></div>  
-                    <div style="display: flex; justify-content: space-between;"><span>المسدد الشامل:</span><span style="font-weight:700;">${totalPaid}</span></div>  
-                    <div style="display: flex; justify-content: space-between;"><span>حساب سابق للعميل:</span><span style="font-weight:700;">${Number(inv.previousBalance || 0).toFixed(2)}</span></div>  
-                    <div style="display: flex; justify-content: space-between; font-size: 15px; border-top: 1.5px dashed #000; padding-top: 4px; margin-top: 4px; font-weight: 800;">  
-                        <span>إجمالي الحساب المتبقي الآجل:</span>  
-                        <span>${finalRemaining}</span>  
-                    </div>  
+                <div style="font-size: 14px; line-height: 1.6; border-top: 1px solid #000; padding-top: 5px;">  
+                    <table style="width: 100%;">  
+                        <tr><td>إجمالي الفاتورة:</td><td style="text-align: left; font-weight: 700;">${Number(inv.total || 0).toFixed(2)}</td></tr>  
+                        <tr><td>المسدد الشامل:</td><td style="text-align: left; font-weight: 700;">${totalPaid}</td></tr>  
+                        <tr><td>حساب سابق للعميل:</td><td style="text-align: left; font-weight: 700;">${Number(inv.previousBalance || 0).toFixed(2)}</td></tr>  
+                        <tr style="font-size: 16px; font-weight: 800; border-top: 2px dashed #000;">  
+                            <td style="padding-top: 5px;">إجمالي الحساب المتبقي الآجل:</td>  
+                            <td style="text-align: left; padding-top: 5px;">${finalRemaining}</td>  
+                        </tr>  
+                    </table>  
                 </div>  
                   
-                <div style="text-align: center; margin-top: 20px; border-top: 1px solid #000; padding-top: 6px; font-size: 11px; font-weight: 700;">  
+                <div style="text-align: center; margin-top: 25px; border-top: 1px solid #000; padding-top: 5px; font-size: 12px; font-weight: 700;">  
                     شكراً لتعاملكم معنا ونتمنى لكم رحلة آمنة 🌹  
                 </div>  
             </div>  
