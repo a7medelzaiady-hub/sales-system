@@ -299,7 +299,7 @@
             <i class="fab fa-whatsapp" style="color: #25D366; font-size: 2.2rem;"></i>
         </div>
         <h5 style="font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">تم الحفظ بنجاح! 🎉</h5>
-        <p style="color: #555; font-size: 0.85rem; margin-bottom: 18px; line-height: 1.4;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل؟</p>
+        <p style="color: #555; font-size: 0.85rem; margin-bottom: 18px; line-height: 1.4;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل?</p>
         <div style="display: flex; flex-direction: column; gap: 8px;">
             <button id="confirmShareBtn" style="background: #25D366; color: white; border: none; padding: 10px; border-radius: 10px; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
                 <i class="fab fa-whatsapp"></i> مشاركة الفاتورة كصورة
@@ -492,7 +492,7 @@
                 const invDoc = await getDoc(doc(db, "invoices", editId));
                 if (invDoc.exists()) {
                     const data = invDoc.data();
-                    document.getElementById('customerSelect').value = data.customerId;
+                    document.getElementById('customerSelect').value = data.customerId || "";
                     document.getElementById('customerSearch').value = data.customerName || 'عميل نقدي';
                     
                     originalInvoiceTime = data.time || "";
@@ -780,7 +780,7 @@
                 const price = Number(r.querySelector('.p-price')?.value || 0);
 
                 if (!pid || qty <= 0) return;
-                items.push({ stockId: pid, name, unit, qty, price });
+                items.push({ stockId: pid, name: name || "", unit: unit || "pcs", qty, price });
             });
 
             if (items.length === 0) { return alert("الرجاء إضافة أصناف للفاتورة"); }
@@ -801,15 +801,16 @@
             }
 
             const baseInvoiceData = {
-                customerId,
-                customerName,
-                total,
-                paid: finalCash + finalWallet,
-                remaining: total - (finalCash + finalWallet),
+                customerId: customerId,
+                customerName: customerName,
+                total: Number(total) || 0,
+                paid: Number(finalCash + finalWallet) || 0,
+                remaining: Number(total - (finalCash + finalWallet)) || 0,
                 paymentMethod: finalMethod,
-                cashAmount: finalCash,     
-                walletAmount: finalWallet, 
-                items
+                cashAmount: Number(finalCash) || 0,     
+                walletAmount: Number(finalWallet) || 0, 
+                items: items,
+                notes: "" 
             };
 
             if (!editId) {
@@ -817,13 +818,13 @@
                 const newInvoiceData = {
                     ...baseInvoiceData,
                     time: targetTime,
-                    notes: "", 
                     timestamp: serverTimestamp()
                 };
 
                 for (const item of items) {
                     const p = inventory.find(i => i.id === item.stockId);
-                    const qtyPcs = item.unit === 'box' ? item.qty * (p.unitFactor || 1) : item.qty;
+                    const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                    const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
                     await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
                 }
                 const newDocRef = await addDoc(collection(db, "invoices"), newInvoiceData);
@@ -832,34 +833,36 @@
                 prepareThermalReceipt(newInvoiceData, currentFetchedOldBalance);
             } else {
                 const currentTimeStr = new Date().toLocaleString('ar-EG');
-                const updateInvoiceData = {
-                    ...baseInvoiceData,
-                    notes: `تم تعديل هذه الطلبية في: ${currentTimeStr}`
-                };
-
-                delete updateInvoiceData.time;
-                delete updateInvoiceData.timestamp;
-
+                
                 const oldRef = doc(db, "invoices", editId);
                 const oldSnap = await getDoc(oldRef);
 
                 if (oldSnap.exists()) {
                     const oldData = oldSnap.data();
-                    for (const oldItem of oldData.items || []) {
-                        const p = inventory.find(i => i.id === oldItem.stockId);
-                        const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * (p?.unitFactor || 1) : oldItem.qty;
-                        await updateDoc(doc(db, "inventory", oldItem.stockId), { totalPcs: increment(oldQtyPcs) });
+                    
+                    if (oldData && oldData.items) {
+                        for (const oldItem of oldData.items) {
+                            if (oldItem.stockId) {
+                                const p = inventory.find(i => i.id === oldItem.stockId);
+                                const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                                const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * factor : oldItem.qty;
+                                await updateDoc(doc(db, "inventory", oldItem.stockId), { totalPcs: increment(oldQtyPcs) });
+                            }
+                        }
                     }
+
                     for (const item of items) {
                         const p = inventory.find(i => i.id === item.stockId);
-                        const qtyPcs = item.unit === 'box' ? item.qty * (p?.unitFactor || 1) : item.qty;
+                        const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                        const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
                         await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
                     }
                     
-                    await updateDoc(oldRef, updateInvoiceData);
+                    baseInvoiceData.notes = `تم تعديل هذه الطلبية في: ${currentTimeStr}`;
+                    await updateDoc(oldRef, baseInvoiceData);
                     
-                    updateInvoiceData.time = originalInvoiceTime; 
-                    prepareThermalReceipt(updateInvoiceData, currentFetchedOldBalance);
+                    baseInvoiceData.time = originalInvoiceTime || oldData.time || currentTimeStr; 
+                    prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
                 }
             }  
 
@@ -867,7 +870,7 @@
             document.getElementById('shareModal').style.display = 'flex';
 
         } catch (e) {
-            console.error(e);
+            console.error("Firebase Error: ", e);
             let msg = e?.message || e?.toString() || "خطأ غير معروف";
             alert("فشل حفظ التعديل\n\n" + msg);
         } finally {
@@ -880,10 +883,10 @@
         document.getElementById('recCustomer').innerText = data.customerName;
         document.getElementById('recDate').innerText = data.time || originalInvoiceTime;
         document.getElementById('recPaymentMethod').innerText = data.paymentMethod;
-        document.getElementById('recTotal').innerText = data.total.toFixed(2);
-        document.getElementById('recOldBalance').innerText = oldBalance.toFixed(2);
-        document.getElementById('recPaid').innerText = data.paid.toFixed(2);
-        document.getElementById('recRemaining').innerText = (oldBalance + data.remaining).toFixed(2);
+        document.getElementById('recTotal').innerText = Number(data.total).toFixed(2);
+        document.getElementById('recOldBalance').innerText = Number(oldBalance).toFixed(2);
+        document.getElementById('recPaid').innerText = Number(data.paid).toFixed(2);
+        document.getElementById('recRemaining').innerText = Number(oldBalance + data.remaining).toFixed(2);
 
         const recNotesZone = document.getElementById('recNotesZone');
         if (data.notes) {
@@ -896,8 +899,8 @@
         const recSplitZone = document.getElementById('recSplitDetails');
         if (data.cashAmount > 0 || data.walletAmount > 0) {
             recSplitZone.style.display = 'block';
-            document.getElementById('recCashAmount').innerText = data.cashAmount.toFixed(2);
-            document.getElementById('recWalletAmount').innerText = data.walletAmount.toFixed(2);
+            document.getElementById('recCashAmount').innerText = Number(data.cashAmount).toFixed(2);
+            document.getElementById('recWalletAmount').innerText = Number(data.walletAmount).toFixed(2);
         } else {
             recSplitZone.style.display = 'none';
         }
@@ -907,7 +910,7 @@
             <tr style="border-bottom: 1px dotted #000;">
                 <td style="padding: 8px 0;">${item.name}</td>
                 <td style="padding: 8px 0; text-align: center;">${item.qty}</td>
-                <td style="padding: 8px 0; text-align: left;">${item.price.toFixed(2)}</td>
+                <td style="padding: 8px 0; text-align: left;">${Number(item.price).toFixed(2)}</td>
                 <td style="padding: 8px 0; text-align: left;">${(item.qty * item.price).toFixed(2)}</td>
             </tr>
         `).join('');
