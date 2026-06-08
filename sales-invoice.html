@@ -79,7 +79,15 @@
             margin-bottom: 14px; 
             border: 1px solid var(--border); 
             position: relative; 
+            transition: background 0.3s ease, border-color 0.3s ease;
         }
+
+        /* تنسيق حالة المرتجع */
+        .product-row.is-return-row {
+            background: #fff0f1;
+            border-color: #ffccd0;
+        }
+        
         .btn-remove { 
             position: absolute; 
             left: -8px; 
@@ -160,6 +168,38 @@
         
         .sub-lbl { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px; display: block; font-weight: 700; padding-right: 2px;}
         .unit-info-area { font-size: 0.75rem; margin-top: 6px; color: var(--accent); font-weight: 700; }
+
+        /* مفتاح سويتش تحديد كمرتجع مقتبس من 1780915136453.jpg */
+        .return-switch-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #fff5f5;
+            border: 1px solid #ffdbde;
+            border-radius: var(--input-radius);
+            padding: 6px 12px;
+            height: 44px;
+        }
+        .return-switch-label {
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--danger);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .form-switch .form-check-input {
+            width: 2.5em;
+            height: 1.25em;
+            margin-top: 0;
+            cursor: pointer;
+            background-color: #cbd5e1;
+            border-color: transparent;
+        }
+        .form-switch .form-check-input:checked {
+            background-color: var(--danger);
+            border-color: transparent;
+        }
 
         .floating-items-badge {
             position: fixed !important;
@@ -275,11 +315,11 @@
         <div class="total-box">
             <div class="row align-items-center">
                 <div class="col-4 border-end border-white border-opacity-25">
-                    <small class="d-block opacity-75" style="font-size: 0.65rem; margin-bottom: 2px;">الإجمالي</small>
+                    <small class="d-block opacity-75" style="font-size: 0.65rem; margin-bottom: 2px;">صافي الفاتورة</small>
                     <span id="displayTotal" class="fw-bold text-white fs-6">0.00</span>
                 </div>
                 <div class="col-4 border-end border-white border-opacity-25">
-                    <small class="d-block" style="font-size: 0.65rem; color: var(--warning); margin-bottom: 2px;">المدفوع</small>
+                    <small class="d-block" style="font-size: 0.65rem; color: var(--warning); margin-bottom: 2px;">المدفوع للعميل/منه</small>
                     <span id="displayPaid" class="fw-bold fs-6" style="color: var(--warning);">0.00</span>
                 </div>
                 <div class="col-4">
@@ -318,7 +358,7 @@
             <span style="font-size: 14px; font-weight: 700; display: block; margin-top: 2px;">لزيوت وفلاتر السيارات</span>
             <span style="font-size: 13px; font-weight: 600; display: block; margin-top: 2px;">إدارة محاسب/ أحمد محمود الزيادي</span>
             <div style="margin-top: 10px;">
-                <span style="font-size: 14px; border: 1.5px solid #000; display: inline-block; padding: 2px 20px; font-weight: 800; border-radius: 4px;">فاتورة مبيعات</span>
+                <span style="font-size: 14px; border: 1.5px solid #000; display: inline-block; padding: 2px 20px; font-weight: 800; border-radius: 4px;">فاتورة مبيعات ومرتجع</span>
             </div>
         </div>
 
@@ -355,7 +395,7 @@
 
         <div style="border-top: 1px dashed #000; padding-top: 12px; font-size: 14px; line-height: 1.8;">
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                <span>إجمالي الفاتورة الحالية:</span>
+                <span>صافي الفاتورة الحالية:</span>
                 <span id="recTotal" style="font-weight: 700;">0.00</span>
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 4px; color: #000;">
@@ -379,7 +419,7 @@
                 <span id="recPaid" style="font-weight: 700;">0.00</span>
             </div>
             <div style="display: flex; justify-content: space-between; font-weight: 800; font-size: 16px; margin-top: 6px; padding-top: 4px; border-top: 1.5px solid #000;">
-                <span>الحساب المتبقي:</span>
+                <span>الحساب المتبقي النهائي:</span>
                 <span id="recRemaining" style="border-bottom: 1px solid #000;">0.00</span>
             </div>
         </div>
@@ -689,10 +729,23 @@
         isChanged = true;
     };
 
+    window.toggleReturnMode = (checkbox, rowId) => {
+        const row = document.getElementById(rowId);
+        if (checkbox.checked) {
+            row.classList.add('is-return-row');
+        } else {
+            row.classList.remove('is-return-row');
+        }
+        window.handleInput();
+    };
+
     window.addNewRow = (oldData = null) => {
         const id = 'row_' + Math.random().toString(36).substr(2, 5);
+        const isReturnChecked = oldData && oldData.isReturn ? 'checked' : '';
+        const returnClass = oldData && oldData.isReturn ? 'is-return-row' : '';
+
         const html = `
-            <div class="product-row" id="${id}">
+            <div class="product-row ${returnClass}" id="${id}">
                 <i class="fas fa-times-circle btn-remove" onclick="document.getElementById('${id}').remove(); handleInput();"></i>
                 <div class="row g-2 mb-2">
                     <div class="col-7 position-relative">
@@ -709,10 +762,20 @@
                         </select>
                     </div>
                 </div>
-                <div class="row g-2">
-                    <div class="col-4"><span class="sub-lbl">الكمية</span><input type="number" class="form-control p-qty" value="${oldData ? oldData.qty : 1}" oninput="handleInput()"></div>
-                    <div class="col-4"><span class="sub-lbl">السعر</span><input type="number" class="form-control p-price" value="${oldData ? oldData.price : ''}" oninput="handleInput()"></div>
-                    <div class="col-4"><span class="sub-lbl">الإجمالي</span><input type="text" class="form-control p-subtotal" readonly value="0.00" style="background:#f8faf9!important;"></div>
+                <div class="row g-2 align-items-end">
+                    <div class="col-3"><span class="sub-lbl">الكمية</span><input type="number" class="form-control p-qty" value="${oldData ? oldData.qty : 1}" oninput="handleInput()"></div>
+                    <div class="col-3"><span class="sub-lbl">السعر</span><input type="number" class="form-control p-price" value="${oldData ? oldData.price : ''}" oninput="handleInput()"></div>
+                    <div class="col-3"><span class="sub-lbl">الإجمالي</span><input type="text" class="form-control p-subtotal" readonly value="0.00" style="background:#f8faf9!important;"></div>
+                    
+                    <!-- إضافة مفتاح سويتش تحديد كمرتجع المقتبس من الملف 1780915136453.jpg -->
+                    <div class="col-3">
+                        <div class="return-switch-container">
+                            <span class="return-switch-label"><i class="fas fa-undo-alt" style="font-size:0.75rem;"></i> مرتجع</span>
+                            <div class="form-check form-switch p-0 m-0">
+                                <input class="form-check-input p-return-checkbox" type="checkbox" role="switch" onchange="toggleReturnMode(this, '${id}')" ${isReturnChecked}>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="unit-info-area"></div>
             </div>`;
@@ -743,9 +806,17 @@
         document.querySelectorAll('.product-row').forEach(r => {
             const qty = parseFloat(r.querySelector('.p-qty').value) || 0;
             const price = parseFloat(r.querySelector('.p-price').value) || 0;
+            const isReturn = r.querySelector('.p-return-checkbox').checked;
+            
+            // حساب قيمة السطر (إذا كان مرتجع، يتم خصمه من صافي الفاتورة)
             const sub = qty * price;
-            r.querySelector('.p-subtotal').value = sub.toFixed(2);
-            total += sub;
+            r.querySelector('.p-subtotal').value = (isReturn ? "-" : "") + sub.toFixed(2);
+            
+            if (isReturn) {
+                total -= sub;
+            } else {
+                total += sub;
+            }
         });
         
         const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
@@ -778,9 +849,10 @@
                 const unit = r.querySelector('.p-unit')?.value;
                 const qty = Number(r.querySelector('.p-qty')?.value || 0);
                 const price = Number(r.querySelector('.p-price')?.value || 0);
+                const isReturn = r.querySelector('.p-return-checkbox').checked;
 
                 if (!pid || qty <= 0) return;
-                items.push({ stockId: pid, name: name || "", unit: unit || "pcs", qty, price });
+                items.push({ stockId: pid, name: name || "", unit: unit || "pcs", qty, price, isReturn });
             });
 
             if (items.length === 0) { return alert("الرجاء إضافة أصناف للفاتورة"); }
@@ -825,7 +897,13 @@
                     const p = inventory.find(i => i.id === item.stockId);
                     const factor = p ? (Number(p.unitFactor) || 1) : 1;
                     const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                    await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
+                    
+                    // إدارة حركة المخزن بناءً على نوع الحركة (مبيعات تخصم، مرتجع يضيف للمخزن)
+                    if (item.isReturn) {
+                        await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(qtyPcs) });
+                    } else {
+                        await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
+                    }
                 }
                 const newDocRef = await addDoc(collection(db, "invoices"), newInvoiceData);
                 editId = newDocRef.id;
@@ -840,22 +918,34 @@
                 if (oldSnap.exists()) {
                     const oldData = oldSnap.data();
                     
+                    // إرجاع المخزون القديم لحالته قبل التعديل
                     if (oldData && oldData.items) {
                         for (const oldItem of oldData.items) {
                             if (oldItem.stockId) {
                                 const p = inventory.find(i => i.id === oldItem.stockId);
                                 const factor = p ? (Number(p.unitFactor) || 1) : 1;
                                 const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * factor : oldItem.qty;
-                                await updateDoc(doc(db, "inventory", oldItem.stockId), { totalPcs: increment(oldQtyPcs) });
+                                
+                                if (oldItem.isReturn) {
+                                    await updateDoc(doc(db, "inventory", oldItem.stockId), { totalPcs: increment(-oldQtyPcs) });
+                                } else {
+                                    await updateDoc(doc(db, "inventory", oldItem.stockId), { totalPcs: increment(oldQtyPcs) });
+                                }
                             }
                         }
                     }
 
+                    // خصم أو إضافة الكميات الجديدة بعد التعديل
                     for (const item of items) {
                         const p = inventory.find(i => i.id === item.stockId);
                         const factor = p ? (Number(p.unitFactor) || 1) : 1;
                         const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                        await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
+                        
+                        if (item.isReturn) {
+                            await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(qtyPcs) });
+                        } else {
+                            await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
+                        }
                     }
                     
                     baseInvoiceData.notes = `تم تعديل هذه الطلبية في: ${currentTimeStr}`;
@@ -907,11 +997,11 @@
 
         const tbody = document.getElementById('recItems');
         tbody.innerHTML = data.items.map(item => `
-            <tr style="border-bottom: 1px dotted #000;">
-                <td style="padding: 8px 0;">${item.name}</td>
+            <tr style="border-bottom: 1px dotted #000; ${item.isReturn ? 'background-color: #fce8e6;' : ''}">
+                <td style="padding: 8px 0;">${item.isReturn ? '<span style="color:red; font-weight:bold;">(مرتجع) </span>' : ''}${item.name}</td>
                 <td style="padding: 8px 0; text-align: center;">${item.qty}</td>
                 <td style="padding: 8px 0; text-align: left;">${Number(item.price).toFixed(2)}</td>
-                <td style="padding: 8px 0; text-align: left;">${(item.qty * item.price).toFixed(2)}</td>
+                <td style="padding: 8px 0; text-align: left; ${item.isReturn ? 'color: red;' : ''}">${item.isReturn ? '-' : ''}${(item.qty * item.price).toFixed(2)}</td>
             </tr>
         `).join('');
     }
