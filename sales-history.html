@@ -62,6 +62,10 @@
         .filter-status-bar { display: none; background: #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; align-items: center; justify-content: space-between; }  
         .danger-zone-card { background: #fff5f5; border: 1px dashed #feb2b2; border-radius: 10px; padding: 12px; margin-bottom: 12px; }  
         .admin-notes-box { background: #fffdf5; border: 1px solid #fbe9a7; border-radius: 6px; padding: 8px 10px; font-size: 0.8rem; font-weight: 700; color: #b7791f; margin-top: 8px; border-right: 4px solid #dd9c3c; }  
+        
+        /* استايل المودال المخصص العام والتنبيهات المكتوبة */
+        .custom-popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }  
+        .custom-popup-box { background: white; width: 90%; max-width: 360px; padding: 22px; border-radius: 16px; text-align: center; font-family: 'Cairo'; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }  
     </style>  
 </head>  
 <body>  
@@ -174,9 +178,9 @@
 
 </div>  
 
-<!-- مودال تفاعلي موحد: شير للواتساب أو إرسال فوري للطابعة الحرارية -->
-<div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">  
-    <div style="background: white; width: 90%; max-width: 360px; padding: 22px; border-radius: 16px; text-align: center; font-family: 'Cairo'; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">  
+<!-- مودال خيارات الفاتورة: شير واتساب أو طباعة -->
+<div id="shareModal" class="custom-popup-overlay" style="display: none;">  
+    <div class="custom-popup-box">  
         <div style="width: 45px; height: 45px; background: #eef2f5; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">  
             <i class="fas fa-sliders-h" style="color: #0b5e3d; font-size: 1.4rem;"></i>  
         </div>  
@@ -184,22 +188,31 @@
         <p style="color: #666; font-size: 0.78rem; margin-bottom: 18px;">اختر الإجراء المطلوب لتنفيذه في ثوانٍ وبدون تحميل</p>  
         
         <div class="d-flex flex-column gap-2">  
-            <!-- زر الواتساب النصي السريع -->
             <button id="confirmShareBtn" class="btn btn-success btn-sm w-100 fw-bold py-2" style="font-family:'Cairo'; font-size: 0.85rem; border-radius: 8px;">  
                 <i class="fab fa-whatsapp me-1"></i> مشاركة للفاتورة (واتساب)  
             </button>  
-            
-            <!-- زر الطباعة الفورية المباشرة -->
             <button id="modalPrintBtn" class="btn btn-dark btn-sm w-100 fw-bold py-2" style="font-family:'Cairo'; font-size: 0.85rem; border-radius: 8px; background: #212529;">  
                 <i class="fas fa-print me-1"></i> طباعة الريسيت فورا  
             </button>  
-            
             <hr class="my-2" style="color: #eee;">  
-            
             <button onclick="document.getElementById('shareModal').style.display='none'" class="btn btn-link btn-sm w-100 fw-bold text-muted text-decoration-none" style="font-family:'Cairo'; font-size: 0.8rem;">  
                 إغلاق النافذة  
             </button>  
         </div>  
+    </div>  
+</div>  
+
+<!-- مودال التنبيهات العام والتقارير بديل الـ alert والـ confirm والـ prompt لمنع ظهور روابط المتصفح -->
+<div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">  
+    <div class="custom-popup-box" style="max-width: 420px;">  
+        <div id="customModalIcon" style="width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;"></div>  
+        <h6 class="fw-bold mb-2" id="customModalTitle" style="font-size: 1rem;">تنبيه النظام</h6>  
+        <div id="customModalBody" style="font-size: 0.82rem; color: #4a5568; margin-bottom: 18px; text-align: right; white-space: pre-line; line-height: 1.6; max-height: 300px; overflow-y: auto; padding: 5px;"></div>  
+        
+        <!-- حقل خاص بالـ Prompt المخصص لتصفير الحسابات -->
+        <input type="text" id="customModalInput" class="form-control text-center mb-3 fw-bold" style="display:none; font-family:'Cairo'; font-size:0.9rem;" placeholder="اكتب كلمة التأكيد هنا...">  
+        
+        <div class="d-flex gap-2 justify-content-center" id="customModalActions"></div>  
     </div>  
 </div>  
 
@@ -224,6 +237,66 @@
     let customersData = {};  
     let activeShareData = null;  
     let currentFilterType = null;  
+
+    // دالة محاكاة تمنع الروابط وتظهر نوافذ نظام داخلية مخصصة  
+    window.showCustomUi = (options) => {  
+        const modal = document.getElementById('customGlobalModal');  
+        const title = document.getElementById('customModalTitle');  
+        const body = document.getElementById('customModalBody');  
+        const iconContainer = document.getElementById('customModalIcon');  
+        const inputField = document.getElementById('customModalInput');  
+        const actions = document.getElementById('customModalActions');  
+  
+        title.innerText = options.title || "تنبيه النظام";  
+        body.innerHTML = options.message || "";  
+        inputField.value = "";  
+        inputField.style.display = options.type === "prompt" ? "block" : "none";  
+  
+        if(options.icon === "success") {  
+            iconContainer.style.background = "#ebf9eb";  
+            iconContainer.innerHTML = `<i class="fas fa-check-circle" style="color: #2d6a4f; font-size: 1.4rem;"></i>`;  
+        } else if(options.icon === "danger") {  
+            iconContainer.style.background = "#fff5f5";  
+            iconContainer.innerHTML = `<i class="fas fa-exclamation-triangle" style="color: #d90429; font-size: 1.4rem;"></i>`;  
+        } else {  
+            iconContainer.style.background = "#eef2f5";  
+            iconContainer.innerHTML = `<i class="fas fa-info-circle" style="color: #0b5e3d; font-size: 1.4rem;"></i>`;  
+        }  
+  
+        actions.innerHTML = "";  
+        if(options.type === "confirm" || options.type === "prompt") {  
+            const confirmBtn = document.createElement('button');  
+            confirmBtn.className = "btn btn-sm btn-success px-4 fw-bold";  
+            confirmBtn.style.fontFamily = "Cairo";  
+            confirmBtn.innerText = options.confirmText || "تأكيد";  
+            confirmBtn.onclick = () => {  
+                modal.style.display = 'none';  
+                if(options.onConfirm) options.onConfirm(options.type === "prompt" ? inputField.value : true);  
+            };  
+              
+            const cancelBtn = document.createElement('button');  
+            cancelBtn.className = "btn btn-sm btn-light text-danger px-4 fw-bold";  
+            cancelBtn.style.fontFamily = "Cairo";  
+            cancelBtn.innerText = "إلغاء";  
+            cancelBtn.onclick = () => {  
+                modal.style.display = 'none';  
+                if(options.onCancel) options.onCancel();  
+            };  
+            actions.appendChild(confirmBtn);  
+            actions.appendChild(cancelBtn);  
+        } else {  
+            const closeBtn = document.createElement('button');  
+            closeBtn.className = "btn btn-sm btn-dark px-5 fw-bold";  
+            closeBtn.style.fontFamily = "Cairo";  
+            closeBtn.innerText = "موافق";  
+            closeBtn.onclick = () => {  
+                modal.style.display = 'none';  
+                if(options.onConfirm) options.onConfirm();  
+            };  
+            actions.appendChild(closeBtn);  
+        }  
+        modal.style.display = 'flex';  
+    };  
   
     function convertToEnglishNumbers(str) {  
         if (!str) return "";  
@@ -302,7 +375,6 @@
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة ما تم تعديله بالظبط</div>` : ''}  
                         </div>  
                         <div class="d-flex gap-1 flex-wrap justify-content-end" style="max-width: 60%;">  
-                            <!-- تم تحويل الأزرار إلى استدعاء المودال الذكي الموحد -->
                             <button class="btn btn-sm btn-success fw-bold px-3" style="font-size:0.75rem; font-family:'Cairo'; border-radius:6px;" onclick="triggerShare('${inv.id}')"><i class="fas fa-share-alt me-1"></i> خيارات الفاتورة</button>  
                             <button class="btn btn-sm btn-outline-info text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> الاصناف</button>  
                             <button class="btn btn-sm btn-outline-warning text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleNotes('${inv.id}')"><i class="fas fa-sticky-note"></i> الملاحظة</button>  
@@ -464,7 +536,7 @@
         const inv = allInvoices.find(i => i.id === invId);  
         if (!inv) return;  
           
-        let report = `📝 تقرير التعديلات الدقيق للفاتورة:\n`;  
+        let report = `📝 <b>تقرير التعديلات الدقيق للفاتورة:</b>\n\n`;  
         let index = 1;  
   
         if (inv.originalDate && inv.date && inv.originalDate !== inv.date) {  
@@ -509,23 +581,55 @@
             report = `✅ لا توجد اختلافات دقيقة مخزنة، الفاتورة مطابقة للحسابات الحالية.`;  
         }  
   
-        alert(report);  
+        window.showCustomUi({  
+            title: "تفاصيل تعديل الفاتورة",  
+            message: report,  
+            icon: "info",  
+            type: "alert"  
+        });  
     };  
   
-    document.getElementById('deleteAllCustomersBtn').onclick = async () => {  
-        const passwordCheck = prompt("🔒 تصفير النظام:\nالرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة:");  
-        if (passwordCheck !== "الزيادي") return;  
-        const finalConfirm = confirm("🛑 هل أنت متأكد للمرة الأخيرة؟ لا يمكن التراجع.");  
-        if (!finalConfirm) return;  
-        try {  
-            const collections = ["customers", "invoices", "transactions"];  
-            for (const colName of collections) {  
-                const snap = await getDocs(collection(db, colName));  
-                for (const d of snap.docs) { await deleteDoc(doc(db, colName, d.id)); }  
+    document.getElementById('deleteAllCustomersBtn').onclick = () => {  
+        window.showCustomUi({  
+            title: "🔒 تصفير الحسابات والنظام",  
+            message: "الرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة في تصفير النظام:",  
+            type: "prompt",  
+            icon: "danger",  
+            confirmText: "تأكيد الحذف",  
+            onConfirm: async (inputValue) => {  
+                if (inputValue !== "الزيادي") {  
+                    setTimeout(() => {  
+                        window.showCustomUi({ title: "خطأ", message: "كلمة التأكيد غير صحيحة. تم إلغاء العملية.", icon: "danger" });  
+                    }, 300);  
+                    return;  
+                }  
+                setTimeout(() => {  
+                    window.showCustomUi({  
+                        title: "🛑 تحذير نهائي",  
+                        message: "هل أنت متأكد تماماً للمرة الأخيرة؟ سيتم تدمير جميع بيانات الفواتير والعمليات نهائياً.",  
+                        type: "confirm",  
+                        icon: "danger",  
+                        onConfirm: async () => {  
+                            try {  
+                                const collections = ["customers", "invoices", "transactions"];  
+                                for (const colName of collections) {  
+                                    const snap = await getDocs(collection(db, colName));  
+                                    for (const d of snap.docs) { await deleteDoc(doc(db, colName, d.id)); }  
+                                }  
+                                window.showCustomUi({  
+                                    title: "نجاح تصفير السيستم",  
+                                    message: "🚀 تم تصفير قاعدة البيانات بالكامل وبنجاح.",  
+                                    icon: "success",  
+                                    onConfirm: () => { location.reload(); }  
+                                });  
+                            } catch (err) {   
+                                window.showCustomUi({ title: "خطأ", message: "حدث خطأ في عملية الحذف من السيرفر الرئيسي.", icon: "danger" });  
+                            }  
+                        }  
+                    });  
+                }, 300);  
             }  
-            alert("🚀 تم تصفير قاعدة البيانات بنجاح.");  
-            location.reload();  
-        } catch (err) { alert("حدث خطأ في عملية الحذف."); }  
+        });  
     };  
   
     window.filterByStat = (type, cardElement) => {  
@@ -589,7 +693,6 @@
         element.style.display = (element.style.display === "none") ? "block" : "none";  
     };  
   
-    // فتح مودال الخيارات الموحد للفاتورة  
     window.triggerShare = (id) => {  
         const inv = allInvoices.find(i => i.id === id);  
         if(!inv) return;  
@@ -597,7 +700,6 @@
         document.getElementById('shareModal').style.display = 'flex';  
     };  
   
-    // الخيار الأول: شير واتساب سريع البرق بدون تهنيج  
     document.getElementById('confirmShareBtn').onclick = () => {  
         if (!activeShareData) return;  
         
@@ -622,7 +724,7 @@
 *الأصناف وبيان العملية:*  
 ${itemsText}  
 ----------------------------------------  
-💰 *إجمالي الفاتورة:* ${Number(inv.total) .toFixed(2)} ج.م  
+💰 *إجمالي الفاتورة:* ${Number(inv.total).toFixed(2)} ج.م  
 💵 *المسدد الشامل:* ${totalPaid} ج.م  
 📊 *حساب سابق للعميل:* ${Number(inv.previousBalance || 0).toFixed(2)} ج.م  
 🛑 *إجمالي الحساب المتبقي الآجل:* ${finalRemaining} ج.م  
@@ -635,7 +737,6 @@ ${itemsText}
         document.getElementById('shareModal').style.display = 'none';  
     };  
   
-    // الخيار الثاني: الطباعة الفورية الصامتة (مربوطة داخل المودال الآن)  
     document.getElementById('modalPrintBtn').onclick = () => {  
         if (!activeShareData) return;  
         window.printInvoice(activeShareData.id);  
@@ -646,13 +747,26 @@ ${itemsText}
         window.location.href = `sales-invoice.html?edit=${id}&allowDateEdit=true`;   
     };  
   
-    window.deleteInvoice = async (id) => {  
-        if (!confirm("هل متأكد من حذف الفاتورة؟")) return;  
-        try {  
-            await deleteDoc(doc(db, "invoices", id));  
-            alert("تم الحذف بنجاح");  
-            location.reload();  
-        } catch (e) { alert("حدث خطأ"); }  
+    window.deleteInvoice = (id) => {  
+        window.showCustomUi({  
+            title: "تأكيد حذف الفاتورة",  
+            message: "هل أنت متأكد من رغبتك في حذف هذه الفاتورة نهائياً من سجل المبيعات؟",  
+            type: "confirm",  
+            icon: "danger",  
+            onConfirm: async () => {  
+                try {  
+                    await deleteDoc(doc(db, "invoices", id));  
+                    window.showCustomUi({  
+                        title: "تم الحذف",  
+                        message: "تم حذف الفاتورة المحددة بنجاح من قاعدة البيانات الرئيسية.",  
+                        icon: "success",  
+                        onConfirm: () => { location.reload(); }  
+                    });  
+                } catch (e) {   
+                    window.showCustomUi({ title: "خطأ", message: "فشلت عملية الحذف المباشر.", icon: "danger" });  
+                }  
+            }  
+        });  
     };  
   
     document.getElementById('exportExcelBtn').onclick = () => {  
@@ -687,7 +801,6 @@ ${itemsText}
         XLSX.writeFile(workbook, `كشف_حركة_مبيعات_الزيادي.xlsx`);  
     };  
   
-    // --- دالة رندر ريسيت الطابعة (80mm) المباشرة الفورية ---  
     window.printInvoice = (id) => {  
         const inv = allInvoices.find(i => i.id === id);  
         if (!inv) return;  
