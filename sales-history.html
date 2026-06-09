@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">  
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">  
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
-    <!-- مكتبة تحويل الكود إلى صورة -->
+    <!-- مكتبة تحويل الكود إلى صورة سريعة ومحدثة -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>  
         :root {   
@@ -68,13 +68,21 @@
         .custom-popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }  
         .custom-popup-box { background: white; width: 90%; max-width: 360px; padding: 22px; border-radius: 16px; text-align: center; font-family: 'Cairo'; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }  
         
-        /* حاوية التصوير السريع: مخفية تماماً وخفيفة جداً بدون استدعاء مكتبات ثقيلة */
+        /* حاوية المعالجة المخفية */
         #invoiceRenderContainer {   
             position: absolute;   
             left: -9999px;   
             top: -9999px;   
-            width: 360px;   
+            width: 350px;   
             background: #ffffff;
+            z-index: -1;
+        }
+
+        /* تنسيقات الطباعة الخاصة الفورية لمنع التأثير على الصفحة الأصلية */
+        @media print {
+            body * { display: none !important; }
+            #invoiceRenderContainer, #invoiceRenderContainer * { display: block !important; position: static !important; width: 100% !important; }
+            #invoiceRenderContainer { left: 0 !important; top: 0 !important; z-index: 99999 !important; }
         }
     </style>  
 </head>  
@@ -360,8 +368,8 @@
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة ما تم تعديله بالظبط</div>` : ''}  
                         </div>  
                         <div class="d-flex gap-1 flex-wrap justify-content-end" style="max-width: 60%;">  
-                            <button class="btn btn-sm btn-dark fw-bold" id="btnPrint_${inv.id}" style="font-size:0.73rem; font-family:'Cairo'; border-radius:6px; padding: 4px 8px;" onclick="directPrintInvoice('${inv.id}')"><i class="fas fa-print me-1"></i> طباعة ريسيت</button>  
-                            <button class="btn btn-sm btn-success fw-bold" id="btnShare_${inv.id}" style="font-size:0.73rem; font-family:'Cairo'; border-radius:6px; padding: 4px 8px; background: #2d6a4f;" onclick="directShareInvoice('${inv.id}')"><i class="fas fa-share-nodes me-1"></i> مشاركة</button>  
+                            <button class="btn btn-sm btn-dark fw-bold" id="btnPrint_${inv.id}" style="font-size:0.73rem; font-family:'Cairo'; border-radius:6px; padding: 4px 8px;" onclick="window.directPrintInvoice('${inv.id}')"><i class="fas fa-print me-1"></i> طباعة ريسيت</button>  
+                            <button class="btn btn-sm btn-success fw-bold" id="btnShare_${inv.id}" style="font-size:0.73rem; font-family:'Cairo'; border-radius:6px; padding: 4px 8px; background: #2d6a4f;" onclick="window.directShareInvoice('${inv.id}')"><i class="fas fa-share-nodes me-1"></i> مشاركة</button>  
                             <button class="btn btn-sm btn-outline-info text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> الاصناف</button>  
                             <button class="btn btn-sm btn-outline-warning text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleNotes('${inv.id}')"><i class="fas fa-sticky-note"></i> الملاحظة</button>  
                             <button class="btn btn-sm btn-outline-primary" style="padding: 2px 6px; font-size:0.75rem;" onclick="editInvoice('${inv.id}')"><i class="fas fa-edit"></i></button>  
@@ -503,7 +511,7 @@
   
         } catch (e) {  
             console.error(e);  
-            document.getElementById('invoicesList').innerHTML = `<div class="alert alert-danger text-center p-2">حدث خطأ في تحميل البيانات الحقيقية من السيرفر.</div>`;  
+            document.getElementById('invoicesList').innerHTML = `<div class="alert alert-danger text-center p-2">حدث خطأ في تحميل البيانات من السيرفر.</div>`;  
         }  
     }  
   
@@ -679,7 +687,7 @@
         element.style.display = (element.style.display === "none") ? "block" : "none";  
     };  
 
-    // كود توليد هيكل الفاتورة فائق السرعة - يعتمد بالكامل على خطوط السيستم لتفادي تهنيج الكانفاس
+    // كود بناء الفاتورة المباشر والسريع جداً
     function generateInvoiceHtmlStructure(inv) {
         const originalDate = parseInvoiceDate(inv);  
         const displayTime = formatInvoiceTime(inv.time, inv.date);  
@@ -744,7 +752,7 @@
         `;
     }
   
-    // دالة التصوير الموحدة وفائقة السرعة للأجهزة المحمولة
+    // محرك تحويل الفاتورة لصورة بأعلى سرعة وبدون مشاكل أمان للمتصفح
     async function captureInvoiceFast(id) {
         const inv = allInvoices.find(i => i.id === id);  
         if (!inv) return null;
@@ -752,20 +760,19 @@
         const renderContainer = document.getElementById('invoiceRenderContainer');
         renderContainer.innerHTML = generateInvoiceHtmlStructure(inv);
 
-        // إعدادات محرك التصوير ليعمل بأقصى سرعة (بدون تهنيج وبدون لود كاش للخطوط)
         const canvas = await html2canvas(document.getElementById('captureArea'), {
-            scale: 1.25, // حجم ممتاز للـ 80mm وخفيف جداً عند الرفع
+            scale: 1.25, 
             logging: false,
-            useCORS: false, // مغلق لعدم تضييع وقت في فحص السيرفرات الخارجية
+            useCORS: true, 
+            allowTaint: true, // تمنع تعطل الـ Canvas بسبب الحماية الصارمة للهواتف
             backgroundColor: "#ffffff",
             imageTimeout: 0
         });
 
-        renderContainer.innerHTML = ""; // تنظيف فوري للذاكرة المؤقتة
         return { canvas, inv };
     }
 
-    // زر المشاركة الفوري (مشاركة صورة شيت حية بدون قيد أو شرط)
+    // زر المشاركة النظيف والآمن بنسبة 100%
     window.directShareInvoice = async (id) => {  
         const btn = document.getElementById(`btnShare_${id}`);
         const originalHtml = btn.innerHTML;
@@ -778,7 +785,7 @@
 
             result.canvas.toBlob(async (blob) => {
                 if (!blob) return;
-                const file = new File([blob], `فاتورة.png`, { type: 'image/png' });
+                const file = new File([blob], `فاتورة_${id}.png`, { type: 'image/png' });
 
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     await navigator.share({
@@ -788,10 +795,11 @@
                     });
                 } else {
                     const link = document.createElement('a');
-                    link.download = `فاتورة_الزيادي.png`;
+                    link.download = `فاتورة_الزيادي_${id}.png`;
                     link.href = result.canvas.toDataURL('image/png');
                     link.click();
                 }
+                document.getElementById('invoiceRenderContainer').innerHTML = ""; // تنظيف الذاكرة
             }, 'image/png');
         } catch (e) {
             console.error(e);
@@ -801,7 +809,7 @@
         }
     };  
   
-    // زر الطباعة الفوري كريسيت 80مم نقي وسريع للغاية
+    // زر الطباعة الفوري المعدل ليتخطى حظر الإطارات الوهمية
     window.directPrintInvoice = async (id) => {  
         const btn = document.getElementById(`btnPrint_${id}`);
         const originalHtml = btn.innerHTML;
@@ -809,45 +817,18 @@
         btn.disabled = true;
 
         try {
-            const result = await captureInvoiceFast(id);
-            if (!result) return;
-            const imgDataUrl = result.canvas.toDataURL('image/png');
+            const inv = allInvoices.find(i => i.id === id);  
+            if (!inv) return;
 
-            let printFrame = document.getElementById('receiptPrintFrame');  
-            if (!printFrame) {  
-                printFrame = document.createElement('iframe');  
-                printFrame.id = 'receiptPrintFrame';  
-                printFrame.style.position = 'fixed';  
-                printFrame.style.width = '0';  
-                printFrame.style.height = '0';  
-                printFrame.style.border = 'none';  
-                document.body.appendChild(printFrame);  
-            }  
-  
-            const frameDoc = printFrame.contentWindow.document;  
-            frameDoc.open();  
-            frameDoc.write(`  
-                <!DOCTYPE html>  
-                <html>  
-                <head>  
-                    <style>  
-                        @page { size: auto; margin: 0; }  
-                        body { margin: 0; padding: 0; }  
-                        img { width: 100%; max-width: 350px; display: block; margin: 0 auto; }  
-                    </style>  
-                </head>  
-                <body>  
-                    <img src="${imgDataUrl}" />  
-                    <script>  
-                        window.onload = function() {  
-                            window.focus();  
-                            window.print();  
-                        };  
-                    <\/script>  
-                </body>  
-                </html>  
-            `);  
-            frameDoc.close();
+            // حقن الهيكل مباشرة ليقرأه أمر window.print دون تجميد
+            const renderContainer = document.getElementById('invoiceRenderContainer');
+            renderContainer.innerHTML = generateInvoiceHtmlStructure(inv);
+
+            // استدعاء واجهة طباعة النظام فوراً
+            window.print();
+            
+            // تنظيف بعد انتهاء الطباعة أو إلغائها
+            renderContainer.innerHTML = "";
         } catch (err) {
             console.error(err);
         } finally {
