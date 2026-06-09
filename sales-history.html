@@ -3,13 +3,14 @@
 <head>  
     <meta charset="UTF-8">  
     <meta name="viewport" content="width=device-width, initial-scale=1.0">  
-    <title>سجل المبيعات- شركة الزيادي</title>  
+    <title>سجل المبيعات - الزيادي لزيوت السيارات</title>  
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">  
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">  
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">  
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
     
-    <!-- مكاتب احترافية لتوليد الـ PDF والصور في الخلفية بدقة حادة -->
+    <!-- مكاتب التصدير والطباعة المعتمدة لديك -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
@@ -71,128 +72,172 @@
         .custom-popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }  
         .custom-popup-box { background: white; width: 90%; max-width: 360px; padding: 22px; border-radius: 16px; text-align: center; font-family: 'Cairo'; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }  
         
-        /* قوالب معزولة تماماً ولا تظهر للمستخدم نهائياً */
-        #invoiceThermalTemplate {   
-            position: absolute;   
-            left: -9999px;   
-            top: -9999px;   
-            width: 340px;   
-            background: #ffffff;
-            padding: 10px;
+        #invoiceThermalTemplate { position: absolute; left: -9999px; top: -9999px; width: 340px; background: #ffffff; padding: 10px; }
+
+        /* --- استايل منطقة الطباعة للتقارير المجمعة والـ PDF المقتبس من كشف الحساب --- */
+        #print-area { display: none; background: #ffffff !important; color: #000 !important; padding: 40px; }
+        .pdf-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .pdf-table th { background: #f8f9fa !important; border: 1px solid #dee2e6; padding: 10px; font-size: 13px; color: #000; }
+        .pdf-table td { border: 1px solid #dee2e6; padding: 10px; text-align: center; font-size: 12px; color: #000; }
+        
+        @media print {
+            #content-to-export { display: none !important; }
+            #print-area { display: block !important; }
         }
     </style>  
 </head>  
 <body>  
 
-<div class="header-nav">  
-    <a href="index.html" class="add-btn"><i class="fas fa-arrow-right"></i></a>  
-    <h6 class="m-0 fw-bold" style="font-size: 0.95rem;"><i class="fas fa-history me-1"></i> سجل المبيعات </h6>  
-    <div class="d-flex gap-2">  
-        <button class="add-btn" id="exportExcelBtn" title="تصدير كشف حركة "><i class="fas fa-file-excel"></i></button>  
-        <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>  
-    </div>  
-</div>  
-
-<div class="container px-2 mt-1">  
-
-    <div class="danger-zone-card mt-2 d-flex justify-content-between align-items-center">  
-        <div>  
-            <span class="fw-bold text-danger d-block" style="font-size: 0.85rem;"><i class="fas fa-exclamation-triangle me-1"></i> تصفير النظام</span>  
-            <small class="text-muted" style="font-size: 0.72rem;">سيتم حذف جميع العملاء والعمليات والفواتير نهائياً.</small>  
-        </div>  
-        <button class="btn btn-danger btn-sm fw-bold px-3" id="deleteAllCustomersBtn" style="font-size: 0.75rem; border-radius: 6px;">  
-            <i class="fas fa-trash-can"></i>  
-        </button>  
-    </div>  
-      
-    <!-- إحصائيات اليوم -->
-    <div class="stats-section-title"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم</div>  
-    <div class="row g-1 mb-2">  
-        <div class="col-3">  
-            <div class="stat-card" onclick="filterByStat('today-cash', this)">  
-                <div class="stat-bar" style="background: var(--success);"></div>  
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">نقدي اليوم</small>  
-                <span class="fw-bold d-block text-truncate text-success" id="todayCash" style="font-size: 0.82rem;">0.0</span>  
-            </div>  
-        </div>  
-        <div class="col-3">  
-            <div class="stat-card" onclick="filterByStat('today-wallet', this)">  
-                <div class="stat-bar" style="background: var(--purple);"></div>  
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">محفظة اليوم</small>  
-                <span class="fw-bold d-block text-truncate text-primary" id="todayWallet" style="font-size: 0.82rem;">0.0</span>  
-            </div>  
-        </div>  
-        <div class="col-3">  
-            <div class="stat-card" onclick="filterByStat('today-remaining', this)">  
-                <div class="stat-bar" style="background: var(--warning);"></div>  
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">آجل اليوم</small>  
-                <span class="fw-bold d-block text-truncate text-warning" id="todayRemaining" style="font-size: 0.82rem;">0.0</span>  
-            </div>  
-        </div>  
-        <div class="col-3">  
-            <div class="stat-card" onclick="filterByStat('today-total', this)">  
-                <div class="stat-bar" style="background: #212529;"></div>  
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">مبيعات اليوم</small>  
-                <span class="fw-bold d-block text-truncate text-dark" id="todayTotalSales" style="font-size: 0.82rem;">0.0</span>  
-            </div>  
+<div id="content-to-export">
+    <div class="header-nav">  
+        <a href="index.html" class="add-btn"><i class="fas fa-arrow-right"></i></a>  
+        <h6 class="m-0 fw-bold" style="font-size: 0.95rem;"><i class="fas fa-history me-1"></i> سجل المبيعات </h6>  
+        <div class="d-flex gap-2">  
+            <!-- إدراج أزرار التصدير والطباعة لكشف حركة السجل بالكامل هنا -->
+            <button class="add-btn" onclick="generateReportPDF()" title="تصدير السجل PDF"><i class="fas fa-file-pdf"></i></button>
+            <button class="add-btn" id="exportExcelBtn" title="تصدير كشف حركة Excel"><i class="fas fa-file-excel"></i></button>  
+            <button class="add-btn" onclick="window.print()" title="طباعة تقرير السجل"><i class="fas fa-print"></i></button>
+            <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>  
         </div>  
     </div>  
 
-    <!-- إحصائيات الكل -->
-    <div class="stats-section-title"><i class="fas fa-chart-pie me-1"></i> إحصائيات الكل</div>  
-    <div class="row g-1 mb-2">  
-        <div class="col-3">  
-            <div class="stat-card" onclick="filterByStat('all-cash', this)">  
-                <div class="stat-bar" style="background: var(--success);"></div>  
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.النقدي</small>  
-                <span class="fw-bold d-block text-truncate text-success" id="statCash" style="font-size: 0.82rem;">0.0</span>  
+    <div class="container px-2 mt-1">  
+        <div class="danger-zone-card mt-2 d-flex justify-content-between align-items-center">  
+            <div>  
+                <span class="fw-bold text-danger d-block" style="font-size: 0.85rem;"><i class="fas fa-exclamation-triangle me-1"></i> تصفير النظام</span>  
+                <small class="text-muted" style="font-size: 0.72rem;">سيتم حذف جميع العملاء والعمليات والفواتير نهائياً.</small>  
+            </div>  
+            <button class="btn btn-danger btn-sm fw-bold px-3" id="deleteAllCustomersBtn" style="font-size: 0.75rem; border-radius: 6px;">  
+                <i class="fas fa-trash-can"></i>  
+            </button>  
+        </div>  
+          
+        <!-- إحصائيات اليوم -->
+        <div class="stats-section-title"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم</div>  
+        <div class="row g-1 mb-2">  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('today-cash', this)">  
+                    <div class="stat-bar" style="background: var(--success);"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">نقدي اليوم</small>  
+                    <span class="fw-bold d-block text-truncate text-success" id="todayCash" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
+            </div>  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('today-wallet', this)">  
+                    <div class="stat-bar" style="background: var(--purple);"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">محفظة اليوم</small>  
+                    <span class="fw-bold d-block text-truncate text-primary" id="todayWallet" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
+            </div>  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('today-remaining', this)">  
+                    <div class="stat-bar" style="background: var(--warning);"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">آجل اليوم</small>  
+                    <span class="fw-bold d-block text-truncate text-warning" id="todayRemaining" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
+            </div>  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('today-total', this)">  
+                    <div class="stat-bar" style="background: #212529;"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">مبيعات اليوم</small>  
+                    <span class="fw-bold d-block text-truncate text-dark" id="todayTotalSales" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
             </div>  
         </div>  
-        <div class="col-3">  
-            <div class="stat-card" onclick="filterByStat('all-wallet', this)">  
-                <div class="stat-bar" style="background: var(--purple);"></div>  
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.المحفظة</small>  
-                <span class="fw-bold d-block text-truncate text-primary" id="statWallet" style="font-size: 0.82rem;">0.0</span>  
+
+        <!-- إحصائيات الكل -->
+        <div class="stats-section-title"><i class="fas fa-chart-pie me-1"></i> إحصائيات الكل</div>  
+        <div class="row g-1 mb-2">  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('all-cash', this)">  
+                    <div class="stat-bar" style="background: var(--success);"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.النقدي</small>  
+                    <span class="fw-bold d-block text-truncate text-success" id="statCash" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
+            </div>  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('all-wallet', this)">  
+                    <div class="stat-bar" style="background: var(--purple);"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.المحفظة</small>  
+                    <span class="fw-bold d-block text-truncate text-primary" id="statWallet" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
+            </div>  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('all-remaining', this)">  
+                    <div class="stat-bar" style="background: var(--warning);"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.الآجل</small>  
+                    <span class="fw-bold d-block text-truncate text-warning" id="statRemaining" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
+            </div>  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('all-total', this)">  
+                    <div class="stat-bar" style="background: #212529;"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.المبيعات</small>  
+                    <span class="fw-bold d-block text-truncate text-dark" id="statTotalSales" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
             </div>  
         </div>  
-        <div class="col-3">  
-            <div class="stat-card" onclick="filterByStat('all-remaining', this)">  
-                <div class="stat-bar" style="background: var(--warning);"></div>  
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.الآجل</small>  
-                <span class="fw-bold d-block text-truncate text-warning" id="statRemaining" style="font-size: 0.82rem;">0.0</span>  
+
+        <div class="filter-status-bar mb-2" id="filterStatusBar">  
+            <span id="filterStatusText">عرض فلاتر مخصصة</span>  
+            <button class="btn btn-sm btn-dark py-0" onclick="resetStatFilter()" style="font-size:0.7rem; font-family: 'Cairo';">عرض الكل</button>  
+        </div>  
+
+        <div class="row g-2 mb-2 align-items-end">  
+            <div class="col-6">  
+                <input type="text" id="searchInput" class="form-control search-box h-100" placeholder="البحث باسم العميل أو السداد..." oninput="filterInvoices()">  
+            </div>  
+            <div class="col-6">  
+                <input type="date" id="dateFilterInput" class="form-control h-100" style="font-size: 0.85rem; font-weight: 600; border-radius: var(--input-radius); padding: 7px 12px; font-family: 'Cairo';" onchange="window.handleDateFilterChange()">  
             </div>  
         </div>  
-        <div class="col-3">  
-            <div class="stat-card" onclick="filterByStat('all-total', this)">  
-                <div class="stat-bar" style="background: #212529;"></div>  
-                <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.المبيعات</small>  
-                <span class="fw-bold d-block text-truncate text-dark" id="statTotalSales" style="font-size: 0.82rem;">0.0</span>  
+
+        <div id="invoicesList">  
+            <div class="text-center py-5 text-muted">  
+                <i class="fas fa-spinner fa-spin fa-2x"></i>  
+                <p class="mt-2 fw-bold">جاري تحميل السجلات ...</p>  
             </div>  
         </div>  
     </div>  
+</div>
 
-    <div class="filter-status-bar mb-2" id="filterStatusBar">  
-        <span id="filterStatusText">عرض فلاتر مخصصة</span>  
-        <button class="btn btn-sm btn-dark py-0" onclick="resetStatFilter()" style="font-size:0.7rem; font-family: 'Cairo';">عرض الكل</button>  
-    </div>  
+<!-- 🖨️ منطقة الطباعة وتصدير كشف حركة المبيعات المقتبسة من كشف الحساب -->
+<div id="print-area" dir="rtl">
+    <div style="text-align: center; border-bottom: 3px solid #0b5e3d; padding-bottom: 15px; margin-bottom: 25px;">
+        <h1 style="margin:0; color:#0b5e3d; font-size: 28px; font-weight: bold;">الزيادي لزيوت السيارات</h1>
+        <p style="margin:5px 0; font-size: 16px; font-weight: bold; color: #555;">كشف حركة سجل المبيعات والعمليات</p>
+    </div>
+    
+    <div style="display: flex; justify-content: space-between; margin-bottom: 25px; direction: rtl; font-size: 14px;">
+        <div style="text-align: right; line-height: 1.8;">
+            <strong>نوع التقرير:</strong> كشف مبيعات تفصيلي<br>
+            <strong>مسؤول المستند:</strong> إدارة النظام الحسابي
+        </div>
+        <div style="text-align: left; line-height: 1.8;">
+            <strong>تاريخ استخراج التقرير:</strong> <span id="p-report-date" style="font-weight: bold;"></span><br>
+            <strong>عدد الفواتير المعروضة:</strong> <span id="p-report-count" style="font-weight: bold;">0</span> فاتورة
+        </div>
+    </div>
 
-    <div class="row g-2 mb-2 align-items-end">  
-        <div class="col-6">  
-            <input type="text" id="searchInput" class="form-control search-box h-100" placeholder="البحث باسم العميل أو السداد..." oninput="filterInvoices()">  
-        </div>  
-        <div class="col-6">  
-            <input type="date" id="dateFilterInput" class="form-control h-100" style="font-size: 0.85rem; font-weight: 600; border-radius: var(--input-radius); padding: 7px 12px; font-family: 'Cairo';" onchange="window.handleDateFilterChange()">  
-        </div>  
-    </div>  
+    <table class="pdf-table">
+        <thead>
+            <tr>
+                <th>التاريخ / الوقت</th>
+                <th>اسم العميل</th>
+                <th>طريقة السداد</th>
+                <th>إجمالي الفاتورة</th>
+                <th>المسدد الشامل</th>
+                <th>الأجل المتبقي</th>
+            </tr>
+        </thead>
+        <tbody id="printReportBody"></tbody>
+    </table>
 
-    <div id="invoicesList">  
-        <div class="text-center py-5 text-muted">  
-            <i class="fas fa-spinner fa-spin fa-2x"></i>  
-            <p class="mt-2 fw-bold">جاري تحميل السجلات ...</p>  
-        </div>  
-    </div>  
-
-</div>  
+    <div style="margin-top: 30px; text-align: left; border-top: 2px solid #0b5e3d; padding-top: 15px; font-size: 16px;">
+        <strong>إجمالي مبيعات هذا التقرير: </strong>
+        <span id="p-report-total" style="font-size: 22px; font-weight: bold; color:#0b5e3d;">0.00</span> ج.م
+    </div>
+</div>
 
 <!-- حاوية معزولة لإنشاء مستند الطباعة والشير بدقة ريسيت 80مم -->
 <div id="invoiceThermalTemplate"></div>
@@ -230,6 +275,7 @@
     let allInvoices = [];  
     let customersData = {};  
     let currentFilterType = null;  
+    let currentRenderedInvoices = []; // مصفوفة لتتبع البيانات المفلترة للطباعة الجماعية
 
     window.showCustomUi = (options) => {  
         const modal = document.getElementById('customGlobalModal');  
@@ -333,6 +379,7 @@
     }  
   
     window.renderInvoices = (invoices) => {  
+        currentRenderedInvoices = invoices; // حفظ النسخة المفلترة الحالية للطباعة الجماعية
         const container = document.getElementById('invoicesList');  
         if (invoices.length === 0) {  
             container.innerHTML = `<div class="text-center py-4 text-muted fw-bold">لا توجد فواتير مطابقة للبحث أو الفلتر المختار.</div>`;  
@@ -407,6 +454,8 @@
                 </div>  
             `;  
         }).join('');  
+        
+        buildPrintReportTable(); // تحديث الجدول المخصص للطباعة بناءً على الفهرسة الجديدة فورا
     };  
   
     function calculateStats() {  
@@ -453,6 +502,8 @@
   
     async function loadData() {  
         try {  
+            document.getElementById('p-report-date').innerText = new Date().toLocaleDateString('ar-EG');
+            
             const custSnap = await getDocs(collection(db, "customers"));  
             custSnap.forEach(d => {  
                 customersData[d.id] = { id: d.id, name: d.data().name, initialBalance: Number(d.data().initialBalance) || 0 };  
@@ -513,6 +564,50 @@
         }  
     }  
   
+    // دالة بناء وتجهيز جدول الطباعة بناءً على العناصر المعروضة حالياً بالصفحة
+    function buildPrintReportTable() {
+        const pbody = document.getElementById('printReportBody');
+        pbody.innerHTML = '';
+        let totalSum = 0;
+        
+        document.getElementById('p-report-count').innerText = currentRenderedInvoices.length;
+        
+        currentRenderedInvoices.forEach(inv => {
+            const originalDate = parseInvoiceDate(inv);  
+            const displayTime = formatInvoiceTime(inv.time, inv.date);
+            const totalPaid = inv.calculatedCash + inv.calculatedWallet;
+            totalSum += (Number(inv.total) || 0);
+            
+            pbody.innerHTML += `
+                <tr>
+                    <td>${originalDate} ${displayTime}</td>
+                    <td style="font-weight:bold; text-align:right;">${inv.customerName || 'عميل نقدي'}</td>
+                    <td>${inv.paymentMethod || 'غير محدد'}</td>
+                    <td style="font-weight:bold;">${(Number(inv.total) || 0).toFixed(2)}</td>
+                    <td style="color:#2d6a4f;">${totalPaid.toFixed(2)}</td>
+                    <td style="color:#d90429; font-weight:bold;">${(Number(inv.remaining) || 0).toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        document.getElementById('p-report-total').innerText = totalSum.toLocaleString(undefined, {minimumFractionDigits: 2});
+    }
+
+    // دالة توليد ملف الـ PDF لتقرير السجل الحركي 
+    window.generateReportPDF = () => {
+        const element = document.getElementById('print-area');
+        element.style.display = 'block';
+        const opt = {
+            margin: [10, 10, 10, 10],
+            filename: `تقرير_سجل_المبيعات_${new Date().toISOString().slice(0,10)}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 3, backgroundColor: '#ffffff', useCORS: true },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().from(element).set(opt).save().then(() => { 
+            element.style.display = 'none'; 
+        });
+    };
+
     window.handleDateFilterChange = () => {  
         calculateStats();  
         const filterInput = document.getElementById('dateFilterInput').value;  
@@ -708,10 +803,8 @@
     };  
 
     // ==========================================
-    // 🚀 محرك الطباعة والمشاركة الاحترافي الجديد 🚀
+    // 🚀 محرك ريسيت 80مم والمشاركة الفردية 🚀
     // ==========================================
-
-    // 1. بناء هيكل الفاتورة الصافي والخالي من حقول الملاحظات والاسم للشير (بناءً على طلبك السابق لخصوصية الشير)
     function buildThermalHtml(inv) {
         const originalDate = parseInvoiceDate(inv);  
         const displayTime = formatInvoiceTime(inv.time, inv.date);  
@@ -732,7 +825,7 @@
                 <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px double #000; padding-bottom: 8px;">  
                     <h2 style="margin: 0; font-size: 22px; font-weight: 800; color:#000;">الزيادي لزيوت السيارات</h2>  
                     <p style="margin: 2px 0; font-size: 12px; font-weight: bold; color: #000;">فلاتر - بطاريات - زيوت محركات</p>  
-                    <h4 style="margin: 5px 0 0 0; font-size: 14px; font-weight: bold; color:#000;">فاتورة مبيعات ورقمية</h4>  
+                    <h4 style="margin: 5px 0 0 0; font-size: 14px; font-weight: bold; color:#000;">فاتورة مبيعات رقمية</h4>  
                 </div>  
                   
                 <table style="width: 100%; font-size: 12px; margin-bottom: 8px; line-height: 1.5; color:#000;">  
@@ -776,7 +869,6 @@
         `;
     }
 
-    // 2. معالج العمليات الاحترافي الموحد (توليد PDF حقيقي مستقل في الخلفية بدقة 100%)
     window.processThermalAction = async (id, actionType) => {
         const btn = document.getElementById(actionType === 'print' ? `btnPrint_${id}` : `btnShare_${id}`);
         const originalHtml = btn.innerHTML;
@@ -790,7 +882,6 @@
             const templateContainer = document.getElementById('invoiceThermalTemplate');
             templateContainer.innerHTML = buildThermalHtml(inv);
 
-            // التقاط الهيكل بدقة بكسل مضاعفة لمنع التشويش عند الطباعة أو العرض على شاشات الموبايل
             const canvas = await html2canvas(document.getElementById('thermalActiveArea'), {
                 scale: 2, 
                 logging: false,
@@ -801,7 +892,6 @@
 
             const imgData = canvas.toDataURL('image/png');
             
-            // إنشاء مستند PDF مخصص ميكرو (عرض 80 مم) يتمدد طولياً مع حجم البيانات تلقائياً
             const { jsPDF } = window.jspdf;
             const pdfWidth = 80;
             const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
@@ -810,7 +900,6 @@
             pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
 
             if (actionType === 'print') {
-                // طباعة احترافية: نفتح نافذة خفية بها ملف الـ PDF الأصلي ونأمرها بالطباعة دون تخريب الصفحة الحالية
                 const pdfUrl = pdf.output('bloburl');
                 const printFrame = document.createElement('iframe');
                 printFrame.style.position = 'fixed';
@@ -824,7 +913,6 @@
                 document.body.appendChild(printFrame);
                 printFrame.contentWindow.focus();
                 
-                // تشغيل الطباعة بمجرد تحميل الملف بالخلفية
                 printFrame.onload = function() {
                     setTimeout(() => {
                         printFrame.contentWindow.print();
@@ -832,7 +920,6 @@
                     }, 200);
                 };
             } else if (actionType === 'share') {
-                // مشاركة احترافية: نحول المستند لملف حقيقي مسمى ونستدعي محرك مشاركة الهاتف الأصلي (WhatsApp / Telegram)
                 canvas.toBlob(async (blob) => {
                     if (!blob) return;
                     const file = new File([blob], `فاتورة_رقم_${id}.png`, { type: 'image/png' });
@@ -844,7 +931,6 @@
                             text: `فاتورة مبيعات صادرة من شركة الزيادي لزيوت السيارات.`
                         });
                     } else {
-                        // كود بديل فوري للمتصفحات القديمة أو الديسكتوب
                         const link = document.createElement('a');
                         link.download = `فاتورة_الزيادي_${id}.png`;
                         link.href = imgData;
@@ -852,13 +938,9 @@
                     }
                 }, 'image/png', 1.0);
             }
-
-            // تنظيف الذاكرة المؤقتة تماماً بعد الانتهاء لضمان خفة التطبيق PWA
             templateContainer.innerHTML = "";
-
         } catch (err) {
-            console.error("Thermal Engine Error: ", err);
-            window.showCustomUi({ title: "عطل في نظام التوليد", message: "تأكد من إعطاء متصفحك صلاحية مشاركة الملفات.", icon: "danger" });
+            console.error(err);
         } finally {
             btn.innerHTML = originalHtml;
             btn.disabled = false;
