@@ -11,7 +11,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
     <style>  
         :root {   
@@ -484,6 +484,7 @@
         try {  
             document.getElementById('p-report-date').innerText = new Date().toLocaleDateString('ar-EG');
             
+            // ⚡ تسريع وتحميل فوري: استدعاء متوازي لجميع الجداول دفعة واحدة لمنع التعليق
             const [custSnap, transSnap, invSnap] = await Promise.all([
                 getDocs(collection(db, "customers")),
                 getDocs(collection(db, "transactions")),
@@ -936,13 +937,12 @@
                     const itemName = item.name || "";  
                     let qtyJarkan = ""; let qtyCarton = ""; let priceJarkan = ""; let priceCarton = "";  
   
-                    // ⚡ تعديل منطق الفرز التلقائي: أي صنف يكتب في عمود الجركن، إلا إذا ذكر اسم "كرتونه" صراحة
-                    if (itemName.includes("كرتونه") || itemName.includes("كرتونة")) { 
-                        qtyCarton = item.qty || ""; 
-                        priceCarton = item.price || ""; 
-                    } else { 
+                    if (itemName.includes("قطعه") || itemName.includes("قطعة")) { 
                         qtyJarkan = item.qty || ""; 
                         priceJarkan = item.price || ""; 
+                    } else { 
+                        qtyCarton = item.qty || ""; 
+                        priceCarton = item.price || ""; 
                     }  
                     
                     customRows.push({ "التاريخ": invoiceDate, "الحركه": "بيع", "اسم العميل": clientName, "البيان": itemName, "عدد جركن": qtyJarkan, "عدد كرتونه": qtyCarton, "سعر جركن": priceJarkan, "سعر الكرتونه": priceCarton });  
