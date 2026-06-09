@@ -345,7 +345,7 @@
                 partiesMap[doc.id] = {
                     name: doc.data().name,
                     type: 'مورد',
-                    initialBalance: Number(doc.data().initialBalance || doc.data().balance || 0)
+                    initialBalance: Number(doc.data().initialBalance || 0)
                 };
             });
 
@@ -353,7 +353,7 @@
                 partiesMap[doc.id] = {
                     name: doc.data().name,
                     type: 'عميل',
-                    initialBalance: Number(doc.data().initialBalance || doc.data().balance || 0)
+                    initialBalance: Number(doc.data().initialBalance || 0)
                 };
             });
             
@@ -365,12 +365,12 @@
 
     window.searchParty = () => {
         const input = document.getElementById('partySearch');
-        const fontResults = document.getElementById('partyResults');
+        const resultsDiv = document.getElementById('partyResults');
         const pType = document.getElementById('partyType').value;
         const term = input.value.toLowerCase().trim();
 
         if (term.length < 1) {
-            fontResults.style.display = 'none';
+            resultsDiv.style.display = 'none';
             return;
         }
 
@@ -385,11 +385,11 @@
         }
 
         if (filteredHtml !== '') {
-            fontResults.innerHTML = filteredHtml;
-            fontResults.style.display = 'block';
+            resultsDiv.innerHTML = filteredHtml;
+            resultsDiv.style.display = 'block';
         } else {
-            fontResults.innerHTML = `<div class="search-item text-muted text-center">لا توجد نتائج مطابقة</div>`;
-            fontResults.style.display = 'block';
+            resultsDiv.innerHTML = `<div class="search-item text-muted text-center">لا توجد نتائج مطابقة</div>`;
+            resultsDiv.style.display = 'block';
         }
     };
 
@@ -531,6 +531,7 @@
         renderTable(filtered);
     };
 
+    // الدالة الأصلية الفعّالة لحساب صافي كشف الحساب من واقع فواتير وحركات العميل/المورد
     async function calculateCustomerBalance(partyId) {
         const pType = partiesMap[partyId] ? partiesMap[partyId].type : 'عميل';
         const collectionName = pType === 'مورد' ? 'suppliers' : 'customers';
@@ -539,9 +540,34 @@
             const partyDoc = await getDoc(doc(db, collectionName, partyId));
             if (!partyDoc.exists()) return 0;
 
-            // جلب قيمة الرصيد الإجمالي من الحقل الرئيسي للمورد أو العميل مباشرة
-            const data = partyDoc.data();
-            let balance = Number(data.balance !== undefined ? data.balance : (data.initialBalance || 0));
+            let balance = Number(partyDoc.data().initialBalance || 0);
+
+            if (collectionName === 'customers') {
+                const invoicesSnap = await getDocs(query(collection(db, "invoices"), where("customerId", "==", partyId)));
+                invoicesSnap.forEach(inv => {
+                    balance += Number(inv.data().remaining || 0);
+                });
+            } else if (collectionName === 'suppliers') {
+                try {
+                    const supplierInvoicesSnap = await getDocs(query(collection(db, "supplierInvoices"), where("supplierId", "==", partyId)));
+                    supplierInvoicesSnap.forEach(inv => {
+                        balance += Number(inv.data().remaining || 0);
+                    });
+                } catch(e) { console.log("لا يوجد فواتير للمورد حالياً"); }
+            }
+
+            const transSnap = await getDocs(query(collection(db, "transactions"), where("partyId", "==", partyId)));
+            transSnap.forEach(tr => {
+                const t = tr.data();
+                if (pType === 'عميل') {
+                    if (t.type === 'قبض') balance -= Number(t.amount || 0);
+                    if (t.type === 'صرف') balance += Number(t.amount || 0);
+                } else {
+                    if (t.type === 'صرف') balance -= Number(t.amount || 0);
+                    if (t.type === 'قبض') balance += Number(t.amount || 0);
+                }
+            });
+
             return balance;
         } catch (err) {
             console.error("خطأ بحساب الرصيد الفعلي الجاري:", err);
@@ -559,12 +585,12 @@
         document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
         document.getElementById('recStatusText').innerText = type === 'قبض' ? 'تم الاستلام بنجاح' : 'تم الصرف بنجاح';
         
-        // جلب الرصيد الإجمالي المباشر من قاعدة البيانات
+        // جلب الرصيد الإجمالي النهائي الحالي بناءً على الدالة الأصلية التراكمية
         const currentBalance = await calculateCustomerBalance(partyId);
         let prevBalance = currentBalance;
         let newBalance = currentBalance;
 
-        // العمليات الحسابية للحساب السابق بناءً على نوع الدفعة ونوع الطرف
+        // الحسابات الرياضية العكسية الدقيقة لإعادة بناء الحساب السابق قبل عملية السداد الحالية
         if (pType === 'عميل') {
             if (type === 'قبض') {
                 prevBalance = currentBalance + Number(amount);
