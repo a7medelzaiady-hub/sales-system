@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">  
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">  
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
-    <!-- مكتبة تحويل الكود إلى صورة احترافية -->
+    <!-- مكتبة تحويل الكود إلى صورة -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>  
         :root {   
@@ -68,15 +68,13 @@
         .custom-popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }  
         .custom-popup-box { background: white; width: 90%; max-width: 360px; padding: 22px; border-radius: 16px; text-align: center; font-family: 'Cairo'; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }  
         
-        /* تحسين وضع حاوية المعالجة لضمان تنفيذ تصوير الفاتورة فوراً وبدون أي تهنيج */
+        /* حاوية التصوير السريع: مخفية تماماً وخفيفة جداً بدون استدعاء مكتبات ثقيلة */
         #invoiceRenderContainer {   
-            position: fixed;   
-            top: 0;   
-            left: 0;   
-            width: 380px;   
-            z-index: -9999;   
-            opacity: 0;   
-            pointer-events: none;  
+            position: absolute;   
+            left: -9999px;   
+            top: -9999px;   
+            width: 360px;   
+            background: #ffffff;
         }
     </style>  
 </head>  
@@ -190,7 +188,7 @@
 
 </div>  
 
-<!-- حاوية معالجة حية غير مخفية بالكامل لمنع تعليق أو فشل مكتبة الصور -->
+<!-- حاوية المعالجة الحية السريعة -->
 <div id="invoiceRenderContainer"></div>
 
 <!-- مودال التنبيهات العام والتقارير -->
@@ -681,7 +679,7 @@
         element.style.display = (element.style.display === "none") ? "block" : "none";  
     };  
 
-    // دالة إنشاء هيكل الفاتورة النظيف والمثالي للتصوير الفوري (تم مسح اسم العميل وكلمة الملاحظات)
+    // كود توليد هيكل الفاتورة فائق السرعة - يعتمد بالكامل على خطوط السيستم لتفادي تهنيج الكانفاس
     function generateInvoiceHtmlStructure(inv) {
         const originalDate = parseInvoiceDate(inv);  
         const displayTime = formatInvoiceTime(inv.time, inv.date);  
@@ -689,34 +687,34 @@
         const finalRemaining = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);  
   
         const itemsRows = (inv.items || []).map(item => `  
-            <tr style="border-bottom: 1px dashed #000;">  
-                <td style="padding: 6px 0; font-weight: 700; text-align: right;">${item.name}</td>  
-                <td style="text-align: center; font-weight: 700;">${item.qty}</td>  
-                <td style="text-align: left; font-weight: 700;">${Number(item.price || 0).toFixed(2)}</td>  
-                <td style="text-align: left; font-weight: 700;">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>  
+            <tr style="border-bottom: 1px dashed #000000;">  
+                <td style="padding: 5px 0; font-weight: bold; text-align: right; font-size: 13px;">${item.name}</td>  
+                <td style="text-align: center; font-weight: bold; font-size: 13px;">${item.qty}</td>  
+                <td style="text-align: left; font-weight: bold; font-size: 13px;">${Number(item.price || 0).toFixed(2)}</td>  
+                <td style="text-align: left; font-weight: bold; font-size: 13px;">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>  
             </tr>  
         `).join('');  
 
         return `
-            <div id="captureArea" style="width: 360px; padding: 15px; background: #ffffff; font-family: 'Cairo', sans-serif; color: #000000; direction: rtl; box-sizing: border-box;">  
-                <div style="text-align: center; margin-bottom: 15px;">  
-                    <h2 style="margin: 0; font-size: 22px; font-weight: 800; color: #000;">شركة الزيادي</h2>  
-                    <p style="margin: 2px 0; font-size: 13px; font-weight: 600; color: #333;">لزيوت وفلاتر السيارات</p>  
-                    <h3 style="margin: 6px 0 0 0; font-size: 15px; font-weight: 700; border-bottom: 2px solid #000; padding-bottom: 4px; display: inline-block;">فاتورة مبيعات</h3>  
+            <div id="captureArea" style="width: 350px; padding: 12px; background: #ffffff; font-family: system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif; color: #000000; direction: rtl; box-sizing: border-box;">  
+                <div style="text-align: center; margin-bottom: 12px;">  
+                    <h2 style="margin: 0; font-size: 20px; font-weight: 900;">شركة الزيادي</h2>  
+                    <p style="margin: 1px 0; font-size: 12px; font-weight: bold; color: #222;">لزيوت وفلاتر السيارات</p>  
+                    <h3 style="margin: 5px 0 0 0; font-size: 14px; font-weight: bold; border-bottom: 2px solid #000000; padding-bottom: 2px; display: inline-block;">فاتورة مبيعات</h3>  
                 </div>  
                   
-                <table style="width: 100%; font-size: 13px; margin-bottom: 10px; line-height: 1.5;">  
-                    <tr><td style="text-align: right;"><b>التاريخ:</b></td><td style="text-align: left; direction: ltr; font-weight: 600;">${originalDate} ${displayTime}</td></tr>  
-                    <tr><td style="text-align: right;"><b>طريقة السداد:</b></td><td style="text-align: left; font-weight: 700;">${inv.paymentMethod || 'غير محدد'}</td></tr>  
+                <table style="width: 100%; font-size: 12px; margin-bottom: 8px; line-height: 1.4;">  
+                    <tr><td style="text-align: right;"><b>التاريخ:</b></td><td style="text-align: left; direction: ltr; font-weight: bold;">${originalDate} ${displayTime}</td></tr>  
+                    <tr><td style="text-align: right;"><b>طريقة السداد:</b></td><td style="text-align: left; font-weight: bold;">${inv.paymentMethod || 'غير محدد'}</td></tr>  
                 </table>  
                   
-                <table style="width: 100%; font-size: 12px; border-collapse: collapse; margin-bottom: 12px;">  
+                <table style="width: 100%; font-size: 12px; border-collapse: collapse; margin-bottom: 8px;">  
                     <thead>  
-                        <tr style="border-bottom: 2px solid #000;">  
-                            <th style="text-align: right; padding-bottom: 4px;">الصنف</th>  
-                            <th style="text-align: center; padding-bottom: 4px;">الكمية</th>  
-                            <th style="text-align: left; padding-bottom: 4px;">السعر</th>  
-                            <th style="text-align: left; padding-bottom: 4px;">الإجمالي</th>  
+                        <tr style="border-bottom: 2px solid #000000;">  
+                            <th style="text-align: right; padding-bottom: 3px;">الصنف</th>  
+                            <th style="text-align: center; padding-bottom: 3px;">الكمية</th>  
+                            <th style="text-align: left; padding-bottom: 3px;">السعر</th>  
+                            <th style="text-align: left; padding-bottom: 3px;">الإجمالي</th>  
                         </tr>  
                     </thead>  
                     <tbody>  
@@ -724,113 +722,102 @@
                     </tbody>  
                 </table>  
                   
-                <div style="font-size: 13px; line-height: 1.6; border-top: 1px solid #000; padding-top: 4px;">  
+                <div style="font-size: 12px; line-height: 1.5; border-top: 1px solid #000000; padding-top: 4px;">  
                     <table style="width: 100%;">  
-                        <tr><td style="text-align: right;">إجمالي الفاتورة:</td><td style="text-align: left; font-weight: 700;">${Number(inv.total || 0).toFixed(2)} ج.م</td></tr>  
-                        <tr><td style="text-align: right;">المسدد الشامل:</td><td style="text-align: left; font-weight: 700;">${totalPaid} ج.م</td></tr>  
-                        <tr><td style="text-align: right;">حساب سابق للعميل:</td><td style="text-align: left; font-weight: 700;">${Number(inv.previousBalance || 0).toFixed(2)} ج.م</td></tr>  
-                        <tr style="font-size: 14px; font-weight: 800; border-top: 1px dashed #000;">  
-                            <td style="padding-top: 4px; text-align: right;">إجمالي الحساب الآجل المتبقي:</td>  
-                            <td style="text-align: left; padding-top: 4px; color: #d90429;">${finalRemaining} ج.م</td>  
+                        <tr><td style="text-align: right;">إجمالي الفاتورة:</td><td style="text-align: left; font-weight: bold;">${Number(inv.total || 0).toFixed(2)} ج.م</td></tr>  
+                        <tr><td style="text-align: right;">المسدد الشامل:</td><td style="text-align: left; font-weight: bold;">${totalPaid} ج.م</td></tr>  
+                        <tr><td style="text-align: right;">حساب سابق للعميل:</td><td style="text-align: left; font-weight: bold;">${Number(inv.previousBalance || 0).toFixed(2)} ج.م</td></tr>  
+                        <tr style="font-size: 13px; font-weight: bold; border-top: 1px dashed #000000;">  
+                            <td style="padding-top: 3px; text-align: right;">إجمالي الآجل المتبقي:</td>  
+                            <td style="text-align: left; padding-top: 3px;">${finalRemaining} ج.م</td>  
                         </tr>  
                     </table>  
                 </div>  
                   
-                <div style="text-align: center; margin-top: 20px; border-top: 1px solid #000; padding-top: 6px; font-size: 11px; font-weight: 700;">  
+                <div style="text-align: center; margin-top: 15px; border-top: 1px solid #000000; padding-top: 4px; font-size: 11px; font-weight: bold;">  
                     شكراً لتعاملكم معنا برجاء مراجعه الفاتوره بعد استلامها 🌹  
                 </div> 
-                <div style="text-align: center; margin-top: 20px; border-top: 1px solid #000; padding-top: 6px; font-size: 11px; font-weight: 700;">  
-                    للمراجعه 01027830834  🌹  
+                <div style="text-align: center; margin-top: 4px; font-size: 11px; font-weight: bold;">  
+                    للمراجعه 01027830834  
                 </div>
             </div>
         `;
     }
   
-    // 1. زر المشاركة النظيف والحاسم (بدون لاج أو تجميد)
+    // دالة التصوير الموحدة وفائقة السرعة للأجهزة المحمولة
+    async function captureInvoiceFast(id) {
+        const inv = allInvoices.find(i => i.id === id);  
+        if (!inv) return null;
+
+        const renderContainer = document.getElementById('invoiceRenderContainer');
+        renderContainer.innerHTML = generateInvoiceHtmlStructure(inv);
+
+        // إعدادات محرك التصوير ليعمل بأقصى سرعة (بدون تهنيج وبدون لود كاش للخطوط)
+        const canvas = await html2canvas(document.getElementById('captureArea'), {
+            scale: 1.25, // حجم ممتاز للـ 80mm وخفيف جداً عند الرفع
+            logging: false,
+            useCORS: false, // مغلق لعدم تضييع وقت في فحص السيرفرات الخارجية
+            backgroundColor: "#ffffff",
+            imageTimeout: 0
+        });
+
+        renderContainer.innerHTML = ""; // تنظيف فوري للذاكرة المؤقتة
+        return { canvas, inv };
+    }
+
+    // زر المشاركة الفوري (مشاركة صورة شيت حية بدون قيد أو شرط)
     window.directShareInvoice = async (id) => {  
         const btn = document.getElementById(`btnShare_${id}`);
         const originalHtml = btn.innerHTML;
-        
-        // تغيير مظهر الزر مؤقتاً لتوضيح جاري التجهيز
-        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> جاري...`;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`;
         btn.disabled = true;
 
-        const inv = allInvoices.find(i => i.id === id);  
-        if (!inv) { btn.innerHTML = originalHtml; btn.disabled = false; return; }  
-        
-        const renderContainer = document.getElementById('invoiceRenderContainer');
-        renderContainer.innerHTML = generateInvoiceHtmlStructure(inv);  
-        
         try {
-            const element = document.getElementById('captureArea');
-            // إعدادات سريعة جداً وحاسمة للتصوير
-            const canvas = await html2canvas(element, { 
-                useCORS: true, 
-                scale: 1.5, 
-                logging: false,
-                backgroundColor: "#ffffff" 
-            });
-            
-            canvas.toBlob(async (blob) => {
-                if(!blob) { throw new Error("فشل إنشاء ملف الصورة"); }
-                const file = new File([blob], `فاتورة_${inv.customerName || 'عميل'}.png`, { type: 'image/png' });
-                
+            const result = await captureInvoiceFast(id);
+            if (!result) return;
+
+            result.canvas.toBlob(async (blob) => {
+                if (!blob) return;
+                const file = new File([blob], `فاتورة.png`, { type: 'image/png' });
+
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     await navigator.share({
                         files: [file],
-                        title: `فاتورة ${inv.customerName || 'عميل'}`,
-                        text: `فاتورة مبيعات شركة الزيادي`
+                        title: `فاتورة مبيعات`,
+                        text: `شركة الزيادي لزيوت السيارات`
                     });
                 } else {
-                    // فتح التنزيل كبديل سريع إذا كان المتصفح لا يدعم تطبيق شير مباشر للويب
                     const link = document.createElement('a');
-                    link.download = `فاتورة_${inv.customerName || 'عميل'}.png`;
-                    link.href = canvas.toDataURL('image/png');
+                    link.download = `فاتورة_الزيادي.png`;
+                    link.href = result.canvas.toDataURL('image/png');
                     link.click();
                 }
             }, 'image/png');
-        } catch (error) {
-            console.error(error);
-            alert("حدث خطأ أثناء إعداد الفاتورة للمشاركه.");
+        } catch (e) {
+            console.error(e);
         } finally {
-            // يرجع يحمل تاني فوراً بدون قيد أو شرط
-            renderContainer.innerHTML = ""; 
             btn.innerHTML = originalHtml;
             btn.disabled = false;
         }
     };  
   
-    // 2. زر الطباعة النظيف والسريع جداً كصورة ريسيت
+    // زر الطباعة الفوري كريسيت 80مم نقي وسريع للغاية
     window.directPrintInvoice = async (id) => {  
         const btn = document.getElementById(`btnPrint_${id}`);
         const originalHtml = btn.innerHTML;
-        
-        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> جاري...`;
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`;
         btn.disabled = true;
 
-        const inv = allInvoices.find(i => i.id === id);  
-        if (!inv) { btn.innerHTML = originalHtml; btn.disabled = false; return; }  
-
-        const renderContainer = document.getElementById('invoiceRenderContainer');
-        renderContainer.innerHTML = generateInvoiceHtmlStructure(inv);  
-
         try {
-            const element = document.getElementById('captureArea');
-            const canvas = await html2canvas(element, { 
-                useCORS: true, 
-                scale: 1.5, 
-                logging: false,
-                backgroundColor: "#ffffff" 
-            });
-            const imgDataUrl = canvas.toDataURL('image/png');
+            const result = await captureInvoiceFast(id);
+            if (!result) return;
+            const imgDataUrl = result.canvas.toDataURL('image/png');
 
             let printFrame = document.getElementById('receiptPrintFrame');  
             if (!printFrame) {  
                 printFrame = document.createElement('iframe');  
                 printFrame.id = 'receiptPrintFrame';  
                 printFrame.style.position = 'fixed';  
-                printFrame.style.bottom = '0';  
-                printFrame.style.right = '0';  
                 printFrame.style.width = '0';  
                 printFrame.style.height = '0';  
                 printFrame.style.border = 'none';  
@@ -844,9 +831,9 @@
                 <html>  
                 <head>  
                     <style>  
-                        @page { size: auto; margin: 0mm; }  
-                        body { margin: 0; padding: 0; background: #fff; text-align: center; }  
-                        img { width: 100%; height: auto; display: block; margin: 0 auto; }  
+                        @page { size: auto; margin: 0; }  
+                        body { margin: 0; padding: 0; }  
+                        img { width: 100%; max-width: 350px; display: block; margin: 0 auto; }  
                     </style>  
                 </head>  
                 <body>  
@@ -863,10 +850,7 @@
             frameDoc.close();
         } catch (err) {
             console.error(err);
-            alert("حدث عطل أثناء التجهيز لأمر الطباعة.");
         } finally {
-            // يرجع يحمل تاني ويفك الأزرار فوراً
-            renderContainer.innerHTML = ""; 
             btn.innerHTML = originalHtml;
             btn.disabled = false;
         }
