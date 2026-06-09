@@ -548,6 +548,7 @@
                 });
             } else if (collectionName === 'suppliers') {
                 try {
+                    // سحب الفواتير من كولكشن فواتير الموردين (supplierInvoices) لجمع المديونية المستحقة له
                     const supplierInvoicesSnap = await getDocs(query(collection(db, "supplierInvoices"), where("supplierId", "==", partyId)));
                     supplierInvoicesSnap.forEach(inv => {
                         balance += Number(inv.data().remaining || 0);
@@ -555,6 +556,7 @@
                 } catch(e) { console.log("لا يوجد فواتير للمورد حالياً"); }
             }
 
+            // مراجعة العمليات المالية المسجلة (transactions) لتصفية الحساب الفعلي الجاري حالياً
             const transSnap = await getDocs(query(collection(db, "transactions"), where("partyId", "==", partyId)));
             transSnap.forEach(tr => {
                 const t = tr.data();
@@ -562,6 +564,7 @@
                     if (t.type === 'قبض') balance -= Number(t.amount || 0);
                     if (t.type === 'صرف') balance += Number(t.amount || 0);
                 } else {
+                    // المورد: الصرف (الدفع له) ينقص حسابه، والقبض (الارتجاع أو سند القيد) يرفعه
                     if (t.type === 'صرف') balance -= Number(t.amount || 0);
                     if (t.type === 'قبض') balance += Number(t.amount || 0);
                 }
@@ -569,7 +572,7 @@
 
             return balance;
         } catch (err) {
-            console.error("خطأ بحساب الرصيد:", err);
+            console.error("خطأ بحساب الرصيد الفعلي الجاري:", err);
             return 0;
         }
     }
@@ -584,11 +587,12 @@
         document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
         document.getElementById('recStatusText').innerText = type === 'قبض' ? 'تم الاستلام بنجاح' : 'تم الصرف بنجاح';
         
+        // جلب الرصيد الإجمالي النهائي الحالي من قاعدة البيانات مباشرة
         const currentBalance = await calculateCustomerBalance(partyId);
         let prevBalance = currentBalance;
         let newBalance = currentBalance;
 
-        // تعديل دقيق وبطريقة محاسبية لحساب الرصيد السابق للمورد والعميل بصورة مستقرة
+        // الحسابات الرياضية العكسية الدقيقة لعرض (الحساب السابق قبل السداد الحالي)
         if (pType === 'عميل') {
             if (type === 'قبض') {
                 prevBalance = currentBalance + Number(amount);
@@ -596,8 +600,8 @@
                 prevBalance = currentBalance - Number(amount);
             }
         } else { 
-            // حساب الطرف (مورد): الصرف يُقلل مديونيتنا له، والقبض يرفعها.
-            // لذلك لإيجاد الحساب السابق قبل عملية الصرف الحالية، نقوم بإعادة إضافة قيمة السند للرصيد الحسابي الحالي.
+            // للموردين: إذا قمنا بعملية "صرف" (سددنا له مبلع)، فإن حساب المورد الحالي قد انخفض بمقدار هذا المبلغ.
+            // لمعرفة حسابه "السابق" قبل هذا السند، نقوم رياضياً بإعادة إضافة قيمة السند للرصيد الحالي.
             if (type === 'صرف') {
                 prevBalance = currentBalance + Number(amount);
             } else {
