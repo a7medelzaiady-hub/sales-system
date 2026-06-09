@@ -169,28 +169,30 @@
         .sub-lbl { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px; display: block; font-weight: 700; padding-right: 2px;}
         .unit-info-area { font-size: 0.75rem; margin-top: 6px; color: var(--accent); font-weight: 700; }
 
-        /* مفتاح سويتش تحديد كمرتجع مقتبس من 1780915136453.jpg */
+        /* تعديل وتصغير مفتاح سويتش تحديد كمرتجع للتنسيق */
         .return-switch-container {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
+            gap: 6px;
             background: #fff5f5;
             border: 1px solid #ffdbde;
             border-radius: var(--input-radius);
-            padding: 6px 12px;
+            padding: 4px 6px;
             height: 44px;
         }
         .return-switch-label {
-            font-size: 0.8rem;
+            font-size: 0.72rem;
             font-weight: 700;
             color: var(--danger);
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 3px;
+            white-space: nowrap;
         }
         .form-switch .form-check-input {
-            width: 2.5em;
-            height: 1.25em;
+            width: 2rem;
+            height: 1rem;
             margin-top: 0;
             cursor: pointer;
             background-color: #cbd5e1;
@@ -374,10 +376,6 @@
             <div style="display: flex; justify-content: space-between;">
                 <span><b>طريقة السداد:</b></span>
                 <span id="recPaymentMethod" style="font-weight: 700;"></span>
-            </div>
-            <div id="recNotesZone" style="display: none; margin-top: 4px; color: #d90429; font-weight: bold;">
-                <span><b>تنبيه:</b></span>
-                <span id="recNotesText"></span>
             </div>
         </div>
 
@@ -767,10 +765,9 @@
                     <div class="col-3"><span class="sub-lbl">السعر</span><input type="number" class="form-control p-price" value="${oldData ? oldData.price : ''}" oninput="handleInput()"></div>
                     <div class="col-3"><span class="sub-lbl">الإجمالي</span><input type="text" class="form-control p-subtotal" readonly value="0.00" style="background:#f8faf9!important;"></div>
                     
-                    <!-- إضافة مفتاح سويتش تحديد كمرتجع المقتبس من الملف 1780915136453.jpg -->
                     <div class="col-3">
                         <div class="return-switch-container">
-                            <span class="return-switch-label"><i class="fas fa-undo-alt" style="font-size:0.75rem;"></i> مرتجع</span>
+                            <span class="return-switch-label"><i class="fas fa-undo-alt"></i> مرتجع</span>
                             <div class="form-check form-switch p-0 m-0">
                                 <input class="form-check-input p-return-checkbox" type="checkbox" role="switch" onchange="toggleReturnMode(this, '${id}')" ${isReturnChecked}>
                             </div>
@@ -808,7 +805,6 @@
             const price = parseFloat(r.querySelector('.p-price').value) || 0;
             const isReturn = r.querySelector('.p-return-checkbox').checked;
             
-            // حساب قيمة السطر (إذا كان مرتجع، يتم خصمه من صافي الفاتورة)
             const sub = qty * price;
             r.querySelector('.p-subtotal').value = (isReturn ? "-" : "") + sub.toFixed(2);
             
@@ -898,7 +894,6 @@
                     const factor = p ? (Number(p.unitFactor) || 1) : 1;
                     const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
                     
-                    // إدارة حركة المخزن بناءً على نوع الحركة (مبيعات تخصم، مرتجع يضيف للمخزن)
                     if (item.isReturn) {
                         await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(qtyPcs) });
                     } else {
@@ -910,15 +905,12 @@
                 
                 prepareThermalReceipt(newInvoiceData, currentFetchedOldBalance);
             } else {
-                const currentTimeStr = new Date().toLocaleString('ar-EG');
-                
                 const oldRef = doc(db, "invoices", editId);
                 const oldSnap = await getDoc(oldRef);
 
                 if (oldSnap.exists()) {
                     const oldData = oldSnap.data();
                     
-                    // إرجاع المخزون القديم لحالته قبل التعديل
                     if (oldData && oldData.items) {
                         for (const oldItem of oldData.items) {
                             if (oldItem.stockId) {
@@ -935,7 +927,6 @@
                         }
                     }
 
-                    // خصم أو إضافة الكميات الجديدة بعد التعديل
                     for (const item of items) {
                         const p = inventory.find(i => i.id === item.stockId);
                         const factor = p ? (Number(p.unitFactor) || 1) : 1;
@@ -948,10 +939,9 @@
                         }
                     }
                     
-                    baseInvoiceData.notes = `تم تعديل هذه الطلبية في: ${currentTimeStr}`;
                     await updateDoc(oldRef, baseInvoiceData);
                     
-                    baseInvoiceData.time = originalInvoiceTime || oldData.time || currentTimeStr; 
+                    baseInvoiceData.time = originalInvoiceTime || oldData.time || new Date().toLocaleString('ar-EG'); 
                     prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
                 }
             }  
@@ -977,14 +967,6 @@
         document.getElementById('recOldBalance').innerText = Number(oldBalance).toFixed(2);
         document.getElementById('recPaid').innerText = Number(data.paid).toFixed(2);
         document.getElementById('recRemaining').innerText = Number(oldBalance + data.remaining).toFixed(2);
-
-        const recNotesZone = document.getElementById('recNotesZone');
-        if (data.notes) {
-            recNotesZone.style.display = 'block';
-            document.getElementById('recNotesText').innerText = data.notes;
-        } else {
-            recNotesZone.style.display = 'none';
-        }
 
         const recSplitZone = document.getElementById('recSplitDetails');
         if (data.cashAmount > 0 || data.walletAmount > 0) {
