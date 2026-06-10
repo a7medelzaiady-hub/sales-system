@@ -9,8 +9,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">  
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>  
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
     <style>  
@@ -65,7 +63,10 @@
         .items-preview-table th { background: #ebf9eb; padding: 4px; border: 1px solid var(--border); font-weight: 700; text-align: center; }  
         .items-preview-table td { padding: 4px; border: 1px solid var(--border); text-align: center; font-weight: 600; }  
         .filter-status-bar { display: none; background: #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; align-items: center; justify-content: space-between; }  
-        .danger-zone-card { background: #fff5f5; border: 1px dashed #feb2b2; border-radius: 10px; padding: 12px; margin-bottom: 12px; }  
+        
+        .control-panel-card { background: #ffffff; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        .btn-fetch-all { background: #fff; color: var(--accent); border: 1.5px solid var(--accent); padding: 5px 10px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 4px; }
+        .btn-fetch-all:hover { background: var(--accent); color: #ffffff; }
         
         .custom-popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }  
         .custom-popup-box { background: white; width: 90%; max-width: 360px; padding: 22px; border-radius: 16px; text-align: center; font-family: 'Cairo'; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }  
@@ -75,30 +76,15 @@
         .pdf-table th { background: #f8f9fa !important; border: 1px solid #dee2e6; padding: 10px; font-size: 13px; color: #000; }
         .pdf-table td { border: 1px solid #dee2e6; padding: 10px; text-align: center; font-size: 12px; color: #000; }
 
-        .btn-fetch-all {
-            background-color: transparent;
-            color: var(--accent);
-            border: 2px solid var(--accent);
-            padding: 6px 12px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        .btn-fetch-all:hover {
-            background-color: var(--accent);
-            color: #ffffff;
-        }
-        
+        /* تعديل الأزرار لتصبح منسقة وبنفس الحجم جنباً إلى جنب */
+        .invoice-actions-group { display: flex; flex-wrap: nowrap; gap: 4px; justify-content: flex-end; align-items: center; }
+        .invoice-actions-group .btn { font-family: 'Cairo', sans-serif; font-size: 0.72rem; font-weight: 700; padding: 4px 6px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; height: 28px; }
+
         @media print {
             #content-to-export { display: none !important; }
             #print-area { display: block !important; }
         }
 
-        /* =================================================== */
-        /* ستايل الفاتورة الحرارية المخفية لغرض توليد صور الشير (80mm) */
-        /* =================================================== */
         #thermal-share-container {
             width: 80mm;
             min-height: 90mm;
@@ -174,7 +160,6 @@
         <a href="index.html" class="add-btn"><i class="fas fa-arrow-right"></i></a>  
         <h6 class="m-0 fw-bold" style="font-size: 0.95rem;"><i class="fas fa-history me-1"></i> سجل المبيعات </h6>  
         <div class="d-flex gap-2">  
-            <button class="add-btn" onclick="generateReportPDF()" title="تحميل كشف PDF"><i class="fas fa-file-pdf"></i></button>
             <button class="add-btn" id="exportExcelBtn" title="تصدير كل الأرشيف إكسيل"><i class="fas fa-file-excel"></i></button>  
             <button class="add-btn" onclick="window.print()" title="طباعة الكشف الحالي"><i class="fas fa-print"></i></button>
             <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>  
@@ -182,20 +167,19 @@
     </div>  
 
     <div class="container px-2 mt-1">  
-        <div class="danger-zone-card mt-2 d-flex justify-content-between align-items-center">  
-            <div>  
-                <span class="fw-bold text-danger d-block" style="font-size: 0.85rem;"><i class="fas fa-exclamation-triangle me-1"></i> تصفير النظام</span>  
-                <small class="text-muted" style="font-size: 0.72rem;">سيتم حذف جميع العملاء والعمليات والفواتير نهائياً.</small>  
-            </div>  
-            <button class="btn btn-danger btn-sm fw-bold px-3" id="deleteAllCustomersBtn" style="font-size: 0.75rem; border-radius: 6px;">  
-                <i class="fas fa-trash-can"></i>  
-            </button>  
-        </div>  
-          
-        <div class="d-flex justify-content-between align-items-center mt-2">
-            <div class="stats-section-title" id="todayStatsTitle"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم</div>  
-            <button id="loadAllArchiveBtn" class="btn-fetch-all"><i class="fas fa-cloud-download-alt me-1"></i> جلب كل الفواتير السابقة</button>
+        <!-- لوحة التحكم الذكية المدمجة للأزرار الاستراتيجية -->
+        <div class="control-panel-card mt-2">
+            <div class="d-flex justify-content-between align-items-center">
+                <button id="loadAllArchiveBtn" class="btn-fetch-all">
+                    <i class="fas fa-cloud-download-alt"></i> جلب كل الفواتير السابقة
+                </button>
+                <button class="btn btn-danger btn-sm fw-bold px-3 style-danger-action" id="deleteAllCustomersBtn" style="font-size: 0.75rem; border-radius: 8px; height: 31px; display: inline-flex; align-items: center; gap: 4px;">  
+                    <i class="fas fa-trash-can"></i> تصفير النظام
+                </button> 
+            </div>
         </div>
+          
+        <div class="stats-section-title" id="todayStatsTitle"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم</div>  
 
         <div class="row g-1 mb-2">  
             <div class="col-3">  
@@ -320,9 +304,7 @@
     </div>
 </div>
 
-<!-- =================================================== -->
-<!-- قالب الفاتورة الحرارية (80mm) المطور للشير -->
-<!-- =================================================== -->
+<!-- قالب الفاتورة الحرارية للشير -->
 <div id="thermal-share-container" dir="rtl">
     <div class="thermal-header-title">
         <h2>الزيادي لزيوت السيارات</h2>
@@ -343,9 +325,7 @@
                 <th style="text-align: left; width: 25%;">الإجمالي</th>
             </tr>
         </thead>
-        <tbody id="th-share-items">
-            <!-- الأصناف -->
-        </tbody>
+        <tbody id="th-share-items"></tbody>
     </table>
 
     <div class="thermal-summary-box">
@@ -367,12 +347,8 @@
         </div>
     </div>
 
-    <div class="thermal-share-footer">
-     برجاء مراجعه الفاتوره عند استلامها!
-    </div>
-    <div class="thermal-share-footer">
-     للمراجعه 01027830834!
-    </div>
+    <div class="thermal-share-footer">برجاء مراجعه الفاتوره عند استلامها!</div>
+    <div class="thermal-share-footer">للمراجعه 01027830834!</div>
 </div>
 
 <div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">  
@@ -542,12 +518,14 @@
                             <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير محدد'}</span>  
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة التعديل</div>` : ''}  
                         </div>  
-                        <div class="d-flex gap-1 flex-wrap justify-content-end" style="max-width: 65%;">  
-                            <button class="btn btn-sm btn-light border" style="padding: 2px 6px; font-size:0.75rem;" onclick="shareInvoiceAsThermalImage('${inv.id}')" title="مشاركة الفاتورة كصورة حرارية"><i class="fas fa-share-alt text-success"></i></button>
-                            <button class="btn btn-sm btn-light border" style="padding: 2px 6px; font-size:0.75rem;" onclick="printSingleInvoice('${inv.id}')" title="طباعة الفاتورة الفردية"><i class="fas fa-print text-dark"></i></button>
-                            <button class="btn btn-sm btn-outline-info text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> عرض</button>  
-                            <button class="btn btn-sm btn-outline-primary" style="padding: 2px 6px; font-size:0.75rem;" onclick="editInvoice('${inv.id}')"><i class="fas fa-edit"></i></button>  
-                            <button class="btn btn-sm btn-outline-danger" style="padding: 2px 6px; font-size:0.75rem;" onclick="deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>  
+                        
+                        <!-- أزرار العمليات المنسقة جنباً إلى جنب وبشكل احترافي -->
+                        <div class="invoice-actions-group">  
+                            <button class="btn btn-outline-info text-dark" onclick="toggleDetails('${inv.id}')" title="عرض الأصناف"><i class="fas fa-eye"></i> عرض</button>  
+                            <button class="btn btn-outline-success" onclick="shareInvoiceAsThermalImage('${inv.id}')" title="مشاركة الفاتورة"><i class="fas fa-share-alt"></i> شير</button>
+                            <button class="btn btn-outline-dark" onclick="printSingleInvoice('${inv.id}')" title="طباعة الفاتورة"><i class="fas fa-print"></i> طباعة</button>
+                            <button class="btn btn-outline-primary" onclick="editInvoice('${inv.id}')" title="تعديل الفاتورة"><i class="fas fa-edit"></i></button>  
+                            <button class="btn btn-outline-danger" onclick="deleteInvoice('${inv.id}')" title="حذف الفاتورة"><i class="fas fa-trash"></i></button>  
                         </div>  
                     </div>  
   
@@ -744,24 +722,25 @@
 
         if (inv.items && inv.items.length > 0) {
             inv.items.forEach(itm => {
-                const itemName = itm.name || "";
-                let jarkanQty = 0;
-                let cartonQty = 0;
+                const itemName = itm.name || "";  
+                let jarkanQty = "";  
+                let cartonQty = "";  
 
-                if (itemName.includes("قطعه") || itemName.includes("قطعة")) {
-                    jarkanQty = itm.qty || 0;
-                } else {
-                    cartonQty = itm.qty || 0;
-                }
+                // توجيه كميات الشير بناءً على الفرز المطلوب
+                if (itemName.includes("قطعه") || itemName.includes("قطعة")) {  
+                    jarkanQty = itm.qty || "-";  
+                } else {  
+                    cartonQty = itm.qty || "-";  
+                }  
 
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td style="text-align: right; padding: 5px 0;">${itemName}</td>
-                    <td>${jarkanQty || '-'}</td>
-                    <td>${cartonQty || '-'}</td>
-                    <td style="text-align: left;">${((Number(itm.qty) || 0) * (Number(itm.price) || 0)).toFixed(2)} ج.م</td>
-                `;
-                itemsContainer.appendChild(tr);
+                const tr = document.createElement('tr');  
+                tr.innerHTML = `  
+                    <td style="text-align: right; padding: 5px 0;">${itemName}</td>  
+                    <td>${jarkanQty}</td>  
+                    <td>${cartonQty}</td>  
+                    <td style="text-align: left;">${((Number(itm.qty) || 0) * (Number(itm.price) || 0)).toFixed(2)} ج.م</td>  
+                `;  
+                itemsContainer.appendChild(tr);  
             });
         }
 
@@ -856,21 +835,6 @@
             </html>
         `);
         printWindow.document.close();
-    };
-
-    window.generateReportPDF = () => {
-        const element = document.getElementById('print-area');
-        element.style.display = 'block';
-        const opt = {
-            margin: [10, 10, 10, 10],
-            filename: `تقرير_سجل_المبيعات_${new Date().toISOString().slice(0,10)}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 3, backgroundColor: '#ffffff', useCORS: true },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-        };
-        html2pdf().from(element).set(opt).save().then(() => { 
-            element.style.display = 'none'; 
-        });
     };
 
     window.handleDateFilterChange = () => {  
@@ -1087,7 +1051,7 @@
                     const itemName = item.name || "";  
                     let qtyJarkan = ""; let qtyCarton = ""; let priceJarkan = ""; let priceCarton = "";  
   
-                    // تعديل التوجيه هنا بناء على طلبك بدقة
+                    // فرز الكميات والأسعار الدقيق للإكسيل
                     if (itemName.includes("قطعه") || itemName.includes("قطعة")) {  
                         qtyJarkan = item.qty || "";  
                         priceJarkan = item.price || "";  
