@@ -46,11 +46,18 @@
         .back-btn { background: rgba(255,255,255,0.2); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; text-decoration: none; font-size: 0.9rem; border: none; }  
         .back-btn:hover { background: rgba(255,255,255,0.3); color: white; }  
         
-        .section-title { font-size: 0.85rem; font-weight: 800; color: var(--accent); margin: 15px 0 8px 0; border-bottom: 2px solid var(--border); padding-bottom: 4px; display: flex; align-items: center; gap: 6px; }  
+        .section-title { font-size: 0.85rem; font-weight: 800; color: var(--accent); margin: 15px 0 8px 0; border-bottom: 2px solid var(--border); padding-bottom: 4px; display: flex; align-items: center; justify-content: space-between; gap: 6px; }  
         
-        .report-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--card-radius); padding: 12px 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); text-align: center; position: relative; overflow: hidden; }  
+        .report-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--card-radius); padding: 12px 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); text-align: center; position: relative; overflow: hidden; cursor: pointer; transition: all 0.2s ease-in-out; }  
         .report-card .card-bar { position: absolute; top: 0; left: 0; right: 0; height: 4px; }  
         .report-card .num-val { font-size: 1.1rem; font-weight: 800; margin-top: 4px; display: block; }
+        
+        /* تجميل الكروت الفعالة عند الضغط والفلترة */
+        .report-card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+        .report-card.active-filter { border: 2px solid var(--accent); background: #f0fdf4; transform: scale(1.02); }
+        .report-card.active-filter-danger { border: 2px solid var(--danger); background: #fff5f5; transform: scale(1.02); }
+        .report-card.active-filter-info { border: 2px solid var(--info); background: #f0f9ff; transform: scale(1.02); }
+        .report-card.active-filter-warning { border: 2px solid var(--warning); background: #fffdf5; transform: scale(1.02); }
 
         .filter-panel { background: #ffffff; border: 1px solid var(--border); border-radius: var(--card-radius); padding: 12px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
         
@@ -63,6 +70,8 @@
         .badge-type { padding: 4px 8px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; }
         .badge-sale { background: #ebf9eb; color: var(--success); border: 1px solid #c7ebd1; }
         .badge-purchase { background: #fff5f5; color: var(--danger); border: 1px solid #fecaca; }
+        
+        .btn-clear-filter { font-size: 0.75rem; font-weight: bold; padding: 2px 8px; border-radius: 6px; display: none; }
     </style>  
 </head>  
 <body>  
@@ -88,31 +97,35 @@
     </div>
 
     <!-- كروت المبيعات والمشتريات الشاملة لهذا اليوم -->
-    <div class="section-title" id="sectionTitleDate"><i class="fas fa-coins"></i> ملخص حركة اليوم</div>
+    <div class="section-title">
+        <span id="sectionTitleDate"><i class="fas fa-coins"></i> ملخص حركة اليوم</span>
+        <button id="clearFilterBtn" class="btn btn-sm btn-secondary btn-clear-filter" onclick="resetTableFilter()">عرض الكل <i class="fas fa-sync-alt ms-1"></i></button>
+    </div>
+    
     <div class="row g-2 mb-2">  
         <div class="col-6">  
-            <div class="report-card">  
+            <div class="report-card" id="card-sales" onclick="filterTableBy('sales', this)">  
                 <div class="card-bar" style="background: var(--success);"></div>  
                 <small class="text-muted fw-bold d-block">إجمالي المبيعات</small>  
                 <span class="text-success num-val" id="totalSalesVal">0.00</span>  
             </div>  
         </div>  
         <div class="col-6">  
-            <div class="report-card">  
+            <div class="report-card" id="card-purchases" onclick="filterTableBy('purchases', this)">  
                 <div class="card-bar" style="background: var(--danger);"></div>  
                 <small class="text-muted fw-bold d-block">إجمالي المشتريات</small>  
                 <span class="text-danger num-val" id="totalPurchasesVal">0.00</span>  
             </div>  
         </div>  
         <div class="col-6">  
-            <div class="report-card">  
+            <div class="report-card" id="card-client-paid" onclick="filterTableBy('client-paid', this)">  
                 <div class="card-bar" style="background: var(--info);"></div>  
-                <small class="text-muted fw-bold d-block">المحصل من العملاء (كاش ومحفظة)</small>  
+                <small class="text-muted fw-bold d-block">المحصل من العملاء</small>  
                 <span class="text-primary num-val" id="totalClientPaidVal">0.00</span>  
             </div>  
         </div>  
         <div class="col-6">  
-            <div class="report-card">  
+            <div class="report-card" id="card-supplier-paid" onclick="filterTableBy('supplier-paid', this)">  
                 <div class="card-bar" style="background: var(--warning);"></div>  
                 <small class="text-muted fw-bold d-block">المدفوع للموردين</small>  
                 <span class="text-warning num-val" id="totalSupplierPaidVal">0.00</span>  
@@ -123,14 +136,14 @@
     <!-- كروت الأرصدة الآجلة المتبقية لليوم -->
     <div class="row g-2 mb-3">
         <div class="col-6">  
-            <div class="report-card" style="background: #fffdf5;">  
+            <div class="report-card" id="card-client-debt" style="background: #fffdf5;" onclick="filterTableBy('client-debt', this)">  
                 <div class="card-bar" style="background: var(--warning);"></div>  
                 <small class="text-muted fw-bold d-block">آجل مبيعات جديد (علي العملاء)</small>  
                 <span class="text-warning num-val" id="totalClientRemainingVal">0.00</span>  
             </div>  
         </div>  
         <div class="col-6">  
-            <div class="report-card" style="background: #fff5f5;">  
+            <div class="report-card" id="card-supplier-debt" style="background: #fff5f5;" onclick="filterTableBy('supplier-debt', this)">  
                 <div class="card-bar" style="background: var(--danger);"></div>  
                 <small class="text-muted fw-bold d-block">آجل مشتريات جديد (للموردين)</small>  
                 <span class="text-danger num-val" id="totalSupplierRemainingVal">0.00</span>  
@@ -141,7 +154,7 @@
     <!-- جدول حركة المبيعات والمشتريات (الفواتير) -->
     <div class="section-title"><i class="fas fa-exchange-alt"></i> تفاصيل فواتير وحركة اليوم</div>
     <div class="chic-table-container">
-        <table class="chic-table">
+        <table class="chic-table" id="reportTable">
             <thead>
                 <tr>
                     <th>النوع</th>
@@ -163,9 +176,8 @@
 
 <script type="module">  
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";  
-    import { getFirestore, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
   
-    // إعدادات الفايربيس الخاصة بحسابك وثابتة لديك
     const firebaseConfig = {  
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",  
         authDomain: "ahmedelzaiady.firebaseapp.com",  
@@ -179,7 +191,6 @@
     const app = initializeApp(firebaseConfig);  
     const db = getFirestore(app);  
 
-    // عند فتح الصفحة، نجعل التاريخ التلقائي هو تاريخ اليوم الحسابي الحالي لعام 2026
     document.addEventListener("DOMContentLoaded", () => {
         const today = new Date();
         const year = today.getFullYear();
@@ -190,7 +201,6 @@
         loadDailyReport();
     });
 
-    // دالة تحويل أرقام التاريخ للغة الإنجليزية لتجنب أخطاء المطابقة
     function convertToEnglishNumbers(str) {  
         if (!str) return "";  
         const arabicNumbers = [/٠/g, /١/g, /٢/g, /٣/g, /٤/g, /٥/g, /٦/g, /٧/g, /٨/g, /٩/g];  
@@ -199,7 +209,6 @@
         return res;  
     }  
 
-    // تنظيف واستخراج التاريخ المكتوب كـ نص في الفواتير القديمة
     function parseInvoiceDate(inv) {  
         let dateStr = "";  
         if (inv.date) {   
@@ -215,15 +224,15 @@
         return dateStr;  
     }  
 
-    // الدالة الأساسية لجلب وتحليل التقرير
     async function loadDailyReport() {
-        const targetDate = document.getElementById('reportDateInput').value; // صيغة YYYY-MM-DD
+        const targetDate = document.getElementById('reportDateInput').value; 
         document.getElementById('sectionTitleDate').innerHTML = `<i class="fas fa-coins"></i> ملخص حركة يوم (${targetDate})`;
         
         const tableBody = document.getElementById('reportInvoicesTableBody');
         tableBody.innerHTML = `<tr><td colspan="5" class="text-muted py-4"><i class="fas fa-spinner fa-spin"></i> جار جلب وتحديث التقرير الحسابي...</td></tr>`;
 
-        // تصفير العدادات قبل الحساب المالي
+        resetTableFilter();
+
         let totalSales = 0;
         let totalPurchases = 0;
         let totalClientPaid = 0;
@@ -234,7 +243,7 @@
         let reportRowsHtml = "";
 
         try {
-            // 1. جلب فواتير المبيعات من مجموعة (invoices) للعملاء
+            // 1. فواتير المبيعات
             const salesSnap = await getDocs(collection(db, "invoices"));
             salesSnap.forEach(doc => {
                 const inv = doc.data();
@@ -257,8 +266,9 @@
                     totalClientPaid += billPaid;
                     totalClientRemaining += billRemaining > 0 ? billRemaining : 0;
 
+                    // قمنا بإضافة data-attributes لكل سطر لتسهيل عملية الفلترة البرمجية لاحقاً
                     reportRowsHtml += `
-                        <tr>
+                        <tr data-type="sales" data-total="${billTotal}" data-paid="${billPaid}" data-debt="${billRemaining}">
                             <td><span class="badge-type badge-sale">مبيعات</span></td>
                             <td style="text-align: right; font-weight: bold;">${inv.customerName || 'عميل نقدي'}</td>
                             <td class="text-dark">${billTotal.toFixed(2)}</td>
@@ -269,8 +279,7 @@
                 }
             });
 
-            // 2. جلب فواتير المشتريات من مجموعة (purchases) الخاصة بالموردين 
-            // (إذا كانت مجموعة المشتريات لديك باسم آخر مثل purchase_invoices يرجى تعديل الاسم في السطر التالي فقط)
+            // 2. فواتير المشتريات
             const purchaseSnap = await getDocs(collection(db, "purchases"));
             purchaseSnap.forEach(doc => {
                 const pur = doc.data();
@@ -286,7 +295,7 @@
                     totalSupplierRemaining += billRemaining > 0 ? billRemaining : 0;
 
                     reportRowsHtml += `
-                        <tr>
+                        <tr data-type="purchases" data-total="${billTotal}" data-paid="${billPaid}" data-debt="${billRemaining}">
                             <td><span class="badge-type badge-purchase">مشتريات</span></td>
                             <td style="text-align: right; font-weight: bold;">${pur.supplierName || pur.customerName || 'مورد نقدي'}</td>
                             <td class="text-dark">${billTotal.toFixed(2)}</td>
@@ -297,7 +306,6 @@
                 }
             });
 
-            // تحديث واجهة الأرقام العلوية (الكروت) بعد انتهاء عمليات الجمع الحسابي
             document.getElementById('totalSalesVal').innerText = totalSales.toFixed(2);
             document.getElementById('totalPurchasesVal').innerText = totalPurchases.toFixed(2);
             document.getElementById('totalClientPaidVal').innerText = totalClientPaid.toFixed(2);
@@ -305,9 +313,8 @@
             document.getElementById('totalClientRemainingVal').innerText = totalClientRemaining.toFixed(2);
             document.getElementById('totalSupplierRemainingVal').innerText = totalSupplierRemaining.toFixed(2);
 
-            // عرض محتوى الجدول
             if (reportRowsHtml === "") {
-                tableBody.innerHTML = `<tr><td colspan="5" class="text-muted py-4 fw-bold">لا توجد مبيعات أو مشتريات مسجلة في هذا التاريخ.</td></tr>`;
+                tableBody.innerHTML = `<tr id="noDataRow"><td colspan="5" class="text-muted py-4 fw-bold">لا توجد مبيعات أو مشتريات مسجلة في هذا التاريخ.</td></tr>`;
             } else {
                 tableBody.innerHTML = reportRowsHtml;
             }
@@ -318,8 +325,67 @@
         }
     }
 
-    // جعل الدالة متاحة في نطاق الصفحة (Window Scope) للتحديث عند التغيير في المدخلات
+    // دالة الفلترة المحلية الذكية بدون إعادة جلب البيانات من السيرفر لقوة الأداء وسرعته
+    function filterTableBy(criteria, cardElement) {
+        const rows = document.querySelectorAll("#reportInvoicesTableBody tr");
+        if (rows.length === 0 || document.getElementById("noDataRow")) return;
+
+        // تنظيف استايلات الكروت السابقة وتعيين الاستايل النشط حسب لون الكارت وضغطة المستخدم
+        document.querySelectorAll('.report-card').forEach(c => {
+            c.classList.remove('active-filter', 'active-filter-danger', 'active-filter-info', 'active-filter-warning');
+        });
+
+        if (criteria === 'sales' || criteria === 'client-paid') cardElement.classList.add('active-filter');
+        else if (criteria === 'purchases' || criteria === 'supplier-debt') cardElement.classList.add('active-filter-danger');
+        else if (criteria === 'client-debt' || criteria === 'supplier-paid') cardElement.classList.add('active-filter-warning');
+
+        document.getElementById("clearFilterBtn").style.display = "inline-block";
+
+        // فحص السطور وإخفاء أو إظهار السطور بناءً على الفلتر المطلوب
+        rows.forEach(row => {
+            const type = row.getAttribute("data-type");
+            const total = parseFloat(row.getAttribute("data-total")) || 0;
+            const paid = parseFloat(row.getAttribute("data-paid")) || 0;
+            const debt = parseFloat(row.getAttribute("data-debt")) || 0;
+
+            switch(criteria) {
+                case 'sales': // إجمالي المبيعات
+                    row.style.display = (type === 'sales') ? "" : "none";
+                    break;
+                case 'purchases': // إجمالي المشتريات
+                    row.style.display = (type === 'purchases') ? "" : "none";
+                    break;
+                case 'client-paid': // ما تم تحصيله من العملاء بفواتير البيع
+                    row.style.display = (type === 'sales' && paid > 0) ? "" : "none";
+                    break;
+                case 'supplier-paid': // ما تم دفعه للموردين بفواتير الشراء
+                    row.style.display = (type === 'purchases' && paid > 0) ? "" : "none";
+                    break;
+                case 'client-debt': // المتبقي آجل على العملاء
+                    row.style.display = (type === 'sales' && debt > 0) ? "" : "none";
+                    break;
+                case 'supplier-debt': // المتبقي آجل للموردين
+                    row.style.display = (type === 'purchases' && debt > 0) ? "" : "none";
+                    break;
+                default:
+                    row.style.display = "";
+            }
+        });
+    }
+
+    // إرجاع الجدول للوضع الطبيعي وإظهار كافة السطور
+    function resetTableFilter() {
+        document.querySelectorAll("#reportInvoicesTableBody tr").forEach(row => row.style.display = "");
+        document.querySelectorAll('.report-card').forEach(c => {
+            c.classList.remove('active-filter', 'active-filter-danger', 'active-filter-info', 'active-filter-warning');
+        });
+        document.getElementById("clearFilterBtn").style.display = "none";
+    }
+
+    // ربط الدوال بـ نطاق الصفحة (Window Scope) لتعمل مع الـ onclick بشكل مباشر
     window.loadDailyReport = loadDailyReport;
+    window.filterTableBy = filterTableBy;
+    window.resetTableFilter = resetTableFilter;
 </script>  
 </body>  
 </html>
