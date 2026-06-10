@@ -17,6 +17,7 @@
             --white: #ffffff;
             --text-muted: #707b7c;
             --danger: #dc3545;
+            --wallet-color: #0077b6;
         }
 
         body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 40px; }
@@ -40,7 +41,6 @@
             padding: 10px 12px; font-size: 0.9rem; font-weight: 600;
         }
         .form-control:focus { border-color: var(--accent) !important; box-shadow: 0 0 8px rgba(11, 94, 61, 0.1) !important; }
-        .form-control:disabled { background: #e9ecef !important; color: #707b7c !important; }
 
         .item-row { 
             background: var(--white); border: 1px solid var(--border); 
@@ -82,8 +82,9 @@
         }
 
         .amount { font-family: 'Consolas', monospace; font-weight: 800; }
-        .amount.total { color: #0077b6; font-size: 1.4rem; }
-        .amount.paid { color: var(--accent); font-size: 1.4rem; }
+        .amount.total { color: #212529; font-size: 1.4rem; }
+        .amount.paid-cash { color: var(--accent); font-size: 1.2rem; }
+        .amount.paid-wallet { color: var(--wallet-color); font-size: 1.2rem; }
         .amount.pending { color: var(--danger); font-size: 1.6rem; font-weight: 900; }
         
         .btn-save { background: var(--accent); color: #fff; border: none; padding: 12px 0; border-radius: 15px; font-weight: 700; width: 100%; box-shadow: 0 4px 12px rgba(11, 94, 61, 0.3); transition: 0.2s; }
@@ -120,7 +121,7 @@
 </div>
 
 <div class="container mt-2">
-    <!-- بيانات الفاتورة والمورد -->
+    <!-- بيانات الفاتورة والمورد وعناصر السداد المشترك -->
     <div class="data-card">
         <div class="row g-3">
             <div class="col-6 col-md-3">
@@ -128,20 +129,16 @@
                 <input type="date" id="invDate" class="form-control">
             </div>
             <div class="col-6 col-md-3">
-                <label><i class="fas fa-wallet"></i> نوع السداد / الدفع</label>
-                <select id="paymentType" class="form-select">
-                    <option value="cash">نقدي (كاش)</option>
-                    <option value="wallet">محفظة إلكترونية</option>
-                    <option value="credit">آجل (على الحساب)</option>
-                </select>
-            </div>
-            <div class="col-6 col-md-3">
                 <label><i class="fas fa-truck-field"></i> اسم المورد</label>
                 <select id="supplierSelect" class="form-select"></select>
             </div>
             <div class="col-6 col-md-3">
-                <label class="text-primary fw-bold"><i class="fas fa-money-bill-wave"></i> المدفوع الآن</label>
-                <input type="number" step="0.01" id="paidAmount" class="form-control border-primary text-center fw-bold text-primary" value="0.00">
+                <label class="text-success fw-bold"><i class="fas fa-money-bill-wave"></i> سداد نقدي (كاش)</label>
+                <input type="number" step="0.01" id="cashAmount" class="form-control border-success text-center fw-bold text-success" value="0.00">
+            </div>
+            <div class="col-6 col-md-3">
+                <label style="color: var(--wallet-color);"><i class="fas fa-mobile-screen-button"></i> سداد محفظة إلكترونية</label>
+                <input type="number" step="0.01" id="walletAmount" class="form-control text-center fw-bold" style="border-color: var(--wallet-color); color: var(--wallet-color);" value="0.00">
             </div>
         </div>
     </div>
@@ -154,8 +151,8 @@
     </button>
 </div>
 
-<!-- حاوية مخلص الحسابات والفوتر بالأسفل -->
-<div class="invoice-footer">
+<!-- حاوية ملخص الحسابات ونوع السداد للمشاركة والطباعة -->
+<div class="invoice-footer" id="invoiceSummaryCard">
     <div class="total-container">
         <span class="small text-muted fw-bold"><i class="fas fa-boxes"></i> عدد البنود:</span>
         <span class="fw-bold text-dark fs-6" id="itemsCount">0</span>
@@ -165,11 +162,15 @@
         <span class="amount total" id="grossTotal">0.00</span>
     </div>
     <div class="total-container">
-        <span class="small text-muted fw-bold"><i class="fas fa-hand-holding-dollar"></i> المدفوع مسبقاً:</span>
-        <span class="amount paid" id="displayPaid">0.00</span>
+        <span class="small text-success fw-bold"><i class="fas fa-money-bill-check"></i> مدفوع نقداً (كاش):</span>
+        <span class="amount paid-cash" id="displayCash">0.00</span>
+    </div>
+    <div class="total-container">
+        <span class="small fw-bold" style="color: var(--wallet-color);"><i class="fas fa-mobile-button"></i> مدفوع محفظة:</span>
+        <span class="amount paid-wallet" id="displayWallet">0.00</span>
     </div>
     <div class="total-container" style="background: #fff5f5; border-radius: 12px; border: 1px solid #ffe3e3;">
-        <span class="small text-danger fw-bold"><i class="fas fa-receipt"></i> الصافي المتبقي للمورد:</span>
+        <span class="small text-danger fw-bold"><i class="fas fa-receipt"></i> الصافي الآجل (المتبقي للمورد):</span>
         <span class="amount pending" id="netTotal">0.00</span>
     </div>
     <button class="btn-save" id="btnSaveInvoice">حفظ وترحيل الفاتورة</button>
@@ -219,20 +220,11 @@
     document.getElementById('btnBack').addEventListener('click', () => safeNavigate(null, true));
     document.getElementById('btnHome').addEventListener('click', () => safeNavigate('index.html'));
 
-    const paymentSelect = document.getElementById('paymentType');
-    const paidInput = document.getElementById('paidAmount');
+    const cashInput = document.getElementById('cashAmount');
+    const walletInput = document.getElementById('walletAmount');
     
-    paymentSelect.addEventListener('change', () => {
-        const gross = parseFloat(document.getElementById('grossTotal').innerText) || 0;
-        if (paymentSelect.value === 'cash' || paymentSelect.value === 'wallet') {
-            paidInput.disabled = true;
-            paidInput.value = gross.toFixed(2);
-        } else {
-            paidInput.disabled = false;
-            paidInput.value = "0.00";
-        }
-        window.calculateTotal();
-    });
+    cashInput.addEventListener('input', () => { window.calculateTotal(); });
+    walletInput.addEventListener('input', () => { window.calculateTotal(); });
 
     async function loadData() {
         const supSelect = document.getElementById('supplierSelect');
@@ -278,8 +270,8 @@
             oldInvoiceData = invSnap.data();
             document.getElementById('supplierSelect').value = oldInvoiceData.supplierId;
             document.getElementById('invDate').value = oldInvoiceData.date;
-            document.getElementById('paymentType').value = oldInvoiceData.paymentType || 'cash';
-            document.getElementById('paidAmount').value = oldInvoiceData.paidAmount || '0.00';
+            document.getElementById('cashAmount').value = oldInvoiceData.cashPaid || '0.00';
+            document.getElementById('walletAmount').value = oldInvoiceData.walletPaid || '0.00';
             
             document.getElementById('itemsList').innerHTML = ""; 
             if (oldInvoiceData.items && oldInvoiceData.items.length > 0) {
@@ -331,7 +323,7 @@
                         <div class="return-check-container">
                             <div class="form-check form-switch m-0 d-flex align-items-center gap-2">
                                 <input class="form-check-input item-is-return" type="checkbox" id="check_${id}" ${isReturnChecked ? 'checked' : ''}>
-                                <label class="form-check-label text-danger fw-bold m-0" for="check_${id}">تحديد كمرتجع ↩></label>
+                                <label class="form-check-label text-danger fw-bold m-0" for="check_${id}">تحديد كمرتجع ↩</label>
                             </div>
                         </div>
                     </div>
@@ -410,27 +402,28 @@
         
         document.getElementById('grossTotal').innerText = grossTotal.toFixed(2);
         
-        if (paymentSelect.value === 'cash' || paymentSelect.value === 'wallet') {
-            paidInput.value = grossTotal.toFixed(2);
-        }
+        let cashVal = parseFloat(cashInput.value) || 0;
+        let walletVal = parseFloat(walletInput.value) || 0;
+        
+        let totalPaid = cashVal + walletVal;
+        let pendingVal = grossTotal - totalPaid;
 
-        let paidVal = parseFloat(paidInput.value) || 0;
-        let pendingVal = grossTotal - paidVal;
-
-        document.getElementById('displayPaid').innerText = paidVal.toFixed(2);
+        document.getElementById('displayCash').innerText = cashVal.toFixed(2);
+        document.getElementById('displayWallet').innerText = walletVal.toFixed(2);
         document.getElementById('netTotal').innerText = pendingVal.toFixed(2);
     };
-
-    document.getElementById('paidAmount').addEventListener('input', window.calculateTotal);
 
     document.getElementById('btnSaveInvoice').addEventListener('click', async () => {
         const btn = document.getElementById('btnSaveInvoice');
         const supplierId = document.getElementById('supplierSelect').value;
         const grossTotal = parseFloat(document.getElementById('grossTotal').innerText) || 0;
-        const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
-        const paymentType = document.getElementById('paymentType').value;
+        
+        const cashPaid = parseFloat(document.getElementById('cashAmount').value) || 0;
+        const walletPaid = parseFloat(document.getElementById('walletAmount').value) || 0;
+        const totalPaid = cashPaid + walletPaid;
+        
         const invoiceDate = document.getElementById('invDate').value;
-        const pendingAmount = grossTotal - paidAmount;
+        const pendingAmount = grossTotal - totalPaid;
         
         if(!supplierId || document.querySelectorAll('.item-row').length === 0) return alert("برجاء إكمال البيانات وإضافة الأصناف أولاً");
 
@@ -438,11 +431,12 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل...';
 
         try {
-            // عكس التأثير القديم عند التعديل
+            // عكس التأثير القديم عند التعديل لضبط الرصيد السابق للمورد
             if (editId && oldInvoiceData) {
                 const oldGross = Number(oldInvoiceData.grossTotal || oldInvoiceData.total || 0);
-                const oldPaid = Number(oldInvoiceData.paidAmount || 0);
-                const oldDebt = oldGross - oldPaid;
+                const oldCash = Number(oldInvoiceData.cashPaid || 0);
+                const oldWallet = Number(oldInvoiceData.walletPaid || 0);
+                const oldDebt = oldGross - (oldCash + oldWallet);
                 if (oldDebt !== 0) {
                     await updateDoc(doc(db, "suppliers", oldInvoiceData.supplierId), { currentBalance: increment(-oldDebt) });
                 }
@@ -481,9 +475,16 @@
                 }
             }
 
+            // تحديد مسمى نوع السداد المكتوب في الفاتورة للتوثيق
+            let finalPaymentType = "آجل";
+            if(cashPaid > 0 && walletPaid > 0) finalPaymentType = "مشترك (كاش + محفظة)";
+            else if(cashPaid > 0) finalPaymentType = "نقدي (كاش)";
+            else if(walletPaid > 0) finalPaymentType = "محفظة إلكترونية";
+
             const invoiceObj = {
-                supplierId, total: grossTotal, grossTotal: grossTotal, paidAmount: paidAmount, netTotal: pendingAmount, 
-                items, type: "شراء", paymentType, date: invoiceDate, timestamp: serverTimestamp()
+                supplierId, total: grossTotal, grossTotal: grossTotal, 
+                cashPaid: cashPaid, walletPaid: walletPaid, totalPaid: totalPaid, netTotal: pendingAmount, 
+                items, type: "شراء", paymentType: finalPaymentType, date: invoiceDate, timestamp: serverTimestamp()
             };
 
             let currentDocId = editId;
@@ -499,24 +500,27 @@
                 await updateDoc(doc(db, "suppliers", supplierId), { currentBalance: increment(pendingAmount) });
             }
 
-            // الخزنة: ترحيل المدفوع تلقائياً مع تحديد نوع السداد بدقة بالوصف
-            if (paidAmount > 0) {
-                const payMethodLabel = paymentType === 'wallet' ? "محفظة إلكترونية" : "نقدي كاش";
+            // الخزنة الذكية: ترحيل المبالغ المنفصلة حسب نوع الحساب المالي
+            if (cashPaid > 0) {
                 await addDoc(collection(db, "transactions"), {
-                    amount: paidAmount,
-                    type: "صرف",
-                    actionType: "سداد مورد",
-                    details: `سداد فوري (${payMethodLabel}) مقابل فاتورة شراء رقم (${currentDocId.substring(0,6)})`,
-                    date: invoiceDate,
-                    supplierId: supplierId,
-                    invoiceId: currentDocId,
-                    paymentMethod: paymentType, 
-                    timestamp: serverTimestamp()
+                    amount: cashPaid, type: "صرف", actionType: "سداد مورد",
+                    details: `سداد نقدي (كاش) مقابل فاتورة شراء رقم (${currentDocId.substring(0,6)})`,
+                    date: invoiceDate, supplierId: supplierId, invoiceId: currentDocId,
+                    paymentMethod: "cash", timestamp: serverTimestamp()
+                });
+            }
+
+            if (walletPaid > 0) {
+                await addDoc(collection(db, "transactions"), {
+                    amount: walletPaid, type: "صرف", actionType: "سداد مورد",
+                    details: `سداد محفظة إلكترونية مقابل فاتورة شراء رقم (${currentDocId.substring(0,6)})`,
+                    date: invoiceDate, supplierId: supplierId, invoiceId: currentDocId,
+                    paymentMethod: "wallet", timestamp: serverTimestamp()
                 });
             }
 
             isSubmitting = true; 
-            alert("تم حفظ وترحيل الفاتورة بنجاح وتحديث الصافي والمدفوع بالخزينة ✅");
+            alert("تم حفظ الفاتورة بنجاح وتوزيع المبالغ بالخزينة وتهيئة بطاقة المشاركة للواتساب والطباعة 🚀");
             window.location.href = "purchase-invoices-list.html";
 
         } catch (e) {
