@@ -1,0 +1,292 @@
+<!DOCTYPE html>  
+<html lang="ar" dir="rtl">  
+<head>  
+    <meta charset="UTF-8">  
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+    <title>تقرير حركة البضاعة والأصناف - الزيادي لزيوت السيارات</title>  
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">  
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">  
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">  
+    
+    <style>  
+        :root {   
+            --accent: #0b5e3d;          
+            --header-bg: #0b5e3d;       
+            --bg-light: #f4f7f6;        
+            --text-primary: #1b2e26;     
+            --border: #dce3de;          
+            --white: #ffffff;  
+            --danger: #d90429;  
+            --success: #2d6a4f;  
+            --warning: #ffb703;  
+            --card-radius: 12px;  
+            --input-radius: 10px;  
+        }  
+        body {   
+            background: var(--bg-light);   
+            font-family: 'Cairo', sans-serif;   
+            color: var(--text-primary);   
+            padding-bottom: 60px;   
+            font-size: 0.85rem;  
+        }  
+        .header-nav {   
+            background: var(--header-bg);   
+            padding: 12px 15px;   
+            display: flex;   
+            align-items: center;   
+            justify-content: space-between;   
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);   
+            color: white;   
+            position: sticky;   
+            top: 0;   
+            z-index: 1000;  
+        }  
+        .back-btn { background: rgba(255,255,255,0.2); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; text-decoration: none; font-size: 0.9rem; border: none; }  
+        .back-btn:hover { background: rgba(255,255,255,0.3); color: white; }  
+        
+        .section-title { font-size: 0.85rem; font-weight: 800; color: var(--accent); margin: 15px 0 8px 0; border-bottom: 2px solid var(--border); padding-bottom: 4px; display: flex; align-items: center; gap: 6px; }  
+        
+        .filter-panel { background: #ffffff; border: 1px solid var(--border); border-radius: var(--card-radius); padding: 12px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }
+        
+        .chic-table-container { background: #ffffff; border: 1px solid var(--border); border-radius: var(--card-radius); overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.02); margin-bottom: 15px; }
+        .chic-table { width: 100%; margin-bottom: 0; font-size: 0.8rem; border-collapse: collapse; }
+        .chic-table th { background: #ebf9eb; padding: 10px 6px; font-weight: 800; color: var(--accent); text-align: center; border-bottom: 2px solid var(--border); }
+        .chic-table td { padding: 10px 6px; text-align: center; font-weight: 600; border-bottom: 1px solid #f0f4f1; vertical-align: middle; }
+        .chic-table tr:hover { background-color: #fafdfb; }
+        
+        .qty-jarkan { color: var(--success); font-weight: 800; background: #ebf9eb; padding: 2px 6px; border-radius: 4px; display: inline-block; min-width: 25px; }
+        .qty-carton { color: #b94a00; font-weight: 800; background: #fff2e6; padding: 2px 6px; border-radius: 4px; display: inline-block; min-width: 25px; }
+        .qty-zero { color: #a0aec0; font-weight: normal; background: #f7fafc; }
+    </style>  
+</head>  
+<body>  
+
+<div class="header-nav">  
+    <a href="index.html" class="back-btn"><i class="fas fa-arrow-right"></i></a>  
+    <h6 class="m-0 fw-bold"><i class="fas fa-boxes me-1"></i> تقرير حركة كميات الأصناف والبضاعة</h6>  
+    <button class="back-btn" onclick="window.print()" title="طباعة التقرير"><i class="fas fa-print"></i></button>  
+</div>  
+
+<div class="container px-2 mt-2">  
+    
+    <!-- لوحة اختيار التاريخ -->
+    <div class="filter-panel mt-2">
+        <div class="row g-2 align-items-center">
+            <div class="col-4">
+                <label class="fw-bold text-muted mb-1" style="font-size: 0.75rem;"><i class="far fa-calendar-alt"></i> تاريخ جرد الحركة:</label>
+            </div>
+            <div class="col-8">
+                <input type="date" id="stockReportDateInput" class="form-control text-center fw-bold" style="font-size: 0.9rem; border-radius: var(--input-radius); padding: 6px;" onchange="loadStockReport()">
+            </div>
+        </div>
+    </div>
+
+    <!-- جدول حركة كميات الأصناف -->
+    <div class="section-title" id="sectionTitleDate"><i class="fas fa-dolly-flatbed"></i> جرد كميات البضاعة لليوم</div>
+    <div class="chic-table-container">
+        <table class="chic-table">
+            <thead>
+                <tr>
+                    <th style="text-align: right; width: 40%;">اسم الصنف والزيت</th>
+                    <th style="width: 20%;">إجمالي المبيعات</th>
+                    <th style="width: 20%;">إجمالي المشتريات</th>
+                    <th style="width: 20%;">إجمالي المرتجعات</th>
+                </tr>
+            </thead>
+            <tbody id="stockReportTableBody">
+                <tr>
+                    <td colspan="4" class="text-muted py-4"><i class="fas fa-spinner fa-spin"></i> جار تجميع وحساب كميات البضاعة ...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="p-2 text-muted" style="font-size: 0.72rem; line-height: 1.5;">
+        💡 <b>ملاحظة التنسيق الدقيق:</b> الأرقام بداخل المربعات الخضراء <span class="qty-jarkan" style="font-size: 0.65rem; padding:1px 4px;">ج</span> تعبر عن عدد (القطع / الجراكن)، بينما المربعات البرتقالية <span class="qty-carton" style="font-size: 0.65rem; padding:1px 4px;">ك</span> تعبر عن عدد (الكراتين).
+    </div>
+
+</div>  
+
+<script type="module">  
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";  
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
+  
+    const firebaseConfig = {  
+        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",  
+        authDomain: "ahmedelzaiady.firebaseapp.com",  
+        projectId: "ahmedelzaiady",  
+        storageBucket: "ahmedelzaiady.firebasestorage.app",  
+        messagingSenderId: "300306825071",  
+        appId: "1:300306825071:web:0426ddde56280fa090329a",  
+        measurementId: "G-WE04GK5XZZ"  
+    };  
+  
+    const app = initializeApp(firebaseConfig);  
+    const db = getFirestore(app);  
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        
+        document.getElementById('stockReportDateInput').value = `${year}-${month}-${day}`;
+        loadStockReport();
+    });
+
+    function convertToEnglishNumbers(str) {  
+        if (!str) return "";  
+        const arabicNumbers = [/٠/g, /١/g, /٢/g, /٣/g, /٤/g, /٥/g, /٦/g, /٧/g, /٨/g, /٩/g];  
+        let res = str.toString();  
+        for (let i = 0; i < 10; i++) { res = res.replace(arabicNumbers[i], i); }  
+        return res;  
+    }  
+
+    function parseInvoiceDate(dateField, timestampField) {  
+        let dateStr = "";  
+        if (dateField) {   
+            dateStr = convertToEnglishNumbers(dateField);   
+        } else if (timestampField?.seconds) {  
+            const d = new Date(timestampField.seconds * 1000);  
+            return d.toISOString().split('T')[0];  
+        }  
+        let m = dateStr.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);  
+        if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;  
+        m = dateStr.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);  
+        if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;  
+        return dateStr;  
+    }  
+
+    // دالة مساعدة لتنسيق وعزل شكل عرض الكمية بناءً على الاسم المكتوب (جركن / كرتونة)
+    function formatQtyDisplay(jarkanQty, cartonQty) {
+        let html = "";
+        if (jarkanQty > 0) {
+            html += `<span class="qty-jarkan" title="عدد جراكن / قطع">${jarkanQty} ج</span> `;
+        }
+        if (cartonQty > 0) {
+            html += `<span class="qty-carton" title="عدد كراتين">${cartonQty} ك</span>`;
+        }
+        return html === "" ? `<span class="qty-zero">-</span>` : html;
+    }
+
+    async function loadStockReport() {
+        const targetDate = document.getElementById('stockReportDateInput').value;
+        document.getElementById('sectionTitleDate').innerHTML = `<i class="fas fa-dolly-flatbed"></i> جرد كميات البضاعة ليوم (${targetDate})`;
+        
+        const tableBody = document.getElementById('stockReportTableBody');
+        tableBody.innerHTML = `<tr><td colspan="4" class="text-muted py-4"><i class="fas fa-spinner fa-spin"></i> جار جلب وتحليل فواتير المخزن...</td></tr>`;
+
+        // هيكل البيانات لتجميع الحركة لكل صنف بشكل فريد وموحد
+        // { 'صنف زيت معين': { soldJarkan: 0, soldCarton: 0, boughtJarkan: 0, boughtCarton: 0, retJarkan: 0, retCarton: 0 } }
+        let itemsSummary = {};
+
+        // دالة تضمن وجود الصنف في المجموع قبل التعديل عليه
+        function initItemSlot(name) {
+            if (!itemsSummary[name]) {
+                itemsSummary[name] = {
+                    soldJarkan: 0, soldCarton: 0,
+                    boughtJarkan: 0, boughtCarton: 0,
+                    retJarkan: 0, retCarton: 0
+                };
+            }
+        }
+
+        try {
+            // 1. معالجة كميات المبيعات والمرتجعات من كولكشن (invoices)
+            const salesSnap = await getDocs(collection(db, "invoices"));
+            salesSnap.forEach(doc => {
+                const inv = doc.data();
+                const invDate = parseInvoiceDate(inv.date, inv.timestamp);
+                
+                if (invDate === targetDate && inv.items && Array.isArray(inv.items)) {
+                    inv.items.forEach(item => {
+                        const itemName = (item.name || "").trim();
+                        if (!itemName) return;
+                        
+                        initItemSlot(itemName);
+                        const qty = Number(item.qty) || 0;
+
+                        // تحديد تصنيف نوع الكمية (قطعة/جركن أم كرتونة) كما تم إقراره في دفتر التصحيح الخاص بك
+                        let isJarkan = itemName.includes("قطعه") || itemName.includes("قطعة") || itemName.includes("جركن");
+                        
+                        // فحص إذا كانت حركة الفاتورة بالكامل مرتجع، أو الصنف نفسه مميز كـ مرتجع
+                        const isReturnedBill = inv.paymentMethod?.includes("مرتجع") || inv.notes?.includes("مرتجع");
+
+                        if (isReturnedBill) {
+                            if (isJarkan) itemsSummary[itemName].retJarkan += qty;
+                            else itemsSummary[itemName].retCarton += qty;
+                        } else {
+                            if (isJarkan) itemsSummary[itemName].soldJarkan += qty;
+                            else itemsSummary[itemName].soldCarton += qty;
+                        }
+                    });
+                }
+            });
+
+            // 2. معالجة كميات المشتريات من كولكشن الموردين (purchases)
+            const purchaseSnap = await getDocs(collection(db, "purchases"));
+            purchaseSnap.forEach(doc => {
+                const pur = doc.data();
+                const purDate = parseInvoiceDate(pur.date, pur.timestamp);
+
+                if (purDate === targetDate && pur.items && Array.isArray(pur.items)) {
+                    pur.items.forEach(item => {
+                        const itemName = (item.name || "").trim();
+                        if (!itemName) return;
+
+                        initItemSlot(itemName);
+                        const qty = Number(item.qty) || 0;
+
+                        let isJarkan = itemName.includes("قطعه") || itemName.includes("قطعة") || itemName.includes("جركن");
+
+                        if (isJarkan) itemsSummary[itemName].boughtJarkan += qty;
+                        else itemsSummary[itemName].boughtCarton += qty;
+                    });
+                }
+            });
+
+            // 3. بناء واستخراج صفوف الجدول البرمجية
+            let rowsHtml = "";
+            const sortedItemNames = Object.keys(itemsSummary).sort();
+
+            sortedItemNames.forEach(name => {
+                const data = itemsSummary[name];
+                
+                // تخطي الصنف إذا ظهر في الحسابات لكن بدون أي كميات فعلية في هذا اليوم المحدد
+                if (data.soldJarkan === 0 && data.soldCarton === 0 && 
+                    data.boughtJarkan === 0 && data.boughtCarton === 0 && 
+                    data.retJarkan === 0 && data.retCarton === 0) {
+                    return;
+                }
+
+                rowsHtml += `
+                    <tr>
+                        <td style="text-align: right; font-weight: 700; color: #1a202c;">${name}</td>
+                        <td>${formatQtyDisplay(data.soldJarkan, data.soldCarton)}</td>
+                        <td>${formatQtyDisplay(data.boughtJarkan, data.boughtCarton)}</td>
+                        <td>${data.retJarkan > 0 || data.retCarton > 0 ? 
+                            `<span style="color:var(--danger); background:#fff5f5; padding:2px 6px; border-radius:4px; font-weight:800;">
+                                ${data.retJarkan > 0 ? data.retJarkan + ' ج ' : ''}
+                                ${data.retCarton > 0 ? data.retCarton + ' ك' : ''}
+                             </span>` : '<span class="qty-zero">-</span>'}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            if (rowsHtml === "") {
+                tableBody.innerHTML = `<tr><td colspan="4" class="text-muted py-4 fw-bold">لم تحدث أي حركة سحب، بيع، أو شراء بضاعة في هذا التاريخ.</td></tr>`;
+            } else {
+                tableBody.innerHTML = rowsHtml;
+            }
+
+        } catch (error) {
+            console.error("خطأ أثناء تجميع تقرير كميات البضاعة للأصناف:", error);
+            tableBody.innerHTML = `<tr><td colspan="4" class="alert alert-danger p-2 text-center">حدثت مشكلة أثناء جلب كميات البضاعة من خادم الفايربيس الرئيسي.</td></tr>`;
+        }
+    }
+
+    window.loadStockReport = loadStockReport;
+</script>  
+</body>  
+</html>
