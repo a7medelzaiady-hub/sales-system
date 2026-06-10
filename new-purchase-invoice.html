@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>فاتورة شراء - شركة الزيادى</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { 
@@ -115,7 +115,6 @@
 </div>
 
 <div class="container mt-2">
-    <!-- بيانات الفاتورة والمورد المنظمة أفقيًا وجنبًا إلى جنب -->
     <div class="data-card">
         <div class="row g-3">
             <div class="col-6 col-md-3">
@@ -140,7 +139,6 @@
         </div>
     </div>
 
-    <!-- قائمة الأصناف -->
     <div id="itemsList" class="mt-3"></div>
 
     <button type="button" class="add-item-btn mt-2" id="addItemBtn">
@@ -148,7 +146,6 @@
     </button>
 </div>
 
-<!-- حاوية الفوتر الثابتة هندسيًا نهاية الصفحة -->
 <div class="invoice-footer">
     <div class="total-container">
         <span class="small text-muted fw-bold"><i class="fas fa-boxes"></i> عدد البنود الحالية:</span>
@@ -185,6 +182,7 @@
     let allInventory = [];
     let isDataChanged = false; 
     let isSubmitting = false; 
+    let oldInvoiceData = null; // للاحتفاظ بالقيم القديمة عند التعديل لخصمها أولاً قبل تعديل الحسابات الجديد
 
     window.addEventListener('beforeunload', (e) => {
         if (isDataChanged && !isSubmitting) {
@@ -261,16 +259,16 @@
         const invSnap = await getDoc(invRef);
 
         if (invSnap.exists()) {
-            const data = invSnap.data();
-            document.getElementById('supplierSelect').value = data.supplierId;
-            document.getElementById('invDate').value = data.date;
-            document.getElementById('paymentType').value = data.paymentType || 'credit';
-            document.getElementById('paidAmount').value = data.paidAmount || '0.00';
+            oldInvoiceData = invSnap.data();
+            document.getElementById('supplierSelect').value = oldInvoiceData.supplierId;
+            document.getElementById('invDate').value = oldInvoiceData.date;
+            document.getElementById('paymentType').value = oldInvoiceData.paymentType || 'credit';
+            document.getElementById('paidAmount').value = oldInvoiceData.paidAmount || '0.00';
             
             document.getElementById('itemsList').innerHTML = ""; 
             
-            if (data.items && data.items.length > 0) {
-                data.items.forEach(item => { 
+            if (oldInvoiceData.items && oldInvoiceData.items.length > 0) {
+                oldInvoiceData.items.forEach(item => { 
                     addNewItemRow(item); 
                 });
             }
@@ -302,7 +300,6 @@
 
     window.addNewItemRow = (itemData = null) => {
         const id = Date.now() + Math.random();
-        // إعطاء خيار "كرتونة" الأولوية دائمًا كخيار افتراضي
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
         const isReturnChecked = itemData && itemData.returnQty > 0;
         isDataChanged = true;
@@ -387,7 +384,6 @@
             const found = allInventory.find(p => p.name === e.target.value);
             if(found) {
                 row.querySelector('.item-buy').value = found.buy || 0;
-                // ضبط الوحدة تلقائياً بناءً على المخزن أو كرتونة كخيار أولي رئيسي
                 unitSelect.value = found.unitName || "كرتونة";
                 unitSelect.dispatchEvent(new Event('change'));
             }
@@ -433,6 +429,7 @@
         const netTotal = parseFloat(document.getElementById('netTotal').innerText);
         const paidAmount = parseFloat(document.getElementById('paidAmount').value) || 0;
         const paymentType = document.getElementById('paymentType').value;
+        const invoiceDate = document.getElementById('invDate').value;
         
         if(!supplierId || document.querySelectorAll('.item-row').length === 0) return alert("برجاء إكمال بيانات الفاتورة وإضافة أصناف");
 
@@ -440,6 +437,17 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل...';
 
         try {
+            // خطوة تعويضية عند التعديل: عكس التأثير القديم لحساب المورد الأصلي
+            if (editId && oldInvoiceData) {
+                const oldNet = Number(oldInvoiceData.netTotal || oldInvoiceData.total || 0);
+                const oldPaid = Number(oldInvoiceData.paidAmount || oldInvoiceData.paid || 0);
+                const oldDebt = oldNet - oldPaid;
+                if (oldDebt !== 0) {
+                    // خصم الدين القديم قبل إضافة الدين الجديد المعدل لمنع تكرار المبالغ
+                    await updateDoc(doc(db, "suppliers", oldInvoiceData.supplierId), { currentBalance: increment(-oldDebt) });
+                }
+            }
+
             const items = [];
             const rows = document.querySelectorAll('.item-row');
 
@@ -452,7 +460,6 @@
 
                 let qty = isReturn ? 0 : qtyInput;
                 let returnQty = isReturn ? qtyInput : 0;
-
                 const finalQtyModifier = isReturn ? -qtyInput : qtyInput;
                 
                 items.push({ name, qty, returnQty, buy, unitName, unitFactor: 1, totalPieces: finalQtyModifier });
@@ -481,21 +488,35 @@
 
             const invoiceObj = {
                 supplierId, total: netTotal, paidAmount, netTotal, items, type: "شراء", paymentType,
-                date: document.getElementById('invDate').value,
+                date: invoiceDate,
                 timestamp: serverTimestamp()
             };
+
+            let currentDocId = editId;
 
             if (editId) {
                 await updateDoc(doc(db, "supplier_transactions", editId), invoiceObj);
             } else {
-                await addDoc(collection(db, "supplier_transactions"), invoiceObj);
-                
-                if(paymentType === 'credit') {
-                    const finalDebt = netTotal - paidAmount; 
-                    if (finalDebt !== 0) {
-                        await updateDoc(doc(db, "suppliers", supplierId), { currentBalance: increment(finalDebt) });
-                    }
-                }
+                const newDocRef = await addDoc(collection(db, "supplier_transactions"), invoiceObj);
+                currentDocId = newDocRef.id;
+            }
+
+            // ترحيل الحسابات الفوري للمورد (سواء كاش أو آجل لضبط كشف الحساب التراكمي)
+            const finalDebt = netTotal - paidAmount; 
+            await updateDoc(doc(db, "suppliers", supplierId), { currentBalance: increment(finalDebt) });
+
+            // ⭐ حل مشكلة السداد: ترحيل فوري للمبلغ المدفوع لجدول الحركات المالي العام (الخزنة)
+            if (paidAmount > 0) {
+                await addDoc(collection(db, "transactions"), {
+                    amount: paidAmount,
+                    type: "صرف",
+                    actionType: "سداد مورد",
+                    details: `سداد فوري مقابل فاتورة شراء رقم (${currentDocId.substring(0,6)})`,
+                    date: invoiceDate,
+                    supplierId: supplierId,
+                    invoiceId: currentDocId,
+                    timestamp: serverTimestamp()
+                });
             }
 
             isSubmitting = true; 
@@ -503,7 +524,8 @@
             window.location.href = "purchase-invoices-list.html";
 
         } catch (e) {
-            alert("حدث خطأ أثناء الحفظ");
+            console.error("Error saving invoice:", e);
+            alert("حدث خطأ أثناء الحفظ: " + e.message);
             btn.disabled = false;
             btn.innerText = "حفظ وترحيل الفاتورة";
         }
