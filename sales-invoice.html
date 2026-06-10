@@ -336,9 +336,72 @@
             </div>
         </div>
 
-        <button class="btn-save" onclick="saveInvoice()" id="saveBtn">حفظ وتحديث البيانات</button>
+        <!-- تم تعديل استدعاء الدالة هنا ليقوم بالمراجعة أولاً بدلاً من الحفظ المباشر -->
+        <button class="btn-save" onclick="openReviewModal()" id="saveBtn">حفظ وتحديث البيانات</button>
     </div>
 </div>
+
+<!-- ==================== نافذة المراجعة السريعة المضافة حديثاً ==================== -->
+<div id="reviewModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div style="background: white; width: 92%; max-width: 420px; padding: 20px; border-radius: var(--card-radius); box-shadow: 0 12px 30px rgba(0,0,0,0.25); animation: scaleUp 0.2s ease; max-height: 85vh; overflow-y: auto;">
+        <div class="text-center mb-3">
+            <div style="width: 50px; height: 50px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px;">
+                <i class="fas fa-clipboard-check" style="color: var(--accent); font-size: 1.6rem;"></i>
+            </div>
+            <h5 class="fw-bold m-0" style="color: var(--text-primary);">مراجعة بنود الفاتورة</h5>
+            <small class="text-muted">راجع الأصناف مع العميل قبل التأكيد النهائي</small>
+        </div>
+
+        <div style="background: #f8faf9; border-radius: 10px; padding: 10px; font-size: 0.85rem; margin-bottom: 12px; border: 1px dashed var(--border);">
+            <div class="d-flex justify-content-between mb-1">
+                <span><b>اسم العميل:</b></span>
+                <span id="revCustomerName" class="fw-bold text-success"></span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span><b>إجمالي البنود:</b></span>
+                <span id="revItemsCount" class="badge bg-secondary">0 صنف</span>
+            </div>
+        </div>
+
+        <div style="max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 15px;">
+            <table class="table table-sm table-striped m-0 text-center align-middle" style="font-size: 0.8rem; direction: rtl;">
+                <thead class="table-dark" style="position: sticky; top: 0; z-index: 5;">
+                    <tr>
+                        <th style="width: 45%; text-align: right; padding-right: 8px;">الصنف</th>
+                        <th style="width: 25%;">الكمية</th>
+                        <th style="width: 30%;">السعر</th>
+                    </tr>
+                </thead>
+                <tbody id="revItemsBody"></tbody>
+            </table>
+        </div>
+
+        <div style="background: var(--header-bg); color: white; border-radius: 12px; padding: 12px; font-size: 0.9rem; margin-bottom: 15px;">
+            <div class="d-flex justify-content-between mb-1 opacity-75" style="font-size: 0.75rem;">
+                <span>الخصم النقدي:</span>
+                <span><span id="revDiscountVal">0.00</span> ج.م</span>
+            </div>
+            <div class="d-flex justify-content-between fw-bold border-top border-white border-opacity-25 pt-2">
+                <span>الصافي النهائي للتسجيل:</span>
+                <span><span id="revTotalVal">0.00</span> ج.م</span>
+            </div>
+        </div>
+
+        <div class="row g-2">
+            <div class="col-7">
+                <button id="finalConfirmSaveBtn" class="btn btn-success w-100 fw-bold py-2" style="border-radius: 10px;">
+                    <i class="fas fa-check-circle me-1"></i> تأكيد وحفظ الفاتورة
+                </button>
+            </div>
+            <div class="col-5">
+                <button type="button" class="btn btn-light w-100 fw-bold py-2 text-danger" style="border-radius: 10px; border: 1px solid #ddd;" onclick="closeReviewModal()">
+                    <i class="fas fa-edit me-1"></i> تعديل
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- ============================================================================== -->
 
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
     <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: var(--card-radius); text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: scaleUp 0.25s ease;">
@@ -847,6 +910,69 @@
 
         return { itemsTotal, discount, total: netTotal, paid, remaining: netTotal - paid };
     };
+
+    // ==================== دوال المراجعة المضافة حديثاً لربط الزر الجديد ====================
+    window.openReviewModal = () => {
+        const customerId = document.getElementById('customerSelect').value;
+        const customerName = document.getElementById('customerSearch').value;
+
+        if (!customerId || !customerName) { return alert("الرجاء اختيار العميل"); }
+
+        const rows = document.querySelectorAll('.product-row');
+        let validItemsCount = 0;
+        let htmlList = "";
+
+        rows.forEach(r => {
+            const pid = r.querySelector('.p-select')?.value;
+            const name = r.querySelector('.p-search')?.value;
+            const unit = r.querySelector('.p-unit')?.value;
+            const qty = Number(r.querySelector('.p-qty')?.value || 0);
+            const price = Number(r.querySelector('.p-price')?.value || 0);
+            const isReturn = r.querySelector('.p-return-checkbox').checked;
+
+            if (!pid || qty <= 0) return;
+            validItemsCount++;
+
+            const unitText = unit === 'box' ? 'كرتونة' : 'قطعة';
+            const returnStyle = isReturn ? 'color: red; font-weight: bold; background-color: #fff0f1;' : '';
+
+            htmlList += `
+                <tr style="${returnStyle}">
+                    <td style="text-align: right; padding-right: 8px;">
+                        ${isReturn ? '<span class="badge bg-danger text-white me-1" style="font-size:0.65rem;">مرتجع</span>' : ''}
+                        <span>${name}</span>
+                    </td>
+                    <td>${qty} ${unitText}</td>
+                    <td>${price.toFixed(2)} ج.م</td>
+                </tr>
+            `;
+        });
+
+        if (validItemsCount === 0) { return alert("الرجاء إضافة أصناف للفاتورة"); }
+
+        // تعبئة البيانات داخل المودال الملخص
+        document.getElementById('revCustomerName').innerText = customerName;
+        document.getElementById('revItemsCount').innerText = `${validItemsCount} صنف`;
+        document.getElementById('revItemsBody').innerHTML = htmlList;
+
+        const { discount, total } = calc();
+        document.getElementById('revDiscountVal').innerText = discount.toFixed(2);
+        document.getElementById('revTotalVal').innerText = total.toFixed(2);
+
+        // إظهار نافذة المراجعة
+        document.getElementById('reviewModal').style.display = 'flex';
+
+        // ربط زر التأكيد النهائي داخل شاشة المراجعة بعملية الحفظ في الفايربيز
+        document.getElementById('finalConfirmSaveBtn').onclick = () => {
+            closeReviewModal();
+            saveInvoice();
+        };
+    };
+
+    window.closeReviewModal = () => {
+        document.getElementById('reviewModal').style.display = 'none';
+    };
+    // ==============================================================================
 
     window.saveInvoice = async () => {
         const saveBtn = document.getElementById('saveBtn');
