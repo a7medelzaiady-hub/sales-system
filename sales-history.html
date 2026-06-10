@@ -58,7 +58,7 @@
         .detail-badge { font-size: 0.78rem; padding: 4px 8px; border-radius: 6px; font-weight: 700; background: #f0f4f2; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 5px; direction: ltr; }  
         .financial-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; background: #f8faf9; padding: 8px; border-radius: 8px; margin-top: 8px; border: 1px dashed var(--border); }  
         .fin-box { font-size: 0.78rem; font-weight: 700; }  
-        .fin-box span { block; font-size: 0.85rem; margin-top: 1px; font-weight: 800; }  
+        .fin-box span { display: block; font-size: 0.85rem; margin-top: 1px; font-weight: 800; }  
         .search-box { border: 1px solid var(--border); border-radius: var(--input-radius); padding: 8px 12px; font-weight: 600; font-size: 0.85rem; font-family: 'Cairo', sans-serif; }  
         .items-preview-table { width: 100%; margin-top: 8px; font-size: 0.78rem; border-collapse: collapse; }  
         .items-preview-table th { background: #ebf9eb; padding: 4px; border: 1px solid var(--border); font-weight: 700; text-align: center; }  
@@ -73,6 +73,22 @@
         .pdf-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         .pdf-table th { background: #f8f9fa !important; border: 1px solid #dee2e6; padding: 10px; font-size: 13px; color: #000; }
         .pdf-table td { border: 1px solid #dee2e6; padding: 10px; text-align: center; font-size: 12px; color: #000; }
+
+        .btn-fetch-all {
+            background-color: transparent;
+            color: var(--accent);
+            border: 2px solid var(--accent);
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-fetch-all:hover {
+            background-color: var(--accent);
+            color: #ffffff;
+        }
         
         @media print {
             #content-to-export { display: none !important; }
@@ -105,7 +121,11 @@
             </button>  
         </div>  
           
-        <div class="stats-section-title"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم</div>  
+        <div class="d-flex justify-content-between align-items-center mt-2">
+            <div class="stats-section-title" id="todayStatsTitle"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم</div>  
+            <button id="loadAllArchiveBtn" class="btn-fetch-all"><i class="fas fa-cloud-download-alt me-1"></i> جلب كل الفواتير السابقة</button>
+        </div>
+
         <div class="row g-1 mb-2">  
             <div class="col-3">  
                 <div class="stat-card" onclick="filterByStat('today-cash', this)">  
@@ -285,7 +305,8 @@
             iconContainer.innerHTML = `<i class="fas fa-info-circle" style="color: #0b5e3d; font-size: 1.4rem;"></i>`;  
         }  
   
-        actions.innerHTML = "";  if(options.type === "confirm" || options.type === "prompt") {  
+        actions.innerHTML = "";  
+        if(options.type === "confirm" || options.type === "prompt") {  
             const confirmBtn = document.createElement('button');  
             confirmBtn.className = "btn btn-sm btn-success px-4 fw-bold";  
             confirmBtn.style.fontFamily = "Cairo";  
@@ -438,7 +459,7 @@
         const filterInput = document.getElementById('dateFilterInput')?.value;  
         const targetDateStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');   
   
-        const statsTitle = document.querySelector('.stats-section-title');  
+        const statsTitle = document.getElementById('todayStatsTitle');  
         if (statsTitle) { statsTitle.innerHTML = `<i class="fas fa-calendar-day me-1"></i> إحصائيات يوم (${targetDateStr})`; }  
   
         allInvoices.forEach(inv => {  
@@ -497,6 +518,7 @@
   
             let runningBalances = {};   
             let tempInvoices = [];  
+            const todayStr = new Date().toLocaleDateString('en-CA');
   
             invSnap.forEach(doc => {  
                 const data = doc.data();  
@@ -519,18 +541,23 @@
                     else cPaid = p;   
                 }  
   
-                tempInvoices.push({  
+                const parsedInvoice = {  
                     id: doc.id,  
                     ...data,  
                     calculatedCash: cPaid,  
                     calculatedWallet: wPaid,  
                     previousBalance: previousBalance   
-                });  
+                };
+
+                tempInvoices.push(parsedInvoice);
             });  
   
             allInvoices = tempInvoices.reverse();  
             calculateStats();  
-            window.renderInvoices(allInvoices);  
+            
+            // جلب فواتير اليوم فقط بشكل افتراضي ومباشر
+            const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);
+            window.renderInvoices(todayInvoices);  
   
         } catch (e) {  
             console.error(e);  
@@ -538,6 +565,13 @@
         }  
     }  
   
+    // زرار استدعاء الأرشيف بالكامل يدوياً عند الطلب
+    document.getElementById('loadAllArchiveBtn').onclick = () => {
+        window.renderInvoices(allInvoices);
+        document.getElementById('filterStatusText').innerText = `جميع فواتير النظام الأرشيفية (${allInvoices.length} فاتورة)`;  
+        document.getElementById('filterStatusBar').style.display = "flex"; 
+    };
+
     function buildPrintReportTable() {
         const pbody = document.getElementById('printReportBody');
         pbody.innerHTML = '';
@@ -724,7 +758,11 @@
         document.getElementById('searchInput').value = "";  
         document.getElementById('dateFilterInput').value = "";   
         calculateStats();  
-        window.renderInvoices(allInvoices);  
+        
+        // إعادة العرض التلقائي لفواتير اليوم عند عمل إعادة تعيين للفلتر
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);
+        window.renderInvoices(todayInvoices);  
     };  
   
     window.filterInvoices = () => {  
@@ -770,24 +808,25 @@
     };  
 
     document.getElementById('exportExcelBtn').onclick = () => {  
-        if (allInvoices.length === 0) return;  
+        if (currentRenderedInvoices.length === 0) return;  
         let customRows = [];  
   
-        allInvoices.forEach(inv => {  
+        currentRenderedInvoices.forEach(inv => {  
             const invoiceDate = parseInvoiceDate(inv);  
             const clientName = inv.customerName || "عميل نقدي";  
               
             if (inv.calculatedCash > 0) {  
-                customRows.push({ "التاريخ": invoiceDate, "الحركه": "سداد منه نقدى", "اسم العميل": clientName, "البيان": "سداد نقدي", "عدد جركن": "", "عدد كرتونه": 1, "سعر جركن": "", "سعر الكرتونه": inv.calculatedCash });  
+                customRows.push({ "التاريخ": invoiceDate, "الحركه": "سداد منه نقدى", "اسم العميل": clientName, "البيان": "سداد نقدي", "عدد جركن": "", "عدد كرتونه": "", "سعر جركن": "", "سعر الكرتونه": inv.calculatedCash });  
             }  
             if (inv.calculatedWallet > 0) {  
-                customRows.push({ "التاريخ": invoiceDate, "الحركه": "سداد منه محفظه", "اسم العميل": clientName, "البيان": "سداد نقدي", "عدد جركن": "", "عدد كرتونه": 1, "سعر جركن": "", "سعر الكرتونه": inv.calculatedWallet });  
+                customRows.push({ "التاريخ": invoiceDate, "الحركه": "سداد منه محفظه", "اسم العميل": clientName, "البيان": "سداد نقدي", "عدد جركن": "", "عدد كرتونه": "", "سعر جركن": "", "سعر الكرتونه": inv.calculatedWallet });  
             }  
             if (inv.items && inv.items.length > 0) {  
                 inv.items.forEach(item => {  
                     const itemName = item.name || "";  
                     let qtyJarkan = ""; let qtyCarton = ""; let priceJarkan = ""; let priceCarton = "";  
   
+                    // تعديل التوزيع الدقيق: القطعة في الجركن والكرتونة في الكرتونة مع أسعارهم
                     if (itemName.includes("قطعه") || itemName.includes("قطعة")) { 
                         qtyJarkan = item.qty || ""; 
                         priceJarkan = item.price || ""; 
