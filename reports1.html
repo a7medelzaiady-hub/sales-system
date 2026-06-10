@@ -170,8 +170,8 @@
         </div> 
     </div>
 
-    <!-- جدول حركة المبيعات والمشتريات التفصيلي -->
-    <div class="section-title"><i class="fas fa-exchange-alt"></i> تفاصيل فواتير وحركة الصناديق اليومية</div>
+    <!-- جدول حركة المبيعات والمشتريات التفصيلي المرتب زمنياً -->
+    <div class="section-title"><i class="fas fa-exchange-alt"></i> تفاصيل فواتير وحركة الصناديق اليومية (من الأقدم للأحدث)</div>
     <div class="chic-table-container">
         <table class="chic-table" id="reportTable">
             <thead>
@@ -264,10 +264,10 @@
         let totalClientRemaining = 0;
         let totalSupplierRemaining = 0;
         
-        let reportRowsHtml = "";
+        let allInvoices = []; // مصفوفة لتجميع الفواتير بهدف فرزها بالوقت
 
         try {
-            // 1. فواتير المبيعات
+            // 1. جلب فواتير المبيعات
             const salesSnap = await getDocs(collection(db, "invoices"));
             salesSnap.forEach(doc => {
                 const inv = doc.data();
@@ -277,7 +277,6 @@
                     let cashPaid = Number(inv.cashAmount) || 0;
                     let walletPaid = Number(inv.walletAmount) || 0;
                     
-                    // التوافق مع الحقول القديمة في حال عدم توفر التقسيم المباشر بالفاتورة
                     if (inv.cashAmount === undefined && inv.walletAmount === undefined) {
                         let p = Number(inv.paid) || 0;
                         if (inv.paymentMethod?.includes("محفظه") || inv.paymentMethod?.includes("محفظة")) {
@@ -295,20 +294,25 @@
                     totalClientWallet += walletPaid;
                     totalClientRemaining += billRemaining > 0 ? billRemaining : 0;
 
-                    reportRowsHtml += `
-                        <tr data-type="sales" data-total="${billTotal}" data-cash="${cashPaid}" data-wallet="${walletPaid}" data-debt="${billRemaining}">
-                            <td><span class="badge-type badge-sale">مبيعات</span></td>
-                            <td style="text-align: right; font-weight: bold;">${inv.customerName || 'عميل نقدي'}</td>
-                            <td class="text-dark">${billTotal.toFixed(2)}</td>
-                            <td class="text-success">${cashPaid > 0 ? cashPaid.toFixed(2) : '-'}</td>
-                            <td class="text-purple">${walletPaid > 0 ? walletPaid.toFixed(2) : '-'}</td>
-                            <td class="text-danger">${billRemaining.toFixed(2)}</td>
-                        </tr>
-                    `;
+                    // استخراج الوقت الفعلي أو استخدام الـ seconds للترتيب
+                    let timeWeight = inv.timestamp?.seconds || 0;
+                    if (!timeWeight && inv.time) {
+                        timeWeight = new Date(`${targetDate} ${convertToEnglishNumbers(inv.time)}`).getTime() || 0;
+                    }
+
+                    allInvoices.push({
+                        type: 'sales',
+                        name: inv.customerName || 'عميل نقدي',
+                        total: billTotal,
+                        cash: cashPaid,
+                        wallet: walletPaid,
+                        debt: billRemaining,
+                        timeWeight: timeWeight
+                    });
                 }
             });
 
-            // 2. فواتير المشتريات
+            // 2. جلب فواتير المشتريات
             const purchaseSnap = await getDocs(collection(db, "purchases"));
             purchaseSnap.forEach(doc => {
                 const pur = doc.data();
@@ -319,7 +323,6 @@
                     let walletPaid = 0;
                     let p = Number(pur.paid) || 0;
 
-                    // فحص طريقة الدفع في المشتريات لتوزيعها بالشكل السليم
                     if (pur.paymentMethod?.includes("محفظه") || pur.paymentMethod?.includes("محفظة")) {
                         walletPaid = p;
                     } else {
@@ -334,19 +337,55 @@
                     totalSupplierWallet += walletPaid;
                     totalSupplierRemaining += billRemaining > 0 ? billRemaining : 0;
 
+                    let timeWeight = pur.timestamp?.seconds || 0;
+                    if (!timeWeight && pur.time) {
+                        timeWeight = new Date(`${targetDate} ${convertToEnglishNumbers(pur.time)}`).getTime() || 0;
+                    }
+
+                    allInvoices.push({
+                        type: 'purchases',
+                        name: pur.supplierName || pur.customerName || 'مورد نقدي',
+                        total: billTotal,
+                        cash: cashPaid,
+                        wallet: walletPaid,
+                        debt: billRemaining,
+                        timeWeight: timeWeight
+                    });
+                }
+            });
+
+            // 3. الفرز والترتيب الذكي (من الأقدم للأحدث)
+            allInvoices.sort((a, b) => a.timeWeight - b.timeWeight);
+
+            // 4. بناء السطور للعرض بعد الترتيب
+            let reportRowsHtml = "";
+            allInvoices.forEach(item => {
+                if (item.type === 'sales') {
                     reportRowsHtml += `
-                        <tr data-type="purchases" data-total="${billTotal}" data-cash="${cashPaid}" data-wallet="${walletPaid}" data-debt="${billRemaining}">
+                        <tr data-type="sales" data-total="${item.total}" data-cash="${item.cash}" data-wallet="${item.wallet}" data-debt="${item.debt}">
+                            <td><span class="badge-type badge-sale">مبيعات</span></td>
+                            <td style="text-align: right; font-weight: bold;">${item.name}</td>
+                            <td class="text-dark">${item.total.toFixed(2)}</td>
+                            <td class="text-success">${item.cash > 0 ? item.cash.toFixed(2) : '-'}</td>
+                            <td class="text-purple">${item.wallet > 0 ? item.wallet.toFixed(2) : '-'}</td>
+                            <td class="text-danger">${item.debt.toFixed(2)}</td>
+                        </tr>
+                    `;
+                } else {
+                    reportRowsHtml += `
+                        <tr data-type="purchases" data-total="${item.total}" data-cash="${item.cash}" data-wallet="${item.wallet}" data-debt="${item.debt}">
                             <td><span class="badge-type badge-purchase">مشتريات</span></td>
-                            <td style="text-align: right; font-weight: bold;">${pur.supplierName || pur.customerName || 'مورد نقدي'}</td>
-                            <td class="text-dark">${billTotal.toFixed(2)}</td>
-                            <td class="text-success">${cashPaid > 0 ? cashPaid.toFixed(2) : '-'}</td>
-                            <td class="text-purple">${walletPaid > 0 ? walletPaid.toFixed(2) : '-'}</td>
-                            <td class="text-danger">${billRemaining.toFixed(2)}</td>
+                            <td style="text-align: right; font-weight: bold;">${item.name}</td>
+                            <td class="text-dark">${item.total.toFixed(2)}</td>
+                            <td class="text-success">${item.cash > 0 ? item.cash.toFixed(2) : '-'}</td>
+                            <td class="text-purple">${item.wallet > 0 ? item.wallet.toFixed(2) : '-'}</td>
+                            <td class="text-danger">${item.debt.toFixed(2)}</td>
                         </tr>
                     `;
                 }
             });
 
+            // تحديث قيم الكروت العليا
             document.getElementById('totalSalesVal').innerText = totalSales.toFixed(2);
             document.getElementById('totalPurchasesVal').innerText = totalPurchases.toFixed(2);
             
