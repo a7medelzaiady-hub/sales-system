@@ -19,6 +19,7 @@
             --info: #0077b6;
             --success: #2d6a4f;
             --text-muted: #707b7c;
+            --wallet-color: #023e8a;
         }
 
         body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 50px; }
@@ -68,12 +69,14 @@
         
         .inv-badge { font-size: 0.7rem; padding: 4px 10px; border-radius: 8px; font-weight: 700; }
         .type-cash { background: #e7f5ee; color: var(--success); }
+        .type-wallet { background: #e3f2fd; color: var(--info); }
+        .type-mixed { background: #f3e5f5; color: #8e24aa; }
         .type-credit { background: #fff4e6; color: #d68102; }
         .type-return { background: #fff0f3; color: var(--danger); }
 
         .price-tag { text-align: left; }
-        .price-val { font-weight: 800; font-size: 1.2rem; font-family: 'Consolas', monospace; display: block; }
-        .price-label { font-size: 0.6rem; color: var(--text-muted); font-weight: 700; }
+        .price-val { font-weight: 800; font-size: 1.15rem; font-family: 'Consolas', monospace; display: block; }
+        .price-label { font-size: 0.65rem; color: var(--text-muted); font-weight: 700; }
 
         .info-label { font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
         .back-btn { color: white; text-decoration: none; font-size: 1.2rem; }
@@ -193,41 +196,48 @@
             allInvoices = [];
             let totalPurchaseSum = 0;
             let totalReturnSum = 0;
-            let totalDirectPaid = 0; // المدفوع المباشر المسجل داخل الفاتورة نفسها
+            let totalDirectPaid = 0; 
 
             transSnap.forEach(doc => {
                 const data = { id: doc.id, ...doc.data() };
-                const amt = Number(data.total) || Number(data.amount) || 0;
-                const pAmt = Number(data.paidAmount) || Number(data.paid) || 0;
+                const amt = Number(data.grossTotal) || Number(data.total) || 0;
+                
+                // حساب المدفوع الكلي المسجل بداخل كائن الفاتورة (كاش + محفظة)
+                const cashP = Number(data.cashPaid || 0);
+                const walletP = Number(data.walletPaid || 0);
+                const directPaid = data.totalPaid ? Number(data.totalPaid) : (cashP + walletP || Number(data.paidAmount) || 0);
+
+                // صافي المتبقي من الفاتورة نفسها ومطروح منه السداد
+                const netInvoicePending = amt - directPaid;
+
+                data.displayGross = amt;
+                data.displayNetPending = netInvoicePending;
+                data.computedCashPaid = cashP;
+                data.computedWalletPaid = walletP;
+                data.computedTotalPaid = directPaid;
 
                 if (data.type === "شراء" || data.type === "فاتورة شراء") {
-                    data.displayAmount = amt;
                     data.isReturn = false;
                     allInvoices.push(data);
                     totalPurchaseSum += amt;
-                    totalDirectPaid += pAmt; // تجميع المدفوع من داخل الفاتورة
+                    totalDirectPaid += directPaid; 
                 } else if (data.type === "مرتجع شراء") {
-                    data.displayAmount = amt;
                     data.isReturn = true;
                     allInvoices.push(data);
                     totalReturnSum += amt;
                 }
             });
 
-            // 3. حساب إيصالات الصرف والمدفوعات الخارجية للموردين من جدول الحركات العام
+            // 3. حساب إيصالات الصرف والمدفوعات الخارجية اللاحقة للموردين من الخزنة
             let totalVoucherPayments = 0;
             voucherSnap.forEach(v => {
                 const tData = v.data();
-                // قراءة كل حركات الصرف المرتبطة بالموردين سواء عن طريق نوع الحركة أو التفاصيل
                 if (tData.type === "صرف" || tData.actionType === "سداد مورد" || String(tData.details || '').includes("سداد")) {
                     totalVoucherPayments += Number(tData.amount || 0);
                 }
             });
 
-            // 4. الحسبة المحاسبية النهائية الصحيحة
             const netPurchase = totalPurchaseSum - totalReturnSum;
-            
-            // المدفوع الإجمالي = المدفوع كاش فوري عند الفاتورة + أي إيصالات صرف لاحقة من الخزنة
             const totalPaid = totalDirectPaid + totalVoucherPayments;
             const finalPending = netPurchase - totalPaid;
 
@@ -251,6 +261,25 @@
 
         container.innerHTML = dataList.map(inv => {
             const supplierName = suppliersNames[inv.supplierId] || 'مورد غير معروف';
+            
+            // تحديد شارة المظهر الجغرافي لنوع السداد بدقة
+            let badgeClass = 'type-credit';
+            let badgeText = '<i class="fas fa-user-clock me-1"></i>آجل بالكامل';
+
+            if (inv.isReturn) {
+                badgeClass = 'type-return';
+                badgeText = '<i class="fas fa-undo-alt me-1"></i>مرتجع';
+            } else if (inv.computedCashPaid > 0 && inv.computedWalletPaid > 0) {
+                badgeClass = 'type-mixed';
+                badgeText = '<i class="fas fa-random me-1"></i>كاش + محفظة';
+            } else if (inv.computedCashPaid > 0 || inv.paymentType === 'cash') {
+                badgeClass = 'type-cash';
+                badgeText = '<i class="fas fa-money-bill-wave me-1"></i>نقدي كاش';
+            } else if (inv.computedWalletPaid > 0 || inv.paymentType === 'wallet') {
+                badgeClass = 'type-wallet';
+                badgeText = '<i class="fas fa-mobile-screen-button me-1"></i>محفظة';
+            }
+
             return `
             <div class="invoice-card ${inv.isReturn ? 'return-style' : 'purchase-style'}">
                 <div class="inv-header invoice-card-clickable" onclick="window.location.href='new-purchase-invoice.html?edit=${inv.id}'">
@@ -258,8 +287,8 @@
                         <p class="sup-name">${supplierName}</p>
                         <span class="inv-date"><i class="far fa-calendar-alt me-1"></i> ${inv.date || 'بلا تاريخ'}</span>
                     </div>
-                    <span class="inv-badge ${inv.isReturn ? 'type-return' : (inv.paymentType === 'cash' ? 'type-cash' : 'type-credit')}">
-                        ${inv.isReturn ? '<i class="fas fa-undo-alt me-1"></i>مرتجع' : (inv.paymentType === 'cash' ? '<i class="fas fa-money-bill-wave me-1"></i>نقدي' : '<i class="fas fa-user-clock me-1"></i>آجل')}
+                    <span class="inv-badge ${badgeClass}">
+                        ${badgeText}
                     </span>
                 </div>
 
@@ -274,13 +303,22 @@
                     </div>
 
                     <div class="price-tag invoice-card-clickable" onclick="window.location.href='new-purchase-invoice.html?edit=${inv.id}'">
-                        <span class="price-label">المبلغ</span>
-                        <span class="price-val" style="color:${inv.isReturn ? 'var(--danger)' : 'var(--accent)'}">
-                            ${inv.isReturn ? '-' : ''}${Number(inv.displayAmount).toLocaleString()}
+                        <span class="price-label">${inv.isReturn ? 'قيمة المرتجع' : 'الصافي المتبقي'}</span>
+                        <span class="price-val" style="color:${inv.isReturn ? 'var(--danger)' : (inv.displayNetPending > 0 ? 'var(--danger)' : 'var(--success)')}">
+                            ${inv.isReturn ? '-' : ''}${Number(inv.isReturn ? inv.displayGross : inv.displayNetPending).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
                             <small style="font-size:0.6rem;">ج.م</small>
                         </span>
                     </div>
                 </div>
+
+                <!-- شريط معلومات فرعي يوضح الحسبة الإجمالية بخط صغير أسفل الكارت -->
+                ${!inv.isReturn ? `
+                <div class="mt-2 pt-2 border-top d-flex justify-content-between text-muted" style="font-size: 0.72rem; font-weight:600;">
+                    <span>الإجمالي: ${Number(inv.displayGross).toFixed(2)}</span>
+                    <span class="text-success">كاش: ${Number(inv.computedCashPaid).toFixed(2)}</span>
+                    <span style="color: var(--info);">محفظة: ${Number(inv.computedWalletPaid).toFixed(2)}</span>
+                </div>
+                ` : ''}
 
                 <div id="details_${inv.id}" style="display:none;margin-top:10px;">
                     <table class="table table-bordered table-sm">
@@ -341,9 +379,16 @@
             `;
         });
 
-        const finalTotal = Number(inv.displayAmount);
-        const paidVal = Number(inv.paidAmount || inv.paid || 0);
-        const remainingVal = Math.max(0, finalTotal - paidVal);
+        const grossTotal = Number(inv.displayGross);
+        const cashPaid = Number(inv.computedCashPaid || 0);
+        const walletPaid = Number(inv.computedWalletPaid || 0);
+        const netPending = Number(inv.displayNetPending);
+
+        // وصف السداد للصورة الحرارية
+        let paymentDesc = "آجل";
+        if(cashPaid > 0 && walletPaid > 0) paymentDesc = "مشترك (كاش + محفظة)";
+        else if(cashPaid > 0) paymentDesc = "نقدي كاش";
+        else if(walletPaid > 0) paymentDesc = "محفظة إلكترونية";
 
         hiddenDiv.innerHTML = `
             <div class="term-header">
@@ -354,6 +399,7 @@
                 <div><b>نوع الحركة:</b> ${inv.isReturn ? 'مرتجع شراء ↩️' : 'فاتورة شراء 🧾'}</div>
                 <div><b>المورد:</b> ${supName}</div>
                 <div><b>التاريخ:</b> ${inv.date || 'بلا تاريخ'}</div>
+                <div><b>طريقة السداد:</b> ${paymentDesc}</div>
             </div>
             <table class="term-table">
                 <thead>
@@ -368,20 +414,26 @@
             </table>
             <div class="term-footer">
                 <div class="term-row">
-                    <span>الإجمالي الصافي:</span>
-                    <span style="font-family:'Consolas', monospace;">${inv.isReturn ? '-' : ''}${finalTotal.toFixed(2)} ج.م</span>
+                    <span>إجمالي الفاتورة:</span>
+                    <span style="font-family:'Consolas', monospace;">${inv.isReturn ? '-' : ''}${grossTotal.toFixed(2)} ج.م</span>
                 </div>
-                <div class="term-row">
-                    <span>المدفوع نقداً:</span>
-                    <span style="font-family:'Consolas', monospace;">${paidVal.toFixed(2)} ج.م</span>
-                </div>
-                <div class="term-row" style="border-top:1px dotted #000; padding-top:4px;">
-                    <span>المتبقي المطلوب:</span>
-                    <span style="font-family:'Consolas', monospace;">${remainingVal.toFixed(2)} ج.م</span>
+                ${cashPaid > 0 ? `
+                <div class="term-row" style="color: #2d6a4f;">
+                    <span>المدفوع نقداً (كاش):</span>
+                    <span style="font-family:'Consolas', monospace;">-${cashPaid.toFixed(2)} ج.م</span>
+                </div>` : ''}
+                ${walletPaid > 0 ? `
+                <div class="term-row" style="color: #0077b6;">
+                    <span>المدفوع محفظة:</span>
+                    <span style="font-family:'Consolas', monospace;">-${walletPaid.toFixed(2)} ج.م</span>
+                </div>` : ''}
+                <div class="term-row" style="border-top:1px dashed #000; padding-top:6px; font-size:16px;">
+                    <span>الصافي المتبقي المطلوب:</span>
+                    <span style="font-family:'Consolas', monospace;">${inv.isReturn ? '-' : ''}${netPending.toFixed(2)} ج.م</span>
                 </div>
             </div>
             <div style="text-align:center; margin-top:20px; font-size:12px; color:#333; border-top:1px dashed #000; padding-top:8px;">
-                نشكركم لتعاملكم معنا دائماً
+                تصميم ومحاسبة / أحمد محمود الزيادى
             </div>
         `;
 
@@ -468,7 +520,7 @@
                 });
             }
 
-            const currentPaid = Number(inv.paidAmount || inv.paid || 0);
+            const currentPaid = Number(inv.computedTotalPaid || 0);
             if (currentPaid > 0) {
                 excelData.push([inv.date || "", "سداد له نقدى", supplierName, "سداد نقدى", "", 1, "", currentPaid]);
             }
