@@ -11,7 +11,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
     <style>  
         :root {   
@@ -70,7 +69,6 @@
         .custom-popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }  
         .custom-popup-box { background: white; width: 90%; max-width: 360px; padding: 22px; border-radius: 16px; text-align: center; font-family: 'Cairo'; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }  
         
-        #invoiceThermalTemplate { position: absolute; left: -9999px; top: -9999px; width: 340px; background: #ffffff; padding: 10px; }
         #print-area { display: none; background: #ffffff !important; color: #000 !important; padding: 40px; }
         .pdf-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
         .pdf-table th { background: #f8f9fa !important; border: 1px solid #dee2e6; padding: 10px; font-size: 13px; color: #000; }
@@ -231,8 +229,6 @@
     </div>
 </div>
 
-<div id="invoiceThermalTemplate"></div>
-
 <div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">  
     <div class="custom-popup-box" style="max-width: 420px;">  
         <div id="customModalIcon" style="width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;"></div>  
@@ -289,8 +285,7 @@
             iconContainer.innerHTML = `<i class="fas fa-info-circle" style="color: #0b5e3d; font-size: 1.4rem;"></i>`;  
         }  
   
-        actions.innerHTML = "";  
-        if(options.type === "confirm" || options.type === "prompt") {  
+        actions.innerHTML = "";  if(options.type === "confirm" || options.type === "prompt") {  
             const confirmBtn = document.createElement('button');  
             confirmBtn.className = "btn btn-sm btn-success px-4 fw-bold";  
             confirmBtn.style.fontFamily = "Cairo";  
@@ -401,8 +396,6 @@
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة التعديل</div>` : ''}  
                         </div>  
                         <div class="d-flex gap-1 flex-wrap justify-content-end" style="max-width: 60%;">  
-                            <button class="btn btn-sm btn-dark fw-bold" id="btnPrint_${inv.id}" style="font-size:0.73rem; font-family:'Cairo'; border-radius:6px; padding: 4px 8px;" onclick="window.processThermalAction('${inv.id}', 'print')"><i class="fas fa-print me-1"></i> طباعة ريسيت</button>  
-                            <button class="btn btn-sm btn-success fw-bold" id="btnShare_${inv.id}" style="font-size:0.73rem; font-family:'Cairo'; border-radius:6px; padding: 4px 8px; background: #2d6a4f;" onclick="window.processThermalAction('${inv.id}', 'share')"><i class="fas fa-share-nodes me-1"></i> مشاركة</button>  
                             <button class="btn btn-sm btn-outline-info text-dark" style="padding: 2px 6px; font-size:0.75rem; font-family:'Cairo';" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> الاصناف</button>  
                             <button class="btn btn-sm btn-outline-primary" style="padding: 2px 6px; font-size:0.75rem;" onclick="editInvoice('${inv.id}')"><i class="fas fa-edit"></i></button>  
                             <button class="btn btn-sm btn-outline-danger" style="padding: 2px 6px; font-size:0.75rem;" onclick="deleteInvoice('${inv.id}')"><i class="fas fa-trash"></i></button>  
@@ -484,7 +477,6 @@
         try {  
             document.getElementById('p-report-date').innerText = new Date().toLocaleDateString('ar-EG');
             
-            // ⚡ تسريع وتحميل فوري: استدعاء متوازي لجميع الجداول دفعة واحدة لمنع التعليق
             const [custSnap, transSnap, invSnap] = await Promise.all([
                 getDocs(collection(db, "customers")),
                 getDocs(collection(db, "transactions")),
@@ -776,147 +768,6 @@
             }  
         });  
     };  
-
-    function buildThermalHtml(inv) {
-        const originalDate = parseInvoiceDate(inv);  
-        const displayTime = formatInvoiceTime(inv.time, inv.date);  
-        const totalPaid = (Number(inv.calculatedCash || 0) + Number(inv.calculatedWallet || 0)).toFixed(2);  
-        const finalRemaining = (Number(inv.previousBalance || 0) + Number(inv.remaining || 0)).toFixed(2);  
-  
-        const itemsRows = (inv.items || []).map(item => `  
-            <tr style="border-bottom: 1px dashed #000000;">  
-                <td style="padding: 6px 0; font-weight: bold; text-align: right; font-size: 13px; color:#000;">${item.name}</td>  
-                <td style="text-align: center; font-weight: bold; font-size: 13px; color:#000;">${item.qty}</td>  
-                <td style="text-align: left; font-weight: bold; font-size: 13px; color:#000;">${Number(item.price || 0).toFixed(2)}</td>  
-                <td style="text-align: left; font-weight: bold; font-size: 13px; color:#000;">${(Number(item.qty || 0) * Number(item.price || 0)).toFixed(2)}</td>  
-            </tr>  
-        `).join('');  
-
-        return `
-            <div id="thermalActiveArea" style="width: 320px; padding: 10px; background: #ffffff; direction: rtl; box-sizing: border-box;">  
-                <div style="text-align: center; margin-bottom: 12px; border-bottom: 2px double #000; padding-bottom: 8px;">  
-                    <h2 style="margin: 0; font-size: 22px; font-weight: 800; color:#000;">الزيادي لزيوت السيارات</h2>  
-                    <p style="margin: 2px 0; font-size: 12px; font-weight: bold; color: #000;">فلاتر - بطاريات - زيوت محركات</p>  
-                    <h4 style="margin: 5px 0 0 0; font-size: 14px; font-weight: bold; color:#000;">فاتورة مبيعات رقمية</h4>  
-                </div>  
-                  
-                <table style="width: 100%; font-size: 12px; margin-bottom: 8px; line-height: 1.5; color:#000;">  
-                    <tr><td style="text-align: right;"><b>التاريخ والوقت:</b></td><td style="text-align: left; font-weight: bold; direction:ltr;">${originalDate} ${displayTime}</td></tr>  
-                    <tr><td style="text-align: right;"><b>طريقة السداد:</b></td><td style="text-align: left; font-weight: bold;">${inv.paymentMethod || 'غير محدد'}</td></tr>  
-                </table>  
-                  
-                <table style="width: 100%; font-size: 12px; border-collapse: collapse; margin-bottom: 10px;">  
-                    <thead>  
-                        <tr style="border-bottom: 2px solid #000000; color:#000;">  
-                            <th style="text-align: right; padding-bottom: 5px;">الصنف</th>  
-                            <th style="text-align: center; padding-bottom: 5px;">الكمية</th>  
-                            <th style="text-align: left; padding-bottom: 5px;">السعر</th>  
-                            <th style="text-align: left; padding-bottom: 5px;">الإجمالي</th>  
-                        </tr>  
-                    </thead>  
-                    <tbody>  
-                        ${itemsRows}  
-                    </tbody>  
-                </table>  
-                  
-                <div style="font-size: 12px; line-height: 1.6; border-top: 1px solid #000000; padding-top: 6px; color:#000;">  
-                    <table style="width: 100%;">  
-                        <tr><td style="text-align: right;">إجمالي الفاتورة:</td><td style="text-align: left; font-weight: bold;">${Number(inv.total || 0).toFixed(2)} ج.م</td></tr>  
-                        <tr><td style="text-align: right;">المسدد الشامل:</td><td style="text-align: left; font-weight: bold;">${totalPaid} ج.م</td></tr>  
-                        <tr><td style="text-align: right;">حساب سابق للعميل:</td><td style="text-align: left; font-weight: bold;">${Number(inv.previousBalance || 0).toFixed(2)} ج.م</td></tr>  
-                        <tr style="font-size: 14px; font-weight: 900; border-top: 1px dashed #000000;">  
-                            <td style="padding-top: 5px; text-align: right;">إجمالي الآجل المتبقي:</td>  
-                            <td style="text-align: left; padding-top: 5px;">${finalRemaining} ج.م</td>  
-                        </tr>  
-                    </table>  
-                </div>  
-                  
-                <div style="text-align: center; margin-top: 18px; border-top: 1px solid #000000; padding-top: 6px; font-size: 11px; font-weight: bold; color:#000;">  
-                    شكراً لتعاملكم معنا - برجاء مراجعة الفاتورة 🌹  
-                </div> 
-                <div style="text-align: center; margin-top: 2px; font-size: 11px; font-weight: bold; color:#000;">  
-                    الزيادي لزيوت السيارات: 01027830834  
-                </div>
-            </div>
-        `;
-    }
-
-    window.processThermalAction = async (id, actionType) => {
-        const btn = document.getElementById(actionType === 'print' ? `btnPrint_${id}` : `btnShare_${id}`);
-        const originalHtml = btn.innerHTML;
-        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`;
-        btn.disabled = true;
-
-        try {
-            const inv = allInvoices.find(i => i.id === id);  
-            if (!inv) return;
-
-            const templateContainer = document.getElementById('invoiceThermalTemplate');
-            templateContainer.innerHTML = buildThermalHtml(inv);
-
-            const canvas = await html2canvas(document.getElementById('thermalActiveArea'), {
-                scale: 2, 
-                logging: false,
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: "#ffffff"
-            });
-
-            const imgData = canvas.toDataURL('image/png');
-            const { jsPDF } = window.jspdf;
-            const pdfWidth = 80;
-            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-            const pdf = new jsPDF('p', 'mm', [pdfWidth, pdfHeight]);
-            
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
-
-            if (actionType === 'print') {
-                const pdfUrl = pdf.output('bloburl');
-                const printFrame = document.createElement('iframe');
-                printFrame.style.position = 'fixed';
-                printFrame.style.right = '0';
-                printFrame.style.bottom = '0';
-                printFrame.style.width = '0';
-                printFrame.style.height = '0';
-                printFrame.style.border = '0';
-                printFrame.src = pdfUrl;
-                
-                document.body.appendChild(printFrame);
-                printFrame.contentWindow.focus();
-                
-                printFrame.onload = function() {
-                    setTimeout(() => {
-                        printFrame.contentWindow.print();
-                        setTimeout(() => { document.body.removeChild(printFrame); }, 2000);
-                    }, 200);
-                };
-            } else if (actionType === 'share') {
-                canvas.toBlob(async (blob) => {
-                    if (!blob) return;
-                    const file = new File([blob], `فاتورة_رقم_${id}.png`, { type: 'image/png' });
-
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        await navigator.share({
-                            files: [file],
-                            title: `فاتورة مبيعات شركة الزيادي`,
-                            text: `فاتورة مبيعات صادرة من شركة الزيادي لزيوت السيارات.`
-                        });
-                    } else {
-                        const link = document.createElement('a');
-                        link.download = `فاتورة_الزيادي_${id}.png`;
-                        link.href = imgData;
-                        link.click();
-                    }
-                }, 'image/png', 1.0);
-            }
-            templateContainer.innerHTML = "";
-        } catch (err) {
-            console.error(err);
-        } finally {
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        }
-    };
 
     document.getElementById('exportExcelBtn').onclick = () => {  
         if (allInvoices.length === 0) return;  
