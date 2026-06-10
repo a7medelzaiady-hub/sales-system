@@ -76,7 +76,6 @@
         .pdf-table th { background: #f8f9fa !important; border: 1px solid #dee2e6; padding: 10px; font-size: 13px; color: #000; }
         .pdf-table td { border: 1px solid #dee2e6; padding: 10px; text-align: center; font-size: 12px; color: #000; }
 
-        /* تعديل الأزرار لتصبح منسقة وبنفس الحجم جنباً إلى جنب */
         .invoice-actions-group { display: flex; flex-wrap: nowrap; gap: 4px; justify-content: flex-end; align-items: center; }
         .invoice-actions-group .btn { font-family: 'Cairo', sans-serif; font-size: 0.72rem; font-weight: 700; padding: 4px 6px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; height: 28px; }
 
@@ -167,7 +166,6 @@
     </div>  
 
     <div class="container px-2 mt-1">  
-        <!-- لوحة التحكم الذكية المدمجة للأزرار الاستراتيجية -->
         <div class="control-panel-card mt-2">
             <div class="d-flex justify-content-between align-items-center">
                 <button id="loadAllArchiveBtn" class="btn-fetch-all">
@@ -304,7 +302,6 @@
     </div>
 </div>
 
-<!-- قالب الفاتورة الحرارية للشير -->
 <div id="thermal-share-container" dir="rtl">
     <div class="thermal-header-title">
         <h2>الزيادي لزيوت السيارات</h2>
@@ -519,7 +516,6 @@
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة التعديل</div>` : ''}  
                         </div>  
                         
-                        <!-- أزرار العمليات المنسقة جنباً إلى جنب وبشكل احترافي -->
                         <div class="invoice-actions-group">  
                             <button class="btn btn-outline-info text-dark" onclick="toggleDetails('${inv.id}')" title="عرض الأصناف"><i class="fas fa-eye"></i> عرض</button>  
                             <button class="btn btn-outline-success" onclick="shareInvoiceAsThermalImage('${inv.id}')" title="مشاركة الفاتورة"><i class="fas fa-share-alt"></i> شير</button>
@@ -643,7 +639,7 @@
                     wPaid = Number(data.walletAmount) || 0;  
                 } else {  
                     let p = Number(data.paid) || 0;  
-                    if (data.paymentMethod === "سداد محفظة" || data.paymentMethod === "محفظة") wPaid = p;  
+                    if (data.paymentMethod === "سداد مرئية" || data.paymentMethod === "محفظة" || data.paymentMethod === "سداد محفظه") wPaid = p;  
                     else cPaid = p;   
                 }  
   
@@ -708,8 +704,6 @@
         if(!inv) return;
 
         const invoiceDate = parseInvoiceDate(inv);
-        const displayTime = formatInvoiceTime(inv.time, inv.date);
-
         document.getElementById('th-share-date').innerText = `التاريخ: ${invoiceDate}`;
         document.getElementById('th-share-id').innerText = `فاتورة رقم: #${inv.id}`;
         document.getElementById('th-share-total').innerText = `${(Number(inv.total) || 0).toFixed(2)} ج.م`;
@@ -723,15 +717,17 @@
         if (inv.items && inv.items.length > 0) {
             inv.items.forEach(itm => {
                 const itemName = itm.name || "";  
-                let jarkanQty = "";  
-                let cartonQty = "";  
+                let jarkanQty = "-";  
+                let cartonQty = "-";  
 
-                // توجيه كميات الشير بناءً على الفرز المطلوب
+                // قاعدة فرز المخرجات للـ Thermal Share
                 if (itemName.includes("قطعه") || itemName.includes("قطعة")) {  
                     jarkanQty = itm.qty || "-";  
-                } else {  
+                } else if (itemName.includes("كرتونه") || itemName.includes("كرتونة")) {  
                     cartonQty = itm.qty || "-";  
-                }  
+                } else {
+                    cartonQty = itm.qty || "-"; // الافتراضي كرتونة في حال لم تذكر صراحة
+                }
 
                 const tr = document.createElement('tr');  
                 tr.innerHTML = `  
@@ -768,7 +764,7 @@
                             text: `فاتورة رقم ${inv.id} - الزيادي لزيوت السيارات`
                         });
                     } catch (error) {
-                        console.log("تم إلغاء عملية الشير أو حدوث قيد متصفح:", error);
+                        console.log("تم إلغاء عملية الشير:", error);
                     }
                 } else {
                     const link = document.createElement('a');
@@ -1051,13 +1047,17 @@
                     const itemName = item.name || "";  
                     let qtyJarkan = ""; let qtyCarton = ""; let priceJarkan = ""; let priceCarton = "";  
   
-                    // فرز الكميات والأسعار الدقيق للإكسيل
+                    // فرز الكميات والأسعار الدقيق بناء على الوحدة (قطعة / كرتونة)
                     if (itemName.includes("قطعه") || itemName.includes("قطعة")) {  
                         qtyJarkan = item.qty || "";  
                         priceJarkan = item.price || "";  
-                    } else {  
+                    } else if (itemName.includes("كرتونه") || itemName.includes("كرتونة")) {  
                         qtyCarton = item.qty || "";  
                         priceCarton = item.price || "";  
+                    } else {
+                        // حالة احتياطية إذا لم يتم النص صراحة على الوحدة
+                        qtyCarton = item.qty || "";  
+                        priceCarton = item.price || ""; 
                     }  
                     
                     customRows.push({ "التاريخ": invoiceDate, "الحركه": "بيع", "اسم العميل": clientName, "البيان": itemName, "عدد جركن": qtyJarkan, "عدد كرتونه": qtyCarton, "سعر جركن": priceJarkan, "سعر الكرتونه": priceCarton });  
