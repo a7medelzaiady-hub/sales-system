@@ -62,33 +62,33 @@
             padding: 10px 12px; font-size: 0.9rem; font-weight: 700; height: 44px;
         }
 
-        /* حاوية البحث الذكي والمقترحات المخصصة للموبايل والـ ERP */
+        /* حاوية البحث والمقترحات */
         .search-container { position: relative; width: 100%; }
         
         .suggestions-list {
             position: absolute; top: 100%; left: 0; right: 0; 
-            background: rgba(255, 255, 255, 0.95);
+            background: rgba(255, 255, 255, 0.98);
             border: 2px solid var(--accent); 
             border-radius: 12px; 
-            max-height: 250px; overflow-y: auto;
+            max-height: 260px; overflow-y: auto;
             z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.15); 
             display: none; padding: 5px 0;
             backdrop-filter: blur(10px);
-            animation: fadeIn 0.15s ease-in-out;
+            animation: fadeIn 0.12s ease-in-out;
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-5px); }
+            from { opacity: 0; transform: translateY(-3px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
         .suggestion-item {
-            padding: 14px 15px; font-weight: 700; color: #334155; cursor: pointer;
+            padding: 13px 15px; font-weight: 700; color: #334155; cursor: pointer;
             border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; text-align: right;
-            transition: all 0.2s ease;
+            transition: all 0.15s ease;
         }
 
-        .suggestion-item:hover { 
+        .suggestion-item:hover, .suggestion-item:active { 
             background: #0f5132; 
             color: white !important; 
             padding-right: 20px;
@@ -152,10 +152,10 @@
                 <input type="date" id="stockLogDate" class="form-control text-center">
             </div>
             
-            <!-- حقل البحث الذكي الفوري المصلح -->
+            <!-- حقل البحث الذكي الفوري المصلح بدون أي تجميد -->
             <div class="col-12 col-md-6">
                 <div class="search-container">
-                    <input type="text" id="manualProdName" class="form-control" placeholder="🔍 اكتب أول حرف للبحث الذكي عن صنف..." autocomplete="off">
+                    <input type="text" id="manualProdName" class="form-control" placeholder="🔍 اكتب اسم الصنف للبحث المباشر الفوري..." autocomplete="off">
                     <div id="suggestionsWrapper" class="suggestions-list"></div>
                 </div>
             </div>
@@ -198,7 +198,7 @@
 
 </div>
 
-<!-- ربط الفايربيس وإصلاح دوال السيرفر والبحث كلياً -->
+<!-- ربط الفايربيس الآمن عالي الاستجابة -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
@@ -216,44 +216,38 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    let allProducts = []; // مصفوفة المخزن الأصلية السريعة
-    let debounceTimer;    // مؤقت التحكم لمنع تهنيج الواجهة وتكرار الاستعلامات الفورية
+    let allProducts = []; // مصفوفة المخزن المحلية السريعة جداً
 
-    // دالة لتطهير وتوحيد الحروف العربية لجعل البحث فائق الذكاء والمرونة
+    // دالة توحيد الحروف لجعل البحث مرناً ولا يعتمد على همزات دقيقة
     function normalizeArabic(text) {
         if (!text) return "";
-        return text.trim().toLowerCase()
+        return text.toString().trim().toLowerCase()
             .replace(/[أإآ]/g, "ا")
             .replace(/ة/g, "ه")
-            .replace(/[ًٌٍَُِّ]/g, ""); // حذف التشكيل إن وجد
+            .replace(/[ًٌٍَُِّ]/g, "");
     }
 
-    // دالة بدء تشغيل النظام الآمنة البديلة لـ DOMContentLoaded الضائع
+    // تهيئة النظام المباشرة لضمان عدم فوات أي أحداث
     async function initSystem() {
         const today = new Date();
         document.getElementById('stockLogDate').value = today.toISOString().split('T')[0];
         
-        // 1. جلب بيانات المخزن أولاً وتجهيزها للبحث السريع فوراً
+        // جلب المنتجات و جرد اليوم تزامناً
         await fetchProductsFromWarehouse();
-        
-        // 2. تحميل جرد اليوم الحالي إن وجد
         await loadDailyLog();
 
-        // 3. تفعيل حدث الكتابة المحسن عالي الأداء والمؤمن بالكامل
+        // التحديث الفوري المباشر أثناء الكتابة (تم إلغاء سكاكين الـ clearTimeout التي تعطل كيبورد الهاتف)
         const searchInput = document.getElementById("manualProdName");
         if (searchInput) {
             searchInput.addEventListener("input", (e) => {
-                triggerLiveSearch(e.target.value);
+                triggerInstantSearch(e.target.value);
             });
         }
 
-        // 4. ربط زر الحفظ
+        // ربط الأزرار وإغلاق القائمة عند الضغط بالخارج
         const saveBtn = document.getElementById("saveLogBtn");
-        if (saveBtn) {
-            saveBtn.addEventListener("click", saveDailyLog);
-        }
+        if (saveBtn) saveBtn.addEventListener("click", saveDailyLog);
 
-        // 5. إغلاق القائمة المنسدلة عند الضغط في أي مكان خارج حاوية البحث
         document.addEventListener("click", function(e) {
             if (!e.target.closest('.search-container')) {
                 document.getElementById("suggestionsWrapper").style.display = "none";
@@ -261,79 +255,74 @@
         });
     }
 
-    // تشغيل النظام فوراً إذا كانت الصفحة جاهزة، أو الانتظار الآمن في الحالات الأخرى
+    // فحص جاهزية المستند لتفادي مشاكل التحميل الـ Deferred
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", initSystem);
     } else {
         initSystem();
     }
 
-    // جلب الأصناف من المخزن (مجموعة products) وتخزينها محلياً للسرعة القصوى
+    // جلب المنتجات من الفايربيس وحفظها بالذاكرة
     async function fetchProductsFromWarehouse() {
         try {
             const snap = await getDocs(collection(db, "products"));
             allProducts = [];
             snap.forEach(d => {
                 const data = d.data();
-                // الفحص المرن لاسم الحقل لتجنب أي اختلاف تسمية في قاعدة البيانات الخاصة بك
                 const prodName = data.name || data.productName || data.prodName || "";
                 if (prodName) {
                     allProducts.push({ id: d.id, name: prodName.trim() });
                 }
             });
             allProducts.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-            console.log("تم مزامنة أصناف المخزن كلياً وعددهم:", allProducts.length);
+            console.log("تم تحميل المنتجات بنجاح، العدد:", allProducts.length);
         } catch(e) {
-            console.error("خطأ أثناء سحب أصناف المخزن من الفايربيس:", e);
+            console.error("خطأ المخزن:", e);
         }
     }
 
-    // دالة الفلترة والبحث اللحظي المطور بالـ Debounce والترتيب الذكي (بحد أقصى 8 نتائج)
-    function triggerLiveSearch(textQuery) {
-        clearTimeout(debounceTimer);
+    // دالة البحث الفوري المستمر بدون توقف أو مقاطعة ليد المستخدم
+    function triggerInstantSearch(textQuery) {
+        const normalizedQuery = normalizeArabic(textQuery);
+        const wrapper = document.getElementById("suggestionsWrapper");
         
-        debounceTimer = setTimeout(() => {
-            const normalizedQuery = normalizeArabic(textQuery);
-            const wrapper = document.getElementById("suggestionsWrapper");
-            
-            if (!normalizedQuery) {
-                wrapper.style.display = "none";
-                return;
-            }
+        if (!normalizedQuery) {
+            wrapper.style.display = "none";
+            return;
+        }
 
-            // فلترة ذكية ومطابقة مرنة بالاعتماد على التوحيد اللغوي العربي
-            const startsWithQuery = allProducts.filter(p => normalizeArabic(p.name).startsWith(normalizedQuery));
-            const containsQuery = allProducts.filter(p => normalizeArabic(p.name).includes(normalizedQuery) && !normalizeArabic(p.name).startsWith(normalizedQuery));
-            
-            // دمج المصفوفتين وتحديد السقف بـ 8 نتائج للحفاظ على انسيابية شاشات الهواتف
-            const filtered = [...startsWithQuery, ...containsQuery].slice(0, 8);
-            
-            let html = "";
-            filtered.forEach(prod => {
-                html += `<div class="suggestion-item" data-id="${prod.id}" data-name="${prod.name}"><i class="fas fa-plus-circle text-primary me-2"></i> ${prod.name}</div>`;
-            });
+        // فلترة لحظية ممتازة مرتبة تصاعدياً بحسب الأولوية
+        const startsWithQuery = allProducts.filter(p => normalizeArabic(p.name).startsWith(normalizedQuery));
+        const containsQuery = allProducts.filter(p => normalizeArabic(p.name).includes(normalizedQuery) && !normalizeArabic(p.name).startsWith(normalizedQuery));
+        
+        const filtered = [...startsWithQuery, ...containsQuery].slice(0, 8);
+        
+        let html = "";
+        filtered.forEach(prod => {
+            html += `<div class="suggestion-item" data-id="${prod.id}" data-name="${prod.name}"><i class="fas fa-plus-circle text-primary me-2"></i> ${prod.name}</div>`;
+        });
 
-            // خيار إضافة صنف جديد كلياً إذا لم يكن مسجلاً بالمخزن
-            if (!allProducts.some(p => normalizeArabic(p.name) === normalizedQuery)) {
-                html += `<div class="suggestion-item text-success fw-bold" data-id="custom_${Date.now()}" data-name="${textQuery}"><i class="fas fa-file-signature me-2"></i> إضافة صنف جديد: "${textQuery}"</div>`;
-            }
+        // خيار الصنف الجديد إذا لم يتطابق المدخل مع أي صنف حالي
+        if (!allProducts.some(p => normalizeArabic(p.name) === normalizedQuery)) {
+            html += `<div class="suggestion-item text-success fw-bold" data-id="custom_${Date.now()}" data-name="${textQuery}"><i class="fas fa-file-signature me-2"></i> إضافة صنف جديد: "${textQuery}"</div>`;
+        }
 
-            wrapper.innerHTML = html;
-            wrapper.style.display = html ? "block" : "none";
+        wrapper.innerHTML = html;
+        wrapper.style.display = html ? "block" : "none";
 
-            // ربط أحداث النقر المباشر بسلاسة بدون تسريبات الأداء
-            wrapper.querySelectorAll(".suggestion-item").forEach(item => {
-                item.onclick = () => {
-                    appendProductToTable(
-                        item.getAttribute("data-id"),
-                        item.getAttribute("data-name")
-                    );
-                };
-            });
-        }, 120); // ⚡ سرعة استجابة فائقة الخفة للـ Debounce
+        // التعامل الفوري مع اختيار المنتجات بالـ Click المباشر والآمن
+        wrapper.querySelectorAll(".suggestion-item").forEach(item => {
+            item.onclick = (e) => {
+                e.preventDefault();
+                appendProductToTable(
+                    item.getAttribute("data-id"),
+                    item.getAttribute("data-name")
+                );
+            };
+        });
     }
 
-    // إدراج الصنف المختار داخل جدول الجرد اليومي ومسح خانة البحث
+    // إدراج الصنف المختار داخل جدول الجرد ومسح مربع البحث
     function appendProductToTable(id, name) {
         document.getElementById("manualProdName").value = "";
         document.getElementById("suggestionsWrapper").style.display = "none";
@@ -345,7 +334,7 @@
         }
 
         if (document.querySelector(`tr[data-prod-id="${id}"]`)) {
-            alert("هذا الصنف تم إدراجه بالفعل في الجدول!");
+            alert("هذا الصنف متواجد بالجدول بالفعل!");
             return;
         }
 
@@ -355,7 +344,7 @@
         bindRowInputsEvent(id);
     }
 
-    // توليد هيكل أسطر الجدول الحقيقي بالخانات والألوان الصحيحة
+    // توليد هيكل أسطر الجدول
     function generateRowMarkup(id, name, lj, lb, rj, rb, sj, sb) {
         return `
             <tr data-prod-id="${id}" data-prod-name="${name}">
@@ -370,7 +359,7 @@
         `;
     }
 
-    // ربط مستمعي الأحداث بخانات الإدخال في السطر لحساب الصافي تلقائياً
+    // ربط الحساب التلقائي اللحظي للسطر
     function bindRowInputsEvent(id) {
         const inputs = [`lj_${id}`, `lb_${id}`, `rj_${id}`, `rb_${id}`];
         inputs.forEach(inputId => {
@@ -381,7 +370,6 @@
         });
     }
 
-    // دالة الحساب اللحظي التلقائي لصافي المبيعات (التحميل - المرتجع)
     function calculateRowLiveTotals(prodId) {
         const lj = parseInt(document.getElementById(`lj_${prodId}`).value) || 0;
         const lb = parseInt(document.getElementById(`lb_${prodId}`).value) || 0;
@@ -392,7 +380,7 @@
         document.getElementById(`sb_${prodId}`).innerText = Math.max(0, lb - rb);
     }
 
-    // جلب الجرد المحفوظ للتاريخ المحدد من السيرفر وعرضه بالجدول
+    // جلب الجرد المخزن على قاعدة البيانات
     async function loadDailyLog() {
         const selectedDate = document.getElementById('stockLogDate').value;
         const tableBody = document.getElementById('stockLogTableBody');
@@ -433,13 +421,12 @@
         }
     }
 
-    // مراقبة تعديل التاريخ لتحديث الجدول فوراً
     const dateInput = document.getElementById('stockLogDate');
     if (dateInput) {
         dateInput.addEventListener("change", loadDailyLog);
     }
 
-    // حفظ وإعتماد بيان الجرد بالكامل على الفايربيس
+    // حفظ بيان الجرد
     async function saveDailyLog() {
         const selectedDate = document.getElementById('stockLogDate').value;
         const rows = document.querySelectorAll("#stockLogTableBody tr");
@@ -474,7 +461,7 @@
             alert(`تم حفظ واعتماد جرد يوم (${selectedDate}) على السيرفر بنجاح!`);
         } catch(e) {
             console.error("Error saving log:", e);
-            alert("فشل في عملية الحفظ، يرجى مراجعة شبكة الإنترنت لديك أو قواعد الحماية Security Rules.");
+            alert("فشل في عملية الحفظ، يرجى مراجعة شبكة الإنترنت لديك.");
         }
     }
 </script>
