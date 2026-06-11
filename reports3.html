@@ -66,11 +66,10 @@
 
         .form-control { 
             border-radius: var(--input-radius); border: 1px solid var(--border); 
-            padding: 10px 12px; font-size: 0.9rem; font-weight: 700; height: 44px; /* مريحة للمس بالموبايل */
+            padding: 10px 12px; font-size: 0.9rem; font-weight: 700; height: 44px;
         }
         .form-control:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(15, 81, 50, 0.15); }
 
-        /* منطقة البحث الذكي والمقترحات */
         .search-container { position: relative; width: 100%; }
         .suggestions-list {
             position: absolute; top: 100%; left: 0; right: 0; background: white;
@@ -105,7 +104,6 @@
         .col-return { background-color: var(--bg-return); }
         .col-sold { background-color: var(--bg-sold); }
         
-        /* خانات الإدخال مكبرة للموبايل ومريحة للضغط */
         .input-grid { 
             width: 75px; text-align: center; padding: 8px 4px; font-size: 1rem; font-weight: 700;
             border-radius: 8px; border: 1px solid var(--border); background-color: #ffffff; transition: all 0.15s;
@@ -123,13 +121,11 @@
             font-weight: 800; font-size: 0.9rem; display: inline-block; min-width: 45px; border: 1px solid var(--border-sold);
         }
         
-        /* أزرار عريضة تناسب إبهام اليد على الموبايل */
         .btn-action {
             height: 44px; font-weight: 700; font-size: 0.9rem; border-radius: var(--input-radius);
             display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; border: none;
         }
         .btn-save { background: var(--accent); color: white; box-shadow: 0 3px 6px rgba(15, 81, 50, 0.15); }
-        .btn-add-prod { background: #475569; color: white; }
     </style>
 </head>
 <body>
@@ -153,7 +149,7 @@
             <!-- خانة البحث الذكي للأصناف للموبايل -->
             <div class="col-12 col-md-5">
                 <div class="search-container">
-                    <input type="text" id="manualProdName" class="form-control" placeholder="🔍 اكتب هنا للبحث الذكي عن صنف..." oninput="onSearchInput(this)" autocomplete="off">
+                    <input type="text" id="manualProdName" class="form-control" placeholder="🔍 ابدأ بكتابة اسم الزيت هنا..." oninput="window.onSearchInput(this)" autocomplete="off">
                     <div id="suggestionsWrapper" class="suggestions-list"></div>
                 </div>
             </div>
@@ -218,7 +214,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    let allProducts = []; // قائمة الأصناف الأصلية الكاملة من السيستيم
+    let allProducts = []; 
 
     document.addEventListener("DOMContentLoaded", async () => {
         const today = new Date();
@@ -227,7 +223,6 @@
         await fetchProductsList();
         await loadStockLog();
         
-        // إغلاق قائمة البحث الذكي عند الضغط في أي مكان خارجها لحماية شاشة الموبايل
         document.addEventListener("click", (e) => {
             if(!e.target.closest('.search-container')) {
                 document.getElementById("suggestionsWrapper").style.display = "none";
@@ -235,7 +230,6 @@
         });
     });
 
-    // جلب قائمة الأصناف الأصلية من الفايربيس للبحث الذكي
     async function fetchProductsList() {
         try {
             const snap = await getDocs(collection(db, "products"));
@@ -245,12 +239,12 @@
                 allProducts.push({ id: d.id, name: data.name || "صنف غير مسمى" });
             });
             allProducts.sort((a,b) => a.name.localeCompare(b.name, 'ar'));
+            console.log("تم تحميل المنتجات بنجاح من المخزن عددهم:", allProducts.length);
         } catch(e) {
             console.error("Error fetching products:", e);
         }
     }
 
-    // فلترة الأصناف وإظهار قائمة البحث الذكي أثناء الكتابة على الموبايل
     function onSearchInput(inputElem) {
         const query = inputElem.value.trim().toLowerCase();
         const wrapper = document.getElementById("suggestionsWrapper");
@@ -260,36 +254,31 @@
             return;
         }
 
-        // تصفية الأصناف المطابقة للكلمة المكتوبة
         const filtered = allProducts.filter(p => p.name.toLowerCase().includes(query));
         
         let html = "";
         filtered.forEach(prod => {
-            html += `<div class="suggestion-item" onclick="selectProductFromSearch('${prod.id}', '${prod.name}')"><i class="fas fa-plus-circle me-2 text-primary"></i> ${prod.name}</div>`;
+            html += `<div class="suggestion-item" onclick="window.selectProductFromSearch('${prod.id}', '${prod.name}')"><i class="fas fa-plus-circle me-2 text-primary"></i> ${prod.name}</div>`;
         });
 
-        // خيار إضافي في نهاية القائمة إذا كان الصنف جديد تماماً وغير مسجل بالسيرفر
         if(!allProducts.some(p => p.name.toLowerCase() === query)) {
-            html += `<div class="suggestion-item text-success fw-bold" onclick="selectProductFromSearch('custom_${Date.now()}', '${inputElem.value}')"><i class="fas fa-file-signature me-2"></i> إضافة كصنف جديد: "${inputElem.value}"</div>`;
+            html += `<div class="suggestion-item text-success fw-bold" onclick="window.selectProductFromSearch('custom_${Date.now()}', '${inputElem.value}')"><i class="fas fa-file-signature me-2"></i> إضافة كصنف جديد: "${inputElem.value}"</div>`;
         }
 
         wrapper.innerHTML = html;
         wrapper.style.display = html ? "block" : "none";
     }
 
-    // عند اختيار صنف من البحث الذكي، يتم نزوله تلقائياً في الجدول
     function selectProductFromSearch(id, name) {
         document.getElementById("manualProdName").value = "";
         document.getElementById("suggestionsWrapper").style.display = "none";
 
         const tableBody = document.getElementById("stockLogTableBody");
         
-        // إزالة سطر التنبيه بالفراغ إذا وجد
         if(tableBody.innerHTML.includes("colspan")) {
             tableBody.innerHTML = "";
         }
 
-        // التأكد أن الصنف لم يتم إضافته مسبقاً في جدول اليوم لمنع التكرار
         if(document.querySelector(`tr[data-prod-id="${id}"]`)) {
             alert("هذا الصنف موجود بالفعل في جدول جرد اليوم!");
             return;
@@ -299,28 +288,20 @@
         tableBody.insertAdjacentHTML('beforeend', rowHtml);
     }
 
-    // بناء سطر الجرد (جركن و كرتونة فقط) مع تمييز الحقول الملونة
     function buildRowTemplate(id, name, lj, lb, rj, rb, sj, sb) {
         return `
             <tr data-prod-id="${id}" data-prod-name="${name}">
                 <td style="text-align: right; font-weight: 800; color: #1e293b; background: #f8fafc; font-size:0.85rem;">${name}</td>
-                
-                <!-- التحمل (أزرق) -->
                 <td class="col-load"><input type="number" class="input-grid" id="lj_${id}" value="${lj}" min="0" oninput="calculateRowSold('${id}')"></td>
                 <td class="col-load"><input type="number" class="input-grid" id="lb_${id}" value="${lb}" min="0" oninput="calculateRowSold('${id}')"></td>
-                
-                <!-- المرتجع (برتقالي) -->
                 <td class="col-return"><input type="number" class="input-grid" id="rj_${id}" value="${rj}" min="0" oninput="calculateRowSold('${id}')"></td>
                 <td class="col-return"><input type="number" class="input-grid" id="rb_${id}" value="${rb}" min="0" oninput="calculateRowSold('${id}')"></td>
-                
-                <!-- الصافي (أخضر تلقائي) -->
                 <td class="col-sold"><span class="badge-sold" id="sj_${id}">${sj}</span></td>
                 <td class="col-sold"><span class="badge-sold" id="sb_${id}">${sb}</span></td>
             </tr>
         `;
     }
 
-    // جلب الجرد المحفوظ للتاريخ المختار ومزامنته بالجدول
     async function loadStockLog() {
         const selectedDate = document.getElementById('stockLogDate').value;
         const tableBody = document.getElementById('stockLogTableBody');
@@ -360,11 +341,9 @@
         }
     }
 
-    // حساب الصافي تلقائياً فورياً
     function calculateRowSold(prodId) {
         const lj = parseInt(document.getElementById(`lj_${prodId}`).value) || 0;
         const lb = parseInt(document.getElementById(`lb_${prodId}`).value) || 0;
-
         const rj = parseInt(document.getElementById(`rj_${prodId}`).value) || 0;
         const rb = parseInt(document.getElementById(`rb_${prodId}`).value) || 0;
 
@@ -372,7 +351,6 @@
         document.getElementById(`sb_${prodId}`).innerText = Math.max(0, lb - rb);
     }
 
-    // حفظ وإعتماد الجرد النهائي لليوم المحدد
     async function saveStockLog() {
         const selectedDate = document.getElementById('stockLogDate').value;
         const rows = document.querySelectorAll("#stockLogTableBody tr");
@@ -411,7 +389,7 @@
         }
     }
 
-    // ربط الدوال بـ Window لتظل تعمل مع الأزرار الديناميكية
+    // ربط كافة الدوال الأساسية بنافذة السكربت لتجاوز عزل الموديل (Module Isolation)
     window.loadStockLog = loadStockLog;
     window.onSearchInput = onSearchInput;
     window.selectProductFromSearch = selectProductFromSearch;
