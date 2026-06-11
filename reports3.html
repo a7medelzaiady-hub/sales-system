@@ -58,11 +58,6 @@
             background: #ffffff; border: 1px solid #e2e8f0; border-radius: var(--card-radius); 
             padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); 
         }
-        
-        .section-title { 
-            font-size: 0.9rem; font-weight: 800; color: var(--accent); 
-            margin-bottom: 10px; display: flex; align-items: center; gap: 6px; padding: 0 5px;
-        }
 
         .form-control { 
             border-radius: var(--input-radius); border: 1px solid var(--border); 
@@ -109,13 +104,8 @@
             border-radius: 8px; border: 1px solid var(--border); background-color: #ffffff; transition: all 0.15s;
             height: 38px;
         }
-        .input-grid:focus { 
-            border-color: #2563eb; outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); background: #fff;
-        }
-        .col-return .input-grid:focus { border-color: #ea580c; box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15); }
+        .input-grid:focus { border-color: #2563eb; outline: none; background: #fff; }
         
-        .input-grid::-webkit-outer-spin-button, .input-grid::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-
         .badge-sold { 
             background: #dcfce7; color: #166534; padding: 6px 10px; border-radius: 6px; 
             font-weight: 800; font-size: 0.9rem; display: inline-block; min-width: 45px; border: 1px solid var(--border-sold);
@@ -138,15 +128,14 @@
 
 <div class="container-fluid px-2 mt-3">
 
-    <!-- لوحة التحكم والتاريخ والبحث الذكي -->
     <div class="panel-box">
         <div class="row g-2">
             <!-- التاريخ -->
             <div class="col-12 col-md-3">
-                <input type="date" id="stockLogDate" class="form-control text-center" onchange="loadStockLog()">
+                <input type="date" id="stockLogDate" class="form-control text-center" onchange="window.loadStockLog()">
             </div>
             
-            <!-- خانة البحث الذكي للأصناف للموبايل -->
+            <!-- خانة البحث الذكي للأصناف -->
             <div class="col-12 col-md-5">
                 <div class="search-container">
                     <input type="text" id="manualProdName" class="form-control" placeholder="🔍 ابدأ بكتابة اسم الزيت هنا..." oninput="window.onSearchInput(this)" autocomplete="off">
@@ -154,19 +143,13 @@
                 </div>
             </div>
 
-            <!-- زر الاعتماد والحفظ النهائي -->
+            <!-- زر الحفظ النهائي -->
             <div class="col-12 col-md-4">
-                <button class="btn-action btn-save" onclick="saveStockLog()"><i class="fas fa-check-double"></i> اعتماد وحفظ الجرد بالكامل</button>
+                <button class="btn-action btn-save" onclick="window.saveStockLog()"><i class="fas fa-check-double"></i> اعتماد وحفظ الجرد بالكامل</button>
             </div>
         </div>
     </div>
 
-    <!-- جدول حركة البضاعة والأصناف -->
-    <div class="section-title">
-        <i class="fas fa-table text-success"></i> 
-        <span>جدول الجرد (اسحب الجدول يميناً ويساراً لرؤية باقي الحقول)</span>
-    </div>
-    
     <div class="chic-table-container">
         <div class="table-responsive">
             <table class="chic-table">
@@ -216,20 +199,7 @@
 
     let allProducts = []; 
 
-    document.addEventListener("DOMContentLoaded", async () => {
-        const today = new Date();
-        document.getElementById('stockLogDate').value = today.toISOString().split('T')[0];
-        
-        await fetchProductsList();
-        await loadStockLog();
-        
-        document.addEventListener("click", (e) => {
-            if(!e.target.closest('.search-container')) {
-                document.getElementById("suggestionsWrapper").style.display = "none";
-            }
-        });
-    });
-
+    // جلب المنتجات من المخزن فور فتح الصفحة
     async function fetchProductsList() {
         try {
             const snap = await getDocs(collection(db, "products"));
@@ -239,17 +209,18 @@
                 allProducts.push({ id: d.id, name: data.name || "صنف غير مسمى" });
             });
             allProducts.sort((a,b) => a.name.localeCompare(b.name, 'ar'));
-            console.log("تم تحميل المنتجات بنجاح من المخزن عددهم:", allProducts.length);
+            console.log("تم تحميل منتجات المخزن بنجاح:", allProducts.length);
         } catch(e) {
             console.error("Error fetching products:", e);
         }
     }
 
-    function onSearchInput(inputElem) {
+    // دالة البحث والفلترة الذكية (تم ربطها بـ window مباشرة لتفادي مشكلة الـ Type Module)
+    window.onSearchInput = function(inputElem) {
         const query = inputElem.value.trim().toLowerCase();
         const wrapper = document.getElementById("suggestionsWrapper");
         
-        if(!query) {
+        if (!query) {
             wrapper.style.display = "none";
             return;
         }
@@ -261,48 +232,49 @@
             html += `<div class="suggestion-item" onclick="window.selectProductFromSearch('${prod.id}', '${prod.name}')"><i class="fas fa-plus-circle me-2 text-primary"></i> ${prod.name}</div>`;
         });
 
-        if(!allProducts.some(p => p.name.toLowerCase() === query)) {
+        // إذا كان الصنف جديد وغير مدرج في السيرفر
+        if (!allProducts.some(p => p.name.toLowerCase() === query)) {
             html += `<div class="suggestion-item text-success fw-bold" onclick="window.selectProductFromSearch('custom_${Date.now()}', '${inputElem.value}')"><i class="fas fa-file-signature me-2"></i> إضافة كصنف جديد: "${inputElem.value}"</div>`;
         }
 
         wrapper.innerHTML = html;
         wrapper.style.display = html ? "block" : "none";
-    }
+    };
 
-    function selectProductFromSearch(id, name) {
+    window.selectProductFromSearch = function(id, name) {
         document.getElementById("manualProdName").value = "";
         document.getElementById("suggestionsWrapper").style.display = "none";
 
         const tableBody = document.getElementById("stockLogTableBody");
         
-        if(tableBody.innerHTML.includes("colspan")) {
+        if (tableBody.innerHTML.includes("colspan")) {
             tableBody.innerHTML = "";
         }
 
-        if(document.querySelector(`tr[data-prod-id="${id}"]`)) {
+        if (document.querySelector(`tr[data-prod-id="${id}"]`)) {
             alert("هذا الصنف موجود بالفعل في جدول جرد اليوم!");
             return;
         }
 
         const rowHtml = buildRowTemplate(id, name, 0, 0, 0, 0, 0, 0);
         tableBody.insertAdjacentHTML('beforeend', rowHtml);
-    }
+    };
 
     function buildRowTemplate(id, name, lj, lb, rj, rb, sj, sb) {
         return `
             <tr data-prod-id="${id}" data-prod-name="${name}">
                 <td style="text-align: right; font-weight: 800; color: #1e293b; background: #f8fafc; font-size:0.85rem;">${name}</td>
-                <td class="col-load"><input type="number" class="input-grid" id="lj_${id}" value="${lj}" min="0" oninput="calculateRowSold('${id}')"></td>
-                <td class="col-load"><input type="number" class="input-grid" id="lb_${id}" value="${lb}" min="0" oninput="calculateRowSold('${id}')"></td>
-                <td class="col-return"><input type="number" class="input-grid" id="rj_${id}" value="${rj}" min="0" oninput="calculateRowSold('${id}')"></td>
-                <td class="col-return"><input type="number" class="input-grid" id="rb_${id}" value="${rb}" min="0" oninput="calculateRowSold('${id}')"></td>
+                <td class="col-load"><input type="number" class="input-grid" id="lj_${id}" value="${lj}" min="0" oninput="window.calculateRowSold('${id}')"></td>
+                <td class="col-load"><input type="number" class="input-grid" id="lb_${id}" value="${lb}" min="0" oninput="window.calculateRowSold('${id}')"></td>
+                <td class="col-return"><input type="number" class="input-grid" id="rj_${id}" value="${rj}" min="0" oninput="window.calculateRowSold('${id}')"></td>
+                <td class="col-return"><input type="number" class="input-grid" id="rb_${id}" value="${rb}" min="0" oninput="window.calculateRowSold('${id}')"></td>
                 <td class="col-sold"><span class="badge-sold" id="sj_${id}">${sj}</span></td>
                 <td class="col-sold"><span class="badge-sold" id="sb_${id}">${sb}</span></td>
             </tr>
         `;
     }
 
-    async function loadStockLog() {
+    window.loadStockLog = async function() {
         const selectedDate = document.getElementById('stockLogDate').value;
         const tableBody = document.getElementById('stockLogTableBody');
         
@@ -313,13 +285,13 @@
             const logSnap = await getDoc(logDocRef);
             let savedData = {};
 
-            if(logSnap.exists()) {
+            if (logSnap.exists()) {
                 savedData = logSnap.data().items || {};
             }
 
             let savedIds = Object.keys(savedData);
 
-            if(savedIds.length === 0) {
+            if (savedIds.length === 0) {
                 tableBody.innerHTML = `<tr><td colspan="7" class="text-muted py-4 text-center">لم يتم تسجيل حركات لهذا اليوم بعد. ابدأ بالبحث عن صنف بالأعلى لإضافته وتعبئة الكميات.</td></tr>`;
                 return;
             }
@@ -339,9 +311,9 @@
             console.error("Error loading stock log:", err);
             tableBody.innerHTML = `<tr><td colspan="7" class="alert alert-danger p-2 text-center">حدث خطأ في جلب البيانات، يمكنك بدء الجرد وإضافة الأصناف يدوياً الآن.</td></tr>`;
         }
-    }
+    };
 
-    function calculateRowSold(prodId) {
+    window.calculateRowSold = function(prodId) {
         const lj = parseInt(document.getElementById(`lj_${prodId}`).value) || 0;
         const lb = parseInt(document.getElementById(`lb_${prodId}`).value) || 0;
         const rj = parseInt(document.getElementById(`rj_${prodId}`).value) || 0;
@@ -349,13 +321,13 @@
 
         document.getElementById(`sj_${prodId}`).innerText = Math.max(0, lj - rj);
         document.getElementById(`sb_${prodId}`).innerText = Math.max(0, lb - rb);
-    }
+    };
 
-    async function saveStockLog() {
+    window.saveStockLog = async function() {
         const selectedDate = document.getElementById('stockLogDate').value;
         const rows = document.querySelectorAll("#stockLogTableBody tr");
         
-        if(rows.length === 0 || rows[0].querySelector("td[colspan]")) {
+        if (rows.length === 0 || rows[0].querySelector("td[colspan]")) {
             alert("لا توجد أصناف في الجدول لحفظها!");
             return;
         }
@@ -365,7 +337,7 @@
         rows.forEach(row => {
             const prodId = row.getAttribute("data-prod-id");
             const prodName = row.getAttribute("data-prod-name");
-            if(prodId) {
+            if (prodId) {
                 uploadData[prodId] = {
                     name: prodName,
                     load_jar: parseInt(document.getElementById(`lj_${prodId}`).value) || 0,
@@ -387,14 +359,22 @@
             console.error("Error saving log:", e);
             alert("فشل الحفظ، يرجى التحقق من اتصال الإنترنت.");
         }
-    }
+    };
 
-    // ربط كافة الدوال الأساسية بنافذة السكربت لتجاوز عزل الموديل (Module Isolation)
-    window.loadStockLog = loadStockLog;
-    window.onSearchInput = onSearchInput;
-    window.selectProductFromSearch = selectProductFromSearch;
-    window.calculateRowSold = calculateRowSold;
-    window.saveStockLog = saveStockLog;
+    // التشغيل الأساسي عند فتح الصفحة
+    document.addEventListener("DOMContentLoaded", async () => {
+        const today = new Date();
+        document.getElementById('stockLogDate').value = today.toISOString().split('T')[0];
+        
+        await fetchProductsList();
+        await window.loadStockLog();
+        
+        document.addEventListener("click", (e) => {
+            if (!e.target.closest('.search-container')) {
+                document.getElementById("suggestionsWrapper").style.display = "none";
+            }
+        });
+    });
 </script>
 </body>
 </html>
