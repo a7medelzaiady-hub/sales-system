@@ -62,18 +62,37 @@
             padding: 10px 12px; font-size: 0.9rem; font-weight: 700; height: 44px;
         }
 
-        /* حاوية البحث الذكي والمقترحات المخصصة للموبايل */
+        /* حاوية البحث الذكي والمقترحات المخصصة للموبايل والـ ERP */
         .search-container { position: relative; width: 100%; }
+        
         .suggestions-list {
-            position: absolute; top: 100%; left: 0; right: 0; background: white;
-            border: 2px solid var(--accent); border-radius: 10px; max-height: 250px; overflow-y: auto;
-            z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.15); display: none; padding: 5px 0;
+            position: absolute; top: 100%; left: 0; right: 0; 
+            background: rgba(255, 255, 255, 0.95);
+            border: 2px solid var(--accent); 
+            border-radius: 12px; 
+            max-height: 250px; overflow-y: auto;
+            z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.15); 
+            display: none; padding: 5px 0;
+            backdrop-filter: blur(10px);
+            animation: fadeIn 0.15s ease-in-out;
         }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         .suggestion-item {
             padding: 14px 15px; font-weight: 700; color: #334155; cursor: pointer;
             border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; text-align: right;
+            transition: all 0.2s ease;
         }
-        .suggestion-item:active, .suggestion-item:hover { background-color: #f1f5f9; color: var(--accent); }
+
+        .suggestion-item:hover { 
+            background: #0f5132; 
+            color: white !important; 
+            padding-right: 20px;
+        }
 
         .chic-table-container { 
             background: #ffffff; border: 1px solid #e2e8f0; border-radius: var(--card-radius); 
@@ -96,7 +115,6 @@
         .col-return { background-color: var(--bg-return); }
         .col-sold { background-color: var(--bg-sold); }
         
-        /* خانات إدخال الأرقام عريضة ومريحة للموبايل */
         .input-grid { 
             width: 70px; text-align: center; padding: 6px 2px; font-size: 1rem; font-weight: 700;
             border-radius: 8px; border: 1px solid var(--border); background-color: #ffffff;
@@ -199,6 +217,7 @@
     const db = getFirestore(app);
 
     let allProducts = []; // مصفوفة المخزن الأصلية السريعة
+    let debounceTimer;    // مؤقت التحكم لمنع تهنيج الواجهة وتكرار الاستعلامات الفورية
 
     // عند تحميل الصفحة بالكامل
     document.addEventListener("DOMContentLoaded", async () => {
@@ -211,9 +230,10 @@
         // 2. تحميل جرد اليوم الحالي إن وجد
         await loadDailyLog();
 
-        // 3. تفعيل حدث الكتابة والبحث الفوري داخل خانة الإدخال ليعمل بدون مشاكل عزل
-        document.getElementById("manualProdName").addEventListener("input", function() {
-            triggerLiveSearch(this.value);
+        // 3. تفعيل حدث الكتابة المحسن عالي الأداء ومنع تسريب الذاكرة
+        const searchInput = document.getElementById("manualProdName");
+        searchInput.addEventListener("input", (e) => {
+            triggerLiveSearch(e.target.value);
         });
 
         // 4. ربط زر الحفظ
@@ -238,7 +258,6 @@
                     allProducts.push({ id: d.id, name: data.name.trim() });
                 }
             });
-            // ترتيب الأصناف أبجدياً لراحة العين
             allProducts.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
             console.log("تم مزامنة أصناف المخزن كلياً وعددهم:", allProducts.length);
         } catch(e) {
@@ -246,57 +265,62 @@
         }
     }
 
-    // دالة الفلترة والبحث اللحظي من أول حرف
+    // دالة الفلترة والبحث اللحظي المطور بالـ Debounce والترتيب الذكي (بحد أقصى 8 نتائج)
     function triggerLiveSearch(textQuery) {
-        const query = textQuery.trim().toLowerCase();
-        const wrapper = document.getElementById("suggestionsWrapper");
+        clearTimeout(debounceTimer);
         
-        if (!query) {
-            wrapper.style.display = "none";
-            return;
-        }
+        debounceTimer = setTimeout(() => {
+            const query = textQuery.trim().toLowerCase();
+            const wrapper = document.getElementById("suggestionsWrapper");
+            
+            if (!query) {
+                wrapper.style.display = "none";
+                return;
+            }
 
-        // تصفية المصفوفة بناءً على الحروف المكتوبة
-        const filtered = allProducts.filter(p => p.name.toLowerCase().includes(query));
-        
-        let html = "";
-        filtered.forEach(prod => {
-            // عند الضغط على أي صنف يتم إدراجه فوراً عبر دالة appendProductToTable
-            html += `<div class="suggestion-item" data-id="${prod.id}" data-name="${prod.name}"><i class="fas fa-plus-circle text-primary me-2"></i> ${prod.name}</div>`;
-        });
-
-        // خيار إضافة صنف جديد كلياً إذا لم يكن مسجلاً بالمخزن
-        if (!allProducts.some(p => p.name.toLowerCase() === query)) {
-            html += `<div class="suggestion-item text-success fw-bold" data-id="custom_${Date.now()}" data-name="${textQuery}"><i class="fas fa-file-signature me-2"></i> إضافة كصنف جديد: "${textQuery}"</div>`;
-        }
-
-        wrapper.innerHTML = html;
-        wrapper.style.display = html ? "block" : "none";
-
-        // ربط حدث الضغط على عناصر القائمة بشكل ديناميكي آمن
-        wrapper.querySelectorAll(".suggestion-item").forEach(item => {
-            item.addEventListener("click", function() {
-                const id = this.getAttribute("data-id");
-                const name = this.getAttribute("data-name");
-                appendProductToTable(id, name);
+            // ترتيب ذكي: جلب العناصر البدأت بالكلمة أولاً ثم العناصر التي تحتوي عليها
+            const startsWithQuery = allProducts.filter(p => p.name.toLowerCase().startsWith(query));
+            const containsQuery = allProducts.filter(p => p.name.toLowerCase().includes(query) && !p.name.toLowerCase().startsWith(query));
+            
+            // دمج المصفوفتين مع تحديد الحد الأقصى بـ 8 نتائج فقط للحفاظ على مرونة الشاشة
+            const filtered = [...startsWithQuery, ...containsQuery].slice(0, 8);
+            
+            let html = "";
+            filtered.forEach(prod => {
+                html += `<div class="suggestion-item" data-id="${prod.id}" data-name="${prod.name}"><i class="fas fa-plus-circle text-primary me-2"></i> ${prod.name}</div>`;
             });
-        });
+
+            // خيار إضافة صنف جديد كلياً إذا لم يكن مسجلاً بالمخزن
+            if (!allProducts.some(p => p.name.toLowerCase() === query)) {
+                html += `<div class="suggestion-item text-success fw-bold" data-id="custom_${Date.now()}" data-name="${textQuery}"><i class="fas fa-file-signature me-2"></i> إضافة صنف جديد: "${textQuery}"</div>`;
+            }
+
+            wrapper.innerHTML = html;
+            wrapper.style.display = html ? "block" : "none";
+
+            // ربط أحداث النقر المباشر دون مشاكل الاستجابة
+            wrapper.querySelectorAll(".suggestion-item").forEach(item => {
+                item.onclick = () => {
+                    appendProductToTable(
+                        item.getAttribute("data-id"),
+                        item.getAttribute("data-name")
+                    );
+                };
+            });
+        }, 120); // ⚡ سرعة استجابة فائقة الخفة + منع تهنيج متصفحات الموبايل
     }
 
     // إدراج الصنف المختار داخل جدول الجرد اليومي ومسح خانة البحث
     function appendProductToTable(id, name) {
-        // تفريغ حقل البحث وإخفاء القائمة المنسدلة فوراً للاستعداد للصنف القادم
         document.getElementById("manualProdName").value = "";
         document.getElementById("suggestionsWrapper").style.display = "none";
 
         const tableBody = document.getElementById("stockLogTableBody");
         
-        // تنظيف سطر "الجدول فارغ" إن وجد
         if (tableBody.innerHTML.includes("colspan")) {
             tableBody.innerHTML = "";
         }
 
-        // منع تكرار نفس الصنف في نفس الجدول اليومي
         if (document.querySelector(`tr[data-prod-id="${id}"]`)) {
             alert("هذا الصنف تم إدراجه بالفعل في الجدول!");
             return;
@@ -305,7 +329,6 @@
         const rowHtml = generateRowMarkup(id, name, 0, 0, 0, 0, 0, 0);
         tableBody.insertAdjacentHTML('beforeend', rowHtml);
         
-        // ربط أحداث الحساب التلقائي للسطر المدرج حديثاً
         bindRowInputsEvent(id);
     }
 
@@ -379,8 +402,6 @@
             });
 
             tableBody.innerHTML = rowsHtml;
-
-            // إعادة ربط أحداث الحساب التلقائي لكافة الأسطر المجلوبة من السيرفر
             savedIds.forEach(id => bindRowInputsEvent(id));
 
         } catch(err) {
@@ -389,7 +410,6 @@
         }
     }
 
-    // مراقبة تغيير التاريخ لجلب الجرد الخاص باليوم المختار فوراً
     document.getElementById('stockLogDate').addEventListener("change", loadDailyLog);
 
     // حفظ وإعتماد بيان الجرد بالكامل على الفايربيس
