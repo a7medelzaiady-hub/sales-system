@@ -55,7 +55,7 @@
         .stat-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; }  
         .invoice-item { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }  
         
-        .meta-container { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+        .meta-container { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }  
         .detail-badge { font-size: 0.78rem; padding: 4px 8px; border-radius: 6px; font-weight: 700; background: #f0f4f2; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 5px; direction: ltr; margin: 0; }  
         
         .financial-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; background: #f8faf9; padding: 8px; border-radius: 8px; margin-top: 8px; border: 1px dashed var(--border); }  
@@ -311,7 +311,7 @@
     </table>  
 
     <div style="margin-top: 30px; text-align: left; border-top: 2px solid #0b5e3d; padding-top: 15px; font-size: 16px;">  
-        <strong>إجمالي مبيعات هذا التقرير: </strong>  
+        <strong>إجمالي مبيعات this التقرير: </strong>  
         <span id="p-report-total" style="font-size: 22px; font-weight: bold; color:#0b5e3d;">0.00</span> ج.م  
     </div>  
 </div>  
@@ -506,7 +506,7 @@
         container.innerHTML = invoices.map(inv => {  
             let methodBadgeColor = "bg-secondary";  
             if(inv.paymentMethod === "سداد نقدي" || inv.paymentMethod === "كاش" || inv.paymentMethod === "نقدي") methodBadgeColor = "bg-success";  
-            else if(inv.paymentMethod === "سداد محفظه" || inv.paymentMethod === "محفظه") methodBadgeColor = "bg-primary";  
+            else if(inv.paymentMethod === "سداد مرئية" || inv.paymentMethod === "سداد محفظه" || inv.paymentMethod === "محفظه") methodBadgeColor = "bg-primary";  
             else if(inv.paymentMethod === "آجل") methodBadgeColor = "bg-warning text-dark";  
   
             const totalPaid = inv.calculatedCash + inv.calculatedWallet;  
@@ -526,10 +526,10 @@
                         <div>  
                             <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.88rem;">${inv.customerName || 'عميل نقدي'}</h6>  
                             
-                            <div class="meta-container">
+                            <div class="meta-container">  
                                 <span class="badge ${methodBadgeColor}" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير محدد'}</span>  
                                 <span class="detail-badge" id="badge_date_text_${inv.id}"><i class="far fa-clock"></i> ${shortDate} ${displayTime}</span>  
-                            </div>
+                            </div>  
                             
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة التعديل</div>` : ''}  
                         </div>  
@@ -743,16 +743,18 @@
                 const qty = Number(itm.qty) || 0;  
                 const price = Number(itm.price) || 0;  
   
-                const isCarton =  
-                    itm.unit === "كرتونة" ||  
-                    itm.type === "carton" ||  
-                    itemName.includes("كرتونة") ||  
-                    itemName.includes("كرتونه");  
-  
                 let jarkanQty = "-";  
                 let cartonQty = "-";  
   
-                if (isCarton) {  
+                // تطبيق نفس التحقق المرن والذكي في الشير للحفاظ على تطابق التقارير
+                const unitText = (itm.unit || itm.category || itm.sizeType || "").toString().trim();  
+  
+                if (  
+                    unitText === "كرتونة" ||  
+                    unitText === "كرتونه" ||  
+                    itemName.includes("كرتونة") ||  
+                    itemName.includes("كرتونه")  
+                ) {  
                     cartonQty = qty;  
                 } else {  
                     jarkanQty = qty;  
@@ -1077,24 +1079,25 @@
                     const qty = Number(item.qty) || 0;  
                     const price = Number(item.price) || 0;  
   
-                    const isCarton =
-                        item.unit === "كرتونة" ||
-                        item.unit === "كرتونه" ||
-                        item.type === "carton" ||
-                        itemName.includes("كرتونة") ||
-                        itemName.includes("كرتونه");
-
-                    let qtyJarkan = "";
-                    let qtyCarton = "";
-                    let priceJarkan = "";
-                    let priceCarton = "";
-
-                    if (isCarton) {
-                        qtyCarton = qty;
-                        priceCarton = price;
-                    } else {
-                        qtyJarkan = qty;
-                        priceJarkan = price;
+                    let qtyJarkan = "";  
+                    let qtyCarton = "";  
+                    let priceJarkan = "";  
+                    let priceCarton = "";  
+  
+                    // الميكانيزم المرن لتحديد نوع وحدة القياس بناءً على الحقول أو نص الاسم
+                    const unitText = (item.unit || item.category || item.sizeType || "").toString().trim();  
+  
+                    if (  
+                        unitText === "كرتونة" ||  
+                        unitText === "كرتونه" ||  
+                        itemName.includes("كرتونة") ||  
+                        itemName.includes("كرتونه")  
+                    ) {  
+                        qtyCarton = qty;  
+                        priceCarton = price;  
+                    } else {  
+                        qtyJarkan = qty;  
+                        priceJarkan = price;  
                     }  
                     
                     customRows.push({   
