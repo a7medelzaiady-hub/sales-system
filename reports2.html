@@ -102,7 +102,7 @@
     </div>
 
     <div class="p-2 text-muted" style="font-size: 0.75rem; line-height: 1.5;">
-        💡 <b>ملاحظة التنسيق الصريح:</b> المربعات الخضراء تعبر عن عدد <b>الجراكن</b>، بينما المربعات البرتقالية تعبر عن عدد <b>الكراتين</b> بشكل تفصيلي ومباشر وبناءً على اختيار الوحدة المسجل بالفاتورة.
+        💡 <b>ملاحظة التنسيق الصريح:</b> المربعات الخضراء تعبر عن عدد <b>القطع / الجراكن</b>، بينما المربعات البرتقالية تعبر عن عدد <b>الكراتين</b> بشكل تفصيلي ومباشر.
     </div>
 
 </div>  
@@ -157,18 +157,15 @@
         return dateStr;  
     }  
 
-    // دالة تنسيق وعرض الكميات بالمسميات الصحيحة (جركن / كرتونة)
+    // دالة مساعدة لتنسيق وعزل شكل عرض الكمية بالأسماء الصريحة
     function formatQtyDisplay(jarkanQty, cartonQty) {
         let html = "";
-
         if (jarkanQty > 0) {
-            html += `<span class="qty-jarkan">${jarkanQty} جركن</span> `;
+            html += `<span class="qty-jarkan" title="عدد قطع / جراكن">${jarkanQty} قطعة</span> `;
         }
-
         if (cartonQty > 0) {
-            html += `<span class="qty-carton">${cartonQty} كرتونة</span>`;
+            html += `<span class="qty-carton" title="عدد كراتين">${cartonQty} كرتونة</span>`;
         }
-
         return html === "" ? `<span class="qty-zero">-</span>` : html;
     }
 
@@ -204,20 +201,39 @@
                         if (!itemName) return;
                         
                         const qty = Number(item.qty) || 0;
+                        const itemUnit = (item.unit || item.type || "").trim();
                         
-                        // التمييز الصريح والدقيق بناءً على بنية قاعدة البيانات وحقل الوحدة
-                        const isCarton = item.unit === "box";
+                        // فحص ذكي ومزدوج لتحديد الكرتونة
+                        let isCarton = false;
+                        
+                        // أولاً: إذا كتب بالاسم أو الوحدة كلمة كرتون
+                        if (itemName.includes("كرتون") || itemName.includes("كرتونه") || itemUnit.includes("كرتون") || itemUnit.includes("كرتونه")) {
+                            isCarton = true;
+                        } 
+                        // ثانياً: إذا لم يكتب قطعة صراحة، والكمية صغيرة (مبيعات كراتين جملة مثل 1 أو 2 كرتونة)
+                        else if (!itemName.includes("قطعه") && !itemName.includes("قطعة") && !itemName.includes("جركن") && !itemUnit.includes("قطعه") && !itemUnit.includes("قطعة")) {
+                            if (qty <= 4) { 
+                                isCarton = true; 
+                            }
+                        }
 
-                        initItemSlot(itemName);
+                        // تنظيف الاسم للحفاظ على شكل موحد ونظيف في الجدول
+                        let baseName = itemName
+                            .replace(/(كرتونة|كرتونه|كرتون|قطعة|قطعه|جركن)/g, "")
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                        if (!baseName) baseName = itemName;
+
+                        initItemSlot(baseName);
                         
                         const isReturnedBill = inv.paymentMethod?.includes("مرتجع") || inv.notes?.includes("مرتجع");
 
                         if (isReturnedBill) {
-                            if (isCarton) itemsSummary[itemName].retCarton += qty;
-                            else itemsSummary[itemName].retJarkan += qty;
+                            if (isCarton) itemsSummary[baseName].retCarton += qty;
+                            else itemsSummary[baseName].retJarkan += qty;
                         } else {
-                            if (isCarton) itemsSummary[itemName].soldCarton += qty;
-                            else itemsSummary[itemName].soldJarkan += qty;
+                            if (isCarton) itemsSummary[baseName].soldCarton += qty;
+                            else itemsSummary[baseName].soldJarkan += qty;
                         }
                     });
                 }
@@ -235,19 +251,32 @@
                         if (!itemName) return;
 
                         const qty = Number(item.qty) || 0;
+                        const itemUnit = (item.unit || item.type || "").trim();
                         
-                        // التمييز الصريح والدقيق للمشتريات أيضاً
-                        const isCarton = item.unit === "box";
+                        let isCarton = false;
+                        if (itemName.includes("كرتون") || itemName.includes("كرتونه") || itemUnit.includes("كرتون") || itemUnit.includes("كرتونه")) {
+                            isCarton = true;
+                        } else if (!itemName.includes("قطعه") && !itemName.includes("قطعة") && !itemName.includes("جركن") && !itemUnit.includes("قطعه") && !itemUnit.includes("قطعة")) {
+                            if (qty <= 4) {
+                                isCarton = true;
+                            }
+                        }
 
-                        initItemSlot(itemName);
+                        let baseName = itemName
+                            .replace(/(كرتونة|كرتونه|كرتون|قطعة|قطعه|جركن)/g, "")
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                        if (!baseName) baseName = itemName;
 
-                        if (isCarton) itemsSummary[itemName].boughtCarton += qty;
-                        else itemsSummary[itemName].boughtJarkan += qty;
+                        initItemSlot(baseName);
+
+                        if (isCarton) itemsSummary[baseName].boughtCarton += qty;
+                        else itemsSummary[baseName].boughtJarkan += qty;
                     });
                 }
             });
 
-            // 3. بناء واستخراج صفوف الجدول
+            // 3. بناء واستخراج صفوف الجدول البرمجية
             let rowsHtml = "";
             const sortedItemNames = Object.keys(itemsSummary).sort();
 
@@ -267,7 +296,7 @@
                         <td>${formatQtyDisplay(data.boughtJarkan, data.boughtCarton)}</td>
                         <td>${data.retJarkan > 0 || data.retCarton > 0 ? 
                             `<span style="color:var(--danger); background:#fff5f5; padding:4px 8px; border-radius:6px; font-weight:800; font-size:0.75rem; display:inline-block;">
-                                ${data.retJarkan > 0 ? data.retJarkan + ' جركن ' : ''}
+                                ${data.retJarkan > 0 ? data.retJarkan + ' قطعة ' : ''}
                                 ${data.retCarton > 0 ? data.retCarton + ' كرتونة' : ''}
                              </span>` : '<span class="qty-zero">-</span>'}
                         </td>
