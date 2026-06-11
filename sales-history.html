@@ -54,7 +54,10 @@
         .stat-card.active-filter { border: 2px solid var(--accent) !important; background: #ebf9eb; }  
         .stat-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; }  
         .invoice-item { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }  
-        .detail-badge { font-size: 0.78rem; padding: 4px 8px; border-radius: 6px; font-weight: 700; background: #f0f4f2; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 5px; direction: ltr; }  
+        
+        .meta-container { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+        .detail-badge { font-size: 0.78rem; padding: 4px 8px; border-radius: 6px; font-weight: 700; background: #f0f4f2; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 5px; direction: ltr; margin: 0; }  
+        
         .financial-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; background: #f8faf9; padding: 8px; border-radius: 8px; margin-top: 8px; border: 1px dashed var(--border); }  
         .fin-box { font-size: 0.78rem; font-weight: 700; }  
         .fin-box span { display: block; font-size: 0.85rem; margin-top: 1px; font-weight: 800; }  
@@ -84,7 +87,6 @@
             #print-area { display: block !important; }  
         }  
 
-        /* تصاميم شيك لفاتورة الشير الحرارية */  
         #thermal-share-container {  
             width: 80mm;  
             min-height: 90mm;  
@@ -149,7 +151,6 @@
             padding: 3px 6px;  
             border-radius: 6px;  
         }  
-        /* تنسيقات شيك لطرق السداد داخل كارت الشير */  
         .ts-total-row { background: #f1f3f2; font-weight: 800; color: #000; border: 1px solid #ddd; }  
         .ts-cash-row { background: #ebf9eb; color: #2d6a4f; border-right: 4px solid #2d6a4f; }  
         .ts-wallet-row { background: #f0f4ff; color: #3182ce; border-right: 4px solid #3182ce; }  
@@ -315,7 +316,6 @@
     </div>  
 </div>  
 
-<!-- حاوية الشير الحرارية 80 ملم المحدثة بالتنسيق الشيك والتاريخ المطابق -->  
 <div id="thermal-share-container" dir="rtl">  
     <div class="thermal-header-title">  
         <h2>الزيادي لزيوت السيارات</h2>  
@@ -524,9 +524,13 @@
                 <div class="invoice-item">  
                     <div class="d-flex justify-content-between align-items-start mb-1">  
                         <div>  
-                            <h6 class="fw-bold mb-1 text-dark" style="font-size: 0.88rem;">${inv.customerName || 'عميل نقدي'}</h6>  
-                            <span class="detail-badge" id="badge_date_text_${inv.id}"><i class="far fa-clock"></i> ${shortDate} ${displayTime}</span>  
-                            <span class="badge ${methodBadgeColor} ms-1" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير محدد'}</span>  
+                            <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.88rem;">${inv.customerName || 'عميل نقدي'}</h6>  
+                            
+                            <div class="meta-container">
+                                <span class="badge ${methodBadgeColor}" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير محدد'}</span>  
+                                <span class="detail-badge" id="badge_date_text_${inv.id}"><i class="far fa-clock"></i> ${shortDate} ${displayTime}</span>  
+                            </div>
+                            
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة التعديل</div>` : ''}  
                         </div>  
                         
@@ -717,7 +721,6 @@
         const inv = allInvoices.find(i => i.id === id);  
         if(!inv) return;  
   
-        // جلب نص التاريخ والوقت المطابق تمامًا للموجود في كرت السجل  
         const badgeElement = document.getElementById(`badge_date_text_${id}`);  
         let extractedDateTimeText = "التاريخ والوقت: --/-- --:-- م";  
         if (badgeElement) {  
@@ -740,14 +743,11 @@
                 let jarkanQty = "-";  
                 let cartonQty = "-";  
   
-                // ضبط الفرز والفلترة الصارمة بناءً على نوع الوحدة المذكورة بالاسم  
-                if (itemName.includes("قطعه") || itemName.includes("قطعة")) {  
-                    jarkanQty = itm.qty || "-"; 
-                } else if (itemName.includes("كرتونه") || itemName.includes("كرتونة")) {  
+                // منطق فحص وتوزيع المنتجات في الصورة الحرارية تماشياً مع تعديل الإكسيل
+                if (itemName.includes("كرتونه") || itemName.includes("كرتونة")) {  
                     cartonQty = itm.qty || "-"; 
                 } else {  
-                    // في حال لم يكتب صراحة يتم فرزها كـ كرتونة تلقائياً  
-                    cartonQty = itm.qty || "-";  
+                    jarkanQty = itm.qty || "-"; 
                 }  
   
                 const tr = document.createElement('tr');  
@@ -1062,24 +1062,38 @@
             if (inv.calculatedWallet > 0) {  
                 customRows.push({ "التاريخ": invoiceDate, "الحركه": "سداد منه محفظه", "اسم العميل": clientName, "البيان": "سداد محفظة", "عدد جركن": "", "عدد كرتونه": 1, "سعر جركن": "", "سعر الكرتونه": inv.calculatedWallet });  
             }  
+            
+            // تم استبدال الجزء المطلوب وتحديثه هنا بدقة فائقة وضمان لمنع الفراغات أو توجيه البيانات الخاطئ
             if (inv.items && inv.items.length > 0) {  
                 inv.items.forEach(item => {  
                     const itemName = item.name || "";  
-                    let qtyJarkan = ""; let qtyCarton = ""; let priceJarkan = ""; let priceCarton = "";  
+                    const qty = Number(item.qty) || 0;  
+                    const price = Number(item.price) || 0;  
   
-                    // ترحيل وفرز البيانات الدقيق للإكسيل بناءً على اسم الوحدة  
-                    if (itemName.includes("قطعه") || itemName.includes("قطعة")) {  
-                        qtyJarkan = item.qty || "";  
-                        priceJarkan = item.price || ""; 
-                    } else if (itemName.includes("كرتونه") || itemName.includes("كرتونة")) {  
-                        qtyCarton = item.qty || "";  
-                        priceCarton = item.price || ""; 
+                    let qtyJarkan = 0;  
+                    let qtyCarton = 0;  
+                    let priceJarkan = 0;  
+                    let priceCarton = 0;  
+  
+                    if (itemName.includes("كرتونة") || itemName.includes("كرتونه")) {  
+                        qtyCarton = qty;  
+                        priceCarton = price;  
                     } else {  
-                        qtyCarton = item.qty || "";  
-                        priceCarton = item.price || "";  
+                        // القطعة أو أي منتج آخر يذهب تلقائياً لعمود الجركن
+                        qtyJarkan = qty;  
+                        priceJarkan = price;  
                     }  
                     
-                    customRows.push({ "التاريخ": invoiceDate, "الحركه": "بيع", "اسم العميل": clientName, "البيان": itemName, "عدد جركن": qtyJarkan, "عدد كرتونه": qtyCarton, "سعر جركن": priceJarkan, "سعر الكرتونه": priceCarton });  
+                    customRows.push({   
+                        "التاريخ": invoiceDate,   
+                        "الحركه": "بيع",   
+                        "اسم العميل": clientName,   
+                        "البيان": itemName,   
+                        "عدد جركن": qtyJarkan,   
+                        "عدد كرتونه": qtyCarton,   
+                        "سعر جركن": priceJarkan,   
+                        "سعر الكرتونه": priceCarton   
+                    });  
                 });  
             }  
         });  
