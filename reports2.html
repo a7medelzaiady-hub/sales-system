@@ -54,8 +54,8 @@
         .chic-table td { padding: 10px 6px; text-align: center; font-weight: 600; border-bottom: 1px solid #f0f4f1; vertical-align: middle; }
         .chic-table tr:hover { background-color: #fafdfb; }
         
-        .qty-jarkan { color: var(--success); font-weight: 800; background: #ebf9eb; padding: 2px 6px; border-radius: 4px; display: inline-block; min-width: 25px; }
-        .qty-carton { color: #b94a00; font-weight: 800; background: #fff2e6; padding: 2px 6px; border-radius: 4px; display: inline-block; min-width: 25px; }
+        .qty-jarkan { color: var(--success); font-weight: 800; background: #ebf9eb; padding: 3px 8px; border-radius: 6px; display: inline-block; margin: 2px; font-size: 0.75rem; }
+        .qty-carton { color: #b94a00; font-weight: 800; background: #fff2e6; padding: 3px 8px; border-radius: 6px; display: inline-block; margin: 2px; font-size: 0.75rem; }
         .qty-zero { color: #a0aec0; font-weight: normal; background: #f7fafc; }
     </style>  
 </head>  
@@ -101,8 +101,8 @@
         </table>
     </div>
 
-    <div class="p-2 text-muted" style="font-size: 0.72rem; line-height: 1.5;">
-        💡 <b>ملاحظة التنسيق الدقيق:</b> الأرقام بداخل المربعات الخضراء <span class="qty-jarkan" style="font-size: 0.65rem; padding:1px 4px;">ج</span> تعبر عن عدد (القطع / الجراكن)، بينما المربعات البرتقالية <span class="qty-carton" style="font-size: 0.65rem; padding:1px 4px;">ك</span> تعبر عن عدد (الكراتين).
+    <div class="p-2 text-muted" style="font-size: 0.75rem; line-height: 1.5;">
+        💡 <b>ملاحظة التنسيق الصريح:</b> المربعات الخضراء تعبر عن عدد <b>القطع / الجراكن</b>، بينما المربعات البرتقالية تعبر عن عدد <b>الكراتين</b> بشكل تفصيلي ومباشر.
     </div>
 
 </div>  
@@ -157,14 +157,14 @@
         return dateStr;  
     }  
 
-    // دالة مساعدة لتنسيق وعزل شكل عرض الكمية بناءً على الاسم المكتوب (جركن / كرتونة)
+    // دالة مساعدة لتنسيق وعزل شكل عرض الكمية بالأسماء الصريحة
     function formatQtyDisplay(jarkanQty, cartonQty) {
         let html = "";
         if (jarkanQty > 0) {
-            html += `<span class="qty-jarkan" title="عدد جراكن / قطع">${jarkanQty} ج</span> `;
+            html += `<span class="qty-jarkan" title="عدد قطع / جراكن">${jarkanQty} قطعة</span> `;
         }
         if (cartonQty > 0) {
-            html += `<span class="qty-carton" title="عدد كراتين">${cartonQty} ك</span>`;
+            html += `<span class="qty-carton" title="عدد كراتين">${cartonQty} كرتونة</span>`;
         }
         return html === "" ? `<span class="qty-zero">-</span>` : html;
     }
@@ -176,11 +176,8 @@
         const tableBody = document.getElementById('stockReportTableBody');
         tableBody.innerHTML = `<tr><td colspan="4" class="text-muted py-4"><i class="fas fa-spinner fa-spin"></i> جار جلب وتحليل فواتير المخزن...</td></tr>`;
 
-        // هيكل البيانات لتجميع الحركة لكل صنف بشكل فريد وموحد
-        // { 'صنف زيت معين': { soldJarkan: 0, soldCarton: 0, boughtJarkan: 0, boughtCarton: 0, retJarkan: 0, retCarton: 0 } }
         let itemsSummary = {};
 
-        // دالة تضمن وجود الصنف في المجموع قبل التعديل عليه
         function initItemSlot(name) {
             if (!itemsSummary[name]) {
                 itemsSummary[name] = {
@@ -206,10 +203,9 @@
                         initItemSlot(itemName);
                         const qty = Number(item.qty) || 0;
 
-                        // تحديد تصنيف نوع الكمية (قطعة/جركن أم كرتونة) كما تم إقراره في دفتر التصحيح الخاص بك
+                        // فرز القطعة والجركن لعمود الجراكن والقطع
                         let isJarkan = itemName.includes("قطعه") || itemName.includes("قطعة") || itemName.includes("جركن");
                         
-                        // فحص إذا كانت حركة الفاتورة بالكامل مرتجع، أو الصنف نفسه مميز كـ مرتجع
                         const isReturnedBill = inv.paymentMethod?.includes("مرتجع") || inv.notes?.includes("مرتجع");
 
                         if (isReturnedBill) {
@@ -245,14 +241,13 @@
                 }
             });
 
-            // 3. بناء واستخراج صفوف الجدول البرمجية
+            // 3. بناء واستخراج صفوف الجدول البرمجية بالأسماء الصريحة
             let rowsHtml = "";
             const sortedItemNames = Object.keys(itemsSummary).sort();
 
             sortedItemNames.forEach(name => {
                 const data = itemsSummary[name];
                 
-                // تخطي الصنف إذا ظهر في الحسابات لكن بدون أي كميات فعلية في هذا اليوم المحدد
                 if (data.soldJarkan === 0 && data.soldCarton === 0 && 
                     data.boughtJarkan === 0 && data.boughtCarton === 0 && 
                     data.retJarkan === 0 && data.retCarton === 0) {
@@ -265,9 +260,9 @@
                         <td>${formatQtyDisplay(data.soldJarkan, data.soldCarton)}</td>
                         <td>${formatQtyDisplay(data.boughtJarkan, data.boughtCarton)}</td>
                         <td>${data.retJarkan > 0 || data.retCarton > 0 ? 
-                            `<span style="color:var(--danger); background:#fff5f5; padding:2px 6px; border-radius:4px; font-weight:800;">
-                                ${data.retJarkan > 0 ? data.retJarkan + ' ج ' : ''}
-                                ${data.retCarton > 0 ? data.retCarton + ' ك' : ''}
+                            `<span style="color:var(--danger); background:#fff5f5; padding:4px 8px; border-radius:6px; font-weight:800; font-size:0.75rem; display:inline-block;">
+                                ${data.retJarkan > 0 ? data.retJarkan + ' قطعة ' : ''}
+                                ${data.retCarton > 0 ? data.retCarton + ' كرتونة' : ''}
                              </span>` : '<span class="qty-zero">-</span>'}
                         </td>
                     </tr>
