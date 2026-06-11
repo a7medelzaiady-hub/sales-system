@@ -200,20 +200,33 @@
                         const itemName = (item.name || "").trim();
                         if (!itemName) return;
                         
-                        initItemSlot(itemName);
-                        const qty = Number(item.qty) || 0;
+                        // التمييز الذكي: فحص حقل الوحدة من قاعدة البيانات أو الكلمات الدلالية بالاسم
+                        const itemUnit = (item.unit || item.type || "").trim();
+                        let isCarton = itemName.includes("كرتون") || itemName.includes("كرتونه") || itemUnit.includes("كرتون") || itemUnit.includes("كرتونه");
+                        
+                        // تأكيد إلغاء الكرتونة إذا ذكرت كلمة قطعة أو جركن صراحة
+                        if (itemName.includes("قطعه") || itemName.includes("قطعة") || itemName.includes("جركن") || itemUnit.includes("قطعه") || itemUnit.includes("قطعة")) {
+                            isCarton = false;
+                        }
 
-                        // فرز القطعة والجركن لعمود الجراكن والقطع
-                        let isJarkan = itemName.includes("قطعه") || itemName.includes("قطعة") || itemName.includes("جركن");
+                        // تنظيف اسم الصنف لعرضه بدون ملحقات مكررة ودمجه في سطر واحد
+                        let baseName = itemName
+                            .replace(/(كرتونة|كرتونه|كرتون|قطعة|قطعه|جركن)/g, "")
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                        if (!baseName) baseName = itemName;
+
+                        initItemSlot(baseName);
+                        const qty = Number(item.qty) || 0;
                         
                         const isReturnedBill = inv.paymentMethod?.includes("مرتجع") || inv.notes?.includes("مرتجع");
 
                         if (isReturnedBill) {
-                            if (isJarkan) itemsSummary[itemName].retJarkan += qty;
-                            else itemsSummary[itemName].retCarton += qty;
+                            if (isCarton) itemsSummary[baseName].retCarton += qty;
+                            else itemsSummary[baseName].retJarkan += qty;
                         } else {
-                            if (isJarkan) itemsSummary[itemName].soldJarkan += qty;
-                            else itemsSummary[itemName].soldCarton += qty;
+                            if (isCarton) itemsSummary[baseName].soldCarton += qty;
+                            else itemsSummary[baseName].soldJarkan += qty;
                         }
                     });
                 }
@@ -230,13 +243,24 @@
                         const itemName = (item.name || "").trim();
                         if (!itemName) return;
 
-                        initItemSlot(itemName);
+                        const itemUnit = (item.unit || item.type || "").trim();
+                        let isCarton = itemName.includes("كرتون") || itemName.includes("كرتونه") || itemUnit.includes("كرتون") || itemUnit.includes("كرتونه");
+                        
+                        if (itemName.includes("قطعه") || itemName.includes("قطعة") || itemName.includes("جركن") || itemUnit.includes("قطعه") || itemUnit.includes("قطعة")) {
+                            isCarton = false;
+                        }
+
+                        let baseName = itemName
+                            .replace(/(كرتونة|كرتونه|كرتون|قطعة|قطعه|جركن)/g, "")
+                            .replace(/\s+/g, ' ')
+                            .trim();
+                        if (!baseName) baseName = itemName;
+
+                        initItemSlot(baseName);
                         const qty = Number(item.qty) || 0;
 
-                        let isJarkan = itemName.includes("قطعه") || itemName.includes("قطعة") || itemName.includes("جركن");
-
-                        if (isJarkan) itemsSummary[itemName].boughtJarkan += qty;
-                        else itemsSummary[itemName].boughtCarton += qty;
+                        if (isCarton) itemsSummary[baseName].boughtCarton += qty;
+                        else itemsSummary[baseName].boughtJarkan += qty;
                     });
                 }
             });
