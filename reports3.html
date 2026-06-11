@@ -1,469 +1,78 @@
-<!DOCTYPE html>
+from pathlib import Path
+
+html = r'''<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>جرد وحركة عهدة السيارة اليومية - الزيادي للزيوت</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <style>
-        :root {   
-            --accent: #0f5132;          
-            --header-bg: #0f5132;       
-            --bg-light: #f4f7f6;        
-            --text-primary: #1e293b;     
-            --border: #cbd5e1;          
-            --card-radius: 12px;  
-            --input-radius: 10px;  
-            
-            --bg-load: #f0f7ff;
-            --bg-return: #fff7ed;
-            --bg-sold: #f0fdf4;
-            --border-sold: #86efac;
-        }  
-        
-        body {   
-            background: var(--bg-light);   
-            font-family: 'Cairo', sans-serif;   
-            color: var(--text-primary);   
-            padding-bottom: 80px;   
-            font-size: 0.85rem;  
-            -webkit-text-size-adjust: 100%;
-        }  
-        
-        .header-nav {   
-            background: var(--header-bg);   
-            padding: 12px 15px;   
-            display: flex;   
-            align-items: center;   
-            justify-content: space-between;   
-            box-shadow: 0 4px 10px rgba(15, 81, 50, 0.12);   
-            color: white;   
-            position: sticky;   
-            top: 0;   
-            z-index: 1000;  
-        }  
-        
-        .back-btn { 
-            background: rgba(255,255,255,0.15); width: 40px; height: 40px; border-radius: 10px; 
-            display: flex; align-items: center; justify-content: center; color: white; 
-            text-decoration: none; font-size: 1.1rem; border: none;
-        }  
-
-        .panel-box { 
-            background: #ffffff; border: 1px solid #e2e8f0; border-radius: var(--card-radius); 
-            padding: 15px; margin-bottom: 15px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); 
-        }
-
-        .form-control { 
-            border-radius: var(--input-radius); border: 1px solid var(--border); 
-            padding: 10px 12px; font-size: 0.9rem; font-weight: 700; height: 44px;
-        }
-
-        /* حاوية البحث والمقترحات */
-        .search-container { position: relative; width: 100%; }
-        
-        .suggestions-list {
-            position: absolute; top: 100%; left: 0; right: 0; 
-            background: rgba(255, 255, 255, 0.98);
-            border: 2px solid var(--accent); 
-            border-radius: 12px; 
-            max-height: 260px; overflow-y: auto;
-            z-index: 2000; box-shadow: 0 10px 25px rgba(0,0,0,0.15); 
-            display: none; padding: 5px 0;
-            backdrop-filter: blur(10px);
-            animation: fadeIn 0.12s ease-in-out;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-3px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .suggestion-item {
-            padding: 13px 15px; font-weight: 700; color: #334155; cursor: pointer;
-            border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; text-align: right;
-            transition: all 0.15s ease;
-        }
-
-        .suggestion-item:hover, .suggestion-item:active { 
-            background: #0f5132; 
-            color: white !important; 
-            padding-right: 20px;
-        }
-
-        .chic-table-container { 
-            background: #ffffff; border: 1px solid #e2e8f0; border-radius: var(--card-radius); 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.02); margin-bottom: 20px; overflow: hidden;
-        }
-        
-        .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-        
-        .chic-table { width: 100%; margin-bottom: 0; min-width: 650px; border-collapse: collapse; }
-        .chic-table th { padding: 10px 5px; font-weight: 800; text-align: center; border: 1px solid #e2e8f0; font-size: 0.8rem; }
-        
-        .th-main-load { background: #1e40af !important; color: white !important; }
-        .th-main-return { background: #c2410c !important; color: white !important; }
-        .th-main-sold { background: #166534 !important; color: white !important; }
-        .sub-head { background: #f8fafc !important; color: #475569; font-weight: 700; font-size: 0.75rem; }
-        
-        .chic-table td { padding: 8px 4px; text-align: center; font-weight: 600; border: 1px solid #e2e8f0; vertical-align: middle; }
-        
-        .col-load { background-color: var(--bg-load); }
-        .col-return { background-color: var(--bg-return); }
-        .col-sold { background-color: var(--bg-sold); }
-        
-        .input-grid { 
-            width: 70px; text-align: center; padding: 6px 2px; font-size: 1rem; font-weight: 700;
-            border-radius: 8px; border: 1px solid var(--border); background-color: #ffffff;
-            height: 38px;
-        }
-        .input-grid:focus { border-color: #2563eb; outline: none; background: #fff; }
-        
-        .badge-sold { 
-            background: #dcfce7; color: #166534; padding: 6px 8px; border-radius: 6px; 
-            font-weight: 800; font-size: 0.9rem; display: inline-block; min-width: 40px; border: 1px solid var(--border-sold);
-        }
-        
-        .btn-action {
-            height: 44px; font-weight: 700; font-size: 0.9rem; border-radius: var(--input-radius);
-            display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; border: none;
-        }
-        .btn-save { background: var(--accent); color: white; box-shadow: 0 3px 6px rgba(15, 81, 50, 0.15); }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>جرد سيارة التوزيع - الزيادي</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+body{background:#f5f7fb;font-family:Cairo,sans-serif}
+.card{border:none;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.header{background:#0b6641;color:#fff;padding:15px;border-radius:0 0 20px 20px}
+.table input{min-width:80px}
+</style>
 </head>
 <body>
-
-<div class="header-nav">  
-    <a href="reports_hub.html" class="back-btn"><i class="fas fa-arrow-right"></i></a>  
-    <h6 class="m-0 fw-bold"><i class="fas fa-shipping-fast me-1"></i> مسير وجرد حمولة السيارة اليومية</h6>  
-    <button class="back-btn" onclick="window.print()"><i class="fas fa-print"></i></button>  
-</div>  
-
-<div class="container-fluid px-2 mt-3">
-
-    <!-- لوحة التحكم العليا -->
-    <div class="panel-box">
-        <div class="row g-2">
-            <!-- التاريخ -->
-            <div class="col-12 col-md-3">
-                <input type="date" id="stockLogDate" class="form-control text-center">
-            </div>
-            
-            <!-- حقل البحث الذكي الفوري المصلح بدون أي تجميد -->
-            <div class="col-12 col-md-6">
-                <div class="search-container">
-                    <input type="text" id="manualProdName" class="form-control" placeholder="🔍 اكتب اسم الصنف للبحث المباشر الفوري..." autocomplete="off">
-                    <div id="suggestionsWrapper" class="suggestions-list"></div>
-                </div>
-            </div>
-
-            <!-- زر الحفظ والاعتماد السريع -->
-            <div class="col-12 col-md-3">
-                <button class="btn-action btn-save" id="saveLogBtn"><i class="fas fa-check-double"></i> حفظ الجرد</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- حاوية الجدول الرئيسي -->
-    <div class="chic-table-container">
-        <div class="table-responsive">
-            <table class="chic-table">
-                <thead>
-                    <tr>
-                        <th rowspan="2" style="width: 35%; min-width: 140px; vertical-align: middle; background: #e2e8f0; color: #1e293b;">إسم الصنف</th>
-                        <th colspan="2" class="th-main-load">التحميل صباحاً</th>
-                        <th colspan="2" class="th-main-return">المرتجع مساءً</th>
-                        <th colspan="2" class="th-main-sold">صافي المبيعات</th>
-                    </tr>
-                    <tr>
-                        <th class="sub-head">جركن</th>
-                        <th class="sub-head">كرتونة</th>
-                        <th class="sub-head">جركن</th>
-                        <th class="sub-head">كرتونة</th>
-                        <th class="sub-head" style="color: #166534;">جركن</th>
-                        <th class="sub-head" style="color: #166534;">كرتونة</th>
-                    </tr>
-                </thead>
-                <tbody id="stockLogTableBody">
-                    <tr>
-                        <td colspan="7" class="text-muted py-4 text-center">جاري تهيئة النظام والمخزن...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-
+<div class="header text-center">
+<h3><i class="fas fa-truck"></i> جرد سيارة التوزيع</h3>
 </div>
 
-<!-- ربط الفايربيس الآمن عالي الاستجابة -->
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+<div class="container mt-3">
+<div class="card p-3 mb-3">
+<div class="row">
+<div class="col-md-4"><label>اسم السائق</label><input id="driver" class="form-control"></div>
+<div class="col-md-4"><label>رقم السيارة</label><input id="car" class="form-control"></div>
+<div class="col-md-4"><label>التاريخ</label><input id="date" type="date" class="form-control"></div>
+</div>
+</div>
 
-    const firebaseConfig = {  
-        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",  
-        authDomain: "ahmedelzaiady.firebaseapp.com",  
-        projectId: "ahmedelzaiady",  
-        storageBucket: "ahmedelzaiady.firebasestorage.app",  
-        messagingSenderId: "300306825071",  
-        appId: "1:300306825071:web:0426ddde56280fa090329a",  
-        measurementId: "G-WE04GK5XZZ"  
-    };  
+<div class="card p-3">
+<h5>أصناف السيارة</h5>
+<table class="table table-bordered text-center" id="tbl">
+<thead>
+<tr>
+<th>الصنف</th>
+<th>المحمل صباحاً</th>
+<th>الباقي آخر اليوم</th>
+<th>المباع</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+<button class="btn btn-success" onclick="addRow()">إضافة صنف</button>
+<button class="btn btn-primary" onclick="calc()">حساب الجرد</button>
+<button class="btn btn-dark" onclick="window.print()">طباعة</button>
+</div>
+</div>
 
-    let allProducts = []; // مصفوفة المخزن المحلية السريعة جداً
+<script>
+function addRow(){
+let tr=document.createElement('tr');
+tr.innerHTML=`
+<td><input class="form-control product"></td>
+<td><input type="number" class="form-control load" value="0"></td>
+<td><input type="number" class="form-control remain" value="0"></td>
+<td><input class="form-control sold" readonly></td>`;
+document.querySelector('#tbl tbody').appendChild(tr);
+}
 
-    // دالة توحيد الحروف لجعل البحث مرناً ولا يعتمد على همزات دقيقة
-    function normalizeArabic(text) {
-        if (!text) return "";
-        return text.toString().trim().toLowerCase()
-            .replace(/[أإآ]/g, "ا")
-            .replace(/ة/g, "ه")
-            .replace(/[ًٌٍَُِّ]/g, "");
-    }
+function calc(){
+document.querySelectorAll('#tbl tbody tr').forEach(r=>{
+let l=Number(r.querySelector('.load').value||0);
+let rem=Number(r.querySelector('.remain').value||0);
+r.querySelector('.sold').value=l-rem;
+});
+}
 
-    // تهيئة النظام المباشرة لضمان عدم فوات أي أحداث
-    async function initSystem() {
-        const today = new Date();
-        document.getElementById('stockLogDate').value = today.toISOString().split('T')[0];
-        
-        // جلب المنتجات و جرد اليوم تزامناً
-        await fetchProductsFromWarehouse();
-        await loadDailyLog();
-
-        // التحديث الفوري المباشر أثناء الكتابة (تم إلغاء سكاكين الـ clearTimeout التي تعطل كيبورد الهاتف)
-        const searchInput = document.getElementById("manualProdName");
-        if (searchInput) {
-            searchInput.addEventListener("input", (e) => {
-                triggerInstantSearch(e.target.value);
-            });
-        }
-
-        // ربط الأزرار وإغلاق القائمة عند الضغط بالخارج
-        const saveBtn = document.getElementById("saveLogBtn");
-        if (saveBtn) saveBtn.addEventListener("click", saveDailyLog);
-
-        document.addEventListener("click", function(e) {
-            if (!e.target.closest('.search-container')) {
-                document.getElementById("suggestionsWrapper").style.display = "none";
-            }
-        });
-    }
-
-    // فحص جاهزية المستند لتفادي مشاكل التحميل الـ Deferred
-    if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", initSystem);
-    } else {
-        initSystem();
-    }
-
-    // جلب المنتجات من الفايربيس وحفظها بالذاكرة
-    async function fetchProductsFromWarehouse() {
-        try {
-            const snap = await getDocs(collection(db, "products"));
-            allProducts = [];
-            snap.forEach(d => {
-                const data = d.data();
-                const prodName = data.name || data.productName || data.prodName || "";
-                if (prodName) {
-                    allProducts.push({ id: d.id, name: prodName.trim() });
-                }
-            });
-            allProducts.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
-            console.log("تم تحميل المنتجات بنجاح، العدد:", allProducts.length);
-        } catch(e) {
-            console.error("خطأ المخزن:", e);
-        }
-    }
-
-    // دالة البحث الفوري المستمر بدون توقف أو مقاطعة ليد المستخدم
-    function triggerInstantSearch(textQuery) {
-        const normalizedQuery = normalizeArabic(textQuery);
-        const wrapper = document.getElementById("suggestionsWrapper");
-        
-        if (!normalizedQuery) {
-            wrapper.style.display = "none";
-            return;
-        }
-
-        // فلترة لحظية ممتازة مرتبة تصاعدياً بحسب الأولوية
-        const startsWithQuery = allProducts.filter(p => normalizeArabic(p.name).startsWith(normalizedQuery));
-        const containsQuery = allProducts.filter(p => normalizeArabic(p.name).includes(normalizedQuery) && !normalizeArabic(p.name).startsWith(normalizedQuery));
-        
-        const filtered = [...startsWithQuery, ...containsQuery].slice(0, 8);
-        
-        let html = "";
-        filtered.forEach(prod => {
-            html += `<div class="suggestion-item" data-id="${prod.id}" data-name="${prod.name}"><i class="fas fa-plus-circle text-primary me-2"></i> ${prod.name}</div>`;
-        });
-
-        // خيار الصنف الجديد إذا لم يتطابق المدخل مع أي صنف حالي
-        if (!allProducts.some(p => normalizeArabic(p.name) === normalizedQuery)) {
-            html += `<div class="suggestion-item text-success fw-bold" data-id="custom_${Date.now()}" data-name="${textQuery}"><i class="fas fa-file-signature me-2"></i> إضافة صنف جديد: "${textQuery}"</div>`;
-        }
-
-        wrapper.innerHTML = html;
-        wrapper.style.display = html ? "block" : "none";
-
-        // التعامل الفوري مع اختيار المنتجات بالـ Click المباشر والآمن
-        wrapper.querySelectorAll(".suggestion-item").forEach(item => {
-            item.onclick = (e) => {
-                e.preventDefault();
-                appendProductToTable(
-                    item.getAttribute("data-id"),
-                    item.getAttribute("data-name")
-                );
-            };
-        });
-    }
-
-    // إدراج الصنف المختار داخل جدول الجرد ومسح مربع البحث
-    function appendProductToTable(id, name) {
-        document.getElementById("manualProdName").value = "";
-        document.getElementById("suggestionsWrapper").style.display = "none";
-
-        const tableBody = document.getElementById("stockLogTableBody");
-        
-        if (tableBody.innerHTML.includes("colspan")) {
-            tableBody.innerHTML = "";
-        }
-
-        if (document.querySelector(`tr[data-prod-id="${id}"]`)) {
-            alert("هذا الصنف متواجد بالجدول بالفعل!");
-            return;
-        }
-
-        const rowHtml = generateRowMarkup(id, name, 0, 0, 0, 0, 0, 0);
-        tableBody.insertAdjacentHTML('beforeend', rowHtml);
-        
-        bindRowInputsEvent(id);
-    }
-
-    // توليد هيكل أسطر الجدول
-    function generateRowMarkup(id, name, lj, lb, rj, rb, sj, sb) {
-        return `
-            <tr data-prod-id="${id}" data-prod-name="${name}">
-                <td style="text-align: right; font-weight: 800; color: #1e293b; background: #f8fafc; font-size:0.85rem;">${name}</td>
-                <td class="col-load"><input type="number" class="input-grid" id="lj_${id}" value="${lj}" min="0"></td>
-                <td class="col-load"><input type="number" class="input-grid" id="lb_${id}" value="${lb}" min="0"></td>
-                <td class="col-return"><input type="number" class="input-grid" id="rj_${id}" value="${rj}" min="0"></td>
-                <td class="col-return"><input type="number" class="input-grid" id="rb_${id}" value="${rb}" min="0"></td>
-                <td class="col-sold"><span class="badge-sold" id="sj_${id}">${sj}</span></td>
-                <td class="col-sold"><span class="badge-sold" id="sb_${id}">${sb}</span></td>
-            </tr>
-        `;
-    }
-
-    // ربط الحساب التلقائي اللحظي للسطر
-    function bindRowInputsEvent(id) {
-        const inputs = [`lj_${id}`, `lb_${id}`, `rj_${id}`, `rb_${id}`];
-        inputs.forEach(inputId => {
-            const elem = document.getElementById(inputId);
-            if (elem) {
-                elem.addEventListener("input", () => calculateRowLiveTotals(id));
-            }
-        });
-    }
-
-    function calculateRowLiveTotals(prodId) {
-        const lj = parseInt(document.getElementById(`lj_${prodId}`).value) || 0;
-        const lb = parseInt(document.getElementById(`lb_${prodId}`).value) || 0;
-        const rj = parseInt(document.getElementById(`rj_${prodId}`).value) || 0;
-        const rb = parseInt(document.getElementById(`rb_${prodId}`).value) || 0;
-
-        document.getElementById(`sj_${prodId}`).innerText = Math.max(0, lj - rj);
-        document.getElementById(`sb_${prodId}`).innerText = Math.max(0, lb - rb);
-    }
-
-    // جلب الجرد المخزن على قاعدة البيانات
-    async function loadDailyLog() {
-        const selectedDate = document.getElementById('stockLogDate').value;
-        const tableBody = document.getElementById('stockLogTableBody');
-        
-        tableBody.innerHTML = `<tr><td colspan="7" class="text-muted py-4 text-center"><i class="fas fa-sync fa-spin me-2"></i> جاري مزامنة وجلب حركة جرد اليوم...</td></tr>`;
-
-        try {
-            const logDocRef = doc(db, "daily_stock_logs", selectedDate);
-            const logSnap = await getDoc(logDocRef);
-            let savedData = {};
-
-            if (logSnap.exists()) {
-                savedData = logSnap.data().items || {};
-            }
-
-            let savedIds = Object.keys(savedData);
-
-            if (savedIds.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="7" class="text-muted py-4 text-center">لا توجد حركات مسجلة اليوم. ابدأ بكتابة اسم الصنف في صندوق البحث الذكي بالأعلى.</td></tr>`;
-                return;
-            }
-
-            let rowsHtml = "";
-            savedIds.forEach(id => {
-                const item = savedData[id];
-                const sold_jar = Math.max(0, (item.load_jar || 0) - (item.return_jar || 0));
-                const sold_box = Math.max(0, (item.load_box || 0) - (item.return_box || 0));
-
-                rowsHtml += generateRowMarkup(id, item.name || id, item.load_jar, item.load_box, item.return_jar, item.return_box, sold_jar, sold_box);
-            });
-
-            tableBody.innerHTML = rowsHtml;
-            savedIds.forEach(id => bindRowInputsEvent(id));
-
-        } catch(err) {
-            console.error("Error loading daily log:", err);
-            tableBody.innerHTML = `<tr><td colspan="7" class="alert alert-danger p-2 text-center">حدث خطأ أثناء الاتصال بالسيرفر وجلب البيانات الحالية.</td></tr>`;
-        }
-    }
-
-    const dateInput = document.getElementById('stockLogDate');
-    if (dateInput) {
-        dateInput.addEventListener("change", loadDailyLog);
-    }
-
-    // حفظ بيان الجرد
-    async function saveDailyLog() {
-        const selectedDate = document.getElementById('stockLogDate').value;
-        const rows = document.querySelectorAll("#stockLogTableBody tr");
-        
-        if (rows.length === 0 || rows[0].querySelector("td[colspan]")) {
-            alert("لا توجد بيانات أو أصناف مدرجة بالجدول لحفظها!");
-            return;
-        }
-
-        let uploadData = {};
-
-        rows.forEach(row => {
-            const prodId = row.getAttribute("data-prod-id");
-            const prodName = row.getAttribute("data-prod-name");
-            if (prodId) {
-                uploadData[prodId] = {
-                    name: prodName,
-                    load_jar: parseInt(document.getElementById(`lj_${prodId}`).value) || 0,
-                    load_box: parseInt(document.getElementById(`lb_${prodId}`).value) || 0,
-                    return_jar: parseInt(document.getElementById(`rj_${prodId}`).value) || 0,
-                    return_box: parseInt(document.getElementById(`rb_${prodId}`).value) || 0
-                };
-            }
-        });
-
-        try {
-            await setDoc(doc(db, "daily_stock_logs", selectedDate), {
-                date: selectedDate,
-                items: uploadData,
-                updatedAt: new Date()
-            });
-            alert(`تم حفظ واعتماد جرد يوم (${selectedDate}) على السيرفر بنجاح!`);
-        } catch(e) {
-            console.error("Error saving log:", e);
-            alert("فشل في عملية الحفظ، يرجى مراجعة شبكة الإنترنت لديك.");
-        }
-    }
+for(let i=0;i<5;i++) addRow();
 </script>
 </body>
-</html>
+</html>'''
+
+path = "/mnt/data/car_inventory_page.html"
+Path(path).write_text(html, encoding="utf-8")
+print(path)
