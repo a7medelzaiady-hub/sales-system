@@ -740,22 +740,31 @@
         if (inv.items && inv.items.length > 0) {  
             inv.items.forEach(itm => {  
                 const itemName = itm.name || "";  
+                const qty = Number(itm.qty) || 0;  
+                const price = Number(itm.price) || 0;  
+  
+                // تطبيق فلتر التصنيف الجديد للمشاركة الحرارية لضمان دقة العرض  
+                const isCarton =  
+                    itm.unit === "كرتونة" ||  
+                    itm.type === "carton" ||  
+                    itemName.includes("كرتونة") ||  
+                    itemName.includes("كرتونه");  
+  
                 let jarkanQty = "-";  
                 let cartonQty = "-";  
   
-                // تصحيح منطق فحص الصورة الحرارية للمشاركة: الكرتونة تذهب للكرتونة والقطع/الجركن للجركن
-                if (itemName.includes("كرتونه") || itemName.includes("كرتونة")) {  
-                    cartonQty = itm.qty || "-"; 
+                if (isCarton) {  
+                    cartonQty = qty;  
                 } else {  
-                    jarkanQty = itm.qty || "-"; 
+                    jarkanQty = qty;  
                 }  
   
                 const tr = document.createElement('tr');  
                 tr.innerHTML = `  
                     <td style="text-align: right; padding: 5px 0;">${itemName}</td>  
-                    <td style="font-weight: bold; color: #0b5e3d;">${jarkanQty}</td>  
-                    <td style="font-weight: bold; color: #b94a00;">${cartonQty}</td>  
-                    <td style="text-align: left; font-weight: bold;">${((Number(itm.qty) || 0) * (Number(itm.price) || 0)).toFixed(2)} ج.م</td>  
+                    <td style="font-weight: bold; color: #0b5e3d;">${jarkanQty === "-" ? "-" : jarkanQty}</td>  
+                    <td style="font-weight: bold; color: #b94a00;">${cartonQty === "-" ? "-" : cartonQty}</td>  
+                    <td style="text-align: left; font-weight: bold;">${(qty * price).toFixed(2)} ج.م</td>  
                 `;  
                 itemsContainer.appendChild(tr);  
             });  
@@ -1069,20 +1078,24 @@
                     const qty = Number(item.qty) || 0;  
                     const price = Number(item.price) || 0;  
   
-                    let qtyJarkan = 0;  
-                    let qtyCarton = 0;  
-                    let priceJarkan = 0;  
-                    let priceCarton = 0;  
-  
-                    // التصحيح النهائي والمضمون 100% لفصل البيانات
-                    if (itemName.includes("كرتونة") || itemName.includes("كرتونه")) {  
-                        // إذا كان صنف كرتونة، يذهب لأعمدة الكرتونة حصراً
-                        qtyCarton = qty;  
-                        priceCarton = price;  
-                    } else {  
-                        // إذا كان قطعة، جركن، أو أي صنف آخر، يذهب لأعمدة الجركن حصراً لمنع التداخل
-                        qtyJarkan = qty;  
-                        priceJarkan = price;  
+                    // تطبيق منطق الفرز الجديد والمحسن 100% كما طلبت
+                    const isCarton =
+                        item.unit === "كرتونة" ||
+                        item.type === "carton" ||
+                        itemName.includes("كرتونة") ||
+                        itemName.includes("كرتونه");
+
+                    let qtyJarkan = 0;
+                    let qtyCarton = 0;
+                    let priceJarkan = 0;
+                    let priceCarton = 0;
+
+                    if (isCarton) {
+                        qtyCarton = qty;
+                        priceCarton = price;
+                    } else {
+                        qtyJarkan = qty;
+                        priceJarkan = price;
                     }  
                     
                     customRows.push({   
