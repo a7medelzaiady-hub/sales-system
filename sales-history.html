@@ -187,57 +187,37 @@
             return Number(initialBalance) + invoiceDebt + transEffect;
         } catch (e) { return Number(initialBalance); }
     }
-window.exportToExcel = () => {
+  window.exportToExcel = () => {
+        if (allInvoices.length === 0) return alert("لا توجد بيانات للتصدير");
 
-    if (allInvoices.length === 0) {
-        return alert("لا توجد بيانات للتصدير");
-    }
+        let excelData = [];
+        excelData.push(["التاريخ", "الحركة", "اسم العميل/المورد", "اسم الصنف", "عدد قطعة", "عدد كرتونة", "سعر قطعة", "سعر كرتونة"]);
 
-    let excelData = [];
+        allInvoices.forEach(inv => {
+            const supplierName = suppliersNames[inv.supplierId] || "";
 
-    excelData.push([
-        "اسم العميل",
-        "الصنف",
-        "جركن",
-        "كرتونة",
-        "سعر جركن",
-        "سعر كرتونة"
-    ]);
+            if (Array.isArray(inv.items) && inv.items.length > 0) {
+                inv.items.forEach(item => {
+                    const unit = item.unitName || "كرتونة";
+                    let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
+                    const isItemReturn = item.returnQty > 0 || inv.isReturn;
+                    const motionType = isItemReturn ? "بيع" : "شراء";
 
-    allInvoices.forEach(inv => {
+                    if (unit === "قطعة") {
+                        qtyPcs = item.qty || item.returnQty || 0;
+                        pricePcs = item.buy || 0;
+                    } else {
+                        qtyCrt = item.qty || item.returnQty || 0;
+                        priceCrt = item.buy || 0;
+                    }
 
-        Object.keys(inv).forEach(k => {
-
-            if (!isNaN(k) && inv[k]) {
-
-                const item = inv[k];
-                const isBox = item.unit === "box";
-
-                const qtyJarkan = !isBox ? item.qty || 0 : "";
-                const qtyBox = isBox ? item.qty || 0 : "";
-
- excelData.push([
-    inv.customerName || "النقدى",
-    item.name || "",
-    qtyJarkan ? "جركن" : "",
-    qtyBox ? "كرتونة" : "",
-    !isBox ? (item.price || 0) : "",
-    isBox ? (item.price || 0) : ""
-]);
-
-        // المدفوع (صف واحد)
-        const paid = (inv.total || 0) - (inv.remaining || 0);
-
-        excelData.push([
-            inv.customerName || "النقدى",
-            "سداد نقدى",
-            "",
-            1,       // عدد كرتونة = 1
-            "",
-            paid     // سعر الكرتونة = المدفوع
-        ]);
-
-    });
+                    excelData.push([
+                        inv.date || "", motionType, supplierName,
+                        item.name || item.productName || item.itemName || "",
+                        qtyPcs, qtyCrt, pricePcs, priceCrt
+                    ]);
+                });
+            }
 
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
