@@ -999,31 +999,41 @@
             const customerName = inv.customerName || "عميل نقدي";
 
             if (Array.isArray(inv.items) && inv.items.length > 0) {
-                inv.items.forEach(item => {
-                    let unit = "كرتونه";
-                    if (item.name && item.name.includes("كرتونة")) {
-                        unit = "جركن";
-                    } else if (item.unitName && item.unitName === "كرتونة") {
-                        unit = "كرتونة";
-                    }
+                
+    ]);inv.items.forEach(item => {
+    // الفحص الذكي: لو الوحدة "كرتونة" هتنزل في عمود الكرتونة
+    // لو الوحدة "قطعة" أو "جركن" أو أي شيء آخر، هتنزل في عمود الجركن
+    let isJerrycan = true; 
 
-                    let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
-                    const motionType = "بيع"; 
+    if (item.unitName === "كرتونة" || (item.name && item.name.includes("كرتونة"))) {
+        isJerrycan = false; // كرتونة كاملة
+    } else {
+        isJerrycan = true;  // قطعة (وتعني جركن)
+    }
 
-                    if (unit === "جركن") {
-                        qtyPcs = item.qty || 0;
-                        pricePcs = item.price || 0;
-                    } else {
-                        qtyCrt = item.qty || 0;
-                        priceCrt = item.price || 0;
-                    }
+    let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
+    const motionType = "بيع"; 
 
-                    excelData.push([
-                        parseInvoiceDate(inv) || inv.date || "", 
-                        motionType, 
-                        customerName,
-                        item.name || "",
-                        qtyPcs, qtyCrt, pricePcs, priceCrt
+    // التوزيع في أعمدة الإكسيل بناءً على الفحص
+    if (isJerrycan) {
+        qtyPcs = item.qty || 0;      // عدد الجراكن (القطع)
+        pricePcs = item.price || 0;  // سعر الجركن (القطعة)
+    } else {
+        qtyCrt = item.qty || 0;      // عدد الكرتونات
+        priceCrt = item.price || 0;  // سعر الكرتونة
+    }
+
+    excelData.push([
+        invoiceDate, 
+        motionType, 
+        customerName,
+        item.name || "",
+        qtyPcs, 
+        qtyCrt, 
+        pricePcs, 
+        priceCrt
+
+
                     ]);
                 });
             }
