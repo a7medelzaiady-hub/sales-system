@@ -989,40 +989,52 @@
         });  
     };  
 
-        window.exportToExcel = () => {
-        if (allInvoices.length === 0) {
-            window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات للتصدير حالياً.", icon: "info" });
+            window.exportToExcel = () => {
+        // allInvoices هو المصفوفة اللي شاحنة الفواتير من الفايربيز في صفحة السجل
+        if (!allInvoices || allInvoices.length === 0) {
+            alert("لا توجد بيانات لتصديرها حالياً.");
             return;
         }
 
         let excelData = [];
-        // رأس الجدول في ملف الإكسيل
-        excelData.push(["التاريخ", "الحركة", "اسم العميل", "اسم الصنف", "عدد جركن", "عدد كرتونة", "سعر جركن", "سعر كرتونة"]);
+        // رأس الجدول الاحترافي لملف الإكسيل الخاص بحسابات الزيادي
+        excelData.push(["التاريخ", "الحركة", "اسم العميل", "اسم الصنف", "عدد جركن", "عدد كرتونة", "سعر جركن", "سعر كرتونة", "الصافي"]);
 
         allInvoices.forEach(inv => {
             const customerName = inv.customerName || "عميل نقدي";
-            const invoiceDate = parseInvoiceDate(inv); // تعريف التاريخ بشكل صحيح لكل فاتورة
+            const invoiceDate = inv.time || ""; // استخدام التاريخ المسجل في الفاتورة
 
             if (Array.isArray(inv.items) && inv.items.length > 0) {
                 inv.items.forEach(item => {
-                    // الفحص الذكي: لو الوحدة كرتونة أو الاسم يحتوي على كلمة كرتونة
+                    // الفحص الدقيق بناءً على الحقل البرمجي المحفوظ
                     let isJerrycan = true; 
-                    if (item.unitName === "كرتونة" || (item.name && item.name.includes("كرتونة"))) {
-                        isJerrycan = false; // كرتونة كاملة
+                    if (item.unit === "box") {
+                        isJerrycan = false; // كرتونة
+                    } else if (item.unit === "pcs") {
+                        isJerrycan = true;  // جركن
                     } else {
-                        isJerrycan = true;  // جركن بالوضع الافتراضي
+                        // فحص احتياطي ذكي بناءً على المسمى النصي لو الوحدة مش مبعوتة صح
+                        isJerrycan = !(item.unitName === "كرتونة" || (item.name && item.name.includes("كرتونة")));
                     }
 
-                    let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
-                    const motionType = "بيع"; 
+                    let qtyJerrycan = "", qtyCarton = "", priceJerrycan = "", priceCarton = "";
+                    
+                    // تحديد نوع الحركة: بيع عادي أم مرتجع مبيعات
+                    const motionType = item.isReturn ? "مرتجع مبيعات" : "بيع"; 
+                    
+                    // حساب إجمالي السطر مع تحويل الإشارة لو كان مرتجع
+                    const rowQty = Number(item.qty) || 0;
+                    const rowPrice = Number(item.price) || 0;
+                    let rowNet = rowQty * rowPrice;
+                    if (item.isReturn) rowNet = -rowNet;
 
-                    // توزيع القيم في الأعمدة بناءً على نوع الوحدة
+                    // توزيع الكميات والأسعار في الأعمدة الخاصة بها بناءً على نوع الوحدة
                     if (isJerrycan) {
-                        qtyPcs = item.qty || 0;      // عدد الجراكن
-                        pricePcs = item.price || 0;  // سعر الجركن
+                        qtyJerrycan = rowQty;
+                        priceJerrycan = rowPrice;
                     } else {
-                        qtyCrt = item.qty || 0;      // عدد الكرتونات
-                        priceCrt = item.price || 0;  // سعر الكرتونة
+                        qtyCarton = rowQty;
+                        priceCarton = rowPrice;
                     }
 
                     excelData.push([
@@ -1030,40 +1042,67 @@
                         motionType, 
                         customerName,
                         item.name || "",
-                        qtyPcs, 
-                        qtyCrt, 
-                        pricePcs, 
-                        priceCrt
+                        qtyJerrycan, 
+                        qtyCarton, 
+                        priceJerrycan, 
+                        priceCarton,
+                        rowNet
                     ]);
                 });
             }
 
-            // إضافة سطر المقبوضات (نقدي + محفظة) لو الفاتورة فيها سداد
-            const currentPaid = (inv.calculatedCash || 0) + (inv.calculatedWallet || 0);
+            // إضافة الخصم النقدي لو موجود كسطر تسوية مستقل في الإكسيل عشان الحسابات تقفل صح
+            if (inv.discount && Number(inv.discount) > 0) {
+                excelData.push([
+                    invoiceDate,
+                    "خصم نقدي ممنوح",
+                    customerName,
+                    "تنزيل من إجمالي الفاتورة",
+                    "",
+                    "",
+                    "",
+                    "",
+                    -Number(inv.discount)
+                ]);
+            }
+
+            // إضافة سطر المقبوضات (نقدي + محفظة) للحركة المالية
+            const currentPaid = (Number(inv.cashAmount) || 0) + (Number(inv.walletAmount) || 0);
             if (currentPaid > 0) {
                 excelData.push([
                     invoiceDate, 
-                    "سداد منه نقدي", 
+                    "سداد من العميل", 
                     customerName, 
-                    "سداد شامل (نقدي/محفظة)", 
+                    `المقبوض: ${inv.paymentMethod || 'سداد نقدى'}`, 
                     "", 
                     "", 
                     "", 
-                    currentPaid
+                    "",
+                    -currentPaid // السداد يطرح من مديونية العميل في كشف الحساب
                 ]);
             }
         });
 
-        // تحويل البيانات لشيت إكسيل وتعديل عروض الأعمدة لتناسب القراءة
+        // تحويل المصفوفة لشيت إكسيل وتعديل عروض الأعمدة لتناسب الشغل من الموبايل أو اللاب توب
         const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-        worksheet['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+        worksheet['!cols'] = [
+            { wch: 18 }, // التاريخ
+            { wch: 15 }, // الحركة
+            { wch: 22 }, // اسم العميل
+            { wch: 28 }, // اسم الصنف
+            { wch: 12 }, // عدد جركن
+            { wch: 12 }, // عدد كرتونة
+            { wch: 12 }, // سعر جركن
+            { wch: 12 }, // سعر كرتونة
+            { wch: 14 }  // الصافي
+        ];
 
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
-        XLSX.writeFile(workbook, "تقرير مبيعات الزيادي.xlsx");
+        XLSX.utils.book_append_sheet(workbook, worksheet, "سجل المبيعات المطور");
+        
+        // حفظ الملف باسم واضح ومؤرخ
+        XLSX.writeFile(workbook, "سجل_مبيعات_الزيادي_جراكن_وكراتين.xlsx");
     };
-
-    document.getElementById('exportExcelBtn').onclick = window.exportToExcel;
 
     loadData();  
 </script>  
