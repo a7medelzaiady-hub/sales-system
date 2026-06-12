@@ -993,76 +993,52 @@
     };  
 
     /* تصدير الإكسيل المعدل: ميكانيزم متطور يفصل تماماً بين "الكرتونة" و"الجركن" لتجنب تداخل جراكن الكرتونة المفتوحة فرط */  
-    document.getElementById('exportExcelBtn').onclick = () => {  
-        if (allInvoices.length === 0) {  
-            window.showCustomUi({ title: "تنبيه", message: "لا توجد أي فواتير مسجلة في الأرشيف لتصديرها.", icon: "info" });  
-            return;  
-        }  
-        let customRows = [];  
-  
-        allInvoices.forEach(inv => {  
-            const invoiceDate = parseInvoiceDate(inv);  
-            const clientName = inv.customerName || "عميل نقدي";  
-              
-            if (inv.calculatedCash > 0) {  
-                customRows.push({ "التاريخ": invoiceDate, "الحركه": "سداد منه نقدى", "اسم العميل": clientName, "البيان": "سداد نقدي", "عدد جركن": "", "عدد كرتونه": "", "سعر جركن": "", "سعر الكرتونه": inv.calculatedCash });  
-            }  
-            if (inv.calculatedWallet > 0) {  
-                customRows.push({ "التاريخ": invoiceDate, "الحركه": "سداد منه محفظه", "اسم العميل": clientName, "البيان": "سداد محفظة", "عدد جركن": "", "عدد كرتونه": "", "سعر جركن": "", "سعر الكرتونه": inv.calculatedWallet });  
-            }  
-  
-            if (inv.items && inv.items.length > 0) {  
-                inv.items.forEach(item => {  
-                    const itemName = (item.name || "").toString().trim();  
-                    const qty = Number(item.qty) || 0;  
-                    const price = Number(item.price) || 0;  
-  
-                    let qtyJarkan = "";  
-                    let qtyCarton = "";  
-                    let priceJarkan = "";  
-                    let priceCarton = "";  
-  
-                    const unitText = (item.unit || item.category || item.sizeType || "").toString().trim();  
-  
-                    // الميكانيزم الصارم: كرتونة مقفولة أم جراكن فرط (حتى لو مسحوبة من الكرتونة)
-                    if (  
-                        unitText === "كرتونة" ||  
-                        unitText === "كرتونه" ||  
-                        itemName.includes("كرتونة") ||  
-                        itemName.includes("كرتونه")  
-                    ) {  
-                        qtyCarton = qty;  
-                        priceCarton = price;  
-                        qtyJarkan = "";   
-                        priceJarkan = "";  
-                    } else {  
-                        // يعتبر جركن/قطعة فرط آلياً وينزل في عموده الصافي
-                        qtyJarkan = qty;  
-                        priceJarkan = price;  
-                        qtyCarton = "";   
-                        priceCarton = "";  
-                    }  
-                    
-                    customRows.push({   
-                        "التاريخ": invoiceDate,   
-                        "الحركه": "بيع",   
-                        "اسم العميل": clientName,   
-                        "البيان": itemName,   
-                        "عدد جركن": qtyJarkan,   
-                        "عدد كرتونه": qtyCarton,   
-                        "سعر جركن": priceJarkan,   
-                        "سعر الكرتونه": priceCarton   
-                    });  
-                });  
-            }  
-        });  
-  
-        const worksheet = XLSX.utils.json_to_sheet(customRows);  
-        const workbook = XLSX.utils.book_new();  
-        XLSX.utils.book_append_sheet(workbook, worksheet, "كشف الحركة الكامل");  
-        worksheet['!dir'] = "rtl";  
-        XLSX.writeFile(workbook, `الأرشيف_الكامل_لحركة_مبيعات_الزيادي.xlsx`);  
-    };  
+
+    window.exportToExcel = () => {
+        if (allInvoices.length === 0) return alert("لا توجد بيانات للتصدير");
+
+        let excelData = [];
+        excelData.push(["التاريخ", "الحركة", "اسم العميل/المورد", "اسم الصنف", "عدد قطعة", "عدد كرتونة", "سعر قطعة", "سعر كرتونة"]);
+
+        allInvoices.forEach(inv => {
+            const supplierName = suppliersNames[inv.supplierId] || "";
+
+            if (Array.isArray(inv.items) && inv.items.length > 0) {
+                inv.items.forEach(item => {
+                    const unit = item.unitName || "كرتونة";
+                    let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
+                    const isItemReturn = item.returnQty > 0 || inv.isReturn;
+                    const motionType = isItemReturn ? "بيع" : "شراء";
+
+                    if (unit === "قطعة") {
+                        qtyPcs = item.qty || item.returnQty || 0;
+                        pricePcs = item.buy || 0;
+                    } else {
+                        qtyCrt = item.qty || item.returnQty || 0;
+                        priceCrt = item.buy || 0;
+                    }
+
+                    excelData.push([
+                        inv.date || "", motionType, supplierName,
+                        item.name || item.productName || item.itemName || "",
+                        qtyPcs, qtyCrt, pricePcs, priceCrt
+                    ]);
+                });
+            }
+
+            const currentPaid = Number(inv.computedTotalPaid || 0);
+            if (currentPaid > 0) {
+                excelData.push([inv.date || "", "سداد منه نقدى", supplierName, "سداد نقدى", "", 1, "", currentPaid]);
+            }
+        });
+
+        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+        worksheet['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
+        XLSX.writeFile(workbook, "تقرير المبيعات.xlsx");
+    };
   
     loadData();  
 </script>  
