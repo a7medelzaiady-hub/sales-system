@@ -994,70 +994,91 @@
 
     /* تصدير الإكسيل المعدل: ميكانيزم متطور يفصل تماماً بين "الكرتونة" و"الجركن" لتجنب تداخل جراكن الكرتونة المفتوحة فرط */  
 
- window.exportToExcel = () => {
-    console.log("Invoices:", allInvoices);
+window.exportToExcel = () => {
 
     if (!allInvoices || allInvoices.length === 0) {
-        alert("لا توجد بيانات للتصدير");
-        return;
+        return alert("لا توجد بيانات للتصدير");
     }
 
-    // باقي الكود...
-}
-
-    const excelData = [];
+    let excelData = [];
 
     excelData.push([
         "التاريخ",
-        "العميل",
-        "طريقة السداد",
-        "إجمالي الفاتورة",
-        "النقدي",
-        "المحفظة",
-        "المتبقي"
+        "نوع الحركة",
+        "اسم العميل",
+        "اسم الصنف",
+        "الكمية",
+        "السعر",
+        "الإجمالي"
     ]);
 
     allInvoices.forEach(inv => {
 
-        excelData.push([
-            parseInvoiceDate(inv),
-            inv.customerName || "عميل نقدي",
-            inv.paymentMethod || "",
-            Number(inv.total || 0),
-            Number(inv.calculatedCash || 0),
-            Number(inv.calculatedWallet || 0),
-            Number(inv.remaining || 0)
-        ]);
+        const customerName = inv.customerName || "عميل نقدي";
 
+        if (Array.isArray(inv.items) && inv.items.length > 0) {
+
+            inv.items.forEach(item => {
+
+                const qty = Number(item.qty || 0);
+                const price = Number(item.price || 0);
+                const total = qty * price;
+
+                excelData.push([
+                    parseInvoiceDate(inv),
+                    "بيع",
+                    customerName,
+                    item.name || "",
+                    qty,
+                    price,
+                    total
+                ]);
+            });
+        }
+
+        const totalPaid =
+            Number(inv.calculatedCash || 0) +
+            Number(inv.calculatedWallet || 0);
+
+        if (totalPaid > 0) {
+
+            excelData.push([
+                parseInvoiceDate(inv),
+                "تحصيل",
+                customerName,
+                "سداد فاتورة",
+                "",
+                "",
+                totalPaid
+            ]);
+        }
     });
 
-    const ws = XLSX.utils.aoa_to_sheet(excelData);
+    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
-    ws["!cols"] = [
-        { wch: 15 },
-        { wch: 30 },
-        { wch: 20 },
+    worksheet["!cols"] = [
         { wch: 15 },
         { wch: 15 },
-        { wch: 15 },
+        { wch: 25 },
+        { wch: 35 },
+        { wch: 12 },
+        { wch: 12 },
         { wch: 15 }
     ];
 
-    const wb = XLSX.utils.book_new();
+    const workbook = XLSX.utils.book_new();
 
     XLSX.utils.book_append_sheet(
-        wb,
-        ws,
-        "سجل المبيعات"
+        workbook,
+        worksheet,
+        "المبيعات"
     );
 
     XLSX.writeFile(
-        wb,
-        `Sales_Report_${new Date().toISOString().slice(0,10)}.xlsx`
+        workbook,
+        "تقرير_المبيعات.xlsx"
     );
 };
-  document.getElementById("exportExcelBtn")
-.addEventListener("click", exportToExcel);
     loadData();  
 </script>  
 </body>  
