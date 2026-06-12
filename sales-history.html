@@ -993,95 +993,67 @@
     };  
 
     /* تصدير الإكسيل المعدل: ميكانيزم متطور يفصل تماماً بين "الكرتونة" و"الجركن" لتجنب تداخل جراكن الكرتونة المفتوحة فرط */  
-
 window.exportToExcel = () => {
-
-    if (!allInvoices || allInvoices.length === 0) {
-        return alert("لا توجد بيانات للتصدير");
-    }
+    // تأكد أن مصفوفة الفواتير في ملف المبيعات اسمها allInvoices (لو اسمها مختلف عدله هنا)
+    if (allInvoices.length === 0) return alert("لا توجد بيانات للتصدير");
 
     let excelData = [];
-
-    excelData.push([
-        "التاريخ",
-        "نوع الحركة",
-        "اسم العميل",
-        "اسم الصنف",
-        "الكمية",
-        "السعر",
-        "الإجمالي"
-    ]);
+    excelData.push(["التاريخ", "الحركة", "اسم العميل/المورد", "اسم الصنف", "عدد قطعة", "عدد كرتونة", "سعر قطعة", "سعر كرتونة"]);
 
     allInvoices.forEach(inv => {
-
-        const customerName = inv.customerName || "عميل نقدي";
+        // في المبيعات نتعامل مع عملاء، قمت بوضع جلب لاسم العميل ويفرز للمورد كبديل احتياطي
+        const clientName = customersNames[inv.customerId] || suppliersNames[inv.supplierId] || "";
 
         if (Array.isArray(inv.items) && inv.items.length > 0) {
-
             inv.items.forEach(item => {
+                const unit = item.unitName || "كرتونة";
+                let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
+                const isItemReturn = item.returnQty > 0 || inv.isReturn;
+                
+                // حركة البيع الأساسية تكون "بيع" والمرتجع يكون "مرتجع بيع"
+                const motionType = isItemReturn ? "مرتجع" : "بيع";
 
-                const qty = Number(item.qty || 0);
-                const price = Number(item.price || 0);
-                const total = qty * price;
+                // في المبيعات نأخذ سعر البيع (item.price أو item.sell) بدلاً من سعر الشراء (item.buy)
+                const itemPrice = item.price || item.sell || item.buy || 0;
+
+                if (unit === "قطعة") {
+                    qtyPcs = item.qty || item.returnQty || 0;
+                    pricePcs = itemPrice;
+                } else {
+                    qtyCrt = item.qty || item.returnQty || 0;
+                    priceCrt = itemPrice;
+                }
 
                 excelData.push([
-                    parseInvoiceDate(inv),
-                    "بيع",
-                    customerName,
-                    item.name || "",
-                    qty,
-                    price,
-                    total
+                    inv.date || "", motionType, clientName,
+                    item.name || item.productName || item.itemName || "",
+                    qtyPcs, qtyCrt, pricePcs, priceCrt
                 ]);
             });
         }
 
-        const totalPaid =
-            Number(inv.calculatedCash || 0) +
-            Number(inv.calculatedWallet || 0);
-
-        if (totalPaid > 0) {
-
-            excelData.push([
-                parseInvoiceDate(inv),
-                "تحصيل",
-                customerName,
-                "سداد فاتورة",
-                "",
-                "",
-                totalPaid
-            ]);
+        const currentPaid = Number(inv.computedTotalPaid || 0);
+        if (currentPaid > 0) {
+            // تم تعديل الوصف هنا إلى "تحصيل منه نقدى" لأنها مبيعات (دخل لك) وليس سداداً للمورد
+            excelData.push([inv.date || "", "سداد منه نقدى", clientName, "سداد نقدى", "", 1, "", currentPaid]);
         }
     });
 
     const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-
-    worksheet["!cols"] = [
-        { wch: 15 },
-        { wch: 15 },
-        { wch: 25 },
-        { wch: 35 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 15 }
-    ];
+    worksheet['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
 
     const workbook = XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(
-        workbook,
-        worksheet,
-        "المبيعات"
-    );
-
-    XLSX.writeFile(
-        workbook,
-        "تقرير_المبيعات.xlsx"
-    );
+    XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات"); // تغيير اسم الشيت الداخلي
+    XLSX.writeFile(workbook, "تقرير_المبيعات.xlsx"); // تغيير اسم ملف الاكسل عند التحميل
 };
-    document.getElementById("exportExcelBtn").addEventListener("click", () => {
-    exportToExcel();
-});
+
+window.toggleInvoiceDetails = function(id) {
+    const box = document.getElementById(`details_${id}`);
+    if (!box) return;
+    box.style.display = (box.style.display === "none" || box.style.display === "") ? "block" : "none";
+};
+
+init();
     loadData();  
 </script>  
 </body>  
