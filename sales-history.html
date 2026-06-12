@@ -992,106 +992,102 @@
         });  
     };  
 
-    /* تصدير الإكسيل المعدل: ميكانيزم متطور يفصل تماماً بين "الكرتونة" و"الجركن" لتجنب تداخل جراكن الكرتونة المفتوحة فرط */  
-/* تصدير الإكسيل المتطور: يفصل تماماً بين "الكرتونة" و"الجركن" بناءً على طبيعة أعمال الزيادي لزيوت السيارات */
-window.exportToExcel = () => {
-    if (allInvoices.length === 0) {
-        window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات فواتير لتصديرها حالياً.", icon: "info", type: "alert" });
-        return;
-    }
+    /* تصدير الإكسيل المتطور: يفصل تماماً بين "الكرتونة" و"الجركن" بناءً على طبيعة أعمال الزيادي لزيوت السيارات */
+    window.exportToExcel = () => {
+        if (allInvoices.length === 0) {
+            window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات فواتير لتصديرها حالياً.", icon: "info", type: "alert" });
+            return;
+        }
 
-    let excelData = [];
-    // العناوين المتوافقة تماماً مع طبيعة مبيعات زيوت السيارات (جركن / كرتونة)
-    excelData.push(["التاريخ", "الحركة", "اسم العميل", "اسم الصنف", "عدد جركن", "عدد كرتونة", "سعر جركن", "سعر كرتونة"]);
+        let excelData = [];
+        excelData.push(["التاريخ", "الحركة", "اسم العميل", "اسم الصنف", "عدد جركن", "عدد كرتونة", "سعر جركن", "سعر كرتونة"]);
 
-    allInvoices.forEach(inv => {
-        const clientName = inv.customerName || "عميل نقدي";
-        const invDate = parseInvoiceDate(inv) || inv.date || "";
+        allInvoices.forEach(inv => {
+            const clientName = inv.customerName || "عميل نقدي";
+            const invDate = parseInvoiceDate(inv) || inv.date || "";
 
-        if (Array.isArray(inv.items) && inv.items.length > 0) {
-            inv.items.forEach(item => {
-                // الفرز الذكي للوحدة: جركن بشكل افتراضي إلا لو الاسم يحتوي على كلمة كرتونة
-                let unit = item.unitName || "جركن";
-                if (item.name && (item.name.includes("كرتونة") || item.name.includes("كرتونه"))) {
-                    unit = "كرتونة";
-                }
-                
-                // إلغاء التعامل بلفظ "قطعة" وتحويله تلقائياً لـ "جركن"
-                if (unit === "قطعة" || unit === "قطعه") {
-                    unit = "جركن";
-                }
+            if (Array.isArray(inv.items) && inv.items.length > 0) {
+                inv.items.forEach(item => {
+                    let unit = item.unitName || "جركن";
+                    if (item.name && (item.name.includes("كرتونة") || item.name.includes("كرتونه"))) {
+                        unit = "كرتونة";
+                    }
+                    
+                    if (unit === "قطعة" || unit === "قطعه") {
+                        unit = "جركن";
+                    }
 
-                let qtyJerrycan = "", qtyCarton = "", priceJerrycan = "", priceCarton = "";
-                const itemPrice = Number(item.price) || 0;
-                const itemQty = Number(item.qty) || 0;
-                
-                // تحديد نوع الحركة (بيع أو مرتجع بيع)
-                const isItemReturn = item.returnQty > 0 || inv.notes === "مرتجع" || inv.paymentMethod === "مرتجع";
-                const motionType = isItemReturn ? "مرتجع بيع" : "بيع";
+                    let qtyJerrycan = "", qtyCarton = "", priceJerrycan = "", priceCarton = "";
+                    const itemPrice = Number(item.price) || 0;
+                    const itemQty = Number(item.qty) || 0;
+                    
+                    const isItemReturn = item.returnQty > 0 || inv.notes === "مرتجع" || inv.paymentMethod === "مرتجع";
+                    const motionType = isItemReturn ? "مرتجع بيع" : "بيع";
 
-                // توزيع الكميات والأسعار بناءً على نوع الوحدة المكتشفة
-                if (unit === "كرتونة") {
-                    qtyCarton = itemQty;
-                    priceCarton = itemPrice;
-                } else {
-                    qtyJerrycan = itemQty;
-                    priceJerrycan = itemPrice;
-                }
+                    if (unit === "كرتونة") {
+                        qtyCarton = itemQty;
+                        priceCarton = itemPrice;
+                    } else {
+                        qtyJerrycan = itemQty;
+                        priceJerrycan = itemPrice;
+                    }
 
+                    excelData.push([
+                        invDate, 
+                        motionType, 
+                        clientName,
+                        item.name || "",
+                        qtyJerrycan, 
+                        qtyCarton, 
+                        priceJerrycan, 
+                        priceCarton
+                    ]);
+                });
+            }
+
+            const totalPaid = (Number(inv.calculatedCash) || 0) + (Number(inv.calculatedWallet) || 0);
+            if (totalPaid > 0) {
                 excelData.push([
                     invDate, 
-                    motionType, 
-                    clientName,
-                    item.name || "",
-                    qtyJerrycan, 
-                    qtyCarton, 
-                    priceJerrycan, 
-                    priceCarton
+                    "تحصيل منه نقدى", 
+                    clientName, 
+                    "سداد نقدى حساب الفاتورة", 
+                    "", 
+                    "", 
+                    "", 
+                    totalPaid
                 ]);
-            });
-        }
+            }
+        });
 
-        // تسجيل حركة المقبوضات المالية (الكاش والمحفظة) كحركة منفصلة لضبط كشف الحساب العام
-        const totalPaid = (Number(inv.calculatedCash) || 0) + (Number(inv.calculatedWallet) || 0);
-        if (totalPaid > 0) {
-            excelData.push([
-                invDate, 
-                "تحصيل منه نقدى", 
-                clientName, 
-                "سداد نقدى حساب الفاتورة", 
-                "", 
-                "", 
-                "", 
-                totalPaid
-            ]);
-        }
-    });
+        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+        worksheet['!cols'] = [
+            { wch: 14 }, // التاريخ
+            { wch: 14 }, // الحركة
+            { wch: 24 }, // اسم العميل
+            { wch: 30 }, // اسم الصنف
+            { wch: 12 }, // عدد جركن
+            { wch: 12 }, // عدد كرتونة
+            { wch: 12 }, // سعر جركن
+            { wch: 12 }  // سعر كرتونة
+        ];
 
-    // توليد شيت الإكسيل وضبط أبعاد الأعمدة لتظهر بشكل ممتاز ومنظم
-    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-    worksheet['!cols'] = [
-        { wch: 14 }, // التاريخ
-        { wch: 14 }, // الحركة
-        { wch: 24 }, // اسم العميل
-        { wch: 30 }, // اسم الصنف
-        { wch: 12 }, // عدد جركن
-        { wch: 12 }, // عدد كرتونة
-        { wch: 12 }, // سعر جركن
-        { wch: 12 }  // سعر كرتونة
-    ];
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "سجل المبيعات");
+        XLSX.writeFile(workbook, "تقرير_المبيعات_التفصيلي.xlsx");
+    };
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "سجل المبيعات");
-    XLSX.writeFile(workbook, "تقرير_المبيعات_التفصيلي.xlsx");
-};
+    window.toggleInvoiceDetails = function(id) {
+        const box = document.getElementById(`details_${id}`);
+        if (!box) return;
+        box.style.display = (box.style.display === "none" || box.style.display === "") ? "block" : "none";
+    };
 
-window.toggleInvoiceDetails = function(id) {
-    const box = document.getElementById(`details_${id}`);
-    if (!box) return;
-    box.style.display = (box.style.display === "none" || box.style.display === "") ? "block" : "none";
-};
+    // ربط الأحداث وتشغيل جلب البيانات مباشرة عند التحميل
+    document.getElementById('exportExcelBtn').onclick = () => {
+        window.exportToExcel();
+    };
 
-init();
     loadData();  
 </script>  
 </body>  
