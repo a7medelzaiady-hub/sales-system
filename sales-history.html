@@ -989,68 +989,78 @@
         });  
     };  
 
-    window.exportToExcel = () => {
-        if (allInvoices.length === 0) return alert("لا توجد بيانات للتصدير");
+        window.exportToExcel = () => {
+        if (allInvoices.length === 0) {
+            window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات للتصدير حالياً.", icon: "info" });
+            return;
+        }
 
         let excelData = [];
+        // رأس الجدول في ملف الإكسيل
         excelData.push(["التاريخ", "الحركة", "اسم العميل", "اسم الصنف", "عدد جركن", "عدد كرتونة", "سعر جركن", "سعر كرتونة"]);
 
         allInvoices.forEach(inv => {
             const customerName = inv.customerName || "عميل نقدي";
+            const invoiceDate = parseInvoiceDate(inv); // تعريف التاريخ بشكل صحيح لكل فاتورة
 
             if (Array.isArray(inv.items) && inv.items.length > 0) {
-                
-    ]);inv.items.forEach(item => {
-    // الفحص الذكي: لو الوحدة "كرتونة" هتنزل في عمود الكرتونة
-    // لو الوحدة "قطعة" أو "جركن" أو أي شيء آخر، هتنزل في عمود الجركن
-    let isJerrycan = true; 
+                inv.items.forEach(item => {
+                    // الفحص الذكي: لو الوحدة كرتونة أو الاسم يحتوي على كلمة كرتونة
+                    let isJerrycan = true; 
+                    if (item.unitName === "كرتونة" || (item.name && item.name.includes("كرتونة"))) {
+                        isJerrycan = false; // كرتونة كاملة
+                    } else {
+                        isJerrycan = true;  // جركن بالوضع الافتراضي
+                    }
 
-    if (item.unitName === "كرتونة" || (item.name && item.name.includes("كرتونة"))) {
-        isJerrycan = false; // كرتونة كاملة
-    } else {
-        isJerrycan = true;  // قطعة (وتعني جركن)
-    }
+                    let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
+                    const motionType = "بيع"; 
 
-    let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
-    const motionType = "بيع"; 
+                    // توزيع القيم في الأعمدة بناءً على نوع الوحدة
+                    if (isJerrycan) {
+                        qtyPcs = item.qty || 0;      // عدد الجراكن
+                        pricePcs = item.price || 0;  // سعر الجركن
+                    } else {
+                        qtyCrt = item.qty || 0;      // عدد الكرتونات
+                        priceCrt = item.price || 0;  // سعر الكرتونة
+                    }
 
-    // التوزيع في أعمدة الإكسيل بناءً على الفحص
-    if (isJerrycan) {
-        qtyPcs = item.qty || 0;      // عدد الجراكن (القطع)
-        pricePcs = item.price || 0;  // سعر الجركن (القطعة)
-    } else {
-        qtyCrt = item.qty || 0;      // عدد الكرتونات
-        priceCrt = item.price || 0;  // سعر الكرتونة
-    }
-
-    excelData.push([
-        invoiceDate, 
-        motionType, 
-        customerName,
-        item.name || "",
-        qtyPcs, 
-        qtyCrt, 
-        pricePcs, 
-        priceCrt
-
-
+                    excelData.push([
+                        invoiceDate, 
+                        motionType, 
+                        customerName,
+                        item.name || "",
+                        qtyPcs, 
+                        qtyCrt, 
+                        pricePcs, 
+                        priceCrt
                     ]);
                 });
             }
 
-            
-            const currentPaid = Number(inv.computedTotalPaid || 0);
+            // إضافة سطر المقبوضات (نقدي + محفظة) لو الفاتورة فيها سداد
+            const currentPaid = (inv.calculatedCash || 0) + (inv.calculatedWallet || 0);
             if (currentPaid > 0) {
-                excelData.push([inv.date || "", "سداد منه نقدى", supplierName, "سداد نقدى", "", 1, "", currentPaid]);
+                excelData.push([
+                    invoiceDate, 
+                    "سداد منه نقدي", 
+                    customerName, 
+                    "سداد شامل (نقدي/محفظة)", 
+                    "", 
+                    "", 
+                    "", 
+                    currentPaid
+                ]);
             }
         });
 
+        // تحويل البيانات لشيت إكسيل وتعديل عروض الأعمدة لتناسب القراءة
         const worksheet = XLSX.utils.aoa_to_sheet(excelData);
         worksheet['!cols'] = [{ wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
 
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
-        XLSX.writeFile(workbook, "تقرير المبيعات الزيادي.xlsx");
+        XLSX.writeFile(workbook, "تقرير مبيعات الزيادي.xlsx");
     };
 
     document.getElementById('exportExcelBtn').onclick = window.exportToExcel;
