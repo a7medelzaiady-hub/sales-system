@@ -989,66 +989,68 @@
         });  
     };  
 
-          window.exportToExcel = () => {
+              window.exportToExcel = () => {
+        if (!allInvoices || allInvoices.length === 0) {
+            return alert("لا توجد بيانات للتصدير");
+        }
 
-    if (allInvoices.length === 0) {
-        return alert("لا توجد بيانات للتصدير");
-    }
+        let excelData = [];
 
-    let excelData = [];
-
-    excelData.push([
-        "اسم العميل",
-        "الصنف",
-        "جركن",
-        "كرتونة",
-        "سعر جركن",
-        "سعر كرتونة"
-    ]);
-
-    allInvoices.forEach(inv => {
-
-        Object.keys(inv).forEach(k => {
-
-            if (!isNaN(k) && inv[k]) {
-
-                const item = inv[k];
-                const isBox = item.unit === "box";
-
-                const qtyJarkan = !isBox ? item.qty || 0 : "";
-                const qtyBox = isBox ? item.qty || 0 : "";
-
- excelData.push([
-    inv.customerName || "النقدى",
-    item.name || "",
-    qtyJarkan ? "جركن" : "",
-    qtyBox ? "كرتونة" : "",
-    !isBox ? (item.price || 0) : "",
-    isBox ? (item.price || 0) : ""
-]);
-
-        // المدفوع (صف واحد)
-        const paid = (inv.total || 0) - (inv.remaining || 0);
-
+        // رأس الجدول بناءً على النسخة بتاعتك
         excelData.push([
-            inv.customerName || "النقدى",
-            "سداد نقدى",
-            "",
-            1,       // عدد كرتونة = 1
-            "",
-            paid     // سعر الكرتونة = المدفوع
+            "اسم العميل",
+            "الصنف",
+            "جركن",
+            "كرتونة",
+            "سعر جركن",
+            "سعر كرتونة"
         ]);
 
-    });
+        allInvoices.forEach(inv => {
+            Object.keys(inv).forEach(k => {
+                if (!isNaN(k) && inv[k]) {
+                    const item = inv[k];
+                    const isBox = item.unit === "box";
 
-    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+                    const qtyJarkan = !isBox ? item.qty || 0 : "";
+                    const qtyBox = isBox ? item.qty || 0 : "";
 
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
+                    excelData.push([
+                        inv.customerName || "النقدى",
+                        item.name || "",
+                        qtyJarkan ? "جركن" : "", // بناءً على كودك: طباعة الكلمة كنص
+                        qtyBox ? "كرتونة" : "",  // بناءً على كودك: طباعة الكلمة كنص
+                        !isBox ? (item.price || 0) : "",
+                        isBox ? (item.price || 0) : ""
+                    ]);
+                }
+            }); // إغلاق حلقة الأصناف الذكية
 
-    XLSX.writeFile(workbook, "المبيعات.xlsx");
-};
+            // حساب سطر المدفوع (صف واحد لكل فاتورة)
+            const paid = (Number(inv.total) || 0) - (Number(inv.remaining) || 0);
 
+            excelData.push([
+                inv.customerName || "النقدى",
+                "سداد نقدى",
+                "",
+                1,       // عدد كرتونة = 1 ثابتة بناءً على منطقك
+                "",
+                paid     // سعر الكرتونة = المدفوع
+            ]);
+        }); // إغلاق حلقة الفواتير الرئيسية
+
+        // تحويل البيانات لملف إكسيل وحفظه
+        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
+
+        XLSX.writeFile(workbook, "المبيعات.xlsx");
+    };
+
+    // 🔗 ربط الدالة بالزر العلوي في الصفحة ليشتغل فوراً عند الضغط
+    document.getElementById('exportExcelBtn').onclick = () => {
+        window.exportToExcel();
+    };
 
     loadData();  
 </script>  
