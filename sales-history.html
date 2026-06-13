@@ -989,14 +989,14 @@
         });  
     };  
 
-              window.exportToExcel = () => {
+               window.exportToExcel = () => {
         if (!allInvoices || allInvoices.length === 0) {
             return alert("لا توجد بيانات للتصدير");
         }
 
         let excelData = [];
 
-        // رأس الجدول بناءً على النسخة بتاعتك
+        // رأس الجدول بنفس الترتيب والأعمدة بتاعتك بالظبط
         excelData.push([
             "اسم العميل",
             "الصنف",
@@ -1007,26 +1007,41 @@
         ]);
 
         allInvoices.forEach(inv => {
-            Object.keys(inv).forEach(k => {
-                if (!isNaN(k) && inv[k]) {
-                    const item = inv[k];
-                    const isBox = item.unit === "box";
+            // 🌟 الحل الذكي: دمج الطريقتين (المصفوفة الحديثة + السطور القديمة) لضمان قراءة كل الأصناف
+            let invoiceItems = [];
 
-                    const qtyJarkan = !isBox ? item.qty || 0 : "";
-                    const qtyBox = isBox ? item.qty || 0 : "";
+            // أولاً: لو الفاتورة بنظام المصفوفة الحديثة items
+            if (inv.items && Array.isArray(inv.items)) {
+                invoiceItems = inv.items;
+            } 
+            // ثانياً: لو الفاتورة بنظام السطور الديناميكية القديم (مستند للـ Keys الرقمية)
+            else {
+                Object.keys(inv).forEach(k => {
+                    if (!isNaN(k) && inv[k]) {
+                        invoiceItems.push(inv[k]);
+                    }
+                });
+            }
 
-                    excelData.push([
-                        inv.customerName || "النقدى",
-                        item.name || "",
-                        qtyJarkan ? "جركن" : "", // بناءً على كودك: طباعة الكلمة كنص
-                        qtyBox ? "كرتونة" : "",  // بناءً على كودك: طباعة الكلمة كنص
-                        !isBox ? (item.price || 0) : "",
-                        isBox ? (item.price || 0) : ""
-                    ]);
-                }
-            }); // إغلاق حلقة الأصناف الذكية
+            // ترحيل الأصناف المجمعة إلى شيت الإكسيل بنفس منطقك بالظبط
+            invoiceItems.forEach(item => {
+                const isBox = item.unit === "box";
 
-            // حساب سطر المدفوع (صف واحد لكل فاتورة)
+                // طباعة كلمة "جركن" أو "كرتونة" في الأعمدة المقابلة بناءً على رغبتك
+                const qtyJarkan = !isBox ? "جركن" : "";
+                const qtyBox = isBox ? "كرتونة" : "";
+
+                excelData.push([
+                    inv.customerName || "النقدى",
+                    item.name || "",
+                    qtyJarkan, 
+                    qtyBox,  
+                    !isBox ? (item.price || 0) : "",
+                    isBox ? (item.price || 0) : ""
+                ]);
+            });
+
+            // حساب سطر المدفوع (صف واحد ثابت لكل فاتورة في النهاية كما طلبت)
             const paid = (Number(inv.total) || 0) - (Number(inv.remaining) || 0);
 
             excelData.push([
@@ -1037,9 +1052,9 @@
                 "",
                 paid     // سعر الكرتونة = المدفوع
             ]);
-        }); // إغلاق حلقة الفواتير الرئيسية
+        }); 
 
-        // تحويل البيانات لملف إكسيل وحفظه
+        // توليد ملف الإكسيل وحفظه
         const worksheet = XLSX.utils.aoa_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
@@ -1047,11 +1062,11 @@
         XLSX.writeFile(workbook, "المبيعات.xlsx");
     };
 
-    // 🔗 ربط الدالة بالزر العلوي في الصفحة ليشتغل فوراً عند الضغط
+    // ربط الدالة بزر التصدير العلوي
     document.getElementById('exportExcelBtn').onclick = () => {
         window.exportToExcel();
     };
-
+   
     loadData();  
 </script>  
 </body>  
