@@ -989,34 +989,31 @@
         });  
     };  
 
-               window.exportToExcel = () => {
+                   window.exportToExcel = () => {
         if (!allInvoices || allInvoices.length === 0) {
             return alert("لا توجد بيانات للتصدير");
         }
 
         let excelData = [];
 
-        // رأس الجدول بنفس الترتيب والأعمدة بتاعتك بالظبط
+        // رأس الجدول المكون من 7 أعمدة متناسقة تماماً
         excelData.push([
-            "التاريخ ",
+            "التاريخ",
             "اسم العميل",
             "الصنف",
-            " عدد جركن",
-            " عدد كرتونة",
+            "عدد جركن",
+            "عدد كرتونة",
             "سعر جركن",
             "سعر كرتونة"
         ]);
 
         allInvoices.forEach(inv => {
-            // 🌟 الحل الذكي: دمج الطريقتين (المصفوفة الحديثة + السطور القديمة) لضمان قراءة كل الأصناف
             let invoiceItems = [];
 
-            // أولاً: لو الفاتورة بنظام المصفوفة الحديثة items
+            // تجميع الأصناف بالطريقتين (الحديثة والقديمة لضمان الأرشيف)
             if (inv.items && Array.isArray(inv.items)) {
                 invoiceItems = inv.items;
-            } 
-            // ثانياً: لو الفاتورة بنظام السطور الديناميكية القديم (مستند للـ Keys الرقمية)
-            else {
+            } else {
                 Object.keys(inv).forEach(k => {
                     if (!isNaN(k) && inv[k]) {
                         invoiceItems.push(inv[k]);
@@ -1024,38 +1021,44 @@
                 });
             }
 
-            // ترحيل الأصناف المجمعة إلى شيت الإكسيل بنفس منطقك بالظبط
-            invoiceItems.forEach(item => {
-                const isBox = item.unit === "box";
+            // استخراج تاريخ الفاتورة الحالي لمنع ترحيل الأعمدة
+            const invDate = parseInvoiceDate(inv) || inv.date || "";
 
-                // طباعة كلمة "جركن" أو "كرتونة" في الأعمدة المقابلة بناءً على رغبتك
-                const qtyJarkan = !isBox ? "جركن" : "";
-                const qtyBox = isBox ? "كرتونة" : "";
+            invoiceItems.forEach(item => {
+                // الفحص الذكي: يعتمد على الكود أو وجود كلمة كرتونة في اسم الصنف
+                const isBox = item.unit === "box" || 
+                              (item.name && (item.name.includes("كرتونة") || item.name.includes("كرتونه")));
+
+                // الحل: طباعة العدد الفعلي (item.qty) بدلاً من الكلمات النصية
+                const qtyJarkan = !isBox ? (Number(item.qty) || 0) : "";
+                const qtyBox = isBox ? (Number(item.qty) || 0) : "";
 
                 excelData.push([
-                    inv.customerName || "النقدى",
-                    item.name || "",
-                    qtyJarkan, 
-                    qtyBox,  
-                    !isBox ? (item.price || 0) : "",
-                    isBox ? (item.price || 0) : ""
+                    invDate,                                 // 1. التاريخ
+                    inv.customerName || "النقدي",            // 2. اسم العميل
+                    item.name || "",                         // 3. الصنف
+                    qtyJarkan,                               // 4. عدد جركن (رقمي فعلي)
+                    qtyBox,                                  // 5. عدد كرتونة (رقمي فعلي)
+                    !isBox ? (Number(item.price) || 0) : "", // 6. سعر جركن
+                    isBox ? (Number(item.price) || 0) : ""    // 7. سعر كرتونة
                 ]);
             });
 
-            // حساب سطر المدفوع (صف واحد ثابت لكل فاتورة في النهاية كما طلبت)
+            // حساب سطر المقبوضات النهائي لكل فاتورة وضبط أعمدته السبعة
             const paid = (Number(inv.total) || 0) - (Number(inv.remaining) || 0);
 
             excelData.push([
-                inv.customerName || "النقدى",
-                "سداد نقدى",
-                "",
-                1,       // عدد كرتونة = 1 ثابتة بناءً على منطقك
-                "",
-                paid     // سعر الكرتونة = المدفوع
+                invDate,                      // 1. التاريخ
+                inv.customerName || "النقدي", // 2. اسم العميل
+                "سداد نقدي",                  // 3. البيان / الصنف
+                "",                           // 4. عدد جركن
+                1,                            // 5. عدد كرتونة (ثابت 1 حسب هيكلة شيت الحسابات الخاص بك)
+                "",                           // 6. سعر جركن
+                paid                          // 7. سعر كرتونة = صافي المبلغ المدفوع
             ]);
         }); 
 
-        // توليد ملف الإكسيل وحفظه
+        // توليد ملف الإكسيل وحفظه بترميز صحيح
         const worksheet = XLSX.utils.aoa_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
