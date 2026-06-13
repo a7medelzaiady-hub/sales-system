@@ -123,7 +123,7 @@
             .dashboard { grid-template-columns: repeat(4, 1fr); padding: 25px 20px; }
         }
 
-        /* تنسيق خاص وذكي جداً عندما يتببقى كارتين فقط للموظف */
+        /* تنسيق خاص وذكي جداً عندما يتبقى كارتين فقط للموظف */
         .dashboard.restricted-layout {
             display: flex !important;
             flex-direction: row;
@@ -337,7 +337,6 @@
         </div>
     </header>
 
-
     <!-- حاوية عرض الكروت الديناميكية -->
     <div class="dashboard" id="mainDashboard">
         <a href="mabiat-menu.html" class="card-link" id="cardSales">
@@ -370,14 +369,12 @@
                 <p>المخزن</p>
             </div>
         </a>
-        
         <a href="vouchers-hub.html" class="card-link" id="cardVouchers">
             <div class="card archive-card">
                 <div class="icon-box"><i class="fas fa-file-invoice-dollar"></i></div>
                 <p>السندات</p>
             </div>
         </a>
-        
         <a href="banknote.html" class="card-link" id="cardBanknote">
             <div class="card">
                 <div class="icon-box"><i class="fas fa-receipt"></i></div>
@@ -451,70 +448,92 @@
         }
 
         window.onload = () => {
+            // تفعيل الوضع الداكن بناءً على اختيار المستخدم المخزن سابقاً
             if (localStorage.getItem('sanad-theme') === 'dark') {
                 document.body.classList.add('dark-mode');
             }
 
-            const role = sessionStorage.getItem('role');
+            // جلب بيانات الرتبة، الاسم والمصفوفة من الـ sessionStorage
+            const role = sessionStorage.getItem('role') || 'employee'; 
             const username = sessionStorage.getItem('username') || '';
+            
+            // قراءة الصلاحيات على هيئة مصفوفة، وإعطاء قيم افتراضية للمستخدم العادي في حال لم تكن محددة بعد
+            const savedPermissions = sessionStorage.getItem('permissions');
+            const userPermissions = savedPermissions ? JSON.parse(savedPermissions) : ['sales', 'vouchers']; 
 
-            if (username) {
-                document.getElementById('welcomeUser').innerText = `مرحباً بك، ${username}`;
+            // تحديث رسالة الترحيب إن وجدت
+            const welcomeEl = document.getElementById('welcomeUser');
+            if (welcomeEl && username) {
+                welcomeEl.innerText = `مرحباً بك، ${username}`;
             }
 
-            // تطبيق الهيكلة والتنسيق الفاخر للموظف المحدود
-            if (role === 'restricted') {
+            // تخصيص المسمى والبادج الجانبي بناء على الرتبة
+            const roleBadge = document.getElementById('userRoleBadge');
+            if (roleBadge) {
+                if (role === 'admin') roleBadge.innerText = 'مدير النظام';
+                else if (role === 'restricted') roleBadge.innerText = 'موظف مبيعات';
+                else roleBadge.innerText = 'موظف';
+            }
+
+            // خريطة ربط معرّفات الـ HTML بالكلمات المفتاحية للصلاحيات المطلوبة
+            const UI_Permissions_Map = {
+                // الكروت الرئيسية بالشاشة
+                'cardSales': 'sales',
+                'cardPurchases': 'purchases',
+                'cardClients': 'clients',
+                'cardSuppliers': 'suppliers',
+                'cardInventory': 'inventory',
+                'cardVouchers': 'vouchers',
+                'cardBanknote': 'banknote',
+                'cardReports': 'reports',
                 
-                // 1. تحويل الحاوية إلى وضع العرض المخصص لكارتين فقط سنتر للشاشة
+                // روابط وأزرار القائمة الجانبية
+                'sideTransactions': 'banknote',
+                'sidePurchaseOrders': 'purchases',
+                'sideInventoryMgmt': 'inventory',
+                'sideSupplierList': 'suppliers',
+                'sideCustomerList': 'clients',
+                'sideSettings': 'settings',
+                'sideSecurity': 'security',
+                'labelSystem': 'settings',
+                
+                // أزرار التحكم السفلية والعائمة
+                'bottomExpenses': 'banknote',
+                'fabOrders': 'sales'
+            };
+
+            // تطبيق الصلاحيات بشكل ديناميكي (إذا لم يكن المستخدم admin)
+            if (role !== 'admin') { 
+                let visibleCardsCount = 0;
+
+                Object.keys(UI_Permissions_Map).forEach(elementId => {
+                    const element = document.getElementById(elementId);
+                    if (element) {
+                        const requiredPermission = UI_Permissions_Map[elementId];
+                        
+                        // التحقق مما إذا كانت المصفوفة تحتوي على الصلاحية المناسبة للعنصر
+                        if (userPermissions.includes(requiredPermission)) {
+                            element.style.display = ''; // إظهار
+                            if (elementId.startsWith('card')) {
+                                visibleCardsCount++;
+                            }
+                        } else {
+                            element.style.display = 'none'; // إخفاء تماماً
+                        }
+                    }
+                });
+
+                // تفعيل التنسيق الفاخر تلقائياً لتوسيط وترتيب العناصر إذا بقي كارتين أو أقل
                 const dashboardContainer = document.getElementById('mainDashboard');
-                if (dashboardContainer) {
+                if (dashboardContainer && visibleCardsCount <= 2) {
                     dashboardContainer.classList.add('restricted-layout');
+                    
+                    // توجيه كرت السندات لصفحة المبيعات المباشرة تلقائياً إذا كان مفعل للموظف المحدود
+                    const vouchersCardLink = document.getElementById('cardVouchers');
+                    if (vouchersCardLink && userPermissions.includes('vouchers')) {
+                        vouchersCardLink.setAttribute('href', 'client-vouchers.html');
+                    }
                 }
-
-                // 2. إخفاء الكروت المحظورة بالكامل
-                const forbiddenCards = [
-                    'cardPurchases', 
-                    'cardClients', 
-                    'cardSuppliers', 
-                    'cardInventory', 
-                    'cardReports',
-                    'cardBanknote'     
-                ];
-                forbiddenCards.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.style.display = 'none';
-                });
-
-                // 3. توجيه كرت السندات الحصري لصفحة المبيعات الحرارية مباشرة
-                const vouchersCardLink = document.getElementById('cardVouchers');
-                if (vouchersCardLink) {
-                    vouchersCardLink.setAttribute('href', 'client-vouchers.html');
-                }
-
-                // 4. تعديل الرتب في القائمة الجانبية وإخفاء الروابط والرموز غير المصرح بها
-                const roleBadge = document.getElementById('userRoleBadge');
-                if (roleBadge) roleBadge.innerText = 'موظف مبيعات';
-
-                const forbiddenSideItems = [
-                    'sideTransactions',   
-                    'sidePurchaseOrders', 
-                    'sideInventoryMgmt',  
-                    'sideSupplierList',
-                    'sideCustomerList',   
-                    'sideSettings',        
-                    'sideSecurity',        
-                    'labelSystem'         
-                ];
-                forbiddenSideItems.forEach(id => {
-                    const el = document.getElementById(id);
-                    if (el) el.style.display = 'none';
-                });
-
-                const expensesBtn = document.getElementById('bottomExpenses');
-                if (expensesBtn) expensesBtn.style.display = 'none';
-
-                const fabBtn = document.getElementById('fabOrders');
-                if (fabBtn) fabBtn.style.display = 'none';
             }
         };
     </script>
