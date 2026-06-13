@@ -989,120 +989,66 @@
         });  
     };  
 
-            window.exportToExcel = () => {
-        // allInvoices هو المصفوفة اللي شاحنة الفواتير من الفايربيز في صفحة السجل
-        if (!allInvoices || allInvoices.length === 0) {
-            alert("لا توجد بيانات لتصديرها حالياً.");
-            return;
-        }
+          window.exportToExcel = () => {
 
-        let excelData = [];
-        // رأس الجدول الاحترافي لملف الإكسيل الخاص بحسابات الزيادي
-        excelData.push(["التاريخ", "الحركة", "اسم العميل", "اسم الصنف", "عدد جركن", "عدد كرتونة", "سعر جركن", "سعر كرتونة", "الصافي"]);
+    if (allInvoices.length === 0) {
+        return alert("لا توجد بيانات للتصدير");
+    }
 
-        allInvoices.forEach(inv => {
-            const customerName = inv.customerName || "عميل نقدي";
-            const invoiceDate = inv.time || ""; // استخدام التاريخ المسجل في الفاتورة
+    let excelData = [];
 
-            if (Array.isArray(inv.items) && inv.items.length > 0) {
-                inv.items.forEach(item => {
-                    // الفحص الدقيق بناءً على الحقل البرمجي المحفوظ
-                    let isJerrycan = true; 
-                    if (item.unit === "box") {
-                        isJerrycan = false; // كرتونة
-                    } else if (item.unit === "pcs") {
-                        isJerrycan = true;  // جركن
-                    } else {
-                        // فحص احتياطي ذكي بناءً على المسمى النصي لو الوحدة مش مبعوتة صح
-                        isJerrycan = !(item.unitName === "كرتونة" || (item.name && item.name.includes("كرتونة")));
-                    }
+    excelData.push([
+        "اسم العميل",
+        "الصنف",
+        "جركن",
+        "كرتونة",
+        "سعر جركن",
+        "سعر كرتونة"
+    ]);
 
-                    let qtyJerrycan = "", qtyCarton = "", priceJerrycan = "", priceCarton = "";
-                    
-                    // تحديد نوع الحركة: بيع عادي أم مرتجع مبيعات
-                    const motionType = item.isReturn ? "مرتجع مبيعات" : "بيع"; 
-                    
-                    // حساب إجمالي السطر مع تحويل الإشارة لو كان مرتجع
-                    const rowQty = Number(item.qty) || 0;
-                    const rowPrice = Number(item.price) || 0;
-                    let rowNet = rowQty * rowPrice;
-                    if (item.isReturn) rowNet = -rowNet;
+    allInvoices.forEach(inv => {
 
-                    // توزيع الكميات والأسعار في الأعمدة الخاصة بها بناءً على نوع الوحدة
-                    if (isJerrycan) {
-                        qtyJerrycan = rowQty;
-                        priceJerrycan = rowPrice;
-                    } else {
-                        qtyCarton = rowQty;
-                        priceCarton = rowPrice;
-                    }
+        Object.keys(inv).forEach(k => {
 
-                    excelData.push([
-                        invoiceDate, 
-                        motionType, 
-                        customerName,
-                        item.name || "",
-                        qtyJerrycan, 
-                        qtyCarton, 
-                        priceJerrycan, 
-                        priceCarton,
-                        rowNet
-                    ]);
-                });
-            }
+            if (!isNaN(k) && inv[k]) {
 
-            // إضافة الخصم النقدي لو موجود كسطر تسوية مستقل في الإكسيل عشان الحسابات تقفل صح
-            if (inv.discount && Number(inv.discount) > 0) {
-                excelData.push([
-                    invoiceDate,
-                    "خصم نقدي ممنوح",
-                    customerName,
-                    "تنزيل من إجمالي الفاتورة",
-                    "",
-                    "",
-                    "",
-                    "",
-                    -Number(inv.discount)
-                ]);
-            }
+                const item = inv[k];
+                const isBox = item.unit === "box";
 
-            // إضافة سطر المقبوضات (نقدي + محفظة) للحركة المالية
-            const currentPaid = (Number(inv.cashAmount) || 0) + (Number(inv.walletAmount) || 0);
-            if (currentPaid > 0) {
-                excelData.push([
-                    invoiceDate, 
-                    "سداد من العميل", 
-                    customerName, 
-                    `المقبوض: ${inv.paymentMethod || 'سداد نقدى'}`, 
-                    "", 
-                    "", 
-                    "", 
-                    "",
-                    -currentPaid // السداد يطرح من مديونية العميل في كشف الحساب
-                ]);
-            }
-        });
+                const qtyJarkan = !isBox ? item.qty || 0 : "";
+                const qtyBox = isBox ? item.qty || 0 : "";
 
-        // تحويل المصفوفة لشيت إكسيل وتعديل عروض الأعمدة لتناسب الشغل من الموبايل أو اللاب توب
-        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-        worksheet['!cols'] = [
-            { wch: 18 }, // التاريخ
-            { wch: 15 }, // الحركة
-            { wch: 22 }, // اسم العميل
-            { wch: 28 }, // اسم الصنف
-            { wch: 12 }, // عدد جركن
-            { wch: 12 }, // عدد كرتونة
-            { wch: 12 }, // سعر جركن
-            { wch: 12 }, // سعر كرتونة
-            { wch: 14 }  // الصافي
-        ];
+ excelData.push([
+    inv.customerName || "النقدى",
+    item.name || "",
+    qtyJarkan ? "جركن" : "",
+    qtyBox ? "كرتونة" : "",
+    !isBox ? (item.price || 0) : "",
+    isBox ? (item.price || 0) : ""
+]);
 
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "سجل المبيعات المطور");
-        
-        // حفظ الملف باسم واضح ومؤرخ
-        XLSX.writeFile(workbook, "سجل_مبيعات_الزيادي_جراكن_وكراتين.xlsx");
-    };
+        // المدفوع (صف واحد)
+        const paid = (inv.total || 0) - (inv.remaining || 0);
+
+        excelData.push([
+            inv.customerName || "النقدى",
+            "سداد نقدى",
+            "",
+            1,       // عدد كرتونة = 1
+            "",
+            paid     // سعر الكرتونة = المدفوع
+        ]);
+
+    });
+
+    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
+
+    XLSX.writeFile(workbook, "المبيعات.xlsx");
+};
+
 
     loadData();  
 </script>  
