@@ -173,7 +173,7 @@
         <a href="index.html" class="add-btn"><i class="fas fa-arrow-right"></i></a>  
         <h6 class="m-0 fw-bold" style="font-size: 0.95rem;"><i class="fas fa-history me-1"></i> سجل المبيعات </h6>  
         <div class="d-flex gap-2">  
-            <button class="add-btn" id="exportExcelBtn" onclick="window.exportToExcel()" title="تصدير كل الأرشيف إكسيل"><i class="fas fa-file-excel"></i></button>  
+            <button class="add-btn" id="exportExcelBtn" title="تصدير كل الأرشيف إكسيل"><i class="fas fa-file-excel"></i></button>  
             <button class="add-btn" onclick="window.print()" title="طباعة الكشف الحالي"><i class="fas fa-print"></i></button>  
             <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>  
         </div>  
@@ -997,7 +997,7 @@
 
         let excelData = [];
 
-        // إضافة عمود الحركة بعد التاريخ مباشرة
+        // عناوين الجداول
         excelData.push([
             "التاريخ",
             "الحركة",
@@ -1012,7 +1012,6 @@
         allInvoices.forEach(inv => {
             let invoiceItems = [];
 
-            // دعم الهيكلتين للأرشيف
             if (Array.isArray(inv.items)) {
                 invoiceItems = inv.items;
             } else {
@@ -1025,7 +1024,7 @@
 
             const invDate = parseInvoiceDate(inv) || inv.date || "";
 
-            // تسجيل كل حركة بيع للصنف بكلمة "بيع"
+            // حركات البيع (مع ملء الخلايا الفارغة بـ 0)
             invoiceItems.forEach(item => {
                 const isBox = item.unit === "box" || 
                               item.unit === "كرتونة" || 
@@ -1036,46 +1035,44 @@
                     "بيع",
                     inv.customerName || "النقدي",
                     item.name || "",
-                    !isBox ? (Number(item.qty) || 0) : "",
-                    isBox ? (Number(item.qty) || 0) : "",
-                    !isBox ? (Number(item.price) || 0) : "",
-                    isBox ? (Number(item.price) || 0) : ""
+                    !isBox ? (Number(item.qty) || 0) : 0,  
+                    isBox ? (Number(item.qty) || 0) : 0,   
+                    !isBox ? (Number(item.price) || 0) : 0, 
+                    isBox ? (Number(item.price) || 0) : 0  
                 ]);
             });
 
-            // تسجيل حركة السداد النقدي إذا وُجدت
+            // السداد النقدي (مع ملء الخلايا الفارغة بـ 0)
             if (inv.calculatedCash > 0) {
                 excelData.push([
                     invDate,
                     "سداد منه نقدي",
                     inv.customerName || "النقدي",
                     "سداد نقدي",
-                    "",    
+                    0,    
                     1,     
-                    "",    
+                    0,    
                     inv.calculatedCash 
                 ]);
             }
 
-            // تسجيل حركة سداد المحفظة إذا وُجدت
+            // سداد المحفظة (مع ملء الخلايا الفارغة بـ 0)
             if (inv.calculatedWallet > 0) {
                 excelData.push([
                     invDate,
                     "سداد منه محفظة",
                     inv.customerName || "النقدي",
                     "سداد محفظة",
-                    "",    
+                    0,    
                     1,     
-                    "",    
+                    0,    
                     inv.calculatedWallet 
                 ]);
             }
         });
 
-        // تحويل البيانات إلى شيت إكسيل
         const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
-        // ضبط قياسي ومريح لأبعاد الأعمدة الثمانية
         worksheet["!cols"] = [
             { wch: 15 }, // التاريخ
             { wch: 18 }, // الحركة
