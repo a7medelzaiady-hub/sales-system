@@ -123,15 +123,16 @@
             .dashboard { grid-template-columns: repeat(4, 1fr); padding: 25px 20px; }
         }
 
-        /* تنسيق خاص وذكي جداً عندما يتبقى كارتين فقط للموظف */
+        /* تنسيق خاص وذكي جداً عندما يتبقى 3 كروت أو أقل للموظف */
         .dashboard.restricted-layout {
             display: flex !important;
             flex-direction: row;
             justify-content: center;
             align-items: center;
-            gap: 24px;
-            max-width: 800px;
+            gap: 20px;
+            max-width: 900px;
             margin-top: 20px;
+            flex-wrap: wrap;
         }
         
         @media (max-width: 576px) {
@@ -145,7 +146,7 @@
         }
 
         .card-link { text-decoration: none; color: inherit; display: block; transition: width 0.3s ease; }
-        .dashboard.restricted-layout .card-link { width: 50%; }
+        .dashboard.restricted-layout .card-link { width: 30%; min-width: 160px; }
 
         .card {
             background: var(--bg-card);
@@ -159,9 +160,9 @@
             overflow: hidden;
         }
 
-        /* زيادة حجم وأناقة الكروت في وضع الكارتين فقط */
+        /* زيادة حجم وأناقة الكروت في وضع الكروت المحدودة */
         .dashboard.restricted-layout .card {
-            padding: 45px 20px;
+            padding: 40px 15px;
             border-width: 1.5px;
         }
 
@@ -199,11 +200,11 @@
         
         /* تكبير الأيقونات والنصوص في وضع العميل المحدود لتعبئة الشاشة بذكاء */
         .dashboard.restricted-layout .icon-box {
-            width: 80px;
-            height: 80px;
-            font-size: 34px;
+            width: 70px;
+            height: 70px;
+            font-size: 30px;
             border-radius: var(--radius-lg);
-            margin-bottom: 22px;
+            margin-bottom: 20px;
         }
 
         .card:hover .icon-box { background: var(--accent); color: #fff; transform: rotate(-5deg); }
@@ -217,7 +218,7 @@
         .report-card:hover .icon-box { background: #007bff; color: #fff; }
 
         .card p { margin: 0; font-size: 15px; font-weight: 700; color: var(--text-primary); transition: 0.2s; }
-        .dashboard.restricted-layout .card p { font-size: 18px; font-weight: 800; }
+        .dashboard.restricted-layout .card p { font-size: 17px; font-weight: 800; }
 
         /* القائمة الجانبية */
         .sidebar {
@@ -455,9 +456,9 @@
             const role = sessionStorage.getItem('role') || 'employee'; 
             const username = sessionStorage.getItem('username') || '';
             
-            // قراءة الصلاحيات وضمان إعطاء مصفوفة تحتوي على 'sales' كافتراضي لعدم الاختفاء
+            // إضافة الصلاحيات الثلاث الافتراضية هنا (sales, vouchers, clients)
             const savedPermissions = sessionStorage.getItem('permissions');
-            const userPermissions = savedPermissions ? JSON.parse(savedPermissions) : ['sales', 'vouchers']; 
+            const userPermissions = savedPermissions ? JSON.parse(savedPermissions) : ['sales', 'vouchers', 'clients']; 
 
             const welcomeEl = document.getElementById('welcomeUser');
             if (welcomeEl && username) {
@@ -503,7 +504,6 @@
                     if (element) {
                         const requiredPermission = UI_Permissions_Map[elementId];
                         
-                        // فحص الصلاحية بشكل دقيق لضمان الظهور الفوري لـ sales
                         if (userPermissions.includes(requiredPermission)) {
                             element.style.display = ''; 
                             if (elementId.startsWith('card')) {
@@ -515,15 +515,10 @@
                     }
                 });
 
-                // تنسيق وعرض الكارتين (المبيعات والسندات) بشكل فاخر ومتوسط الشاشة
+                // تفعيل التنسيق والترتيب الفاخر إذا كان عدد الكروت الظاهرة 3 أو أقل
                 const dashboardContainer = document.getElementById('mainDashboard');
-                if (dashboardContainer && visibleCardsCount <= 2) {
+                if (dashboardContainer && visibleCardsCount <= 3) {
                     dashboardContainer.classList.add('restricted-layout');
-                    
-                    const vouchersCardLink = document.getElementById('cardVouchers');
-                    if (vouchersCardLink && userPermissions.includes('vouchers')) {
-                        vouchersCardLink.setAttribute('href', 'vouchers-hub.html'); // تم ضبط التوجيه لصفحة السندات الخاصة به
-                    }
                 }
             }
         };
