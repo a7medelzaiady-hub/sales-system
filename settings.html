@@ -118,8 +118,9 @@
 </head>
 <body>
 
+<!-- تعديل رابط السهم ليعود إلى الصفحة الرئيسية مباشرة (تأكد من تعديل index.html لاسم ملفك الرئيسي إن كان مختلفاً) -->
 <div class="header-nav d-flex justify-content-between align-items-center">
-    <a href="main-dashboard.html" id="backBtn" class="text-white text-decoration-none"><i class="fas fa-arrow-right"></i></a>
+    <a href="index.html" class="text-white text-decoration-none"><i class="fas fa-arrow-right"></i> الصفحة الرئيسية</a>
     <h5 class="m-0 fw-bold">إعدادات النظام</h5>
     <i class="fas fa-tools"></i>
 </div>
@@ -223,32 +224,27 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // دالة لتوزيع مصفوفة الصلاحيات تلقائياً بناءً على الرتبة المحددة
-    function getPermissionsForRole(role) {
-        switch(role) {
-            case 'admin':
-                return ['sales', 'purchases', 'clients', 'suppliers', 'inventory', 'vouchers', 'banknote', 'reports', 'settings', 'security'];
-            case 'employee':
-                return ['sales', 'clients', 'vouchers'];
-            case 'restricted':
-                return ['sales', 'vouchers'];
-            case 'storekeeper':
-                return ['inventory', 'suppliers', 'purchases'];
-            default:
-                return ['sales', 'vouchers'];
+    // =========================================================
+    // كائن الإعدادات الموحد والنظيف بدلاً من التكرار والدوال المتعددة
+    // =========================================================
+    const ROLE_CONFIG = {
+        admin: {
+            badge: '<span class="badge bg-danger">مدير النظام</span>',
+            permissions: ['sales', 'purchases', 'clients', 'suppliers', 'inventory', 'vouchers', 'banknote', 'reports', 'settings', 'security']
+        },
+        employee: {
+            badge: '<span class="badge bg-primary">موظف عادي</span>',
+            permissions: ['sales', 'clients', 'vouchers']
+        },
+        restricted: {
+            badge: '<span class="badge bg-secondary">موظف محدود</span>',
+            permissions: ['sales', 'vouchers']
+        },
+        storekeeper: {
+            badge: '<span class="badge bg-warning text-dark">أمين مخزن</span>',
+            permissions: ['inventory', 'suppliers', 'purchases']
         }
-    }
-
-    // دالة لتحويل كود الرتبة لاسم مقروء في الجدول وبادج ملون
-    function getRoleBadge(role) {
-        switch(role) {
-            case 'admin': return `<span class="badge bg-danger">مدير النظام</span>`;
-            case 'employee': return `<span class="badge bg-primary">موظف عادي</span>`;
-            case 'restricted': return `<span class="badge bg-secondary">موظف محدود</span>`;
-            case 'storekeeper': return `<span class="badge bg-warning text-dark">أمين مخزن</span>`;
-            default: return `<span class="badge bg-light text-dark">${role}</span>`;
-        }
-    }
+    };
 
     async function loadSettings() {
         try {
@@ -268,12 +264,16 @@
         const tableBody = document.getElementById('usersListTable');
         tableBody.innerHTML = "";
         const snap = await getDocs(collection(db, "users"));
+        
         snap.forEach(u => {
             const user = u.data();
+            // جلب مظهر البادج الملون مباشرة من الكائن الموحد بدون تكرار دالة switch
+            const roleDetails = ROLE_CONFIG[user.role] || { badge: `<span class="badge bg-light text-dark">${user.role}</span>` };
+            
             tableBody.innerHTML += `
                 <tr>
                     <td><b>${u.id}</b></td>
-                    <td>${getRoleBadge(user.role)}</td>
+                    <td>${roleDetails.badge}</td>
                     <td class="text-center">
                         <button class="btn-action text-info me-1" onclick="editUser('${u.id}', '${user.role}', '${user.pass}')">
                             <i class="fas fa-edit"></i>
@@ -306,13 +306,12 @@
         
         if(!id || !pass) return alert("أكمل البيانات من فضلك");
         
-        // استخراج مصفوفة الصلاحيات المناسبة وحفظها مع حساب المستخدم
-        const permissions = getPermissionsForRole(role);
+        // جلب مصفوفة الصلاحيات المقابلة للرتبة المختارة من الكائن الموحد مباشرة
+        const permissions = ROLE_CONFIG[role]?.permissions || ['sales', 'vouchers'];
         
         await setDoc(doc(db, "users", id), { role, pass, permissions });
         alert("تم حفظ المستخدم وصلاحياته بنجاح ✅");
         
-        // إعادة تهيئة الحقول
         document.getElementById('newUsername').value = '';
         document.getElementById('userPass').value = '';
         loadUsers();
