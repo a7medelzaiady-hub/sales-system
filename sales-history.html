@@ -989,14 +989,15 @@
         });  
     };  
 
-                   window.exportToExcel = () => {
+    window.exportToExcel = () => {
         if (!allInvoices || allInvoices.length === 0) {
-            return alert("لا توجد بيانات للتصدير");
+            alert("لا توجد بيانات للتصدير");
+            return;
         }
 
         let excelData = [];
 
-        // رأس الجدول المكون من 7 أعمدة متناسقة تماماً
+        // رؤوس الأعمدة المتوافقة تماماً مع شيت الحسابات الخاص بك
         excelData.push([
             "التاريخ",
             "اسم العميل",
@@ -1010,173 +1011,86 @@
         allInvoices.forEach(inv => {
             let invoiceItems = [];
 
-            // تجميع الأصناف بالطريقتين (الحديثة والقديمة لضمان الأرشيف)
-            if (inv.items && Array.isArray(inv.items)) {
+            // دعم الهيكلتين (الحديثة والقديمة للأرشيف)
+            if (Array.isArray(inv.items)) {
                 invoiceItems = inv.items;
             } else {
-                Object.keys(inv).forEach(k => {
-                    if (!isNaN(k) && inv[k]) {
-                        invoiceItems.push(inv[k]);
+                Object.keys(inv).forEach(key => {
+                    if (!isNaN(key) && inv[key]) {
+                        invoiceItems.push(inv[key]);
                     }
                 });
             }
 
-            // استخراج تاريخ الفاتورة الحالي لمنع ترحيل الأعمدة
             const invDate = parseInvoiceDate(inv) || inv.date || "";
 
+            // إضافة تفاصيل الأصناف بداخل الفاتورة
             invoiceItems.forEach(item => {
-                // الفحص الذكي: يعتمد على الكود أو وجود كلمة كرتونة في اسم الصنف
                 const isBox = item.unit === "box" || 
+                              item.unit === "كرتونة" || 
                               (item.name && (item.name.includes("كرتونة") || item.name.includes("كرتونه")));
 
-                // الحل: طباعة العدد الفعلي (item.qty) بدلاً من الكلمات النصية
-                const qtyJarkan = !isBox ? (Number(item.qty) || 0) : "";
-                const qtyBox = isBox ? (Number(item.qty) || 0) : "";
-
                 excelData.push([
-                    invDate,                                 // 1. التاريخ
-                    inv.customerName || "النقدي",            // 2. اسم العميل
-                    item.name || "",                         // 3. الصنف
-                    qtyJarkan,                               // 4. عدد جركن (رقمي فعلي)
-                    qtyBox,                                  // 5. عدد كرتونة (رقمي فعلي)
-                    !isBox ? (Number(item.price) || 0) : "", // 6. سعر جركن
-                    isBox ? (Number(item.price) || 0) : ""    // 7. سعر كرتونة
+                    invDate,
+                    inv.customerName || "النقدي",
+                    item.name || "",
+                    !isBox ? (Number(item.qty) || 0) : "",
+                    isBox ? (Number(item.qty) || 0) : "",
+                    !isBox ? (Number(item.price) || 0) : "",
+                    isBox ? (Number(item.price) || 0) : ""
                 ]);
             });
 
-            // حساب سطر المقبوضات النهائي لكل فاتورة وضبط أعمدته السبعة
+            // إضافة سطر المقبوضات/السداد المالي النهائي لكل فاتورة لضبط كشف الحساب
             const paid = (Number(inv.total) || 0) - (Number(inv.remaining) || 0);
-
             excelData.push([
-                invDate,                      // 1. التاريخ
-                inv.customerName || "النقدي", // 2. اسم العميل
-                "سداد نقدي",                  // 3. البيان / الصنف
-                "",                           // 4. عدد جركن
-                1,                            // 5. عدد كرتونة (ثابت 1 حسب هيكلة شيت الحسابات الخاص بك)
-                "",                           // 6. سعر جركن
-                paid                          // 7. سعر كرتونة = صافي المبلغ المدفوع
-            ]);
-        }); 
-window.exportToExcel = () => {
-
-    if (!allInvoices || allInvoices.length === 0) {
-        alert("لا توجد بيانات للتصدير");
-        return;
-    }
-
-    let excelData = [];
-
-    // رؤوس الأعمدة
-    excelData.push([
-        "التاريخ",
-        "اسم العميل",
-        "الصنف",
-        "عدد جركن",
-        "عدد كرتونة",
-        "سعر جركن",
-        "سعر كرتونة"
-    ]);
-
-    allInvoices.forEach(inv => {
-
-        let invoiceItems = [];
-
-        // النظام الحديث
-        if (Array.isArray(inv.items)) {
-            invoiceItems = inv.items;
-        }
-        // النظام القديم
-        else {
-            Object.keys(inv).forEach(key => {
-                if (!isNaN(key) && inv[key]) {
-                    invoiceItems.push(inv[key]);
-                }
-            });
-        }
-
-        // إضافة الأصناف
-        invoiceItems.forEach(item => {
-
-            const isBox =
-                item.unit === "box" ||
-                item.unit === "كرتونة";
-
-            excelData.push([
-                parseInvoiceDate(inv),
-                inv.customerName || "النقدى",
-                item.name || "",
-                !isBox ? (Number(item.qty) || 0) : "",
-                isBox ? (Number(item.qty) || 0) : "",
-                !isBox ? (Number(item.price) || 0) : "",
-                isBox ? (Number(item.price) || 0) : ""
+                invDate,
+                inv.customerName || "النقدي",
+                "سداد نقدي",
+                "",
+                "",
+                paid,
+                ""
             ]);
         });
 
-        // إضافة سطر السداد
-        const paid =
-            (Number(inv.total) || 0) -
-            (Number(inv.remaining) || 0);
+        // تحويل المصفوفة إلى شيت إكسيل من خلال مكتبة XLSX
+        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
-        excelData.push([
-            parseInvoiceDate(inv),
-            inv.customerName || "النقدى",
-            "سداد",
-            "",
-            "",
-            paid,
-            ""
-        ]);
-    });
+        // ضبط قياسي لأبعاد الأعمدة لعرض مريح على الجوال
+        worksheet["!cols"] = [
+            { wch: 15 }, // التاريخ
+            { wch: 25 }, // اسم العميل
+            { wch: 35 }, // الصنف
+            { wch: 12 }, // عدد جركن
+            { wch: 12 }, // عدد كرتونة
+            { wch: 15 }, // سعر جركن
+            { wch: 15 }  // سعر كرتونة
+        ];
 
-    // إنشاء الشيت
-    const worksheet = XLSX.utils.aoa_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات والأرشيف");
 
-    // ضبط عرض الأعمدة
-    worksheet["!cols"] = [
-        { wch: 15 },
-        { wch: 25 },
-        { wch: 35 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 15 },
-        { wch: 15 }
-    ];
+        const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+        const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+        const url = URL.createObjectURL(blob);
 
-    // إنشاء الملف
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات");
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `سجل_مبيعات_الزيادي_${new Date().toISOString().slice(0,10)}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
 
-    // تصدير متوافق مع أندرويد وPWA
-    const wbout = XLSX.write(workbook, {
-        bookType: "xlsx",
-        type: "array"
-    });
+        setTimeout(() => { URL.revokeObjectURL(url); }, 1000);
+    };
 
-    const blob = new Blob(
-        [wbout],
-        {
-            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        }
-    );
+    // ربط زر التصدير بالدالة النظيفة المحدثة
+    document.getElementById("exportExcelBtn").onclick = () => {
+        window.exportToExcel();
+    };
 
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `المبيعات_${new Date().toISOString().slice(0,10)}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-
-    setTimeout(() => {
-        URL.revokeObjectURL(url);
-    }, 1000);
-};
-
-// ربط الزر
-document.getElementById("exportExcelBtn").onclick = () => {
-    window.exportToExcel();
-};
+    // تشغيل جلب وتحميل البيانات فور فتح الملف
     loadData();  
 </script>  
 </body>  
