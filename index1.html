@@ -448,26 +448,22 @@
         }
 
         window.onload = () => {
-            // تفعيل الوضع الداكن بناءً على اختيار المستخدم المخزن سابقاً
             if (localStorage.getItem('sanad-theme') === 'dark') {
                 document.body.classList.add('dark-mode');
             }
 
-            // جلب بيانات الرتبة، الاسم والمصفوفة من الـ sessionStorage
             const role = sessionStorage.getItem('role') || 'employee'; 
             const username = sessionStorage.getItem('username') || '';
             
-            // قراءة الصلاحيات على هيئة مصفوفة، وإعطاء قيم افتراضية للمستخدم العادي في حال لم تكن محددة بعد
+            // قراءة الصلاحيات وضمان إعطاء مصفوفة تحتوي على 'sales' كافتراضي لعدم الاختفاء
             const savedPermissions = sessionStorage.getItem('permissions');
             const userPermissions = savedPermissions ? JSON.parse(savedPermissions) : ['sales', 'vouchers']; 
 
-            // تحديث رسالة الترحيب إن وجدت
             const welcomeEl = document.getElementById('welcomeUser');
             if (welcomeEl && username) {
                 welcomeEl.innerText = `مرحباً بك، ${username}`;
             }
 
-            // تخصيص المسمى والبادج الجانبي بناء على الرتبة
             const roleBadge = document.getElementById('userRoleBadge');
             if (roleBadge) {
                 if (role === 'admin') roleBadge.innerText = 'مدير النظام';
@@ -475,9 +471,8 @@
                 else roleBadge.innerText = 'موظف';
             }
 
-            // خريطة ربط معرّفات الـ HTML بالكلمات المفتاحية للصلاحيات المطلوبة
+            // خريطة الصلاحيات
             const UI_Permissions_Map = {
-                // الكروت الرئيسية بالشاشة
                 'cardSales': 'sales',
                 'cardPurchases': 'purchases',
                 'cardClients': 'clients',
@@ -487,7 +482,6 @@
                 'cardBanknote': 'banknote',
                 'cardReports': 'reports',
                 
-                // روابط وأزرار القائمة الجانبية
                 'sideTransactions': 'banknote',
                 'sidePurchaseOrders': 'purchases',
                 'sideInventoryMgmt': 'inventory',
@@ -497,12 +491,10 @@
                 'sideSecurity': 'security',
                 'labelSystem': 'settings',
                 
-                // أزرار التحكم السفلية والعائمة
                 'bottomExpenses': 'banknote',
                 'fabOrders': 'sales'
             };
 
-            // تطبيق الصلاحيات بشكل ديناميكي (إذا لم يكن المستخدم admin)
             if (role !== 'admin') { 
                 let visibleCardsCount = 0;
 
@@ -511,27 +503,26 @@
                     if (element) {
                         const requiredPermission = UI_Permissions_Map[elementId];
                         
-                        // التحقق مما إذا كانت المصفوفة تحتوي على الصلاحية المناسبة للعنصر
+                        // فحص الصلاحية بشكل دقيق لضمان الظهور الفوري لـ sales
                         if (userPermissions.includes(requiredPermission)) {
-                            element.style.display = ''; // إظهار
+                            element.style.display = ''; 
                             if (elementId.startsWith('card')) {
                                 visibleCardsCount++;
                             }
                         } else {
-                            element.style.display = 'none'; // إخفاء تماماً
+                            element.style.display = 'none'; 
                         }
                     }
                 });
 
-                // تفعيل التنسيق الفاخر تلقائياً لتوسيط وترتيب العناصر إذا بقي كارتين أو أقل
+                // تنسيق وعرض الكارتين (المبيعات والسندات) بشكل فاخر ومتوسط الشاشة
                 const dashboardContainer = document.getElementById('mainDashboard');
                 if (dashboardContainer && visibleCardsCount <= 2) {
                     dashboardContainer.classList.add('restricted-layout');
                     
-                    // توجيه كرت السندات لصفحة المبيعات المباشرة تلقائياً إذا كان مفعل للموظف المحدود
                     const vouchersCardLink = document.getElementById('cardVouchers');
                     if (vouchersCardLink && userPermissions.includes('vouchers')) {
-                        vouchersCardLink.setAttribute('href', 'client-vouchers.html');
+                        vouchersCardLink.setAttribute('href', 'vouchers-hub.html'); // تم ضبط التوجيه لصفحة السندات الخاصة به
                     }
                 }
             }
@@ -539,4 +530,3 @@
     </script>
 </body>
 </html>
-     
