@@ -173,7 +173,6 @@
         <a href="index.html" class="add-btn"><i class="fas fa-arrow-right"></i></a>  
         <h6 class="m-0 fw-bold" style="font-size: 0.95rem;"><i class="fas fa-history me-1"></i> سجل المبيعات </h6>  
         <div class="d-flex gap-2">  
-            <!-- تم تعديل الزر هنا ليقوم بتشغيل الدالة مباشرة عند الضغط -->
             <button class="add-btn" id="exportExcelBtn" onclick="window.exportToExcel()" title="تصدير كل الأرشيف إكسيل"><i class="fas fa-file-excel"></i></button>  
             <button class="add-btn" onclick="window.print()" title="طباعة الكشف الحالي"><i class="fas fa-print"></i></button>  
             <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>  
@@ -998,9 +997,10 @@
 
         let excelData = [];
 
-        // رؤوس الأعمدة المتوافقة تماماً مع شيت الحسابات الخاص بك
+        // إضافة عمود الحركة بعد التاريخ مباشرة
         excelData.push([
             "التاريخ",
+            "الحركة",
             "اسم العميل",
             "الصنف",
             "عدد جركن",
@@ -1012,7 +1012,7 @@
         allInvoices.forEach(inv => {
             let invoiceItems = [];
 
-            // دعم الهيكلتين (الحديثة والقديمة للأرشيف)
+            // دعم الهيكلتين للأرشيف
             if (Array.isArray(inv.items)) {
                 invoiceItems = inv.items;
             } else {
@@ -1025,7 +1025,7 @@
 
             const invDate = parseInvoiceDate(inv) || inv.date || "";
 
-            // إضافة تفاصيل الأصناف بداخل الفاتورة
+            // تسجيل كل حركة بيع للصنف بكلمة "بيع"
             invoiceItems.forEach(item => {
                 const isBox = item.unit === "box" || 
                               item.unit === "كرتونة" || 
@@ -1033,6 +1033,7 @@
 
                 excelData.push([
                     invDate,
+                    "بيع",
                     inv.customerName || "النقدي",
                     item.name || "",
                     !isBox ? (Number(item.qty) || 0) : "",
@@ -1042,25 +1043,42 @@
                 ]);
             });
 
-            // التعديل الجديد: سطر السداد النقدي (كرتونة 1 وسعر الكرتونة هو المبلغ)
-            const paid = (Number(inv.total) || 0) - (Number(inv.remaining) || 0);
-            excelData.push([
-                invDate,
-                inv.customerName || "النقدي",
-                "سداد نقدي",
-                "",    // عدد جركن (فارغ)
-                1,     // عدد كرتونة (ثابت 1 كما طلبت)
-                "",    // سعر جركن (فارغ)
-                paid   // سعر كرتونة (يحتوي على المبلغ المسدد الشامل)
-            ]);
+            // تسجيل حركة السداد النقدي إذا وُجدت
+            if (inv.calculatedCash > 0) {
+                excelData.push([
+                    invDate,
+                    "سداد منه نقدي",
+                    inv.customerName || "النقدي",
+                    "سداد نقدي",
+                    "",    
+                    1,     
+                    "",    
+                    inv.calculatedCash 
+                ]);
+            }
+
+            // تسجيل حركة سداد المحفظة إذا وُجدت
+            if (inv.calculatedWallet > 0) {
+                excelData.push([
+                    invDate,
+                    "سداد منه محفظة",
+                    inv.customerName || "النقدي",
+                    "سداد محفظة",
+                    "",    
+                    1,     
+                    "",    
+                    inv.calculatedWallet 
+                ]);
+            }
         });
 
-        // تحويل المصفوفة إلى شيت إكسيل من خلال مكتبة XLSX
+        // تحويل البيانات إلى شيت إكسيل
         const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
-        // ضبط قياسي لأبعاد الأعمدة لعرض مريح على الجوال
+        // ضبط قياسي ومريح لأبعاد الأعمدة الثمانية
         worksheet["!cols"] = [
             { wch: 15 }, // التاريخ
+            { wch: 18 }, // الحركة
             { wch: 25 }, // اسم العميل
             { wch: 35 }, // الصنف
             { wch: 12 }, // عدد جركن
@@ -1086,10 +1104,8 @@
         setTimeout(() => { URL.revokeObjectURL(url); }, 1000);
     };
 
-    // ربط الزر برمجياً لضمان العمل من داخل الـ Module
     document.getElementById('exportExcelBtn').onclick = window.exportToExcel;
 
-    // تشغيل جلب وتحميل البيانات فور فتح الملف
     loadData();  
 </script>  
 </body>  
