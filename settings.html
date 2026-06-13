@@ -119,7 +119,7 @@
 <body>
 
 <div class="header-nav d-flex justify-content-between align-items-center">
-    <a href="index.html" class="text-white text-decoration-none"><i class="fas fa-arrow-right"></i></a>
+    <a href="main-dashboard.html" id="backBtn" class="text-white text-decoration-none"><i class="fas fa-arrow-right"></i></a>
     <h5 class="m-0 fw-bold">إعدادات النظام</h5>
     <i class="fas fa-tools"></i>
 </div>
@@ -155,10 +155,12 @@
                 <input type="password" id="userPass" class="form-control">
             </div>
             <div class="col-12">
-                <label class="form-label">الصلاحية</label>
+                <label class="form-label">الصلاحية والوظيفة</label>
                 <select id="userRole" class="form-select">
-                    <option value="admin">مدير (كامل الصلاحيات)</option>
-                    <option value="cashier">كاشير (مبيعات فقط)</option>
+                    <option value="admin">مدير (كامل الصلاحيات للنظام)</option>
+                    <option value="employee">موظف عادي (مبيعات، عملاء وسندات)</option>
+                    <option value="restricted">موظف محدود / كاشير (مبيعات وسندات فقط)</option>
+                    <option value="storekeeper">أمين مخزن (مخزن، موردين ومشتريات)</option>
                 </select>
             </div>
             <div class="col-12 mt-2">
@@ -205,22 +207,48 @@
 </div>
 
 <script type="module">
-    // ... (نفس كود Firebase والـ Script اللي عندك شغال تمام)
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-  const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-  measurementId: "G-WE04GK5XZZ"
-};
+    const firebaseConfig = {
+        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+        authDomain: "ahmedelzaiady.firebaseapp.com",
+        projectId: "ahmedelzaiady",
+        storageBucket: "ahmedelzaiady.firebasestorage.app",
+        messagingSenderId: "300306825071",
+        appId: "1:300306825071:web:0426ddde56280fa090329a",
+        measurementId: "G-WE04GK5XZZ"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+
+    // دالة لتوزيع مصفوفة الصلاحيات تلقائياً بناءً على الرتبة المحددة
+    function getPermissionsForRole(role) {
+        switch(role) {
+            case 'admin':
+                return ['sales', 'purchases', 'clients', 'suppliers', 'inventory', 'vouchers', 'banknote', 'reports', 'settings', 'security'];
+            case 'employee':
+                return ['sales', 'clients', 'vouchers'];
+            case 'restricted':
+                return ['sales', 'vouchers'];
+            case 'storekeeper':
+                return ['inventory', 'suppliers', 'purchases'];
+            default:
+                return ['sales', 'vouchers'];
+        }
+    }
+
+    // دالة لتحويل كود الرتبة لاسم مقروء في الجدول وبادج ملون
+    function getRoleBadge(role) {
+        switch(role) {
+            case 'admin': return `<span class="badge bg-danger">مدير النظام</span>`;
+            case 'employee': return `<span class="badge bg-primary">موظف عادي</span>`;
+            case 'restricted': return `<span class="badge bg-secondary">موظف محدود</span>`;
+            case 'storekeeper': return `<span class="badge bg-warning text-dark">أمين مخزن</span>`;
+            default: return `<span class="badge bg-light text-dark">${role}</span>`;
+        }
+    }
 
     async function loadSettings() {
         try {
@@ -245,7 +273,7 @@
             tableBody.innerHTML += `
                 <tr>
                     <td><b>${u.id}</b></td>
-                    <td><span class="badge ${user.role === 'admin' ? 'bg-primary' : 'bg-secondary'}">${user.role === 'admin' ? 'مدير' : 'كاشير'}</span></td>
+                    <td>${getRoleBadge(user.role)}</td>
                     <td class="text-center">
                         <button class="btn-action text-info me-1" onclick="editUser('${u.id}', '${user.role}', '${user.pass}')">
                             <i class="fas fa-edit"></i>
@@ -275,9 +303,18 @@
         const id = document.getElementById('newUsername').value;
         const role = document.getElementById('userRole').value;
         const pass = document.getElementById('userPass').value;
-        if(!id || !pass) return alert("أكمل البيانات");
-        await setDoc(doc(db, "users", id), { role, pass });
-        alert("تم الحفظ ✅");
+        
+        if(!id || !pass) return alert("أكمل البيانات من فضلك");
+        
+        // استخراج مصفوفة الصلاحيات المناسبة وحفظها مع حساب المستخدم
+        const permissions = getPermissionsForRole(role);
+        
+        await setDoc(doc(db, "users", id), { role, pass, permissions });
+        alert("تم حفظ المستخدم وصلاحياته بنجاح ✅");
+        
+        // إعادة تهيئة الحقول
+        document.getElementById('newUsername').value = '';
+        document.getElementById('userPass').value = '';
         loadUsers();
     });
 
