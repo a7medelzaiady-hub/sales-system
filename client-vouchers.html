@@ -64,7 +64,7 @@
         .statement-table tr td:first-child { border-right: 1px solid var(--border); border-radius: 0 8px 8px 0; }
         .statement-table tr td:last-child { border-left: 1px solid var(--border); border-radius: 8px 0 0 8px; }
         
-        .badge-type { padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.7rem; }
+        .badge-type { padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.7 ...rem; }
         .badge-receipt { background-color: #e8f5e9; color: var(--success); }
         .badge-payment { background-color: #ffebee; color: var(--danger); }
 
@@ -83,13 +83,22 @@
         .btn-share-row { background: none; border: none; color: #0b5e3d; padding: 2px 6px; border-radius: 4px; transition: 0.2s; font-size: 0.8rem; }
         .btn-share-row:hover { background: #e8f5e9; color: var(--success); }
 
+        /* تنسيق الإيصال الحراري الاحترافي 80mm لكي يظهر كصورة طابعة حقيقية */
         .receipt-preview-box {
-            width: 80mm; background: #fff; color: #000; padding: 15px; 
-            font-family: 'Cairo', sans-serif; box-shadow: 0 0 10px rgba(0,0,0,0.1);
-            border: 1px dashed #000; margin: 0 auto;
+            width: 80mm;
+            min-height: 180px;
+            background: #ffffff;
+            color: #000000;
+            padding: 12px;
+            margin: 0 auto;
+            font-family: 'Cairo', sans-serif;
+            box-shadow: none;
+            border: none;
+            text-align: right;
         }
-
-        .receipt-header-title { font-size: 1.35rem; font-weight: 700; margin: 0; word-spacing: 3px; letter-spacing: 0px; }
+        .receipt-header-title { font-size: 24px; font-weight: 900; margin: 0; text-align: center; color: #000; }
+        .receipt-separator { border-top: 1px dashed #000000; margin: 8px 0; }
+        .receipt-total { font-size: 28px; font-weight: 900; color: #000000; text-align: center; margin: 5px 0; }
         .hide-on-share { transition: opacity 0.2s; }
     </style>
 </head>
@@ -99,7 +108,6 @@
     <div class="header-section">
         <div class="header-container container">
             <div class="nav-btns d-flex gap-2">
-                <!-- أيقونة الإكسل (يتحكم بنشاطها الجافا سكربت بالأسفل بناءً على رتبة المستخدم) -->
                 <button class="btn-action" onclick="exportToExcel()" title="تصدير إكسل"><i class="fas fa-file-excel"></i></button>
             </div>
             <div class="title-area text-center flex-grow-1">
@@ -112,7 +120,7 @@
     </div>
 
     <div class="container mt-2">
-        <!-- نموذج إضافة حركة جديدة للعملاء -->
+        <!-- نموذج إضافة حركة جديدة للعملاء مع خيار طريقة السداد -->
         <div class="card-custom">
             <h6 class="fw-bold text-success mb-2"><i class="fas fa-plus-circle me-1"></i> تسجيل عملية عميل جديدة</h6>
             <form id="voucherForm" class="row g-2">
@@ -123,6 +131,14 @@
                         <option value="صرف">صرف (-)</option>
                     </select>
                 </div>
+
+                <div class="col-md-2">
+                    <label class="form-label small fw-bold">طريقة السداد</label>
+                    <select class="form-select form-select-sm" id="paymentMethod" required>
+                        <option value="نقدي">نقدي</option>
+                        <option value="محفظة">محفظة</option>
+                    </select>
+                </div>
                 
                 <div class="col-md-5 position-relative search-container">
                     <label class="form-label small fw-bold">اسم العميل (بحث ذكي)</label>
@@ -130,7 +146,8 @@
                     <input type="hidden" id="partyId">
                     <div id="partyResults" class="search-results"></div>
                 </div>
-                <div class="col-md-2">
+
+                <div class="col-md-3">
                     <label class="form-label small fw-bold">التاريخ</label>
                     <input type="date" class="form-control form-control-sm" id="vDate" required>
                 </div>
@@ -139,7 +156,7 @@
                     <label class="form-label small fw-bold">المبلغ (ج.م)</label>
                     <input type="number" step="0.01" class="form-control form-control-sm" id="vAmount" placeholder="0.00" required>
                 </div>
-                <div class="col-md-9">
+                <div class="col-md-6">
                     <label class="form-label small fw-bold">البيان / التفاصيل</label>
                     <input type="text" class="form-control form-control-sm" id="vNote" placeholder="اكتب تفاصيل المعاملة هنا...">
                 </div>
@@ -170,17 +187,18 @@
             <table class="statement-table" id="vouchersTable">
                 <thead>
                     <tr>
-                        <th style="width: 15%;">التاريخ</th>
-                        <th style="width: 15%;">النوع</th>
-                        <th style="width: 30%;">اسم العميل</th>
-                        <th style="width: 25%;">البيان والتفاصيل</th>
-                        <th style="width: 15%;">المبلغ</th>
-                        <th style="width: 5%;">مشاركة</th>
-                        <th style="width: 5%;">حذف</th>
+                        <th style="width: 12%;">التاريخ</th>
+                        <th style="width: 10%;">النوع</th>
+                        <th style="width: 13%;">طريقة السداد</th>
+                        <th style="width: 25%;">اسم العميل</th>
+                        <th style="width: 20%;">البيان والتفاصيل</th>
+                        <th style="width: 12%;">المبلغ</th>
+                        <th style="width: 4%;">مشاركة</th>
+                        <th style="width: 4%;">حذف</th>
                     </tr>
                 </thead>
                 <tbody id="vouchersBody">
-                    <tr><td colspan="7" class="text-center py-4">
+                    <tr><td colspan="8" class="text-center py-4">
                         <div class="spinner-border spinner-border-sm text-success"></div> جاري مراجعة حسابات العملاء...
                     </td></tr>
                 </tbody>
@@ -189,39 +207,56 @@
     </div>
 </div>
 
-<!-- مودال معاينة السند الحراري -->
+<!-- مودال معاينة السند الحراري الفوري كصورة 80mm -->
 <div class="modal fade" id="receiptModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header py-2">
-                <h6 class="modal-title fw-bold text-success"><i class="fas fa-receipt me-1"></i> إيصال سداد العميل</h6>
+                <h6 class="modal-title fw-bold text-success"><i class="fas fa-receipt me-1"></i> إيصال سداد العميل (معاينة الصورة)</h6>
                 <button type="button" class="btn-close ms-0 me-auto" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body bg-light text-center">
                 <div id="thermalReceipt" class="receipt-preview-box">
-                    <div class="text-center border-bottom pb-2 mb-2">
+                    <div class="text-center">
                         <h5 class="receipt-header-title">شركة الزيادي</h5>
-                        <small class="text-muted" style="font-size: 0.65rem;"> لزيوت وفلاتر السيارات</small>
+                        <div style="font-size: 13px; font-weight: 600; text-align: center; color: #000;"> لزيوت وفلاتر السيارات</div>
                     </div>
                     
-                    <div class="d-flex justify-content-between text-end small mb-2 border-bottom pb-1" style="font-size: 0.75rem;">
-                        <div><strong>الحركة:</strong> <span id="recType" class="fw-bold"></span></div>
-                        <div><strong>التاريخ:</strong> <span id="recDate"></span></div>
+                    <div class="receipt-separator"></div>
+
+                    <table style="width:100%; font-size:13px; color:#000; direction: rtl;">
+                        <tr>
+                            <td style="font-weight:bold; text-align:right; padding: 2px 0;">نوع السند:</td>
+                            <td style="text-align:left;" id="recType"></td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight:bold; text-align:right; padding: 2px 0;">التاريخ:</td>
+                            <td style="text-align:left;" id="recDate"></td>
+                        </tr>
+                        <tr id="recClientRow" class="hide-on-share">
+                            <td style="font-weight:bold; text-align:right; padding: 2px 0;">العميل:</td>
+                            <td style="text-align:left; font-weight: 800;" id="recClientName"></td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight:bold; text-align:right; padding: 2px 0;">طريقة السداد:</td>
+                            <td style="text-align:left;" id="recPaymentMethod"></td>
+                        </tr>
+                    </table>
+
+                    <div class="receipt-separator"></div>
+
+                    <div class="text-center">
+                        <small style="font-size: 12px; font-weight:600; color:#000;">المبلغ المعامل به</small>
+                        <h3 class="receipt-total" id="recAmount">0.00 ج.م</h3>
+                        <div style="font-size:13px; font-weight:bold; color:#000; margin-top: 2px;">تمت المعالجة بنجاح</div>
                     </div>
 
-                    <div class="text-end small mb-2 hide-on-share" id="recClientRow" style="font-size: 0.8rem;">
-                        <strong>العميل:</strong> <span id="recClientName" class="fw-bold"></span>
-                    </div>
+                    <div class="receipt-separator"></div>
 
-                    <div class="my-3 py-2 border-bottom border-top text-center" style="background: #f9f9f9;">
-                        <small class="text-muted d-block" style="font-size: 0.7rem;">المبلغ المعامل به</small>
-                        <h3 class="fw-bold m-0 text-dark" id="recAmount" style="font-size: 1.6rem;">0.00</h3>
-                        <small class="fw-bold">تم المعالجة بنجاح</small>
-                    </div>
-
-                    <div class="text-center mt-2 pt-1">
-                        <small class="text-muted" style="font-size: 0.65rem;">شكراً لتعاملكم معنا</small>
-                        <small class="text-muted" style="font-size: 0.65rem;">01027830834</small>
+                    <div class="text-center" style="font-size: 12px; color:#000; font-weight:600;">
+                        شكراً لتعاملكم معنا
+                        <br>
+                        01027830834
                     </div>
                 </div>
             </div>
@@ -259,7 +294,6 @@
     document.addEventListener("DOMContentLoaded", () => {
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
         
-        // فحص صلاحية المستخدم الحالية وإخفاء زر تصدير الإكسل نهائياً للموظف المحدود من شجرة التصميم
         const role = sessionStorage.getItem('role');
         const excelBtn = document.querySelector('button[onclick="exportToExcel()"]');
         if (role === 'restricted' && excelBtn) {
@@ -307,10 +341,7 @@
         let filteredHtml = '';
         for (let id in clientsMap) {
             if (clientsMap[id].name.toLowerCase().includes(term)) {
-                filteredHtml += `
-                    <div class="search-item" onclick="selectParty('${id}', '${clientsMap[id].name}')">
-                        <b>${clientsMap[id].name}</b>
-                    </div>`;
+                filteredHtml += `<div class="search-item" onclick="selectParty('${id}', '${clientsMap[id].name}')"><b>${clientsMap[id].name}</b></div>`;
             }
         }
 
@@ -350,6 +381,7 @@
                         id: doc.id,
                         date: d.date,
                         type: d.type,
+                        paymentMethod: d.paymentMethod || 'نقدي',
                         partyId: d.partyId,
                         partyType: 'عميل',
                         amount: Number(d.amount || 0),
@@ -363,7 +395,7 @@
 
         } catch (err) {
             if(allVouchers.length === 0) {
-                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="7" class="text-danger py-4">حدث خطأ أثناء تحميل بيانات السندات</td></tr>';
+                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="8" class="text-danger py-4">حدث خطأ أثناء تحميل بيانات السندات</td></tr>';
             }
         }
     }
@@ -374,7 +406,7 @@
         let total = 0;
 
         if(data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">لا توجد حركات عملاء مسجلة حالياً</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-3 text-muted">لا توجد حركات عملاء مسجلة حالياً</td></tr>';
             document.getElementById('vouchersTotal').innerText = "0.00 ج.م";
             return;
         }
@@ -383,16 +415,17 @@
             total += v.amount;
             const pName = clientsMap[v.partyId] ? clientsMap[v.partyId].name : 'عميل غير مسجل';
             const badgeClass = v.type === 'قبض' ? 'badge-receipt' : 'badge-payment';
+            const pMethod = v.paymentMethod || 'نقدي';
 
-            tbody.innerHTML += `
-                <tr>
+            tbody.innerHTML += `<tr>
                     <td><span class="text-secondary fw-bold">${v.date}</span></td>
                     <td><span class="badge-type ${badgeClass}">${v.type}</span></td>
+                    <td><span class="badge bg-secondary text-white">${pMethod}</span></td>
                     <td class="text-end fw-bold text-dark">${pName}</td>
                     <td class="text-end text-muted small">${v.note}</td>
                     <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2})}</td>
                     <td>
-                        <button class="btn-share-row" onclick="openReceiptModal('${v.type}', '${v.date}', ${v.amount}, '${pName}')"><i class="fas fa-share-alt"></i></button>
+                        <button class="btn-share-row" onclick="openReceiptModal('${v.type}', '${v.date}', ${v.amount}, '${pName}', '${pMethod}')"><i class="fas fa-share-alt"></i></button>
                     </td>
                     <td>
                         <button class="btn-delete-row" onclick="deleteVoucher('${v.id}')"><i class="fas fa-trash-alt"></i></button>
@@ -411,10 +444,11 @@
         renderTable(filtered);
     };
 
-    window.openReceiptModal = (type, date, amount, clientName) => {
+    window.openReceiptModal = (type, date, amount, clientName, paymentMethod) => {
         document.getElementById('recType').innerText = type === 'قبض' ? 'سند قبض' : 'سند صرف';
         document.getElementById('recDate').innerText = date;
         document.getElementById('recClientName').innerText = clientName;
+        document.getElementById('recPaymentMethod').innerText = paymentMethod || 'نقدي';
         document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
         document.getElementById('recClientRow').style.opacity = '1';
         if(receiptModalObj) receiptModalObj.show();
@@ -462,12 +496,14 @@
 
         const vDateVal = document.getElementById('vDate').value;
         const vTypeVal = document.getElementById('vType').value;
+        const pMethodVal = document.getElementById('paymentMethod').value;
         const vAmountVal = Number(document.getElementById('vAmount').value);
         const selectedClientName = document.getElementById('partySearch').value;
 
         const newVoucher = {
             date: vDateVal,
             type: vTypeVal,
+            paymentMethod: pMethodVal,
             partyType: 'عميل',
             partyId: partyId,
             amount: vAmountVal,
@@ -483,7 +519,14 @@
             document.getElementById('partyId').value = '';
             
             await loadVouchers();
-            openReceiptModal(vTypeVal, vDateVal, vAmountVal, selectedClientName);
+            
+            // فتح المودال بالبيانات الجديدة
+            openReceiptModal(vTypeVal, vDateVal, vAmountVal, selectedClientName, pMethodVal);
+
+            // تشغيل دالة المشاركة تلقائياً بعد ثانية واحدة لمنح الصورة وقتاً للاستقرار
+            setTimeout(() => {
+                document.getElementById('btnDoShare').click();
+            }, 1000);
 
         } catch (err) {
             alert("حدث خطأ أثناء حفظ بيانات السند");
@@ -506,7 +549,6 @@
     };
 
     window.exportToExcel = () => {
-        // حماية برمجية خلفية إضافية لمنع محاولة استدعاء الدالة من الـ Console
         if (sessionStorage.getItem('role') === 'restricted') {
             alert("عذراً، لا تملك الصلاحية لتصدير هذه البيانات الحساسة.");
             return;
