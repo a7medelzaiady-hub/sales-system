@@ -245,98 +245,6 @@
     const db = getFirestore(app);
 
     async function loadRealFinancialData() {
-        let totalSales = 0;       // بعت بكام
-        let totalReceivables = 0; // ليا كام (الآجل عند العملاء)
-        let totalPurchases = 0;   // اشتريت بكام
-        let totalPayables = 0;    // عليا كام للموردين
-        let totalExpenses = 0;    // صرفت كام
-
-        try {
-            // 1. حساب إجمالي المبيعات من كولكشن الفواتير invoices
-            const salesSnap = await getDocs(collection(db, "invoices"));
-            salesSnap.forEach(doc => {
-                const inv = doc.data();
-                totalSales += Number(inv.total || 0);
-            });
-
-            // 2. المطابقة مع صفحة العملاء: جلب المتبقي عند العملاء مباشرة من كولكشن الأرصدة الحية للعملاء
-            const customersSnap = await getDocs(collection(db, "customers"));
-            customersSnap.forEach(doc => {
-                const cust = doc.data();
-                // التأكد من أن العميل غير محذوف (نفس منطق صفحة العملاء)
-                if (cust.isDeleted !== true) {
-                    const balance = Number(cust.currentBalance || 0);
-                    // إذا كان الرصيد موجباً فهو مطلوب من العميل (ليّا كام)
-                    if (balance > 0.01) {
-                        totalReceivables += balance;
-                    }
-                }
-            });
-
-            // 3. حساب المشتريات والآجل للموردين من كولكشن supplier_transactions
-            const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
-            purchasesSnap.forEach(doc => {
-                const trans = doc.data();
-                if (trans.type === "شراء" || trans.type === "فاتورة شراء") {
-                    totalPurchases += Number(trans.totalAmount || trans.total || 0);
-                    let paid = Number(trans.paidAmount || trans.paid || 0);
-                    let fullPrice = Number(trans.totalAmount || trans.total || 0);
-                    if(fullPrice > paid) {
-                        totalPayables += (fullPrice - paid);
-                    }
-                }
-            });
-
-            // 4. حساب المصاريف وسندات الصرف من كولكشن transactions
-            const transSnap = await getDocs(collection(db, "transactions"));
-            transSnap.forEach(doc => {
-                const d = doc.data();
-                if (d.type === 'صرف') {
-                    totalExpenses += Number(d.amount || 0);
-                }
-            });
-
-            // 5. معادلة صافي الأرباح الدفترية = (إجمالي المبيعات - إجمالي المشتريات)
-            let profit = totalSales - totalPurchases;
-
-            // عرض البيانات في الصفحة بالجنيه المصري
-            document.getElementById('total-sales').innerText = totalSales.toLocaleString('ar-EG') + ' ج.م';
-            document.getElementById('total-purchases').innerText = totalPurchases.toLocaleString('ar-EG') + ' ج.م';
-            document.getElementById('total-expenses').innerText = totalExpenses.toLocaleString('ar-EG') + ' ج.م';
-            document.getElementById('total-receivables').innerText = totalReceivables.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
-            document.getElementById('total-payables').innerText = totalPayables.toLocaleString('ar-EG') + ' ج.م';
-            
-            const profitElement = document.getElementById('total-profit');
-            profitElement.innerText = profit.toLocaleString('ar-EG') + ' ج.م';
-            
-            if(profit < 0) {
-                profitElement.style.color = 'var(--danger-color)';
-            } else {
-                profitElement.style.color = 'var(--success-color)';
-            }
-
-            // تحديث نص التحليل المالي
-            let analysisText = `بناءً على الفواتير والأرصدة المزامنة: لك عند العملاء بالسوق مبالغ مؤجلة بقيمة ${totalReceivables.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م، وعليك التزامات للموردين بقيمة ${totalPayables.toLocaleString('ar-EG')} ج.م. `;
-            if (profit > 0) {
-                analysisText += `حجم مبيعاتك الحالي يتخطى قيمة مشترياتك وموقفك المالي مستقر.`;
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-        authDomain: "ahmedelzaiady.firebaseapp.com",
-        projectId: "ahmedelzaiady",
-        storageBucket: "ahmedelzaiady.firebasestorage.app",
-        messagingSenderId: "300306825071",
-        appId: "1:300306825071:web:0426ddde56280fa090329a",
-        measurementId: "G-WE04GK5XZZ"
-    };
-    
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    async function loadRealFinancialData() {
         let totalSales = 0;       // بعت بكام (مطابق لحسابات العملاء)
         let totalReceivables = 0; // ليا كام (الأرصدة المدنية للعملاء)
         let totalPurchases = 0;   // اشتريت بكام
@@ -449,7 +357,6 @@
 
     window.onload = loadRealFinancialData;
 </script>
-
 
 </body>
 </html>
