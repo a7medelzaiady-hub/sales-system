@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الملخص المالي والأرباح</title>
+    <!-- Font Awesome للأيقونات -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --success-color: #27ae60;
+            --danger-color: #c0392b;
+            --warning-color: #f39c12;
+            --info-color: #2980b9;
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --text-color: #333;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            padding: 15px;
+        }
+
+        .dashboard-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 25px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ddd;
+        }
+
+        header h1 {
+            font-size: 24px;
+            color: var(--primary-color);
+        }
+
+        header p {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-top: 5px;
+        }
+
+        /* شبكة الكروت - متجاوبة تلقائياً */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            border-right: 5px solid #ccc;
+            transition: transform 0.2s;
+        }
+
+        .stat-card:active {
+            transform: scale(0.98);
+        }
+
+        /* ألوان الكروت بناءً على نوع البيانات */
+        .card-sales { border-right-color: var(--info-color); }
+        .card-purchases { border-right-color: var(--warning-color); }
+        .card-expenses { border-right-color: #9b59b6; }
+        .card-receivables { border-right-color: var(--success-color); }
+        .card-payables { border-right-color: var(--danger-color); }
+        
+        /* كارت الأرباح المميز */
+        .card-profit { 
+            grid-column: 1 / -1; /* يأخذ العرض كاملاً للتميز */
+            border-right-color: var(--success-color);
+            background: linear-gradient(135deg, #ffffff, #e8f8f5);
+        }
+
+        .stat-card .icon {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+
+        .card-sales .icon { color: var(--info-color); }
+        .card-purchases .icon { color: var(--warning-color); }
+        .card-expenses .icon { color: #9b59b6; }
+        .card-receivables .icon { color: var(--success-color); }
+        .card-payables .icon { color: var(--danger-color); }
+        .card-profit .icon { color: var(--success-color); font-size: 30px; }
+
+        .stat-card .title {
+            font-size: 14px;
+            color: #7f8c8d;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .value {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+
+        .card-profit .value {
+            font-size: 24px;
+            color: var(--success-color);
+        }
+
+        /* قسم الفلترة بالتاريخ */
+        .filter-section {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .filter-section select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            font-size: 15px;
+            outline: none;
+            background-color: #fff;
+        }
+
+        /* تنبيهات سريعة */
+        .summary-note {
+            background: #fff;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .summary-note h3 {
+            color: var(--primary-color);
+            margin-bottom: 8px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="dashboard-container">
+    <header>
+        <h1><i class="fa-solid fa-chart-pie"></i> لوحة التحكم المالية</h1>
+        <p>الزيدي لزيوت السيارات - الخلاصة الحسابية</p>
+    </header>
+
+    <!-- فلتر تحديد الفترة -->
+    <div class="filter-section">
+        <select id="timeFilter" onchange="updateDashboardData()">
+            <option value="today">اليوم</option>
+            <option value="this_month" selected>الشهر الحالي</option>
+            <option value="last_month">الشهر الماضي</option>
+            <option value="all">كل الأوقات</option>
+        </select>
+    </div>
+
+    <!-- شبكة العرض المالي -->
+    <div class="stats-grid">
+        
+        <!-- كارت صافي الأرباح (الرئيسي) -->
+        <div class="stat-card card-profit">
+            <div class="icon"><i class="fa-solid fa-money-bill-trend-up"></i></div>
+            <div class="title">صافي الأرباح المتوقعة</div>
+            <div class="value" id="total-profit">0.00 ج.م</div>
+        </div>
+
+        <!-- إجمالي المبيعات -->
+        <div class="stat-card card-sales">
+            <div class="icon"><i class="fa-solid fa-cart-shopping"></i></div>
+            <div class="title">إجمالي المبيعات (بعت بكام)</div>
+            <div class="value" id="total-sales">0.00 ج.م</div>
+        </div>
+
+        <!-- إجمالي المشتريات -->
+        <div class="stat-card card-purchases">
+            <div class="icon"><i class="fa-solid fa-truck-loading"></i></div>
+            <div class="title">إجمالي المشتريات (اشتريت بكام)</div>
+            <div class="value" id="total-purchases">0.00 ج.م</div>
+        </div>
+
+        <!-- المصاريف -->
+        <div class="stat-card card-expenses">
+            <div class="icon"><i class="fa-solid fa-hand-holding-dollar"></i></div>
+            <div class="title">المصاريف العمومية (صرفت كام)</div>
+            <div class="value" id="total-expenses">0.00 ج.م</div>
+        </div>
+
+        <!-- فلوس برة للعملاء -->
+        <div class="stat-card card-receivables">
+            <div class="icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+            <div class="title">حسابات العملاء (ليا كام برة)</div>
+            <div class="value" id="total-receivables">0.00 ج.م</div>
+        </div>
+
+        <!-- ديون للموردين -->
+        <div class="stat-card card-payables">
+            <div class="icon"><i class="fa-solid fa-money-bill-transfer"></i></div>
+            <div class="title">حسابات الموردين (عليا كام)</div>
+            <div class="value" id="total-payables">0.00 ج.م</div>
+        </div>
+
+    </div>
+
+    <!-- ملخص تحليلي سريع -->
+    <div class="summary-note">
+        <h3><i class="fa-solid fa-lightbulb" style="color: var(--warning-color)"></i> قراءة سريعة للحسابات:</h3>
+        <p id="financial-analysis">جاري تحميل التحليل المالي المباشر للمحل المالي الخاص بك...</p>
+    </div>
+</div>
+
+<script>
+    // دالة وهمية لمحاكاة جلب البيانات من Firebase أو السيستم عندك
+    // أول ما نربطها بالـ Database بتاعتك هتقرأ منها تلقائياً
+    function updateDashboardData() {
+        const filter = document.getElementById('timeFilter').value;
+        
+        // هنا هتحط كود الـ Fetch من الـ Firebase وقراءة الفواتير والمصاريف
+        // كمثال للأرقام لتوضيح الشكل:
+        let data = {
+            sales: 150000,
+            purchases: 110000,
+            expenses: 5000,
+            receivables: 35000, // ليا برة
+            payables: 20000     // عليا للموردين
+        };
+
+        // حساب الأرباح الحقيقية = (المبيعات - تكلفة المشتريات المبيعة - المصاريف)
+        // أو حسب الحسبة اللي تعتمدها (هنا كمثال مبسط: مبيعات - مشتريات - مصاريف)
+        let profit = data.sales - data.purchases - data.expenses;
+
+        // عرض الأرقام في الكروت
+        document.getElementById('total-sales').innerText = data.sales.toLocaleString('ar-EG') + ' ج.م';
+        document.getElementById('total-purchases').innerText = data.purchases.toLocaleString('ar-EG') + ' ج.م';
+        document.getElementById('total-expenses').innerText = data.expenses.toLocaleString('ar-EG') + ' ج.م';
+        document.getElementById('total-receivables').innerText = data.receivables.toLocaleString('ar-EG') + ' ج.م';
+        document.getElementById('total-payables').innerText = data.payables.toLocaleString('ar-EG') + ' ج.م';
+        
+        const profitElement = document.getElementById('total-profit');
+        profitElement.innerText = profit.toLocaleString('ar-EG') + ' ج.م';
+        
+        // تغيير لون الربح لو سالب (خسارة لا قدر الله)
+        if(profit < 0) {
+            profitElement.style.color = 'var(--danger-color)';
+        } else {
+            profitElement.style.color = 'var(--success-color)';
+        }
+
+        // كتابة سطر تحليل تلقائي ذكي بناءً على الأرقام
+        let analysisText = `إجمالي السيولة المتوقعة في السوق (لك وعليك) تظهر أن صافي الديون المستحقة لك في السوق هو ${(data.receivables - data.payables).toLocaleString('ar-EG')} ج.م. `;
+        if (profit > 0) {
+            analysisText += `أداؤك المالي ممتاز هذا الشهر وأرباحك صافية وتغطي مصاريفك بنجاح.`;
+        } else {
+            analysisText += `يرجى مراجعة المصاريف أو حجم المبيعات لوجود تراجع في صافي الربح.`;
+        }
+        document.getElementById('financial-analysis').innerText = analysisText;
+    }
+
+    // تشغيل الدالة تلقائياً عند فتح الصفحة
+    window.onload = updateDashboardData;
+</script>
+</body>
+</html>
