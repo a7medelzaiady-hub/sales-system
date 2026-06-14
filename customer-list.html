@@ -307,7 +307,7 @@
             });
         }
 
-        // ⚡ تعديل دالة المزامنة والتدقيق لتكون أكثر استقراراً وأماناً لبياناتك وحصتك في Firebase
+        // ⚡ تعديل دالة المزامنة والتدقيق لحماية الأرصدة الافتتاحية السلبية الناتجة عن الرفع الخارجي
         window.syncAndRecalculateBalances = async () => {
             const icon = document.getElementById('refreshIcon');
             if (icon.classList.contains('spin')) return; 
@@ -318,28 +318,35 @@
                 const batch = writeBatch(db);
                 let needsUpdate = false;
 
-                // نقرأ كافة العملاء ونقوم بعمل فحص تدريجي آمن لمنع تجميد المتصفح
                 for (const customerDoc of querySnapshot.docs) {
                     const customerId = customerDoc.id;
                     const customerData = customerDoc.data();
                     if (customerData.isDeleted === true) continue;
 
-                    let computedBalance = 0;
-                    let processedAnySubCollection = false;
+                    // الاعتماد على الرصيد المخزن الفعلي في المستند كأساس (سواء كان موجباً أو سالباً)
+                    let initialBalance = Number(customerData.initialBalance || customerData.openingBalance || 0);
                     
-                    // الكولكشن الفرعية الأساسية للحسابات
+                    // إذا لم يوجد حقل رصيد افتتاحي صريح، نتحقق مما إذا كان الرصيد الحالي سالباً لنحافظ عليه كقيمة بداية
+                    if (initialBalance === 0 && Number(customerData.currentBalance || 0) < 0) {
+                        initialBalance = Number(customerData.currentBalance || 0);
+                    }
+
+                    let computedBalance = initialBalance;
+                    let hasNewSubTransactions = false;
+                    
                     const targetSubCollections = ['invoices', 'transactions', 'sales', 'payments', 'orders'];
                     
                     for (const subName of targetSubCollections) {
                         const subSnapshot = await getDocs(collection(db, `customers/${customerId}/${subName}`));
                         if (!subSnapshot.empty) {
-                            processedAnySubCollection = true;
                             subSnapshot.forEach(docItem => {
                                 const tData = docItem.data();
-                                const val = Number(tData.amount || tData.value || tData.total || tData.price || tData.net || 0);
+                                const val = Math.abs(Number(tData.amount || tData.value || tData.total || tData.price || tData.net || 0));
                                 const type = String(tData.type || tData.status || tData.category || '').toLowerCase();
                                 
-                                // كشف القيود الدائنة والمدينة
+                                hasNewSubTransactions = true;
+
+                                // احتساب الحركات التفصيلية الجديدة بناءً على طبيعتها فوق الرصيد الأساسي
                                 if (type.includes('invoice') || type.includes('بيع') || type.includes('مدين') || type.includes('فاتورة')) {
                                     computedBalance += val;
                                 } else if (type.includes('payment') || type.includes('سند') || type.includes('دائن') || type.includes('قبض') || type.includes('سداد')) {
@@ -349,10 +356,12 @@
                         }
                     }
 
-                    // إذا لم توجد فواتير فرعية نعتمد الرصيد الظاهري الحالي للحفاظ على الاستقرار
-                    if (!processedAnySubCollection) computedBalance = Number(customerData.currentBalance || 0);
+                    // إذا لم تكن هناك حركات تفصيلية جديدة مسجلة بالداخل، نمنع تصفير أو قلب الرصيد السالب المرفوع
+                    if (!hasNewSubTransactions) {
+                        computedBalance = Number(customerData.currentBalance || 0);
+                    }
                     
-                    // تحديث قاعدة البيانات فقط إذا وجد اختلاف فعلي في الحساب لتقليل الـ Writes
+                    // التحديث في السيرفر فقط عند وجود فارق حقيقي
                     if (Number(customerData.currentBalance || 0) !== computedBalance) {
                         batch.update(doc(db, "customers", customerId), { currentBalance: computedBalance });
                         needsUpdate = true;
@@ -362,10 +371,10 @@
                 if (needsUpdate) {
                     await batch.commit();
                 }
-                alert("تمت مراجعة ومزامنة وتدقيق كافة كشوفات الأرصدة بنجاح مع الفواتير والسندات الحالية.");
+                alert("تمت مراجعة ومزامنة وتدقيق كافة كشوفات الأرصدة مع الحفاظ على الأرصدة الافتتاحية المرفوعة بنجاح.");
             } catch (error) { 
                 console.error("خطأ في المزامنة المتقدمة:", error); 
-                alert("تم تحديث الواجهة، يرجى التحقق من استقرار الإنترنت لديك للمزامنة العميقة.");
+                alert("حدث خطأ أثناء المزامنة العميقة، يرجى مراجعة حالة شبكة الإنترنت.");
             } finally { 
                 icon.classList.remove('spin'); 
             }
