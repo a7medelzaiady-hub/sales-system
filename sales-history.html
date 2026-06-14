@@ -134,38 +134,6 @@
             </div>  
         </div>  
 
-        <div class="stats-section-title"><i class="fas fa-chart-pie me-1"></i> إحصائيات الكل</div>  
-        <div class="row g-1 mb-2">  
-            <div class="col-3">  
-                <div class="stat-card" onclick="filterByStat('all-cash', this)">  
-                    <div class="stat-bar" style="background: var(--success);"></div>  
-                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.النقدي</small>  
-                    <span class="fw-bold d-block text-truncate text-success" id="statCash" style="font-size: 0.82rem;">0.0</span>  
-                </div>  
-            </div>  
-            <div class="col-3">  
-                <div class="stat-card" onclick="filterByStat('all-wallet', this)">  
-                    <div class="stat-bar" style="background: var(--purple);"></div>  
-                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.المحفظة</small>  
-                    <span class="fw-bold d-block text-truncate text-primary" id="statWallet" style="font-size: 0.82rem;">0.0</span>  
-                </div>  
-            </div>  
-            <div class="col-3">  
-                <div class="stat-card" onclick="filterByStat('all-remaining', this)">  
-                    <div class="stat-bar" style="background: var(--warning);"></div>  
-                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.الآجل</small>  
-                    <span class="fw-bold d-block text-truncate text-warning" id="statRemaining" style="font-size: 0.82rem;">0.0</span>  
-                </div>  
-            </div>  
-            <div class="col-3">  
-                <div class="stat-card" onclick="filterByStat('all-total', this)">  
-                    <div class="stat-bar" style="background: #212529;"></div>  
-                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">ا.المبيعات</small>  
-                    <span class="fw-bold d-block text-truncate text-dark" id="statTotalSales" style="font-size: 0.82rem;">0.0</span>  
-                </div>  
-            </div>  
-        </div>  
-
         <div class="filter-status-bar mb-2" id="filterStatusBar">  
             <span id="filterStatusText">عرض فلاتر مخصصة</span>  
             <button class="btn btn-sm btn-dark py-0" onclick="resetStatFilter()" style="font-size:0.7rem; font-family: 'Cairo';">عرض الكل</button>  
@@ -391,7 +359,6 @@
     };  
   
     function calculateStats() {  
-        let totalCash = 0; let totalWallet = 0; let totalRemaining = 0; let totalSales = 0;  
         let todayCash = 0; let todayWallet = 0; let todayRemaining = 0; let todaySales = 0;  
         const filterInput = document.getElementById('dateFilterInput')?.value;  
         const targetDateStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');   
@@ -400,24 +367,14 @@
         allInvoices.forEach(inv => {  
             const invDateStr = parseInvoiceDate(inv);  
             const isTargetDate = (invDateStr === targetDateStr);  
-            totalCash += inv.calculatedCash;  
-            totalWallet += inv.calculatedWallet;  
-            totalSales += (Number(inv.total) || 0);  
             if (isTargetDate) {  
                 todayCash += inv.calculatedCash;  
                 todayWallet += inv.calculatedWallet;  
                 todaySales += (Number(inv.total) || 0);  
-            }  
-            let rawRemaining = Number(inv.remaining) || 0;  
-            if (rawRemaining > 0) {  
-                totalRemaining += rawRemaining;  
-                if (isTargetDate) { todayRemaining += rawRemaining; }  
+                let rawRemaining = Number(inv.remaining) || 0;  
+                if (rawRemaining > 0) { todayRemaining += rawRemaining; }  
             }  
         });  
-        document.getElementById('statCash').innerText = totalCash.toFixed(1);  
-        document.getElementById('statWallet').innerText = totalWallet.toFixed(1);  
-        document.getElementById('statRemaining').innerText = totalRemaining.toFixed(1);  
-        document.getElementById('statTotalSales').innerText = totalSales.toFixed(1);  
         document.getElementById('todayCash').innerText = todayCash.toFixed(1);  
         document.getElementById('todayWallet').innerText = todayWallet.toFixed(1);  
         document.getElementById('todayRemaining').innerText = todayRemaining.toFixed(1);  
@@ -595,10 +552,6 @@
                 case 'today-wallet': statusLabel = `محفظة يوم (${todayStr})`; return isToday && inv.calculatedWallet > 0;  
                 case 'today-remaining': statusLabel = `آجل يوم (${todayStr})`; return isToday && Number(inv.remaining) > 0;  
                 case 'today-total': statusLabel = `مبيعات يوم (${todayStr})`; return isToday;  
-                case 'all-cash': statusLabel = "كل النقدي"; return inv.calculatedCash > 0;  
-                case 'all-wallet': statusLabel = "كل المحفظة"; return inv.calculatedWallet > 0;  
-                case 'all-remaining': statusLabel = "كل الآجل المتبقي"; return Number(inv.remaining) > 0;  
-                case 'all-total': statusLabel = "كل مبيعات السيستم"; return true;  
                 default: return true;  
             }  
         });  
@@ -660,116 +613,87 @@
         });  
     };  
     
-    window.exportToExcel = () => {
-        if (!allInvoices || allInvoices.length === 0) {
-            alert("لا توجد بيانات للتصدير");
-            return;
-        }
-
-        let excelData = [];
-
-        excelData.push([
-            "التاريخ",
-            "الحركة",
-            "اسم العميل",
-            "الصنف",
-            "عدد جركن",
-            "عدد كرتونة",
-            "سعر جركن",
-            "سعر كرتونة"
-        ]);
-
-        allInvoices.forEach(inv => {
-            let invoiceItems = [];
-
-            if (Array.isArray(inv.items)) {
-                invoiceItems = inv.items;
-            } else {
-                Object.keys(inv).forEach(key => {
-                    if (!isNaN(key) && inv[key]) {
-                        invoiceItems.push(inv[key]);
-                    }
-                });
-            }
-
-            const invDate = parseInvoiceDate(inv) || inv.date || "";
-
-            invoiceItems.forEach(item => {
-                const isBox = item.unit === "box" || 
-                              item.unit === "كرتونة" || 
-                              (item.name && (item.name.includes("كرتونة") || item.name.includes("كرtونه")));
-
-                excelData.push([
-                    invDate,
-                    "بيع",
-                    inv.customerName || "النقدي",
-                    item.name || "",
-                    !isBox ? (Number(item.qty) || 0) : 0,  
-                    isBox ? (Number(item.qty) || 0) : 0,   
-                    !isBox ? (Number(item.price) || 0) : 0, 
-                    isBox ? (Number(item.price) || 0) : 0  
-                ]);
-            });
-
-            if (inv.calculatedCash > 0) {
-                excelData.push([
-                    invDate,
-                    "سداد منه نقدي",
-                    inv.customerName || "النقدي",
-                    "سداد نقدي",
-                    0,    
-                    1,     
-                    0,    
-                    inv.calculatedCash 
-                ]);
-            }
-
-            if (inv.calculatedWallet > 0) {
-                excelData.push([
-                    invDate,
-                    "سداد منه محفظة",
-                    inv.customerName || "النقدي",
-                    "سداد محفظة",
-                    0,    
-                    1,     
-                    0,    
-                    inv.calculatedWallet 
-                ]);
-            }
-        });
-
-        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-
-        worksheet["!cols"] = [
-            { wch: 15 }, 
-            { wch: 18 }, 
-            { wch: 25 }, 
-            { wch: 35 }, 
-            { wch: 12 }, 
-            { wch: 12 }, 
-            { wch: 15 }, 
-            { wch: 15 }  
-        ];
-
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات والأرشيف");
-
-        const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
-        const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        const url = URL.createObjectURL(blob);
-
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `سجل_مبيعات_الزيادي_${new Date().toISOString().slice(0,10)}.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-
-        setTimeout(() => { URL.revokeObjectURL(url); }, 1000);
-    };
-
-    document.getElementById('exportExcelBtn').onclick = window.exportToExcel;
-
+    window.exportToExcel = () => {  
+        if (!allInvoices || allInvoices.length === 0) {  
+            alert("لا توجد بيانات للتصدير");  
+            return;  
+        }  
+        let excelData = [];  
+        excelData.push([  
+            "التاريخ",  
+            "الحركة",  
+            "اسم العميل",  
+            "الصنف",  
+            "عدد جركن",  
+            "عدد كرتونة",  
+            "سعر جركن",  
+            "سعر كرتونة"  
+        ]);  
+        allInvoices.forEach(inv => {  
+            let invoiceItems = [];  
+            if (Array.isArray(inv.items)) {  
+                invoiceItems = inv.items;  
+            } else {  
+                Object.keys(inv).forEach(key => {  
+                    if (!isNaN(key) && inv[key]) { invoiceItems.push(inv[key]); }  
+                });  
+            }  
+            const invDate = parseInvoiceDate(inv) || inv.date || "";  
+            invoiceItems.forEach(item => {  
+                const isBox = item.unit === "box" ||   
+                              item.unit === "كرتونة" ||   
+                              (item.name && (item.name.includes("كرتونة") || item.name.includes("كرtونه")));  
+                excelData.push([  
+                    invDate,  
+                    "بيع",  
+                    inv.customerName || "النقدي",  
+                    item.name || "",  
+                    !isBox ? (Number(item.qty) || 0) : 0,    
+                    isBox ? (Number(item.qty) || 0) : 0,     
+                    !isBox ? (Number(item.price) || 0) : 0,   
+                    isBox ? (Number(item.price) || 0) : 0    
+                ]);  
+            });  
+            if (inv.calculatedCash > 0) {  
+                excelData.push([  
+                    invDate,  
+                    "سداد منه نقدي",  
+                    inv.customerName || "النقدي",  
+                    "سداد نقدي",  
+                    0, 1, 0, inv.calculatedCash   
+                ]);  
+            }  
+            if (inv.calculatedWallet > 0) {  
+                excelData.push([  
+                    invDate,  
+                    "سداد منه محفظة",  
+                    inv.customerName || "النقدي",  
+                    "سداد محفظة",  
+                    0, 1, 0, inv.calculatedWallet   
+                ]);  
+            }  
+        });  
+        const worksheet = XLSX.utils.aoa_to_sheet(excelData);  
+        worksheet["!cols"] = [  
+            { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 35 },   
+            { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }    
+        ];  
+        const workbook = XLSX.utils.book_new();  
+        XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات والأرشيف");  
+        const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });  
+        const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });  
+        const url = URL.createObjectURL(blob);  
+        const a = document.createElement("a");  
+        a.href = url;  
+        a.download = `سجل_مبيعات_الزيادي_${new Date().toISOString().slice(0,10)}.xlsx`;  
+        document.body.appendChild(a);  
+        a.click();  
+        document.body.removeChild(a);  
+        setTimeout(() => { URL.revokeObjectURL(url); }, 1000);  
+    };  
+  
+    document.getElementById('exportExcelBtn').onclick = window.exportToExcel;  
+  
     loadData();  
 </script>  
 </body>  
