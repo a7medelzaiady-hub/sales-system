@@ -17,6 +17,7 @@
         .glass-card { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 20px; transition: 0.3s; text-decoration: none; color: inherit; display: block; height: 100%; }
         .glass-card:hover { border-color: var(--neon); background: rgba(255,255,255,0.08); }
         
+        /* تنسيق الكروت الداخلية للسندات */
         .sub-glass-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 12px; transition: 0.2s; text-decoration: none; display: block; font-weight: bold; font-size: 0.9rem; }
         .sub-glass-card:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
         
@@ -77,7 +78,7 @@
     <!-- الكروت الـ 3 الرئيسية الثابتة لجميع الحسابات -->
     <div class="row g-3 mb-5" id="mainDashboardMenu">
         
-        <!-- الكارت الأول: المبيعات -->
+        <!-- الكارت الأول: المبيعات والمخازن للمدير -->
         <div class="col-md-4">
             <div class="glass-card text-center">
                 <i class="fas fa-file-invoice-dollar menu-icon-large text-info"></i>
@@ -87,7 +88,7 @@
                     <a href="mabiat.html" class="btn btn-sm btn-outline-info">يومية المبيعات</a>
                     <a href="invoices_log.html" class="btn btn-sm btn-outline-info">سجل الفواتير</a>
                     
-                    <!-- أزرار المدير فقط داخل كارت المبيعات -->
+                    <!-- أزرار تظهر للمدير فقط وتُحذف للموظف تلقائياً -->
                     <a href="inventory.html" class="btn btn-sm btn-outline-warning admin-only">إدارة المخزن</a>
                     <a href="items_report.html" class="btn btn-sm btn-outline-danger admin-only">تقارير الأصناف</a>
                     <a href="purchase-mgmt.html" class="btn btn-sm btn-outline-secondary admin-only" style="color: #bc8cff; border-color: #bc8cff;">المشتريات</a>
@@ -95,7 +96,7 @@
             </div>
         </div>
 
-        <!-- الكارت الثاني: العملاء -->
+        <!-- الكارت الثاني: العملاء والموردين -->
         <div class="col-md-4">
             <div class="glass-card text-center">
                 <i class="fas fa-address-book menu-icon-large text-success"></i>
@@ -104,27 +105,27 @@
                     <a href="customers_list.html" class="btn btn-sm btn-outline-success">إدارة العملاء</a>
                     <a href="customer_ledger.html" class="btn btn-sm btn-outline-success">كشف الحساب</a>
                     
-                    <!-- زر الموردين للمدير فقط -->
+                    <!-- زر الموردين للمدير فقط ويُحذف للموظف -->
                     <a href="homesuppliers.html" class="btn btn-sm btn-outline-warning admin-only" style="color: #f1e05a; border-color: #f1e05a;">الموردين</a>
                 </div>
             </div>
         </div>
 
-        <!-- الكارت الثالث: السندات -->
+        <!-- الكارت الثالث: السندات والخزينة -->
         <div class="col-md-4">
             <div class="glass-card text-center">
                 <i class="fas fa-vault menu-icon-large text-warning"></i>
                 <h5 class="fw-bold text-white mb-3">السندات</h5>
                 
                 <div class="row g-2 mt-2">
-                    <!-- كارت داخلي: كل السندات (يختفي للموظف) -->
+                    <!-- كارت داخلي: كل السندات (يختفي تماماً للموظف العادي) -->
                     <div class="col-12 admin-only">
                         <a href="vouchers.html?tab=all" class="sub-glass-card text-primary">
                             <i class="fas fa-money-bill-wave me-1"></i> كل السندات
                         </a>
                     </div>
                     
-                    <!-- كارت داخلي: سندات العملاء (يظهر للكل) -->
+                    <!-- كارت داخلي: سندات العملاء (يظهر لجميع الصلاحيات دائماً) -->
                     <div class="col-12">
                         <a href="vouchers.html?tab=customers" class="sub-glass-card text-success">
                             <i class="fas fa-receipt me-1"></i> سندات العملاء
@@ -132,7 +133,7 @@
                     </div>
                 </div>
 
-                <!-- أزرار الخزينة والأرباح والإعدادات للمدير فقط -->
+                <!-- أزرار إضافية أسفل كروت السندات للمدير فقط -->
                 <div class="d-grid gap-2 mt-3 admin-only">
                     <a href="yomeia.html" class="btn btn-sm btn-outline-success">يومية الخزينة</a>
                     <a href="profits_report.html" class="btn btn-sm btn-outline-warning">تقارير الأرباح</a>
@@ -181,7 +182,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // --- الحماية: التوجيه لصفحة index.html لو غير مسجل ---
+    // --- نظام حماية الصفحة: التوجيه لصفحة الدخول index.html لو غير مسجل ---
     if (sessionStorage.getItem('isLoggedIn') !== 'true') {
         window.location.href = "index.html"; 
     } else {
@@ -189,20 +190,21 @@
         document.getElementById('welcomeUser').innerText = `أهلاً بعودتك يا ${user}`;
     }
 
-    // --- فحص الصلاحيات الفوري لتصفية الشاشة للموظف ---
+    // --- فحص الصلاحيات الصارم لإخفاء عناصر المدير عن الموظف ---
     const username = sessionStorage.getItem('username') || '';
     const userRole = sessionStorage.getItem('role') || sessionStorage.getItem('userRole') || localStorage.getItem('userRole') || 'user';
 
+    // التحقق هل هو المدير (أدمن) أم موظف
     const isAdmin = userRole.toLowerCase() === 'admin' || username === 'admin' || username === 'الزيادي';
 
-    // مسح أزرار المدير تماماً لو الحساب موظف عادي
+    // إذا لم يكن مديراً -> امسح كل كروت وأزرار المدير فوراً من الشاشة لتبقى الـ 3 كروت نظيفة
     if (!isAdmin) {
         document.querySelectorAll('.admin-only').forEach(el => {
             el.remove();
         });
     }
 
-    // --- تسجيل الخروج ---
+    // --- زر تسجيل الخروج يوجه لـ index.html ---
     document.getElementById('btnLogout').onclick = () => {
         if(confirm("هل تريد تسجيل الخروج؟")) {
             sessionStorage.clear();
@@ -210,6 +212,7 @@
         }
     };
 
+    // إعدادات قاعدة بيانات فايربيس الخاصة بك
     const firebaseConfig = {
         apiKey: "AIzaSyB3jpSs_LiIZwoaPIgRAiALVX5F1OkBYOI",
         authDomain: "elzyady-da509.firebaseapp.com",
@@ -228,6 +231,7 @@
         let salesToday = 0, countToday = 0, paymentsToday = 0, totalDebts = 0;
 
         try {
+            // 1. جلب بيانات الفواتير والمبيعات
             const invSnap = await getDocs(collection(db, "invoices"));
             const recentSalesList = [];
             
@@ -250,6 +254,7 @@
                 });
             });
 
+            // 2. جلب بيانات التحصيلات الخارجية السندات
             const paySnap = await getDocs(collection(db, "payments"));
             paySnap.forEach(doc => {
                 const d = doc.data();
@@ -259,6 +264,7 @@
                 totalDebts -= amount;
             });
 
+            // ترتيب وعرض أحدث العمليات
             recentSalesList.sort((a,b) => b.date - a.date);
             const recentBody = document.getElementById('recentSalesTable');
             recentBody.innerHTML = '';
@@ -266,6 +272,7 @@
                 recentBody.innerHTML += `<tr><td>${s.name}</td><td class="text-success fw-bold">${s.total.toLocaleString()}</td></tr>`;
             });
 
+            // 3. جلب حالة نواقص المخزن
             const stockSnap = await getDocs(collection(db, "inventory"));
             const lowStockBody = document.getElementById('lowStockTable');
             lowStockBody.innerHTML = '';
@@ -276,6 +283,7 @@
                 }
             });
 
+            // تحديث العدادات العلوية بالأرقام الصحيحة
             document.getElementById('todaySales').innerText = salesToday.toLocaleString();
             document.getElementById('todayInvoices').innerText = countToday;
             document.getElementById('todayPayments').innerText = paymentsToday.toLocaleString();
