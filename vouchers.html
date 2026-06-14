@@ -116,11 +116,12 @@
                 <a href="index.html" class="btn-action d-flex align-items-center justify-content-center text-decoration-none" title="الصفحة الرئيسية">
                     <i class="fas fa-home"></i>
                 </a>
-                <button class="btn-action btn-excel-custom" onclick="exportToExcel()" title="تصدير إكسل"><i class="fas fa-file-excel fa-lg"></i></button>
-                <button class="btn-action btn-danger-custom" onclick="deleteAllVouchers()" title="حذف كافة البيانات"><i class="fas fa-trash-sweep fa-lg"></i></button>
+                <!-- تم إضافة المعرفات لإخفاء الأزرار الحساسة برمجياً للموظفين -->
+                <button id="btnExcelExport" class="btn-action btn-excel-custom" onclick="exportToExcel()" title="تصدير إكسل"><i class="fas fa-file-excel fa-lg"></i></button>
+                <button id="btnPurgeAll" class="btn-action btn-danger-custom" onclick="deleteAllVouchers()" title="حذف كافة البيانات"><i class="fas fa-trash-sweep fa-lg"></i></button>
             </div>
             <div class="title-area text-center flex-grow-1">
-                <h6 class="fw-bold m-0" style="font-size: 0.9rem;">إدارة عمليات القبض والصرف (عملاء / موردين)</h6>
+                <h6 class="fw-bold m-0" id="pageMainTitle" style="font-size: 0.9rem;">إدارة عمليات القبض والصرف (عملاء / موردين)</h6>
             </div>
             <a href="javascript:history.back()" class="btn-action d-flex align-items-center justify-content-center text-decoration-none">
                 <i class="fas fa-arrow-right"></i>
@@ -311,15 +312,51 @@
     let allVouchers = [];
     let partiesMap = {}; 
     let receiptModalObj = null;
+    
+    // جلب رتبة المستخدم الحالية من النظام المحلي
+    const userRole = localStorage.getItem('userRole') || 'user'; 
 
     document.addEventListener("DOMContentLoaded", async () => {
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
+        
+        // تطبيق قيود الواجهة فوراً للموظفين قبل جلب البيانات لمنع وميض الشاشة
+        applyRoleRestrictions();
+        
         loadCache();
         await fetchPartiesData();
         await loadVouchers();
     });
 
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
+
+    // دالة التحكم في الصلاحيات وعناصر الواجهة
+    function applyRoleRestrictions() {
+        if (userRole !== 'admin') {
+            // 1. تغيير عنوان الصفحة الرئيسي
+            const mainTitle = document.getElementById('pageMainTitle');
+            if (mainTitle) mainTitle.innerText = "إدارة سندات العملاء (قبض / صرف)";
+
+            // 2. إخفاء أزرار الإكسل والمسح الكلي لحماية البيانات العامة
+            const btnExcel = document.getElementById('btnExcelExport');
+            const btnPurge = document.getElementById('btnPurgeAll');
+            if (btnExcel) btnExcel.style.setProperty('display', 'none', 'important');
+            if (btnPurge) btnPurge.style.setProperty('display', 'none', 'important');
+
+            // 3. تثبيت نوع الطرف في نموذج الإدخال على عميل وقفل الحقل
+            const partyTypeSelect = document.getElementById('partyType');
+            if (partyTypeSelect) {
+                partyTypeSelect.value = 'عميل';
+                partyTypeSelect.disabled = true;
+            }
+
+            // 4. تعديل فلتر الفرز السفلي ليقتصر على العملاء فقط
+            const filterPartySelect = document.getElementById('filterParty');
+            if (filterPartySelect) {
+                filterPartySelect.innerHTML = '<option value="عميل">العملاء فقط</option>';
+                filterPartySelect.disabled = true;
+            }
+        }
+    }
 
     function loadCache() {
         const cachedParties = localStorage.getItem('cache_partiesMap');
@@ -330,7 +367,9 @@
         }
         if (cachedVouchers) {
             allVouchers = JSON.parse(cachedVouchers);
-            renderTable(allVouchers);
+            // إذا كان المستخدم موظفاً، يتم فلترة الكاش لعرض العملاء فقط
+            const displayData = userRole !== 'admin' ? allVouchers.filter(v => v.partyType === 'عميل') : allVouchers;
+            renderTable(displayData);
         }
     }
 
@@ -435,7 +474,14 @@
             });
 
             localStorage.setItem('cache_allVouchers', JSON.stringify(allVouchers));
-            renderTable(allVouchers);
+            
+            // تطبيق الفلترة الصارمة عند جلب البيانات الحية من الفايربيز
+            if (userRole !== 'admin') {
+                const customerOnlyData = allVouchers.filter(v => v.partyType === 'عميل');
+                renderTable(customerOnlyData);
+            } else {
+                renderTable(allVouchers);
+            }
 
         } catch (err) {
             console.error(err);
@@ -489,7 +535,11 @@
 
         document.getElementById('editVoucherId').value = voucher.id;
         document.getElementById('vType').value = voucher.type;
-        document.getElementById('partyType').value = voucher.partyType;
+        
+        if (userRole === 'admin') {
+            document.getElementById('partyType').value = voucher.partyType;
+        }
+        
         document.getElementById('partyId').value = voucher.partyId;
         document.getElementById('partySearch').value = partiesMap[voucher.partyId] ? partiesMap[voucher.partyId].name : '';
         document.getElementById('vDate').value = voucher.date;
@@ -511,6 +561,10 @@
         document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('partyId').value = '';
         
+        if (userRole !== 'admin') {
+            document.getElementById('partyType').value = 'عميل';
+        }
+        
         document.getElementById('formTitle').innerHTML = '<i class="fas fa-plus-circle me-1"></i> تسجيل عملية جديدة';
         const submitBtn = document.getElementById('btnSubmitForm');
         submitBtn.innerText = "حفظ البيانات";
@@ -520,7 +574,8 @@
 
     window.filterData = () => {
         const fType = document.getElementById('filterType').value;
-        const fParty = document.getElementById('filterParty').value;
+        // إذا كان المستخدم عادياً، نثبت الفلتر على "عميل" بغض النظر عن القيمة المحددة
+        const fParty = userRole !== 'admin' ? 'عميل' : document.getElementById('filterParty').value;
 
         const filtered = allVouchers.filter(v => {
             const matchType = (fType === 'الكل' || v.type === fType);
@@ -531,7 +586,6 @@
         renderTable(filtered);
     };
 
-    // الدالة الأصلية الفعّالة لحساب صافي كشف الحساب من واقع فواتير وحركات العميل/المورد
     async function calculateCustomerBalance(partyId) {
         const pType = partiesMap[partyId] ? partiesMap[partyId].type : 'عميل';
         const collectionName = pType === 'مورد' ? 'suppliers' : 'customers';
@@ -585,12 +639,10 @@
         document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
         document.getElementById('recStatusText').innerText = type === 'قبض' ? 'تم الاستلام بنجاح' : 'تم الصرف بنجاح';
         
-        // جلب الرصيد الإجمالي النهائي الحالي بناءً على الدالة الأصلية التراكمية
         const currentBalance = await calculateCustomerBalance(partyId);
         let prevBalance = currentBalance;
         let newBalance = currentBalance;
 
-        // الحسابات الرياضية العكسية الدقيقة لإعادة بناء الحساب السابق قبل عملية السداد الحالية
         if (pType === 'عميل') {
             if (type === 'قبض') {
                 prevBalance = currentBalance + Number(amount);
@@ -652,129 +704,103 @@
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        alert("تنبيه: تم حفظ الإيصال كصورة بالاستوديو بنجاح. يمكنك إرسالها الآن عبر الواتساب يدوياً.");
+        alert("تنبيه: تم حفظ الإيصال كصورة بالاستوديو بنجاح. يمكنك إرسالها يدوياً الآن.");
     }
 
     document.getElementById('voucherForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const partyId = document.getElementById('partyId').value;
-        if(!partyId) { alert("الرجاء تحديد الاسم الصحيح من قائمة البحث الذكي"); return; }
-
+        
         const editId = document.getElementById('editVoucherId').value;
-        const submitBtn = document.getElementById('btnSubmitForm');
-        submitBtn.disabled = true;
+        const type = document.getElementById('vType').value;
+        const partyType = document.getElementById('partyType').value;
+        const partyId = document.getElementById('partyId').value;
+        const date = document.getElementById('vDate').value;
+        const amount = Number(document.getElementById('vAmount').value);
+        const note = document.getElementById('vNote').value;
 
-        const vDateVal = document.getElementById('vDate').value;
-        const vTypeVal = document.getElementById('vType').value;
-        const vAmountVal = Number(document.getElementById('vAmount').value);
+        if (!partyId) {
+            alert("خطأ: يرجى كتابة اسم العميل واختياره من قائمة البحث الذكي المنبثقة.");
+            return;
+        }
 
-        const voucherData = {
-            date: vDateVal,
-            type: vTypeVal,
-            partyType: document.getElementById('partyType').value,
+        const docData = {
+            date: date,
+            type: type,
             partyId: partyId,
-            amount: vAmountVal,
-            note: document.getElementById('vNote').value
+            partyType: partyType,
+            amount: amount,
+            note: note
         };
 
         try {
             if (editId) {
-                await updateDoc(doc(db, "transactions", editId), voucherData);
-                alert("تم تحديث بيانات الحركة بنجاح.");
+                await updateDoc(doc(db, "transactions", editId), docData);
+                alert("تم تحديث بيانات السند بنجاح.");
             } else {
-                await addDoc(collection(db, "transactions"), voucherData);
+                await addDoc(collection(db, "transactions"), docData);
+                alert("تم حفظ السند الجديد بنجاح بقاعدة البيانات.");
+                openReceiptModal(type, date, amount, partyId);
             }
-            
             resetVoucherForm();
             await loadVouchers();
-            openReceiptModal(vTypeVal, vDateVal, vAmountVal, partyId);
-
         } catch (err) {
-            console.error(err);
-            alert("حدث خطأ أثناء معالجة العملية.");
-        } finally {
-            submitBtn.disabled = false;
+            console.error("Error storing transaction record:", err);
+            alert("حدث خطأ أثناء الاتصال بقاعدة البيانات وإتمام العملية.");
         }
     });
 
     window.deleteVoucher = async (id) => {
-        if(confirm("هل أنت متأكد من رغبتك في الحذف نهائياً؟")) {
-            try {
-                await deleteDoc(doc(db, "transactions", id));
-                alert("تم الحذف بنجاح.");
-                await loadVouchers();
-                if (document.getElementById('editVoucherId').value === id) resetVoucherForm();
-            } catch (err) {
-                alert("فشل إجراء الحذف.");
-            }
+        if (!confirm("هل أنت متأكد تماماً من رغبتك في حذف هذا السند نهائياً؟")) return;
+        try {
+            await deleteDoc(doc(db, "transactions", id));
+            alert("تم حذف السند وإلغاء أثره المالي.");
+            await loadVouchers();
+        } catch (err) {
+            console.error("Error deleting transaction:", err);
+            alert("فشل حذف السند، يرجى التحقق من اتصالك بالإنترنت.");
         }
     };
 
     window.deleteAllVouchers = async () => {
-        if (allVouchers.length === 0) {
-            alert("لا توجد بيانات لحذفها.");
-            return;
-        }
-
-        const confirmFirst = confirm("تنبيه هام جداً: هل أنت متأكد من رغبتك في حذف كافة عمليات القبض والصرف نهائياً؟ لا يمكن التراجع عن هذا الإجراء.");
-        if (confirmFirst) {
-            const confirmSecond = prompt("لتأكيد الحذف النهائي، يرجى كتابة كلمة (مسح) في الحقل أدناه:");
-            
-            if (confirmSecond === "مسح") {
-                try {
-                    const tbody = document.getElementById('vouchersBody');
-                    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4"><div class="spinner-border spinner-border-sm text-danger"></div> جاري حذف البيانات...</td></tr>';
-                    
-                    for (const voucher of allVouchers) {
-                        await deleteDoc(doc(db, "transactions", voucher.id));
-                    }
-                    
-                    alert("تم حذف جميع السندات بنجاح.");
-                    resetVoucherForm();
-                    await loadVouchers();
-                } catch (err) {
-                    console.error(err);
-                    alert("حدث خطأ أثناء محاولة الحذف الشامل.");
-                }
-            } else {
-                alert("لم يتم تأكيد الكلمة بشكل صحيح، تم إلغاء العملية.");
-            }
+        if (userRole !== 'admin') return; // حماية إضافية برمجية
+        if (!confirm("تحذير أمني صارم: هل أنت متأكد من حذف كافة السندات المسجلة نهائياً؟ لا يمكن استرجاع هذه البيانات بعد الحذف!")) return;
+        if (!confirm("تأكيد أخير: هل أنت متأكد حقاً؟")) return;
+        
+        try {
+            const promises = allVouchers.map(v => deleteDoc(doc(db, "transactions", v.id)));
+            await Promise.all(promises);
+            alert("تم مسح وتنظيف أرشيف السندات بالكامل.");
+            await loadVouchers();
+        } catch (err) {
+            console.error("Error purging all elements:", err);
+            alert("حدث خطأ أثناء محاولة تصفية وحذف الأرشيف المالي.");
         }
     };
 
     window.exportToExcel = () => {
-        if (allVouchers.length === 0) {
-            alert("لا توجد بيانات لتصديرها.");
+        if (userRole !== 'admin' || allVouchers.length === 0) {
             return;
         }
 
-        const dataToExport = allVouchers.map(v => {
-            let movement = "";
-            if (v.partyType === "عميل" && v.type === "قبض") {
-                movement = "سداد منه نقدى";
-            } else if (v.partyType === "مورد" && v.type === "صرف") {
-                movement = "سداد له نقدى";
-            } else {
-                movement = v.type;
-            }
-
+        const excelRows = allVouchers.map(v => {
+            const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
             return {
-                "التاريخ": v.date,
-                "الحركة": movement,
-                "اسم العميل": partiesMap[v.partyId] ? partiesMap[v.partyId].name : "غير معروف",
-                "البيان": "سداد نقدى",
-                "عدد جركن": 0,
-                "عدد كرتونة": 1,
-                "سعر جركن": 0,
-                "سعر كرتونة": Number(v.amount || 0)
+                'التاريخ': v.date,
+                'نوع الحركة': v.type,
+                'تصنيف الحساب': v.partyType,
+                'اسم العميل / المورد': pName,
+                'البيان والتفاصيل': v.note,
+                'المبلغ المالي (ج.م)': v.amount
             };
         });
 
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const worksheet = XLSX.utils.json_to_sheet(excelRows);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "الحركات");
+        XLSX.utils.book_append_sheet(workbook, worksheet, "كشف السندات الجاري");
 
-        XLSX.writeFile(workbook, `حركات_السداد_${new Date().toISOString().split('T')[0]}.xlsx`);
+        worksheet['!dir'] = "rtl";
+
+        XLSX.writeFile(workbook, `سجل_سندات_الزيادي_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 </script>
 </body>
