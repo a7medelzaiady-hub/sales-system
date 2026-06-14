@@ -73,7 +73,6 @@
             text-decoration: none;
         }
 
-        /* شبكة الكروت */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -99,7 +98,6 @@
         .card-receivables { border-top-color: var(--success-color); }
         .card-payables { border-top-color: var(--danger-color); }
         
-        /* كارت الأرباح الحرة */
         .card-profit { 
             grid-column: 1 / -1; 
             border-top-color: var(--success-color);
@@ -153,7 +151,6 @@
             font-weight: 700;
         }
 
-        /* شاشة التحميل المبدئية */
         .loading-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -171,7 +168,7 @@
 
 <div id="loadingScreen" class="loading-overlay">
     <i class="fas fa-spinner fa-spin fa-2x mb-2 text-success"></i>
-    <span>جاري حساب الأرباح وقراءة البيانات الحقيقية...</span>
+    <span>جاري حساب الأرباح وقراءة البيانات الحقيقية لشركة الزيادي...</span>
 </div>
 
 <div class="dashboard-container">
@@ -185,7 +182,7 @@
         
         <div class="stat-card card-profit">
             <div class="icon"><i class="fa-solid fa-money-bill-trend-up"></i></div>
-            <div class="title">صافي الأرباح المتوقعة من المبيعات</div>
+            <div class="title">السيولة النقدية المتوفرة والدخل الصافي (تقريبي)</div>
             <div class="value" id="total-profit">0.00 ج.م</div>
         </div>
 
@@ -197,25 +194,25 @@
 
         <div class="stat-card card-purchases">
             <div class="icon"><i class="fa-solid fa-truck"></i></div>
-            <div class="title">إجمالي المشتريات (اشتريت بكام)</div>
+            <div class="title">إجمالي المشتريات المسجلة</div>
             <div class="value" id="total-purchases">0.00 ج.م</div>
         </div>
 
         <div class="stat-card card-expenses">
             <div class="icon"><i class="fa-solid fa-hand-holding-dollar"></i></div>
-            <div class="title">إجمالي المصاريف والسندات</div>
+            <div class="title">إجمالي المصاريف التشغيلية</div>
             <div class="value" id="total-expenses">0.00 ج.م</div>
         </div>
 
         <div class="stat-card card-receivables">
             <div class="icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
-            <div class="title">المتبقي عند العملاء (ليّا كام)</div>
-            <div class="value" id="total-receivables">0.00 ج.م</div>
+            <div class="title">المتبقي في السوق عند العملاء (ليّا كام)</div>
+            <div class="value" id="total-receivables">0.00 ج.m</div>
         </div>
 
         <div class="stat-card card-payables">
             <div class="icon"><i class="fa-solid fa-money-bill-transfer"></i></div>
-            <div class="title">المتبقي للموردين (عليّا كام)</div>
+            <div class="title">المتبقي للموردين والشركات (عليّا كام)</div>
             <div class="value" id="total-payables">0.00 ج.م</div>
         </div>
 
@@ -245,111 +242,98 @@
     const db = getFirestore(app);
 
     async function loadRealFinancialData() {
-        let totalSales = 0;       // بعت بكام (مطابق لحسابات العملاء)
-        let totalReceivables = 0; // ليا كام (الأرصدة المدنية للعملاء)
-        let totalPurchases = 0;   // اشتريت بكام
-        let totalPayables = 0;    // عليا كام للموردين
-        let totalExpenses = 0;    // صرفت كام
+        let totalSales = 0;       
+        let totalReceivables = 0; 
+        let totalPurchases = 0;   
+        let totalPayables = 0;    
+        let totalExpenses = 0;    
 
         try {
-            // 1. جلب العملاء الحقيقيين وحساب المتبقي وإجمالي مبيعاتهم من الفروع الفرعية
+            // 1. جلب حسابات العملاء بدقة (تجنب القراءة العميقة المتكررة لكل الفواتير منعا لبطء التحميل)
             const customersSnap = await getDocs(collection(db, "customers"));
-            
-            for (const customerDoc of customersSnap.docs) {
-                const customerId = customerDoc.id;
+            customersSnap.forEach(customerDoc => {
                 const cust = customerDoc.data();
-                
-                // تخطي العملاء المحذوفين تماماً كصفحة العملاء
-                if (cust.isDeleted === true) continue;
+                if (cust.isDeleted === true) return;
 
-                // أ) إضافة الرصيد المتبقي الحقيقي
                 const balance = Number(cust.currentBalance || 0);
+                // إذا كان بالموجب فهو مديونية على العميل (لينا فلوس)
                 if (balance > 0.01) {
                     totalReceivables += balance;
                 }
+            });
 
-                // ب) قراءة الفروع الفرعية للعميل لحساب إجمالي المبيعات المتطابق مع شاشة التحديث (Sync)
-                const targetSubCollections = ['invoices', 'sales', 'orders'];
-                for (const subName of targetSubCollections) {
-                    const subSnapshot = await getDocs(collection(db, `customers/${customerId}/${subName}`));
-                    if (!subSnapshot.empty) {
-                        subSnapshot.forEach(docItem => {
-                            const tData = docItem.data();
-                            const val = Number(tData.amount || tData.value || tData.total || tData.price || tData.net || 0);
-                            const type = String(tData.type || tData.status || tData.category || '').toLowerCase();
-                            
-                            // إذا كانت المعاملة فاتورة أو بيع يتم إضافتها لإجمالي المبيعات
-                            if (type.includes('invoice') || type.includes('بيع') || type.includes('مدين') || type.includes('فاتورة')) {
-                                totalSales += val;
-                            }
-                        });
-                    }
-                }
-            }
+            // 2. جلب الفواتير العامة بشكل مباشر وسريع لحساب المبيعات الحقيقية
+            const salesSnap = await getDocs(collection(db, "invoices"));
+            salesSnap.forEach(doc => {
+                const inv = doc.data();
+                totalSales += Number(inv.total || inv.amount || inv.net || 0);
+            });
 
-            // حماية تراجعية: إذا لم تكن هناك فواتير فرعية داخل العملاء، نعتمد على كولكشن invoices العام كخطة بديلة للمبيعات
-            if (totalSales === 0) {
-                const salesSnap = await getDocs(collection(db, "invoices"));
-                salesSnap.forEach(doc => {
-                    const inv = doc.data();
-                    totalSales += Number(inv.total || 0);
-                });
-            }
-
-            // 2. حساب المشتريات والآجل للموردين من كولكشن supplier_transactions
+            // 3. جلب المشتريات وحساب المتبقي للموردين من جدول الحركات العام أو الموردين مباشرة
             const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
             purchasesSnap.forEach(doc => {
                 const trans = doc.data();
-                if (trans.type === "شراء" || trans.type === "فاتورة شراء") {
-                    totalPurchases += Number(trans.totalAmount || trans.total || 0);
-                    let paid = Number(trans.paidAmount || trans.paid || 0);
-                    let fullPrice = Number(trans.totalAmount || trans.total || 0);
-                    if(fullPrice > paid) {
-                        totalPayables += (fullPrice - paid);
-                    }
+                const totalAmount = Number(trans.totalAmount || trans.total || 0);
+                const paidAmount = Number(trans.paidAmount || trans.paid || 0);
+
+                if (trans.type === "شراء" || trans.type === "فاتورة شراء" || String(trans.category).includes('شراء')) {
+                    totalPurchases += totalAmount;
+                }
+                
+                // حساب مديونيات الموردين بناء على الفرق بين الفاتورة والمدفوع
+                if (totalAmount > paidAmount) {
+                    totalPayables += (totalAmount - paidAmount);
                 }
             });
 
-            // 3. حساب المصاريف وسندات الصرف من كولكشن transactions
+            // دقة تراجعية للموردين: فحص كولكشن الموردين الأساسية إذا وُجدت لحساب الالتزامات الافتتاحية
+            try {
+                const suppliersSnap = await getDocs(collection(db, "suppliers"));
+                suppliersSnap.forEach(supDoc => {
+                    const sup = supDoc.data();
+                    if (sup.currentBalance && Number(sup.currentBalance) > 0) {
+                        totalPayables += Number(sup.currentBalance);
+                    }
+                });
+            } catch(e) { console.log("لا يوجد كولكشن مستقل باسم suppliers، الاعتماد على المعاملات الفرعية."); }
+
+            // 4. حساب المصاريف وسندات الصرف من كولكشن transactions الخاص بالخزنة
             const transSnap = await getDocs(collection(db, "transactions"));
             transSnap.forEach(doc => {
                 const d = doc.data();
-                if (d.type === 'صرف') {
-                    totalExpenses += Number(d.amount || 0);
+                const amt = Number(d.amount || d.value || 0);
+                if (d.type === 'صرف' || d.type === 'مصروفات' || String(d.category).includes('صرف')) {
+                    totalExpenses += amt;
                 }
             });
 
-            // 4. معادلة صافي الأرباح الدفترية = (إجمالي المبيعات - إجمالي المشتريات)
-            let profit = totalSales - totalPurchases;
+            // الحسبة المحاسبية الصحيحة للسيولة والدخل: (المبيعات - المصاريف المباشرة)
+            // ملاحظة: الحساب الدقيق 100% للأرباح يتطلب (المبيعات - تكلفة شراء البضاعة المباعة فقط وليس كل المخزون)
+            let netIncome = totalSales - totalExpenses;
 
-            // عرض البيانات النهائية المطابقة في الصفحة بالجنيه المصري
+            // عرض البيانات النهائية بالجنيه المصري
             document.getElementById('total-sales').innerText = totalSales.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
-            document.getElementById('total-purchases').innerText = totalPurchases.toLocaleString('ar-EG') + ' ج.م';
-            document.getElementById('total-expenses').innerText = totalExpenses.toLocaleString('ar-EG') + ' ج.م';
+            document.getElementById('total-purchases').innerText = totalPurchases.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
+            document.getElementById('total-expenses').innerText = totalExpenses.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
             document.getElementById('total-receivables').innerText = totalReceivables.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
-            document.getElementById('total-payables').innerText = totalPayables.toLocaleString('ar-EG') + ' ج.م';
+            document.getElementById('total-payables').innerText = totalPayables.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
             
             const profitElement = document.getElementById('total-profit');
-            profitElement.innerText = profit.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
+            profitElement.innerText = netIncome.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
             
-            if(profit < 0) {
+            if(netIncome < 0) {
                 profitElement.style.color = 'var(--danger-color)';
             } else {
                 profitElement.style.color = 'var(--success-color)';
             }
 
-            // تحديث نص التحليل المالي
-            let analysisText = `بناءً على الفواتير والأرصدة المزامنة: لك عند العملاء بالسوق مبالغ مؤجلة بقيمة ${totalReceivables.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م، وعليك التزامات للموردين بقيمة ${totalPayables.toLocaleString('ar-EG')} ج.م. `;
-            if (profit > 0) {
-                analysisText += `حجم مبيعاتك الحالي يتخطى قيمة مشترياتك وموقفك المالي مستقر.`;
-            } else {
-                analysisText += `يرجى مراجعة فواتير الشراء المسجلة نظراً لأن تكلفة المشتريات أعلى من قيمة البيع الفعلي حالياً.`;
-            }
+            // تخصيص النص التحليلي المالي لـ شركة الزيادي
+            let analysisText = `تقرير مالي سريع: إجمالي قيم فواتير البيع الصادرة هو ${totalSales.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م. لديك سيولة معلقة في السوق عند العملاء قيمتها ${totalReceivables.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م، بينما تبلغ التزاماتك الحالية للموردين والشركات ${totalPayables.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م.`;
             document.getElementById('financial-analysis').innerText = analysisText;
 
         } catch (error) {
             console.error("حدث خطأ في جلب حسابات الأرباح:", error);
-            document.getElementById('financial-analysis').innerText = "فشل النظام في تجميع كل البيانات الحالية، تأكد من اتصال الإنترنت أو صلاحيات الكولكشن.";
+            document.getElementById('financial-analysis').innerText = "فشل النظام في تجميع كل البيانات الحالية، تأكد من استقرار الإنترنت أو أسماء الجداول في Firebase.";
         } finally {
             document.getElementById('loadingScreen').style.display = 'none';
         }
