@@ -231,7 +231,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    // نفس بيانات السيرفر الحقيقي بتاعك
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
         authDomain: "ahmedelzaiady.firebaseapp.com",
@@ -250,24 +249,36 @@
         let totalReceivables = 0; // ليا كام (الآجل عند العملاء)
         let totalPurchases = 0;   // اشتريت بكام
         let totalPayables = 0;    // عليا كام للموردين
-        let totalExpenses = 0;    // صرفت كام (سندات الصرف والمصاريف)
+        let totalExpenses = 0;    // صرفت كام
 
         try {
-            // 1. حساب المبيعات والآجل الخاص بالعملاء من كولكشن الفواتير invoices
+            // 1. حساب إجمالي المبيعات من كولكشن الفواتير invoices
             const salesSnap = await getDocs(collection(db, "invoices"));
             salesSnap.forEach(doc => {
                 const inv = doc.data();
                 totalSales += Number(inv.total || 0);
-                totalReceivables += Number(inv.remaining || 0); // الباقي على العميل ولم يحصل
             });
 
-            // 2. حساب المشتريات والآجل للموردين من كولكشن supplier_transactions
+            // 2. المطابقة مع صفحة العملاء: جلب المتبقي عند العملاء مباشرة من كولكشن الأرصدة الحية للعملاء
+            const customersSnap = await getDocs(collection(db, "customers"));
+            customersSnap.forEach(doc => {
+                const cust = doc.data();
+                // التأكد من أن العميل غير محذوف (نفس منطق صفحة العملاء)
+                if (cust.isDeleted !== true) {
+                    const balance = Number(cust.currentBalance || 0);
+                    // إذا كان الرصيد موجباً فهو مطلوب من العميل (ليّا كام)
+                    if (balance > 0.01) {
+                        totalReceivables += balance;
+                    }
+                }
+            });
+
+            // 3. حساب المشتريات والآجل للموردين من كولكشن supplier_transactions
             const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
             purchasesSnap.forEach(doc => {
                 const trans = doc.data();
                 if (trans.type === "شراء" || trans.type === "فاتورة شراء") {
                     totalPurchases += Number(trans.totalAmount || trans.total || 0);
-                    // حساب المتبقي للمورد (الإجمالي ناقص المدفوع)
                     let paid = Number(trans.paidAmount || trans.paid || 0);
                     let fullPrice = Number(trans.totalAmount || trans.total || 0);
                     if(fullPrice > paid) {
@@ -276,7 +287,7 @@
                 }
             });
 
-            // 3. حساب المصاريف وسندات الصرف المباشرة من كولكشن transactions
+            // 4. حساب المصاريف وسندات الصرف من كولكشن transactions
             const transSnap = await getDocs(collection(db, "transactions"));
             transSnap.forEach(doc => {
                 const d = doc.data();
@@ -285,14 +296,14 @@
                 }
             });
 
-            // 4. معادلة صافي الأرباح الدفترية = (إجمالي المبيعات - إجمالي المشتريات)
+            // 5. معادلة صافي الأرباح الدفترية = (إجمالي المبيعات - إجمالي المشتريات)
             let profit = totalSales - totalPurchases;
 
-            // عرض البيانات الفعلية في الصفحة بالجنيه المصري
+            // عرض البيانات في الصفحة بالجنيه المصري
             document.getElementById('total-sales').innerText = totalSales.toLocaleString('ar-EG') + ' ج.م';
             document.getElementById('total-purchases').innerText = totalPurchases.toLocaleString('ar-EG') + ' ج.م';
             document.getElementById('total-expenses').innerText = totalExpenses.toLocaleString('ar-EG') + ' ج.م';
-            document.getElementById('total-receivables').innerText = totalReceivables.toLocaleString('ar-EG') + ' ج.م';
+            document.getElementById('total-receivables').innerText = totalReceivables.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
             document.getElementById('total-payables').innerText = totalPayables.toLocaleString('ar-EG') + ' ج.م';
             
             const profitElement = document.getElementById('total-profit');
@@ -304,8 +315,8 @@
                 profitElement.style.color = 'var(--success-color)';
             }
 
-            // تحديث نص التحليل المالي الذكي
-            let analysisText = `بناءً على الفواتير المرفوعة: لك عند العملاء بالسوق مبالغ مؤجلة بقيمة ${totalReceivables.toLocaleString('ar-EG')} ج.م، وعليك التزامات للموردين بقيمة ${totalPayables.toLocaleString('ar-EG')} ج.م. `;
+            // تحديث نص التحليل المالي
+            let analysisText = `بناءً على الفواتير والأرصدة المزامنة: لك عند العملاء بالسوق مبالغ مؤجلة بقيمة ${totalReceivables.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م، وعليك التزامات للموردين بقيمة ${totalPayables.toLocaleString('ar-EG')} ج.م. `;
             if (profit > 0) {
                 analysisText += `حجم مبيعاتك الحالي يتخطى قيمة مشترياتك وموقفك المالي مستقر.`;
             } else {
@@ -317,13 +328,12 @@
             console.error("حدث خطأ في جلب حسابات الأرباح:", error);
             document.getElementById('financial-analysis').innerText = "فشل النظام في تجميع كل البيانات الحالية، تأكد من اتصال الإنترنت أو صلاحيات الكولكشن.";
         } finally {
-            // إخفاء شاشة التحميل بعد الانتهاء
             document.getElementById('loadingScreen').style.display = 'none';
         }
     }
 
-    // التنفيذ التلقائي فور فتح الصفحة
     window.onload = loadRealFinancialData;
 </script>
+
 </body>
 </html>
