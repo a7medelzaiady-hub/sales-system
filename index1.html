@@ -447,78 +447,91 @@
             body.classList.toggle('dark-mode');
             localStorage.setItem('sanad-theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
         }
-window.onload = () => {
-    if (localStorage.getItem('sanad-theme') === 'dark') {
-        document.body.classList.add('dark-mode');
-    }
 
-    const role = sessionStorage.getItem('role') || 'employee'; 
-    const username = sessionStorage.getItem('username') || '';
-
-    const savedPermissions = sessionStorage.getItem('permissions');
-    const userPermissions = savedPermissions ? JSON.parse(savedPermissions) : ['sales', 'clients']; 
-
-    const roleBadge = document.getElementById('userRoleBadge');
-    if (roleBadge) {
-        if (role === 'admin') roleBadge.innerText = 'مدير النظام';
-        else if (role === 'restricted') roleBadge.innerText = 'موظف مبيعات';
-        else roleBadge.innerText = 'موظف';
-    }
-
-    const UI_Permissions_Map = {
-        'cardSales': 'sales',
-        'cardPurchases': 'purchases',
-        'cardClients': 'clients',
-        'cardSuppliers': 'suppliers',
-        'cardInventory': 'inventory',
-        'cardVouchers': 'vouchers',
-        'cardBanknote': 'banknote',
-        'cardReports': 'reports',
-
-        'sideTransactions': 'banknote',
-        'sidePurchaseOrders': 'purchases',
-        'sideInventoryMgmt': 'inventory',
-        'sideSupplierList': 'suppliers',
-        'sideCustomerList': 'clients',
-        'sideSettings': 'settings',
-        'sideSecurity': 'security',
-        'labelSystem': 'settings',
-
-        'bottomExpenses': 'banknote',
-        'fabOrders': 'sales'
-    };
-
-    let visibleCardsCount = 0;
-
-    if (role !== 'admin') {
-
-        const vouchersCard = document.getElementById('cardVouchers');
-        if (vouchersCard) vouchersCard.style.display = 'none';
-
-        Object.keys(UI_Permissions_Map).forEach(elementId => {
-            const element = document.getElementById(elementId);
-            if (!element) return;
-
-            const requiredPermission = UI_Permissions_Map[elementId];
-
-            if (userPermissions.includes(requiredPermission)) {
-                element.style.display = '';
-
-                if (elementId.startsWith('card')) {
-                    visibleCardsCount++;
-                }
-            } else {
-                element.style.display = 'none';
+        window.onload = () => {
+            if (localStorage.getItem('sanad-theme') === 'dark') {
+                document.body.classList.add('dark-mode');
             }
-        });
-    }
 
-    const dashboardContainer = document.getElementById('mainDashboard');
-    if (dashboardContainer && visibleCardsCount <= 3) {
-        dashboardContainer.classList.add('restricted-layout');
-    }
-};
-</script>
+            const role = sessionStorage.getItem('role') || 'employee'; 
+            const username = sessionStorage.getItem('username') || '';
+
+            const savedPermissions = sessionStorage.getItem('permissions');
+            // الصلاحيات الافتراضية للموظف في حالة عدم تحديدها
+            const userPermissions = savedPermissions ? JSON.parse(savedPermissions) : ['sales', 'clients', 'vouchers']; 
+
+            const roleBadge = document.getElementById('userRoleBadge');
+            if (roleBadge) {
+                if (role === 'admin') roleBadge.innerText = 'مدير النظام';
+                else if (role === 'restricted') roleBadge.innerText = 'موظف مبيعات';
+                else roleBadge.innerText = 'موظف';
+            }
+
+            const UI_Permissions_Map = {
+                'cardSales': 'sales',
+                'cardPurchases': 'purchases',
+                'cardClients': 'clients',
+                'cardSuppliers': 'suppliers',
+                'cardInventory': 'inventory',
+                'cardVouchers': 'vouchers',
+                'cardBanknote': 'banknote',
+                'cardReports': 'reports',
+
+                'sideTransactions': 'banknote',
+                'sidePurchaseOrders': 'purchases',
+                'sideInventoryMgmt': 'inventory',
+                'sideSupplierList': 'suppliers',
+                'sideCustomerList': 'clients',
+                'sideSettings': 'settings',
+                'sideSecurity': 'security',
+                'labelSystem': 'settings',
+
+                'bottomExpenses': 'banknote',
+                'fabOrders': 'sales'
+            };
+
+            let visibleCardsCount = 0;
+
+            // --- التحكم في وجهة كارت السندات ديناميكياً بناءً على رتبة الحساب ---
+            const vouchersCard = document.getElementById('cardVouchers');
+            if (vouchersCard) {
+                if (role === 'admin') {
+                    vouchersCard.href = "vouchers-hub.html?tab=all";
+                } else {
+                    vouchersCard.href = "vouchers-hub.html?tab=customers";
+                }
+            }
+
+            if (role !== 'admin') {
+                // تصفية الكروت بناءً على مصفوفة الصلاحيات الفردية بشكل مرن وبدون إخفاء إجباري للسندات
+                Object.keys(UI_Permissions_Map).forEach(elementId => {
+                    const element = document.getElementById(elementId);
+                    if (!element) return;
+
+                    const requiredPermission = UI_Permissions_Map[elementId];
+
+                    if (userPermissions.includes(requiredPermission)) {
+                        element.style.display = '';
+
+                        if (elementId.startsWith('card')) {
+                            visibleCardsCount++;
+                        }
+                    } else {
+                        element.style.display = 'none';
+                    }
+                });
+            } else {
+                // إذا كان المدير هو من يسجل الدخول، تظهر جميع الكروت الثمانية تلقائياً
+                visibleCardsCount = 8;
+            }
+
+            // تفعيل الـ restricted-layout تلقائياً لإعادة توزيع وضبط أحجام الكروت إذا كان العدد 3 أو أقل
+            const dashboardContainer = document.getElementById('mainDashboard');
+            if (dashboardContainer && visibleCardsCount <= 3) {
+                dashboardContainer.classList.add('restricted-layout');
+            }
+        };
+    </script>
 
 </body>
 </html>
