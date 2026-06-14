@@ -8,7 +8,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">  
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">  
     
+    <!-- مكتبات التصدير والمشاركة -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
     <style>  
         :root {   
@@ -75,6 +77,14 @@
 
         .invoice-actions-group { display: flex; flex-wrap: nowrap; gap: 4px; justify-content: flex-end; align-items: center; }  
         .invoice-actions-group .btn { font-family: 'Cairo', sans-serif; font-size: 0.72rem; font-weight: 700; padding: 4px 6px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; height: 28px; }  
+
+        /* إعدادات الطباعة للفاتورة الحرارية 80 ملم */
+        #thermalPrintSection { display: none; }
+        @media print {
+            body { background: white; color: black; padding: 0; margin: 0; }
+            #content-to-export, .header-nav, .control-panel-card, .stats-section-title, .row, .filter-status-bar, #customGlobalModal, .invoice-item { display: none !important; }
+            #thermalPrintSection { display: block !important; width: 80mm; max-width: 80mm; padding: 4mm 2mm; margin: 0 auto; direction: rtl; font-family: 'Cairo', sans-serif; }
+        }
     </style>  
 </head>  
 <body>  
@@ -156,6 +166,9 @@
         </div>  
     </div>  
 </div>  
+
+<!-- حاوية طباعة الفاتورة الحرارية المخفية -->
+<div id="thermalPrintSection"></div>
 
 <div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">  
     <div class="custom-popup-box" style="max-width: 420px;">  
@@ -327,7 +340,9 @@
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة التعديل</div>` : ''}  
                         </div>  
                         <div class="invoice-actions-group">  
-                            <button class="btn btn-outline-info text-dark" onclick="toggleDetails('${inv.id}')" title="عرض الأصناف"><i class="fas fa-eye"></i> عرض</button>  
+                            <button class="btn btn-outline-info text-dark" onclick="toggleDetails('${inv.id}')" title="عرض الأصناف"><i class="fas fa-eye"></i></button>  
+                            <button class="btn btn-outline-dark" onclick="window.printThermalInvoice('${inv.id}')" title="طباعة حرارية 80"><i class="fas fa-print"></i></button>
+                            <button class="btn btn-outline-success" onclick="window.shareThermalInvoice('${inv.id}')" title="مشاركة الفاتورة"><i class="fas fa-share-alt"></i></button>
                             <button class="btn btn-outline-primary" onclick="editInvoice('${inv.id}')" title="تعديل الفاتورة"><i class="fas fa-edit"></i></button>  
                             <button class="btn btn-outline-danger" onclick="deleteInvoice('${inv.id}')" title="حذف الفاتورة"><i class="fas fa-trash"></i></button>  
                         </div>  
@@ -453,6 +468,128 @@
             window.renderInvoices(allInvoices);  
         }  
     };  
+
+    // كود توليد هيكل وقوالب الفاتورة الحرارية 80 ملم
+    function generateThermalInvoiceHtml(inv) {
+        const displayTime = formatInvoiceTime(inv.time, inv.date);
+        const invDate = parseInvoiceDate(inv);
+        const discount = Number(inv.discount) || 0;
+        const totalInvoice = Number(inv.total) || 0;
+        const totalPaid = inv.calculatedCash + inv.calculatedWallet;
+        const currentRemaining = Number(inv.remaining) || 0;
+        const prevBalance = Number(inv.previousBalance) || 0;
+        const finalAccountTotal = prevBalance + currentRemaining;
+
+        let itemsRows = (inv.items || []).map(itm => `
+            <tr>
+                <td style="text-align:right; padding:4px 0; border-bottom:1px dashed #eee;">${itm.name}</td>
+                <td style="text-align:center; padding:4px 0; border-bottom:1px dashed #eee;">${itm.qty}</td>
+                <td style="text-align:center; padding:4px 0; border-bottom:1px dashed #eee;">${(Number(itm.price) || 0).toFixed(1)}</td>
+                <td style="text-align:left; padding:4px 0; border-bottom:1px dashed #eee;">${((Number(itm.qty) || 0) * (Number(itm.price) || 0)).toFixed(1)}</td>
+            </tr>
+        `).join('');
+
+        return `
+            <div style="width:100%; font-family:'Cairo', sans-serif; color:#000; direction:rtl; padding:3px; background:#fff;">
+                <div style="text-align:center; margin-bottom:12px;">
+                    <h5 style="margin:0; font-weight:800; font-size:16px;">الزيادي لزيوت السيارات</h5>
+                    <p style="margin:2px 0; font-size:11px; font-weight:600;">مبيعات وأرشيف الفواتير</p>
+                </div>
+                <div style="font-size:11px; border-bottom:1px dashed #000; padding-bottom:6px; margin-bottom:8px; line-height:1.5;">
+                    <div><b>العميل:</b> ${inv.customerName || 'عميل نقدي'}</div>
+                    <div><b>التاريخ:</b> ${invDate} | ${displayTime}</div>
+                    <div><b>طريقة السداد:</b> ${inv.paymentMethod || 'غير محدد'}</div>
+                </div>
+                <table style="width:100%; font-size:11px; border-collapse:collapse; margin-bottom:8px;">
+                    <thead>
+                        <tr style="border-bottom:1px solid #000; font-weight:700;">
+                            <th style="text-align:right; padding-bottom:4px;">الصنف</th>
+                            <th style="text-align:center; padding-bottom:4px;">كمية</th>
+                            <th style="text-align:center; padding-bottom:4px;">سعر</th>
+                            <th style="text-align:left; padding-bottom:4px;">إجمالي</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${itemsRows}
+                    </tbody>
+                </table>
+                <div style="font-size:11px; line-height:1.6; border-top:1px solid #000; padding-top:6px;">
+                    <div style="display:flex; justify-content:space-between;"><span>إجمالي الفاتورة:</span><b>${(totalInvoice + discount).toFixed(2)}</b></div>
+                    <div style="display:flex; justify-content:space-between; color:#d90429;"><span>الخصم:</span><b>${discount.toFixed(2)}</b></div>
+                    <div style="display:flex; justify-content:space-between; border-bottom:1px dashed #000; padding-bottom:3px; font-weight:700;"><span>الصافي المطلوب:</span><b>${totalInvoice.toFixed(2)}</b></div>
+                    
+                    <div style="display:flex; justify-content:space-between; color:#2d6a4f; margin-top:2px;"><span>سداد نقدي (كاش):</span><b>${inv.calculatedCash.toFixed(2)}</b></div>
+                    <div style="display:flex; justify-content:space-between; color:#6f42c1;"><span>سداد محفظة فون:</span><b>${inv.calculatedWallet.toFixed(2)}</b></div>
+                    <div style="display:flex; justify-content:space-between; font-weight:700; background:#f5f5f5; padding:1px 3px; border-radius:4px;"><span>الآجل (المتبقي الحالي):</span><b>${currentRemaining.toFixed(2)}</b></div>
+                    
+                    <div style="display:flex; justify-content:space-between; color:#4a5568; margin-top:2px; border-top:1px dashed #ccc; padding-top:2px;"><span>حساب سابق للعميل:</span><b>${prevBalance.toFixed(2)}</b></div>
+                    <div style="display:flex; justify-content:space-between; font-weight:800; font-size:12.5px; border-top:1px solid #000; padding-top:3px; margin-top:2px;"><span>إجمالي الحساب الكلي الجديد:</span><b>${finalAccountTotal.toFixed(2)}</b></div>
+                </div>
+                <div style="text-align:center; margin-top:18px; font-size:10px; border-top:1px dashed #000; padding-top:6px;">
+                    شكراً لتعاملكم معنا!
+                </div>
+            </div>
+        `;
+    }
+
+    // وظيفة الطباعة الحرارية
+    window.printThermalInvoice = (id) => {
+        const inv = allInvoices.find(i => i.id === id);
+        if (!inv) return;
+        const printSection = document.getElementById('thermalPrintSection');
+        printSection.innerHTML = generateThermalInvoiceHtml(inv);
+        window.print();
+    };
+
+    // وظيفة مشاركة الفاتورة كصورة حرارية
+    window.shareThermalInvoice = async (id) => {
+        const inv = allInvoices.find(i => i.id === id);
+        if (!inv) return;
+        
+        const shareContainer = document.createElement('div');
+        shareContainer.style.position = 'fixed';
+        shareContainer.style.right = '-9999px';
+        shareContainer.style.top = '0';
+        shareContainer.style.width = '340px';
+        shareContainer.style.background = '#ffffff';
+        shareContainer.style.padding = '12px';
+        shareContainer.style.boxSizing = 'border-box';
+        shareContainer.innerHTML = generateThermalInvoiceHtml(inv);
+        document.body.appendChild(shareContainer);
+
+        try {
+            await new Promise(resolve => setTimeout(resolve, 350));
+            const canvas = await html2canvas(shareContainer, {
+                scale: 2.5,
+                backgroundColor: '#ffffff',
+                useCORS: true
+            });
+            document.body.removeChild(shareContainer);
+
+            canvas.toBlob(async (blob) => {
+                if (!blob) return;
+                const file = new File([blob], `فاتورة_${inv.customerName || 'نقدي'}.png`, { type: 'image/png' });
+                
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: `فاتورة ${inv.customerName || 'نقدي'}`,
+                        text: `فاتورة الزيادي لزيوت السيارات`
+                    });
+                } else {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `فاتورة_${inv.customerName || 'نقدي'}.png`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                }
+            }, 'image/png');
+        } catch (err) {
+            console.error(err);
+            alert("حدث خطأ أثناء معالجة صورة الفاتورة الحرارية.");
+        }
+    };
   
     window.showModificationDetails = (invId) => {  
         const inv = allInvoices.find(i => i.id === invId);  
@@ -620,14 +757,7 @@
         }  
         let excelData = [];  
         excelData.push([  
-            "التاريخ",  
-            "الحركة",  
-            "اسم العميل",  
-            "الصنف",  
-            "عدد جركن",  
-            "عدد كرتونة",  
-            "سعر جركن",  
-            "سعر كرتونة"  
+            "التاريخ", "الحركة", "اسم العميل", "الصنف", "عدد جركن", "عدد كرتونة", "سعر جركن", "سعر كرتونة"  
         ]);  
         allInvoices.forEach(inv => {  
             let invoiceItems = [];  
@@ -644,10 +774,7 @@
                               item.unit === "كرتونة" ||   
                               (item.name && (item.name.includes("كرتونة") || item.name.includes("كرtونه")));  
                 excelData.push([  
-                    invDate,  
-                    "بيع",  
-                    inv.customerName || "النقدي",  
-                    item.name || "",  
+                    invDate, "بيع", inv.customerName || "النقدي", item.name || "",  
                     !isBox ? (Number(item.qty) || 0) : 0,    
                     isBox ? (Number(item.qty) || 0) : 0,     
                     !isBox ? (Number(item.price) || 0) : 0,   
@@ -656,27 +783,18 @@
             });  
             if (inv.calculatedCash > 0) {  
                 excelData.push([  
-                    invDate,  
-                    "سداد منه نقدي",  
-                    inv.customerName || "النقدي",  
-                    "سداد نقدي",  
-                    0, 1, 0, inv.calculatedCash   
+                    invDate, "سداد منه نقدي", inv.customerName || "النقدي", "سداد نقدي", 0, 1, 0, inv.calculatedCash   
                 ]);  
             }  
             if (inv.calculatedWallet > 0) {  
                 excelData.push([  
-                    invDate,  
-                    "سداد منه محفظة",  
-                    inv.customerName || "النقدي",  
-                    "سداد محفظة",  
-                    0, 1, 0, inv.calculatedWallet   
+                    invDate, "سداد منه محفظة", inv.customerName || "النقدي", "سداد محفظة", 0, 1, 0, inv.calculatedWallet   
                 ]);  
             }  
         });  
         const worksheet = XLSX.utils.aoa_to_sheet(excelData);  
         worksheet["!cols"] = [  
-            { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 35 },   
-            { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }    
+            { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 35 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }    
         ];  
         const workbook = XLSX.utils.book_new();  
         XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات والأرشيف");  
