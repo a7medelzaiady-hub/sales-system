@@ -299,7 +299,7 @@
                         allCustomers.push({ id: d.id, ...data });
                     }
                 });
-                // ترتيب العملاء تنازلياً حسب الرصيد الأعلى ديناً ليظهر في المقدمة
+                // ترتيب العملاء تنازلياً حسب الرصيد الأعلى ديناً (الموجب في المقدمة، ويليه السداد/السالب)
                 allCustomers.sort((a, b) => Number(b.currentBalance || 0) - Number(a.currentBalance || 0));
                 renderCustomers(allCustomers);
             }, (error) => {
@@ -307,7 +307,7 @@
             });
         }
 
-        // ⚡ تعديل دالة المزامنة والتدقيق لحماية الأرصدة الافتتاحية السلبية الناتجة عن الرفع الخارجي
+        // دالة المزامنة والتدقيق لحماية الأرصدة الافتتاحية السلبية والإيجابية المرفوعة من الإكسيل
         window.syncAndRecalculateBalances = async () => {
             const icon = document.getElementById('refreshIcon');
             if (icon.classList.contains('spin')) return; 
@@ -323,11 +323,11 @@
                     const customerData = customerDoc.data();
                     if (customerData.isDeleted === true) continue;
 
-                    // الاعتماد على الرصيد المخزن الفعلي في المستند كأساس (سواء كان موجباً أو سالباً)
+                    // الاعتماد الكامل على الرصيد المخزن الفعلي في المستند كأساس (موجب أو سالب) دون استخدام Math.abs
                     let initialBalance = Number(customerData.initialBalance || customerData.openingBalance || 0);
                     
-                    // إذا لم يوجد حقل رصيد افتتاحي صريح، نتحقق مما إذا كان الرصيد الحالي سالباً لنحافظ عليه كقيمة بداية
-                    if (initialBalance === 0 && Number(customerData.currentBalance || 0) < 0) {
+                    // إذا لم يوجد حقل رصيد افتتاحي صريح، نعتمد على الرصيد الحالي كما هو بإشارته
+                    if (initialBalance === 0) {
                         initialBalance = Number(customerData.currentBalance || 0);
                     }
 
@@ -341,22 +341,23 @@
                         if (!subSnapshot.empty) {
                             subSnapshot.forEach(docItem => {
                                 const tData = docItem.data();
+                                // نأخذ القيمة المطلقة للحركة التفصيلية فقط لأن تصنيفها (بيع/سداد) هو ما يحدد الإشارة الجبرية
                                 const val = Math.abs(Number(tData.amount || tData.value || tData.total || tData.price || tData.net || 0));
                                 const type = String(tData.type || tData.status || tData.category || '').toLowerCase();
                                 
                                 hasNewSubTransactions = true;
 
-                                // احتساب الحركات التفصيلية الجديدة بناءً على طبيعتها فوق الرصيد الأساسي
+                                // احتساب الحركات التفصيلية الجديدة بناءً على طبيعتها فوق الرصيد الأساسي المرفوع
                                 if (type.includes('invoice') || type.includes('بيع') || type.includes('مدين') || type.includes('فاتورة')) {
-                                    computedBalance += val;
+                                    computedBalance += val; // الفاتورة تزيد المديونية (الموجب)
                                 } else if (type.includes('payment') || type.includes('سند') || type.includes('دائن') || type.includes('قبض') || type.includes('سداد')) {
-                                    computedBalance -= val;
+                                    computedBalance -= val; // السداد يقلل المديونية أو يزيد الدائنية (السالب)
                                 }
                             });
                         }
                     }
 
-                    // إذا لم تكن هناك حركات تفصيلية جديدة مسجلة بالداخل، نمنع تصفير أو قلب الرصيد السالب المرفوع
+                    // إذا لم تكن هناك حركات تفصيلية جديدة مسجلة بالداخل، يمنع تماماً تصفير أو قلب الرصيد المرفوع من الإكسيل
                     if (!hasNewSubTransactions) {
                         computedBalance = Number(customerData.currentBalance || 0);
                     }
@@ -380,30 +381,35 @@
             }
         };
 
-        // تحديث العدادات والإجماليات العلوية بالعملة المحلية
+        // تحديث العدادات والإجماليات العلوية بالعملة المحلية وبإشارات دقيقة
         function updateSummaryCounters(list) {
             let totalDebts = 0, totalCredits = 0;
             list.forEach(cust => {
                 const balance = Number(cust.currentBalance || 0);
-                if (balance > 0.01) totalDebts += balance;
-                else if (balance < -0.01) totalCredits += Math.abs(balance);
+                if (balance > 0.01) {
+                    totalDebts += balance; // مطلوب منهم
+                } else if (balance < -0.01) {
+                    totalCredits += Math.abs(balance); // دائن لهم
+                }
             });
             const netBalance = totalDebts - totalCredits;
             document.getElementById('totalDebts').innerText = totalDebts.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
             document.getElementById('totalCredits').innerText = totalCredits.toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
-            document.getElementById('netGeneralBalance').innerText = Math.abs(netBalance).toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م';
+            document.getElementById('netGeneralBalance').innerText = Math.abs(netBalance).toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م' + (netBalance >= 0 ? ' (له)' : ' (عليه)');
         }
 
-        // بناء وعرض كروت العملاء
+        // بناء وعرض كروت العملاء بناءً على الإشارات الرياضية الدقيقة (الموجب عليه والسالب له)
         window.renderCustomers = (list) => {
             updateSummaryCounters(list);
             const container = document.getElementById('customersContainer');
             if(list.length === 0) {
-                container.innerHTML = `<div class="text-center py-5 opacity-50 fw-bold">لا توجد نتائج مطابقة لبحثك الحظي</div>`;
+                container.innerHTML = `<div class="text-center py-5 opacity-50 fw-bold">لا توجد نتائج مطابقة لبحثك اللحظي</div>`;
                 return;
             }
             container.innerHTML = list.map((cust, index) => {
                 const balance = Number(cust.currentBalance || 0); 
+                
+                // تحديد النص والشرط بناء على الإشارة الرياضية الصرفة (أكبر من صفر = عليه / أصغر من صفر = له)
                 let statusText = balance > 0.01 ? 'عليه' : (balance < -0.01 ? 'له' : 'خالص');
                 let cardClass = balance > 0.01 ? 'has-debt' : 'is-clear';
                 let textClass = balance > 0.01 ? 'text-debt' : 'text-clear';
