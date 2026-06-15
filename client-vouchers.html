@@ -468,7 +468,7 @@
                     <td class="text-end text-muted small">${v.note}</td>
                     <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                     <td>
-                        <button class="btn-share-row" onclick="openReceiptModal('${v.id}')" title="مشاركة المعاينة"><i class="fas fa-share-alt"></i></button>
+                        <button class="btn-share-row" onclick="openReceiptModalDirect('${v.type}', '${v.date}', '${v.partyId}', ${v.cashPaid}, ${v.walletPaid}, ${v.amount}, ${v.prevBalance}, ${v.newBalance})" title="مشاركة المعاينة"><i class="fas fa-share-alt"></i></button>
                     </td>
                     <td>
                         <button class="btn-edit-row" onclick="editVoucher('${v.id}')" title="تعديل السند"><i class="fas fa-edit"></i></button>
@@ -488,23 +488,21 @@
         renderTable(filtered);
     };
 
-    window.openReceiptModal = (voucherId) => {
-        const v = allVouchers.find(item => item.id === voucherId);
-        if(!v) return;
-
-        const pName = clientsMap[v.partyId] ? clientsMap[v.partyId].name : 'عميل غير مسجل';
+    // دالة فتح المودال وتعبئته مباشرة بالبيانات الفريش والمحسوبة بدون الاعتماد على الـ Cache أو تأخر ترحيل المصفوفة
+    window.openReceiptModalDirect = (type, date, partyId, cashPaid, walletPaid, amount, prevBalance, newBalance) => {
+        const pName = clientsMap[partyId] ? clientsMap[partyId].name : 'عميل غير مسجل';
         
-        document.getElementById('recType').innerText = v.type === 'قبض' ? 'سند قبض عميل' : 'سند صرف عميل';
-        document.getElementById('recDate').innerText = v.date;
+        document.getElementById('recType').innerText = type === 'قبض' ? 'سند قبض عميل' : 'سند صرف عميل';
+        document.getElementById('recDate').innerText = date;
         document.getElementById('recClientName').innerText = pName;
         
-        document.getElementById('recCash').innerText = `${v.cashPaid.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
-        document.getElementById('recWallet').innerText = `${v.walletPaid.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('recCash').innerText = `${cashPaid.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('recWallet').innerText = `${walletPaid.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
         
-        if (v.cashPaid > 0 && v.walletPaid > 0) {
+        if (cashPaid > 0 && walletPaid > 0) {
             document.getElementById('recCashRow').style.setProperty('display', 'table-row', 'important');
             document.getElementById('recWalletRow').style.setProperty('display', 'table-row', 'important');
-        } else if (v.walletPaid > 0) {
+        } else if (walletPaid > 0) {
             document.getElementById('recCashRow').style.setProperty('display', 'none', 'important');
             document.getElementById('recWalletRow').style.setProperty('display', 'table-row', 'important');
         } else {
@@ -512,9 +510,9 @@
             document.getElementById('recWalletRow').style.setProperty('display', 'none', 'important');
         }
 
-        document.getElementById('recAmount').innerText = `${v.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
-        document.getElementById('recPrevBalance').innerText = `${v.prevBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
-        document.getElementById('recNewBalance').innerText = `${v.newBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('recAmount').innerText = `${amount.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('recPrevBalance').innerText = `${prevBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('recNewBalance').innerText = `${newBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
         
         document.getElementById('recAmountLabel').innerText = "تم سداد";
         document.getElementById('recStatusLabel').innerText = "تم الاستلام";
@@ -661,12 +659,10 @@
                 newBalance: finalNewBalance
             };
 
-            let targetId = editId;
             if (editId) {
                 await updateDoc(doc(db, "transactions", editId), voucherPayload);
             } else {
-                const docRef = await addDoc(collection(db, "transactions"), voucherPayload);
-                targetId = docRef.id;
+                await addDoc(collection(db, "transactions"), voucherPayload);
             }
 
             const netBalanceDiff = finalNewBalance - currentDbBalance;
@@ -676,7 +672,8 @@
             await fetchClientsData();
             await loadVouchers();
             
-            openReceiptModal(targetId);
+            // فتح المودال فوراً بالقيم الفريش لتجنب قراءتها كـ 0 من الكاش القديم
+            openReceiptModalDirect(vTypeVal, vDateVal, partyId, cashAmt, walletAmt, totalAmount, previousBalance, finalNewBalance);
 
             setTimeout(() => {
                 document.getElementById('btnDoShare').click();
