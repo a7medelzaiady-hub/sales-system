@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تقرير حركة الأصناف - الزيادي لزيوت السيارات</title>
+    <title>تقرير حركة البضاعة والأصناف - الزيادي لزيوت السيارات</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -404,27 +404,20 @@
     }
 
     /**
-     * الدالة الأساسية لتحديد نوع الوحدة:
-     * تعيد "carton"  إذا كانت الوحدة أو اسم الصنف يحتوي على كلمة كرتون/كرتونة/كرتونه
-     * تعيد "jarkan"  في كل حالة أخرى (قطعة، جركن، لتر، علبة، وأي شيء غير محدد)
+     * تحديد نوع الوحدة بناءً على حقل unit بالضبط كما هو مسجّل في الفاتورة:
+     * unit === 'box'  → كرتونة
+     * unit === 'pcs'  → جركن/قطعة
+     * أي قيمة أخرى أو فارغة → جركن (الافتراضي)
      */
-    function detectUnit(itemName, unitField) {
-        const combined = ((itemName || "") + " " + (unitField || "")).toLowerCase();
-        const cartonWords = ["كرتون", "كرتونه", "كرتونة"];
-        for (const w of cartonWords) {
-            if (combined.includes(w)) return "carton";
-        }
-        return "jarkan";
+    function detectUnit(unitField) {
+        return (unitField || "").trim() === "box" ? "carton" : "jarkan";
     }
 
     /**
-     * تنظيف اسم الصنف من كلمات الوحدة لتوحيد المفتاح
+     * اسم الصنف يُستخدم كما هو بدون تعديل — لأن الفاتورة تحفظ الاسم نظيفاً
      */
     function cleanName(rawName) {
-        return (rawName || "")
-            .replace(/(كرتونة|كرتونه|كرتون|قطعة|قطعه|جركن)/g, "")
-            .replace(/\s+/g, " ")
-            .trim() || rawName;
+        return (rawName || "").trim();
     }
 
     /* ── badge builders ── */
@@ -502,17 +495,17 @@
                 if (parseDate(inv.date, inv.timestamp) !== targetDate) return;
                 if (!Array.isArray(inv.items)) return;
 
-                const isReturn = (inv.paymentMethod || "").includes("مرتجع")
-                              || (inv.notes || "").includes("مرتجع");
-
                 inv.items.forEach(item => {
-                    const raw  = (item.name || "").trim();
-                    if (!raw) return;
-                    const name = cleanName(raw);
+                    const name = cleanName(item.name || "");
+                    if (!name) return;
                     const qty  = Number(item.qty) || 0;
-                    const unit = detectUnit(raw, item.unit || item.type || "");
+                    if (qty <= 0) return;
+                    // unit مباشر من الفاتورة: 'box' = كرتونة، 'pcs' = جركن
+                    const unit = detectUnit(item.unit);
+                    // المرتجع على مستوى كل صنف من حقل isReturn
+                    const isItemReturn = !!item.isReturn;
 
-                    if (isReturn) {
+                    if (isItemReturn) {
                         addQty(name, unit, qty, "ret");
                         if (unit === "carton") G.rC += qty; else G.rJ += qty;
                     } else {
@@ -530,11 +523,12 @@
                 if (!Array.isArray(pur.items)) return;
 
                 pur.items.forEach(item => {
-                    const raw  = (item.name || "").trim();
-                    if (!raw) return;
-                    const name = cleanName(raw);
+                    const name = cleanName(item.name || "");
+                    if (!name) return;
                     const qty  = Number(item.qty) || 0;
-                    const unit = detectUnit(raw, item.unit || item.type || "");
+                    if (qty <= 0) return;
+                    // unit من فاتورة المشتريات: 'box' = كرتونة، 'pcs' = جركن
+                    const unit = detectUnit(item.unit);
 
                     addQty(name, unit, qty, "bought");
                     if (unit === "carton") G.pC += qty; else G.pJ += qty;
