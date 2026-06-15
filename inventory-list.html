@@ -40,7 +40,8 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h4 class="fw-bold m-0 text-white"><i class="fas fa-boxes me-2"></i> قائمة الجرد </h4>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 flex-wrap">
+            <button onclick="cleanDuplicates()" class="btn btn-warning btn-sm px-3 text-dark fw-bold"><i class="fas fa-broom"></i> تنظيف المكرر</button>
             <button onclick="clearAllInventory()" class="btn btn-danger btn-sm px-3"><i class="fas fa-exclamation-triangle"></i> تصفير المخزن</button>
             <a href="trash.html" class="btn btn-outline-danger btn-sm px-3"><i class="fas fa-trash-restore"></i> السلة</a>
             <a href="inventory-menu.html" class="btn btn-outline-light btn-sm px-3">رجوع</a>
@@ -98,19 +99,64 @@
     import { getFirestore, collection, updateDoc, doc, onSnapshot, serverTimestamp, writeBatch, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
    const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-  measurementId: "G-WE04GK5XZZ"
-};
+      apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+      authDomain: "ahmedelzaiady.firebaseapp.com",
+      projectId: "ahmedelzaiady",
+      storageBucket: "ahmedelzaiady.firebasestorage.app",
+      messagingSenderId: "300306825071",
+      appId: "1:300306825071:web:0426ddde56280fa090329a",
+      measurementId: "G-WE04GK5XZZ"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     let inventoryData = [];
     let displayLimit = 50;
+
+    // --- وظيفة حذف وتنظيف الأصناف المكررة تلقائياً ---
+    window.cleanDuplicates = async () => {
+        if (inventoryData.length === 0) {
+            alert("المخزن فارغ حالياً.");
+            return;
+        }
+
+        const confirmClean = confirm("هل تريد فحص المخزن وحذف الأصناف المكررة (التي تطابق الاسم أو الباركود) ونقلها للسلة؟");
+        if (!confirmClean) return;
+
+        try {
+            const batch = writeBatch(db);
+            const seenItems = {};
+            let duplicateCount = 0;
+
+            inventoryData.forEach(item => {
+                // الاعتماد على الباركود كمعيار أول، وإذا لم يوجد نعتمد على الاسم (نصوص صغيرة بدون مسافات زائدة)
+                const uniqueKey = item.barcode ? item.barcode.trim() : item.name.trim().toLowerCase();
+
+                if (seenItems[uniqueKey]) {
+                    // إذا كان الصنف مكرر، نقوم بنقله إلى السلة
+                    const itemRef = doc(db, "inventory", item.id);
+                    batch.update(itemRef, { 
+                        isDeleted: true, 
+                        deletedAt: serverTimestamp() 
+                    });
+                    duplicateCount++;
+                } else {
+                    // إذا كانت النسخة الأولى، نحفظها في الذاكرة لتخطيها لاحقاً
+                    seenItems[uniqueKey] = true;
+                }
+            });
+
+            if (duplicateCount > 0) {
+                await batch.commit();
+                alert(`🚀 تم العثور على ${duplicateCount} صنف مكرر ونقلهم إلى سلة المحذوفات بنجاح!`);
+            } else {
+                alert("✨ مبروك! لا توجد أي أصناف مكررة في المخزن حالياً.");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("حدث خطأ أثناء محاولة مسح المكرر.");
+        }
+    };
 
     // --- وظيفة المسح الشامل (نقل كل المخزن للسلة) ---
     window.clearAllInventory = async () => {
@@ -122,7 +168,6 @@
 
         try {
             const batch = writeBatch(db);
-            // نأخذ الأصناف الموجودة حالياً فقط (التي لم تُحذف بعد)
             inventoryData.forEach(item => {
                 const itemRef = doc(db, "inventory", item.id);
                 batch.update(itemRef, { 
