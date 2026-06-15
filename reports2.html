@@ -1,174 +1,587 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>تقرير حركة المخزون اليومي - الزيادي لزيوت السيارات</title>
-    
-    <style>
-        /* === 1. تحسينات كروت الإجماليات لمنع التفاف النصوص عشوائياً === */
-        .summary-cards-container {
-            display: flex;
-            gap: 12px;
-            margin: 15px 0;
-            justify-content: space-between;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تقرير حركة البضاعة — الزيادي</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+:root{
+  --g8:#0b4e33;--g7:#0f6e48;--g6:#16a34a;
+  --g1:#dcfce7;--g0:#f0fdf4;
+  --a7:#b45309;--a1:#fef3c7;--a0:#fffbeb;
+  --r7:#b91c1c;--r1:#fee2e2;--r0:#fef2f2;
+  --s9:#0f172a;--s7:#334155;--s5:#64748b;--s3:#cbd5e1;
+  --s1:#f1f5f9;--wh:#fff;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:#e8edea;
+  font-family:'Cairo',sans-serif;
+  color:var(--s9);
+  font-size:.88rem;
+  padding-bottom:60px;
+  -webkit-font-smoothing:antialiased;
+}
 
-        .summary-card {
-            flex: 1;
-            background: #ffffff;
-            border-radius: 12px;
-            padding: 12px 8px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
-            border: 1px solid #e2e8f0;
-            min-width: 0; /* تمنع الكارت من الخروج عن الحجم المسموح */
-        }
+/* ══ TOPBAR ══ */
+.topbar{
+  background:var(--g8);
+  height:56px;padding:0 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:300;
+  box-shadow:0 2px 12px rgba(5,46,22,.4);
+}
+.tb-brand{display:flex;align-items:center;gap:9px}
+.tb-logo{
+  width:34px;height:34px;border-radius:8px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.95rem;color:#fff;flex-shrink:0;
+}
+.tb-name{font-size:.82rem;font-weight:800;color:#fff;line-height:1.25}
+.tb-sub{font-size:.62rem;color:rgba(255,255,255,.58);font-weight:500}
+.tb-btns{display:flex;gap:7px}
+.tb-btn{
+  width:34px;height:34px;border-radius:8px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.88rem;color:#fff;cursor:pointer;
+  text-decoration:none;transition:background .15s;
+}
+.tb-btn:hover{background:rgba(255,255,255,.22);color:#fff}
 
-        /* تنسيق النص الداخلي للكروت (الأرقام والكميات) */
-        .card-dynamic-text {
-            font-size: 13px; /* حجم خط مثالي للموبايل يمنع التكدس */
-            font-weight: bold;
-            line-height: 1.5;
-            white-space: nowrap;        /* يمنع نزول أي كلمة أو حرف (مثل ة) لسطر جديد تماماً */
-            word-break: keep-all;       /* يحافظ على ترابط الكلمات العربية */
-            overflow: hidden;
-            text-overflow: ellipsis;    /* يضع نقاط علامة قطع إذا كانت الشاشة متناهية الصغر */
-            display: block;
-        }
+/* ══ DATE BAR ══ */
+.datebar{
+  background:var(--wh);
+  border-bottom:1px solid #d0ddd6;
+  padding:11px 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:8px;
+}
+.datebar-title{
+  font-size:.78rem;font-weight:800;color:var(--s7);
+  display:flex;align-items:center;gap:6px;
+}
+.datebar-title i{color:var(--g7);font-size:.8rem}
+.datebar-sub{
+  font-size:.7rem;font-weight:700;color:var(--s5);
+  background:var(--s1);border-radius:5px;padding:2px 8px;margin-top:3px;
+}
+.date-pick{
+  display:flex;align-items:center;gap:7px;
+  background:var(--g0);border:1.5px solid #9fd3b5;
+  border-radius:9px;padding:6px 11px;
+}
+.date-pick label{
+  font-size:.7rem;font-weight:800;color:var(--g7);
+  white-space:nowrap;margin:0;cursor:pointer;
+}
+.date-pick input[type="date"]{
+  border:none;background:transparent;
+  font-family:'Cairo',sans-serif;font-weight:800;
+  font-size:.82rem;color:var(--g8);outline:none;cursor:pointer;
+}
 
-        .card-title {
-            font-size: 12px;
-            color: #718096;
-            margin-bottom: 6px;
-            display: block;
-        }
+/* ══ KPI CARDS ══ */
+.kpi-row{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:8px;
+  padding:12px 10px 4px;
+}
+.kpi{
+  background:var(--wh);
+  border-radius:12px;
+  border:1px solid #dde8e2;
+  box-shadow:0 1px 4px rgba(0,0,0,.06);
+  padding:12px 8px 10px;
+  position:relative;overflow:hidden;
+  /* ← الإصلاح: عمودي وليس أفقي */
+  display:flex;flex-direction:column;align-items:center;
+  text-align:center;gap:6px;
+}
+.kpi::after{
+  content:'';position:absolute;
+  top:0;right:0;left:0;height:3px;
+  border-radius:12px 12px 0 0;
+}
+.kpi-s::after{background:var(--g6)}
+.kpi-p::after{background:var(--a7)}
+.kpi-r::after{background:var(--r7)}
 
-        /* ألوان مخصصة للنصوص الحركية بناءً على نوع الكارت */
-        .sales-text { color: #0d5c3a; }
-        .purchases-text { color: #b7791f; }
-        .returns-text { color: #e53e3e; }
+.kpi-ico{
+  width:32px;height:32px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;flex-shrink:0;
+}
+.kpi-s .kpi-ico{background:var(--g1);color:var(--g7)}
+.kpi-p .kpi-ico{background:var(--a1);color:var(--a7)}
+.kpi-r .kpi-ico{background:var(--r1);color:var(--r7)}
 
+.kpi-lbl{
+  font-size:.62rem;font-weight:800;color:var(--s5);
+  letter-spacing:.03em;line-height:1;
+}
+/* ← الإصلاح الرئيسي: كل رقم في سطر منفصل بخط واضح */
+.kpi-val{
+  font-size:.75rem;font-weight:800;
+  line-height:1.55;
+  word-break:break-word;
+  display:flex;flex-direction:column;align-items:center;gap:1px;
+}
+.kv-line{display:block;white-space:nowrap}
+.kpi-s .kpi-val .kv-line{color:var(--g7)}
+.kpi-p .kpi-val .kv-line{color:var(--a7)}
+.kpi-r .kpi-val .kv-line{color:var(--r7)}
+.kv-zero{color:var(--s3);font-size:.72rem;font-weight:600}
 
-        /* === 2. حل مشكلة اختفاء أعمدة الجدول (المشتريات / المرتجعات) === */
-        .table-responsive-wrapper {
-            width: 100%;
-            overflow-x: auto;                  /* تفعيل التمرير الأفقي الذكي فقط عند ضيق الشاشة */
-            -webkit-overflow-scrolling: touch; /* تمرير مرن وسلس جداً على هواتف الأندرويد والآيفون */
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-            margin-top: 15px;
-        }
+/* ══ SECTION HDR ══ */
+.sec-hdr{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 12px 5px;
+}
+.sec-ttl{
+  font-size:.76rem;font-weight:800;color:var(--s7);
+  display:flex;align-items:center;gap:6px;
+}
+.sec-dot{width:7px;height:7px;border-radius:50%;background:var(--g6)}
+.cnt-pill{
+  background:var(--g1);color:var(--g7);
+  border:1px solid #9fd3b5;
+  font-size:.66rem;font-weight:800;
+  padding:2px 10px;border-radius:20px;
+}
 
-        .custom-data-table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 500px; /* يضمن بقاء الجدول مفروداً بمساحة كافية عند السحب لرؤية باقي الأعمدة */
-            background-color: #ffffff;
-        }
+/* ══ TABLE ══ */
+.tbl-card{
+  margin:0 8px 12px;
+  background:var(--wh);
+  border-radius:12px;
+  border:1px solid #d0ddd6;
+  box-shadow:0 3px 12px rgba(0,0,0,.06);
+  /* ← الإصلاح: تمرير أفقي بدل خروج الجدول */
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+table.inv{
+  width:100%;
+  /* ← عرض أدنى يضمن قراءة الأعمدة على موبايل */
+  min-width:360px;
+  border-collapse:collapse;
+  font-size:.78rem;
+}
 
-        .custom-data-table th {
-            background-color: #0d5c3a;
-            color: #ffffff;
-            padding: 12px 10px;
-            font-size: 14px;
-            font-weight: 600;
-            text-align: right;
-        }
+/* thead */
+table.inv thead th{
+  background:var(--g8);
+  color:#fff;font-weight:700;font-size:.7rem;
+  padding:10px 6px;
+  text-align:center;
+  white-space:nowrap;
+  position:sticky;top:56px;z-index:10;
+}
+table.inv thead th:first-child{
+  text-align:right;padding-right:12px;
+  width:38%;min-width:120px;
+}
+table.inv thead th.hs{background:#0a5537}
+table.inv thead th.hp{background:#7c3d08}
+table.inv thead th.hr{background:#7f1d1d}
+table.inv thead th.hs{border-right:2px solid rgba(255,255,255,.15)}
+table.inv thead th.hp{border-right:2px solid rgba(255,255,255,.1)}
 
-        .custom-data-table td {
-            padding: 12px 10px;
-            font-size: 13.5px;
-            border-bottom: 1px solid #edf2f7;
-            color: #2d3748;
-        }
+/* tbody */
+table.inv tbody td{
+  padding:10px 6px;
+  text-align:center;
+  border-bottom:1px solid #eef3f0;
+  vertical-align:middle;
+}
+table.inv tbody td:first-child{
+  text-align:right;padding-right:12px;
+  font-weight:700;color:var(--s9);
+  line-height:1.35;
+}
+table.inv tbody tr:last-child td{border-bottom:none}
+table.inv tbody tr:hover td{background:#f5faf7 !important}
+table.inv tbody td.cs{background:rgba(220,252,231,.22)}
+table.inv tbody td.cp{background:rgba(254,243,199,.2)}
+table.inv tbody td.cr{background:rgba(254,226,226,.2)}
+table.inv tbody tr:nth-child(even) td.cs{background:rgba(220,252,231,.32)}
+table.inv tbody tr:nth-child(even) td.cp{background:rgba(254,243,199,.3)}
+table.inv tbody tr:nth-child(even) td.cr{background:rgba(254,226,226,.28)}
+table.inv tbody td.cs{border-right:1px solid rgba(22,163,74,.12)}
+table.inv tbody td.cp{border-right:1px solid rgba(180,83,9,.1)}
 
-        /* وسم التسمية التوضيحية داخل الجدول (مثل: 1 كرتونة) */
-        .table-badge {
-            display: inline-block;
-            background-color: #fef3c7;
-            color: #92400e;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 500;
-        }
+/* tfoot */
+table.inv tfoot td{
+  padding:10px 6px;text-align:center;
+  font-weight:800;font-size:.76rem;
+  border-top:2px solid #b6d5c4;
+  background:#ecf5ef;
+}
+table.inv tfoot td:first-child{text-align:right;padding-right:12px;color:var(--g7)}
+table.inv tfoot td.cs{color:var(--g7);border-right:1px solid rgba(22,163,74,.15)}
+table.inv tfoot td.cp{color:var(--a7);border-right:1px solid rgba(180,83,9,.1)}
+table.inv tfoot td.cr{color:var(--r7)}
 
-        .text-center { text-align: center !important; }
-        .muted-text { color: #a0aec0; }
-    </style>
+/* row num */
+.rn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border-radius:50%;
+  background:var(--s1);color:var(--s5);
+  font-size:.58rem;font-weight:700;
+  margin-left:6px;flex-shrink:0;
+}
+.nm-cell{display:flex;align-items:center}
+
+/* ══ BADGES ══ */
+.bj,.bc,.br-b{
+  display:inline-flex;align-items:center;gap:4px;
+  border-radius:6px;padding:3px 8px;
+  font-weight:700;font-size:.72rem;
+  margin:2px;white-space:nowrap;
+  border:1px solid;
+}
+.bj{background:var(--g0);color:#065f35;border-color:#86efac}
+.bc{background:var(--a0);color:#78350f;border-color:#fcd34d}
+.br-b{background:var(--r0);color:#7f1d1d;border-color:#fca5a5}
+.bj i,.bc i,.br-b i{font-size:.5rem}
+.dash{color:#bcc9c3}
+
+/* ══ LEGEND ══ */
+.legend{
+  margin:0 8px 12px;
+  background:var(--wh);border-radius:10px;
+  border:1px solid #d0ddd6;
+  padding:9px 12px;
+  display:flex;flex-wrap:wrap;align-items:center;gap:7px;
+  box-shadow:0 1px 4px rgba(0,0,0,.05);font-size:.7rem;
+}
+.legend strong{color:var(--s5)}
+.lc{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 9px;border-radius:5px;font-weight:700;border:1px solid;
+}
+.lc-g{background:var(--g0);color:#065f35;border-color:#86efac}
+.lc-a{background:var(--a0);color:#78350f;border-color:#fcd34d}
+.lc-r{background:var(--r0);color:#7f1d1d;border-color:#fca5a5}
+
+/* ══ EMPTY / ERROR STATES ══ */
+.state-box{padding:40px 16px;text-align:center}
+.state-ico{
+  width:48px;height:48px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.3rem;margin:0 auto 10px;
+}
+.ico-def{background:var(--s1);color:var(--s3)}
+.ico-err{background:var(--r1);color:var(--r7)}
+.state-p{font-size:.82rem;font-weight:700;color:var(--s7);margin-bottom:3px}
+.state-s{font-size:.72rem;color:var(--s5)}
+
+/* spinner */
+.spin-wrap{padding:42px 16px;text-align:center}
+.spin{
+  width:34px;height:34px;border-radius:50%;
+  border:3px solid var(--g1);border-top-color:var(--g6);
+  animation:rot .7s linear infinite;margin:0 auto 10px;
+}
+@keyframes rot{to{transform:rotate(360deg)}}
+.spin-lbl{font-size:.78rem;font-weight:600;color:var(--s5)}
+
+/* footer */
+.foot{text-align:center;padding:16px;font-size:.65rem;color:var(--s5);font-weight:600}
+.foot span{color:var(--g7)}
+</style>
 </head>
 <body>
 
-    <div class="summary-cards-container">
-        
-        <div class="summary-card" style="border-top: 4px solid #0d5c3a;">
-            <span class="card-title">مبيعات</span>
-            <span class="card-dynamic-text sales-text">
-                24 جركن <br> و 75.5 كرتونة
-            </span>
-        </div>
-
-        <div class="summary-card" style="border-top: 4px solid #b7791f;">
-            <span class="card-title">مشتريات</span>
-            <span class="card-dynamic-text purchases-text">
-                20 جركن <br> و 89 كرتونة
-            </span>
-        </div>
-
-        <div class="summary-card" style="border-top: 4px solid #e53e3e;">
-            <span class="card-title">مرتجعات</span>
-            <span class="card-dynamic-text returns-text" style="margin-top: 8px;">
-                لا يوجد
-            </span>
-        </div>
-
+<!-- TOPBAR -->
+<nav class="topbar">
+  <div class="tb-brand">
+    <div class="tb-logo"><i class="fas fa-oil-can"></i></div>
+    <div>
+      <div class="tb-name">الزيادي لزيوت السيارات</div>
+      <div class="tb-sub">تقرير حركة المخزون اليومي</div>
     </div>
+  </div>
+  <div class="tb-btns">
+    <button class="tb-btn" onclick="window.print()" title="طباعة"><i class="fas fa-print"></i></button>
+    <a href="index.html" class="tb-btn"><i class="fas fa-home"></i></a>
+  </div>
+</nav>
 
-    <div class="table-responsive-wrapper">
-        <table class="custom-data-table">
-            <thead>
-                <tr>
-                    <th style="width: 40%;">الصنف</th>
-                    <th style="width: 30%;" class="text-center">مبيعات</th>
-                    <th style="width: 30%;" class="text-center">مشتريات</th>
-                    <th style="width: 20%;" class="text-center">مرتجع</th> 
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>احمر 1 لتر</td>
-                    <td class="text-center"><span class="table-badge">0.5 كرتونة</span></td>
-                    <td class="text-center muted-text">—</td>
-                    <td class="text-center muted-text">—</td>
-                </tr>
-                <tr>
-                    <td>بترومين توكتوك</td>
-                    <td class="text-center"><span class="table-badge">1 كرتونة</span></td>
-                    <td class="text-center muted-text">—</td>
-                    <td class="text-center muted-text">—</td>
-                </tr>
-                <tr>
-                    <td>براند احمر 4 لتر</td>
-                    <td class="text-center"><span class="table-badge">1 كرتونة</span></td>
-                    <td class="text-center muted-text">—</td>
-                    <td class="text-center muted-text">—</td>
-                </tr>
-                <tr>
-                    <td>برينت 20 لتر</td>
-                    <td class="text-center"><span class="table-badge">1 كرتونة</span></td>
-                    <td class="text-center muted-text">—</td>
-                    <td class="text-center muted-text">—</td>
-                </tr>
-                <tr>
-                    <td>بوجيه فرنساوي</td>
-                    <td class="text-center muted-text">—</td>
-                    <td class="text-center"><span class="table-badge" style="background-color:#e0f2fe; color:#0369a1;">2 كرتونة</span></td>
-                    <td class="text-center muted-text">—</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
+<!-- DATE BAR -->
+<div class="datebar">
+  <div>
+    <div class="datebar-title"><i class="fas fa-chart-bar"></i> تقرير حركة كميات الأصناف</div>
+    <div class="datebar-sub" id="dateLabel">اختر تاريخاً لعرض الحركة</div>
+  </div>
+  <div class="date-pick">
+    <i class="fas fa-calendar-day" style="color:var(--g7);font-size:.8rem"></i>
+    <label for="dateIn">التاريخ:</label>
+    <input type="date" id="dateIn" onchange="load()">
+  </div>
+</div>
 
+<!-- KPI -->
+<div class="kpi-row">
+  <div class="kpi kpi-s">
+    <div class="kpi-ico"><i class="fas fa-arrow-trend-up"></i></div>
+    <div class="kpi-lbl">مبيعات</div>
+    <div class="kpi-val" id="kSales"><span class="kv-zero">—</span></div>
+  </div>
+  <div class="kpi kpi-p">
+    <div class="kpi-ico"><i class="fas fa-truck-ramp-box"></i></div>
+    <div class="kpi-lbl">مشتريات</div>
+    <div class="kpi-val" id="kPurch"><span class="kv-zero">—</span></div>
+  </div>
+  <div class="kpi kpi-r">
+    <div class="kpi-ico"><i class="fas fa-rotate-left"></i></div>
+    <div class="kpi-lbl">مرتجعات</div>
+    <div class="kpi-val" id="kRet"><span class="kv-zero">—</span></div>
+  </div>
+</div>
+
+<!-- SECTION HDR -->
+<div class="sec-hdr">
+  <div class="sec-ttl"><span class="sec-dot"></span>تفصيل حركة كل صنف</div>
+  <span class="cnt-pill" id="cntBadge" style="display:none">—</span>
+</div>
+
+<!-- TABLE -->
+<div class="tbl-card">
+  <table class="inv">
+    <thead>
+      <tr>
+        <th>الصنف</th>
+        <th class="hs">↑ مبيعات</th>
+        <th class="hp">↓ مشتريات</th>
+        <th class="hr">↺ مرتجع</th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="4">
+        <div class="spin-wrap">
+          <div class="spin"></div>
+          <div class="spin-lbl">جار تجميع البيانات…</div>
+        </div>
+      </td></tr>
+    </tbody>
+    <tfoot id="tfoot" style="display:none">
+      <tr>
+        <td>الإجمالي</td>
+        <td class="cs" id="fSales">—</td>
+        <td class="cp" id="fPurch">—</td>
+        <td class="cr" id="fRet">—</td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <strong>الرموز:</strong>
+  <span class="lc lc-g"><i class="fas fa-circle" style="font-size:.35rem"></i>جركن</span>
+  <span class="lc lc-a"><i class="fas fa-box" style="font-size:.55rem"></i>كرتونة</span>
+  <span class="lc lc-r"><i class="fas fa-rotate-left" style="font-size:.55rem"></i>مرتجع</span>
+</div>
+
+<div class="foot"><span>الزيادي لزيوت السيارات</span> · نظام إدارة المخزون</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, getDocs }
+  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+const app = initializeApp({
+  apiKey:"AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+  authDomain:"ahmedelzaiady.firebaseapp.com",
+  projectId:"ahmedelzaiady",
+  storageBucket:"ahmedelzaiady.firebasestorage.app",
+  messagingSenderId:"300306825071",
+  appId:"1:300306825071:web:0426ddde56280fa090329a"
+});
+const db = getFirestore(app);
+
+/* ─── date helpers ─── */
+function toEn(s){
+  if(!s)return"";
+  const a=[/٠/g,/١/g,/٢/g,/٣/g,/٤/g,/٥/g,/٦/g,/٧/g,/٨/g,/٩/g];
+  let r=s.toString();a.forEach((p,i)=>r=r.replace(p,i));return r;
+}
+function parseDate(df,ts){
+  if(df){
+    const s=toEn(df);
+    let m=s.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+    m=s.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+    if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  if(ts?.seconds)return new Date(ts.seconds*1000).toISOString().slice(0,10);
+  return"";
+}
+function arDate(iso){
+  if(!iso)return"";
+  const[y,m,d]=iso.split("-");
+  const mn=["يناير","فبراير","مارس","أبريل","مايو","يونيو",
+             "يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
+  return`${+d} ${mn[+m-1]} ${y}`;
+}
+
+/* ─── unit detection ───
+   invoices          → item.unit     : 'box' | 'pcs'
+   supplier_transactions → item.unitName : 'كرتونة' | 'قطعة'   */
+function isCarton(item){
+  const u=(item.unit||"").trim();
+  if(u==="box")return true;
+  if(u==="pcs")return false;
+  const un=(item.unitName||"").trim();
+  return un==="كرتونة"||un==="كرتونه";
+}
+
+/* ─── badge builders ─── */
+const bj=n=>`<span class="bj"><i class="fas fa-circle"></i>${n} جركن</span>`;
+const bc=n=>`<span class="bc"><i class="fas fa-box"></i>${n} كرتونة</span>`;
+const brb=(j,c)=>{
+  let h="";
+  if(j>0)h+=`<span class="br-b"><i class="fas fa-rotate-left"></i>${j} جركن</span>`;
+  if(c>0)h+=`<span class="br-b"><i class="fas fa-rotate-left"></i>${c} كرتونة</span>`;
+  return h;
+};
+const cell=(j,c)=>(j>0||c>0)?((j>0?bj(j):"")+(c>0?bc(c):"")):`<span class="dash">—</span>`;
+
+/* KPI: كل وحدة في سطر منفصل واضح */
+function kpiHtml(j,c,cls){
+  if(!j&&!c)return`<span class="kv-zero">لا يوجد</span>`;
+  let h="";
+  if(j>0)h+=`<span class="kv-line ${cls}">${j} جركن</span>`;
+  if(c>0)h+=`<span class="kv-line ${cls}">${c} كرتونة</span>`;
+  return h;
+}
+
+/* ─── main ─── */
+async function load(){
+  const date=document.getElementById("dateIn").value;
+  const tbody=document.getElementById("tbody");
+  const tfoot=document.getElementById("tfoot");
+  const badge=document.getElementById("cntBadge");
+
+  document.getElementById("dateLabel").textContent=
+    date?`حركة يوم ${arDate(date)}`:"اختر تاريخاً لعرض الحركة";
+
+  tfoot.style.display="none";
+  badge.style.display="none";
+  ["kSales","kPurch","kRet"].forEach(id=>
+    document.getElementById(id).innerHTML=`<span class="kv-zero">—</span>`
+  );
+  tbody.innerHTML=`<tr><td colspan="4"><div class="spin-wrap">
+    <div class="spin"></div><div class="spin-lbl">جار تجميع البيانات…</div>
+  </div></td></tr>`;
+
+  if(!date)return;
+
+  const D={};
+  const G={sJ:0,sC:0,pJ:0,pC:0,rJ:0,rC:0};
+
+  function slot(n){if(!D[n])D[n]={sJ:0,sC:0,pJ:0,pC:0,rJ:0,rC:0}}
+  function add(n,cart,qty,pre){
+    slot(n);
+    const k=pre+(cart?"C":"J");
+    D[n][k]+=qty; G[k]+=qty;
+  }
+
+  try{
+    /* ══ المبيعات: invoices ══ */
+    const sSnap=await getDocs(collection(db,"invoices"));
+    sSnap.forEach(doc=>{
+      const inv=doc.data();
+      if(parseDate(inv.date,inv.timestamp)!==date)return;
+      if(!Array.isArray(inv.items))return;
+      inv.items.forEach(item=>{
+        const name=(item.name||"").trim();
+        const qty=Number(item.qty)||0;
+        if(!name||qty<=0)return;
+        add(name,isCarton(item),qty,!!item.isReturn?"r":"s");
+      });
+    });
+
+    /* ══ المشتريات: supplier_transactions ══
+       qty     = كمية مشتراة عادية
+       returnQty = كمية مرتجعة للمورد           */
+    const pSnap=await getDocs(collection(db,"supplier_transactions"));
+    pSnap.forEach(doc=>{
+      const pur=doc.data();
+      if(parseDate(pur.date,pur.timestamp)!==date)return;
+      if(!Array.isArray(pur.items))return;
+      pur.items.forEach(item=>{
+        const name=(item.name||"").trim();
+        if(!name)return;
+        const cart=isCarton(item);
+        const qty=Number(item.qty)||0;
+        const retQty=Number(item.returnQty)||0;
+        if(qty>0)add(name,cart,qty,"p");
+        if(retQty>0)add(name,cart,retQty,"r");
+      });
+    });
+
+    /* ══ KPI ══ */
+    document.getElementById("kSales").innerHTML=kpiHtml(G.sJ,G.sC,"kpi-s .kpi-val .kv-line");
+    document.getElementById("kPurch").innerHTML=kpiHtml(G.pJ,G.pC,"kpi-p .kpi-val .kv-line");
+    document.getElementById("kRet").innerHTML  =kpiHtml(G.rJ,G.rC,"kpi-r .kpi-val .kv-line");
+
+    /* ══ TABLE ══ */
+    const sorted=Object.keys(D).sort((a,b)=>a.localeCompare(b,"ar"));
+    let html="";let n=0;
+    sorted.forEach(name=>{
+      const d=D[name];
+      if(!d.sJ&&!d.sC&&!d.pJ&&!d.pC&&!d.rJ&&!d.rC)return;
+      n++;
+      const retH=(d.rJ>0||d.rC>0)?brb(d.rJ,d.rC):`<span class="dash">—</span>`;
+      html+=`<tr>
+        <td><div class="nm-cell"><span class="rn">${n}</span>${name}</div></td>
+        <td class="cs">${cell(d.sJ,d.sC)}</td>
+        <td class="cp">${cell(d.pJ,d.pC)}</td>
+        <td class="cr">${retH}</td>
+      </tr>`;
+    });
+
+    if(!html){
+      tbody.innerHTML=`<tr><td colspan="4"><div class="state-box">
+        <div class="state-ico ico-def"><i class="fas fa-box-open"></i></div>
+        <div class="state-p">لا توجد حركة بضاعة في هذا اليوم</div>
+        <div class="state-s">جرّب تاريخاً آخر أو تحقق من الفواتير</div>
+      </div></td></tr>`;
+    }else{
+      tbody.innerHTML=html;
+      document.getElementById("fSales").innerHTML=cell(G.sJ,G.sC);
+      document.getElementById("fPurch").innerHTML=cell(G.pJ,G.pC);
+      document.getElementById("fRet").innerHTML=(G.rJ>0||G.rC>0)?brb(G.rJ,G.rC):`<span class="dash">—</span>`;
+      tfoot.style.display="table-footer-group";
+      badge.textContent=`${n} صنف`;
+      badge.style.display="inline-block";
+    }
+
+  }catch(e){
+    console.error(e);
+    tbody.innerHTML=`<tr><td colspan="4"><div class="state-box">
+      <div class="state-ico ico-err"><i class="fas fa-triangle-exclamation"></i></div>
+      <div class="state-p" style="color:var(--r7)">خطأ في الاتصال بقاعدة البيانات</div>
+      <div class="state-s">تحقق من الإنترنت وأعد المحاولة</div>
+    </div></td></tr>`;
+  }
+}
+
+document.addEventListener("DOMContentLoaded",()=>{
+  const t=new Date();
+  document.getElementById("dateIn").value=
+    `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+  load();
+});
+window.load=load;
+</script>
 </body>
 </html>
