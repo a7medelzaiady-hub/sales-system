@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>إدارة سندات القبض والصرف (العملاء) - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -21,6 +21,7 @@
             --border: #dce3de;
             --danger: #d90429;
             --success: #2d6a4f;
+            --wallet-color: #0077b6;
         }
 
         body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 30px; font-size: 0.85rem; }
@@ -38,7 +39,7 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.02);
         }
 
-        .form-label { margin-bottom: 3px; font-size: 0.75rem !important; }
+        .form-label { margin-bottom: 3px; font-size: 0.75rem !important; font-weight: 700; color: var(--accent); }
         .form-control-sm, .form-select-sm { padding: 6px 10px; font-size: 0.8rem !important; border-radius: 8px; }
 
         .search-container { position: relative; }
@@ -64,7 +65,7 @@
         .statement-table tr td:first-child { border-right: 1px solid var(--border); border-radius: 0 8px 8px 0; }
         .statement-table tr td:last-child { border-left: 1px solid var(--border); border-radius: 8px 0 0 8px; }
         
-        .badge-type { padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.7 ...rem; }
+        .badge-type { padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.7rem; }
         .badge-receipt { background-color: #e8f5e9; color: var(--success); }
         .badge-payment { background-color: #ffebee; color: var(--danger); }
 
@@ -80,10 +81,15 @@
         .btn-delete-row { background: none; border: none; color: #e63946; padding: 2px 6px; border-radius: 4px; transition: 0.2s; font-size: 0.8rem; }
         .btn-delete-row:hover { background: #ffe3e5; color: var(--danger); }
         
+        .btn-edit-row { background: none; border: none; color: #ffb703; padding: 2px 6px; border-radius: 4px; transition: 0.2s; font-size: 0.8rem; }
+        .btn-edit-row:hover { background: #fff3cd; color: #fb8500; }
+
         .btn-share-row { background: none; border: none; color: #0b5e3d; padding: 2px 6px; border-radius: 4px; transition: 0.2s; font-size: 0.8rem; }
         .btn-share-row:hover { background: #e8f5e9; color: var(--success); }
 
-        /* تنسيق الإيصال الحراري الاحترافي 80mm لكي يظهر كصورة طابعة حقيقية */
+        .balance-indicator { background: #f8f9fa; padding: 4px 10px; border-radius: 8px; border: 1px solid var(--border); font-weight: 700; font-size: 0.8rem; display: inline-block; margin-top: 2px; }
+
+        /* تنسيق الإيصال الحراري الاحترافي 80mm */
         .receipt-preview-box {
             width: 80mm;
             min-height: 180px;
@@ -98,7 +104,7 @@
         }
         .receipt-header-title { font-size: 24px; font-weight: 900; margin: 0; text-align: center; color: #000; }
         .receipt-separator { border-top: 1px dashed #000000; margin: 8px 0; }
-        .receipt-total { font-size: 28px; font-weight: 900; color: #000000; text-align: center; margin: 5px 0; }
+        .receipt-total { font-size: 26px; font-weight: 900; color: #000000; text-align: center; margin: 5px 0; }
         .hide-on-share { transition: opacity 0.2s; }
     </style>
 </head>
@@ -120,48 +126,51 @@
     </div>
 
     <div class="container mt-2">
-        <!-- نموذج إضافة حركة جديدة للعملاء مع خيار طريقة السداد -->
+        <!-- نموذج إضافة/تعديل حركة جديدة للعملاء مع خيار طريقة السداد المشترك -->
         <div class="card-custom">
-            <h6 class="fw-bold text-success mb-2"><i class="fas fa-plus-circle me-1"></i> تسجيل عملية عميل جديدة</h6>
+            <h6 class="fw-bold text-success mb-2" id="formTitle"><i class="fas fa-plus-circle me-1"></i> تسجيل عملية عميل جديدة</h6>
             <form id="voucherForm" class="row g-2">
+                <input type="hidden" id="editVoucherId">
+                
                 <div class="col-md-2">
-                    <label class="form-label small fw-bold">نوع العملية</label>
+                    <label class="form-label">نوع العملية</label>
                     <select class="form-select form-select-sm" id="vType" required>
                         <option value="قبض">قبض (+)</option>
                         <option value="صرف">صرف (-)</option>
                     </select>
                 </div>
-
-                <div class="col-md-2">
-                    <label class="form-label small fw-bold">طريقة السداد</label>
-                    <select class="form-select form-select-sm" id="paymentMethod" required>
-                        <option value="نقدي">نقدي</option>
-                        <option value="محفظة">محفظة</option>
-                    </select>
-                </div>
                 
-                <div class="col-md-5 position-relative search-container">
-                    <label class="form-label small fw-bold">اسم العميل (بحث ذكي)</label>
+                <div class="col-md-4 position-relative search-container">
+                    <label class="form-label">اسم العميل (بحث ذكي)</label>
                     <input type="text" class="form-control form-control-sm" id="partySearch" placeholder="اكتب اسم العميل للاستكمال..." autocomplete="off" required>
                     <input type="hidden" id="partyId">
                     <div id="partyResults" class="search-results"></div>
+                    <div id="partyBalanceDisplay" class="balance-indicator text-muted d-none">الحساب الحالي: <span id="currentPartyBalance">0.00</span> ج.م</div>
                 </div>
 
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold">التاريخ</label>
+                    <label class="form-label">التاريخ</label>
                     <input type="date" class="form-control form-control-sm" id="vDate" required>
                 </div>
 
                 <div class="col-md-3">
-                    <label class="form-label small fw-bold">المبلغ (ج.م)</label>
-                    <input type="number" step="0.01" class="form-control form-control-sm" id="vAmount" placeholder="0.00" required>
+                    <label class="form-label text-success">المبلغ النقدي (كاش)</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm border-success fw-bold text-success" id="vCashAmount" value="0.00" required>
                 </div>
+
+                <div class="col-md-3">
+                    <label class="form-label" style="color: var(--wallet-color);">مبلغ المحفظة الإلكترونية</label>
+                    <input type="number" step="0.01" class="form-control form-control-sm fw-bold" style="border-color: var(--wallet-color); color: var(--wallet-color);" id="vWalletAmount" value="0.00" required>
+                </div>
+
                 <div class="col-md-6">
-                    <label class="form-label small fw-bold">البيان / التفاصيل</label>
+                    <label class="form-label text-dark">البيان / التفاصيل</label>
                     <input type="text" class="form-control form-control-sm" id="vNote" placeholder="اكتب تفاصيل المعاملة هنا...">
                 </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <button type="submit" class="btn-submit btn-sm w-100">حفظ السند <i class="fas fa-save ms-1"></i></button>
+                
+                <div class="col-md-3 d-flex align-items-end gap-1">
+                    <button type="submit" class="btn-submit btn-sm w-100" id="btnSubmitForm">حفظ السند <i class="fas fa-save ms-1"></i></button>
+                    <button type="button" class="btn btn-secondary btn-sm d-none" id="btnCancelEdit" onclick="resetVoucherForm()">إلغاء</button>
                 </div>
             </form>
         </div>
@@ -177,7 +186,7 @@
                 </select>
             </div>
             <div class="text-end">
-                <span class="small fw-bold opacity-75" style="font-size: 0.75rem;">إجمالي معاملات العملاء: </span>
+                <span class="small fw-bold opacity-75" style="font-size: 0.75rem;">إجمالي المعاملات المفلترة: </span>
                 <span id="vouchersTotal" class="fw-bold text-success fs-6">0.00 ج.م</span>
             </div>
         </div>
@@ -188,17 +197,19 @@
                 <thead>
                     <tr>
                         <th style="width: 12%;">التاريخ</th>
-                        <th style="width: 10%;">النوع</th>
-                        <th style="width: 13%;">طريقة السداد</th>
-                        <th style="width: 25%;">اسم العميل</th>
-                        <th style="width: 20%;">البيان والتفاصيل</th>
-                        <th style="width: 12%;">المبلغ</th>
-                        <th style="width: 4%;">مشاركة</th>
-                        <th style="width: 4%;">حذف</th>
+                        <th style="width: 8%;">النوع</th>
+                        <th style="width: 10%;">النقدي</th>
+                        <th style="width: 10%;">المحفظة</th>
+                        <th style="width: 20%;">اسم العميل</th>
+                        <th style="width: 24%;">البيان والتفاصيل</th>
+                        <th style="width: 10%;">الإجمالي</th>
+                        <th style="width: 2%;">شير</th>
+                        <th style="width: 2%;">تعديل</th>
+                        <th style="width: 2%;">حذف</th>
                     </tr>
                 </thead>
                 <tbody id="vouchersBody">
-                    <tr><td colspan="8" class="text-center py-4">
+                    <tr><td colspan="10" class="text-center py-4">
                         <div class="spinner-border spinner-border-sm text-success"></div> جاري مراجعة حسابات العملاء...
                     </td></tr>
                 </tbody>
@@ -207,7 +218,7 @@
     </div>
 </div>
 
-<!-- مودال معاينة السند الحراري الفوري كصورة 80mm -->
+<!-- مودال معاينة السند الحراري الفوري كصورة 80mm مع كشف الحساب التراكمي -->
 <div class="modal fade" id="receiptModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -219,7 +230,7 @@
                 <div id="thermalReceipt" class="receipt-preview-box">
                     <div class="text-center">
                         <h5 class="receipt-header-title">شركة الزيادي</h5>
-                        <div style="font-size: 13px; font-weight: 600; text-align: center; color: #000;"> لزيوت وفلاتر السيارات</div>
+                        <div style="font-size: 13px; font-weight: 600; text-align: center; color: #000;">لزيوت وفلاتر السيارات</div>
                     </div>
                     
                     <div class="receipt-separator"></div>
@@ -227,7 +238,7 @@
                     <table style="width:100%; font-size:13px; color:#000; direction: rtl;">
                         <tr>
                             <td style="font-weight:bold; text-align:right; padding: 2px 0;">نوع السند:</td>
-                            <td style="text-align:left;" id="recType"></td>
+                            <td style="text-align:left; font-weight: 700;" id="recType"></td>
                         </tr>
                         <tr>
                             <td style="font-weight:bold; text-align:right; padding: 2px 0;">التاريخ:</td>
@@ -238,17 +249,29 @@
                             <td style="text-align:left; font-weight: 800;" id="recClientName"></td>
                         </tr>
                         <tr>
-                            <td style="font-weight:bold; text-align:right; padding: 2px 0;">طريقة السداد:</td>
-                            <td style="text-align:left;" id="recPaymentMethod"></td>
+                            <td style="font-weight:bold; text-align:right; padding: 2px 0;">نقدي (كاش):</td>
+                            <td style="text-align:left;" id="recCash">0.00 ج.م</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight:bold; text-align:right; padding: 2px 0;">محفظة إلكترونية:</td>
+                            <td style="text-align:left;" id="recWallet">0.00 ج.م</td>
+                        </tr>
+                        <tr style="border-top: 1px dotted #000;">
+                            <td style="font-weight:bold; text-align:right; padding: 4px 0; color: #555;">الحساب السابق:</td>
+                            <td style="text-align:left; color: #555;" id="recPrevBalance">0.00 ج.م</td>
+                        </tr>
+                        <tr>
+                            <td style="font-weight:bold; text-align:right; padding: 2px 0; font-size: 14px;">الحساب الجديد:</td>
+                            <td style="text-align:left; font-weight: 800; font-size: 14px;" id="recNewBalance">0.00 ج.م</td>
                         </tr>
                     </table>
 
                     <div class="receipt-separator"></div>
 
                     <div class="text-center">
-                        <small style="font-size: 12px; font-weight:600; color:#000;">المبلغ المعامل به</small>
+                        <small style="font-size: 12px; font-weight:600; color:#000;">إجمالي مبلغ المعاملة</small>
                         <h3 class="receipt-total" id="recAmount">0.00 ج.م</h3>
-                        <div style="font-size:13px; font-weight:bold; color:#000; margin-top: 2px;">تمت المعالجة بنجاح</div>
+                        <div style="font-size:13px; font-weight:bold; color:#000; margin-top: 2px;">تمت المعالجة والترحيل بنجاح</div>
                     </div>
 
                     <div class="receipt-separator"></div>
@@ -272,7 +295,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, doc, deleteDoc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, orderBy, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -304,8 +327,8 @@
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
 
     function loadCache() {
-        const cachedClients = localStorage.getItem('cache_clientsOnlyMap');
-        const cachedVouchers = localStorage.getItem('cache_clientsVouchers');
+        const cachedClients = localStorage.getItem('cache_clientsWithBalancesMap');
+        const cachedVouchers = localStorage.getItem('cache_clientsMultiVouchers');
         
         if (cachedClients) {
             clientsMap = JSON.parse(cachedClients);
@@ -320,9 +343,14 @@
         try {
             const custSnap = await getDocs(collection(db, "customers"));
             clientsMap = {};
-            custSnap.forEach(doc => { clientsMap[doc.id] = { name: doc.data().name }; });
-            
-            localStorage.setItem('cache_clientsOnlyMap', JSON.stringify(clientsMap));
+            custSnap.forEach(doc => { 
+                const d = doc.data();
+                clientsMap[doc.id] = { 
+                    name: d.name,
+                    balance: Number(d.currentBalance || d.balance || 0)
+                }; 
+            });
+            localStorage.setItem('cache_clientsWithBalancesMap', JSON.stringify(clientsMap));
         } catch (err) {
             console.error("Error fetching clients:", err);
         }
@@ -341,7 +369,7 @@
         let filteredHtml = '';
         for (let id in clientsMap) {
             if (clientsMap[id].name.toLowerCase().includes(term)) {
-                filteredHtml += `<div class="search-item" onclick="selectParty('${id}', '${clientsMap[id].name}')"><b>${clientsMap[id].name}</b></div>`;
+                filteredHtml += `<div class="search-item" onclick="selectParty('${id}', '${clientsMap[id].name}', ${clientsMap[id].balance})"><b>${clientsMap[id].name}</b></div>`;
             }
         }
 
@@ -354,10 +382,15 @@
         }
     };
 
-    window.selectParty = (id, name) => {
+    window.selectParty = (id, name, balance) => {
         document.getElementById('partySearch').value = name;
         document.getElementById('partyId').value = id;
         document.getElementById('partyResults').style.display = 'none';
+        
+        const balIndicator = document.getElementById('partyBalanceDisplay');
+        const balSpan = document.getElementById('currentPartyBalance');
+        balSpan.innerText = balance.toFixed(2);
+        balIndicator.classList.remove('d-none');
     };
 
     document.getElementById('partySearch').addEventListener('input', window.searchParty);
@@ -377,25 +410,32 @@
             querySnapshot.forEach((doc) => {
                 const d = doc.data();
                 if ((d.type === 'قبض' || d.type === 'صرف') && (d.partyType === 'عميل' || clientsMap[d.partyId])) {
+                    const cashAmt = Number(d.cashPaid || d.cashAmount || 0);
+                    const walletAmt = Number(d.walletPaid || d.walletAmount || 0);
+                    const totalAmt = Number(d.amount || (cashAmt + walletAmt));
+
                     allVouchers.push({
                         id: doc.id,
                         date: d.date,
                         type: d.type,
-                        paymentMethod: d.paymentMethod || 'نقدي',
+                        cashPaid: cashAmt,
+                        walletPaid: walletAmt,
                         partyId: d.partyId,
                         partyType: 'عميل',
-                        amount: Number(d.amount || 0),
-                        note: d.note || d.notes || ''
+                        amount: totalAmt,
+                        note: d.note || d.notes || '',
+                        prevBalance: Number(d.prevBalance || 0),
+                        newBalance: Number(d.newBalance || 0)
                     });
                 }
             });
 
-            localStorage.setItem('cache_clientsVouchers', JSON.stringify(allVouchers));
+            localStorage.setItem('cache_clientsMultiVouchers', JSON.stringify(allVouchers));
             renderTable(allVouchers);
 
         } catch (err) {
             if(allVouchers.length === 0) {
-                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="8" class="text-danger py-4">حدث خطأ أثناء تحميل بيانات السندات</td></tr>';
+                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="10" class="text-center py-4 text-danger">حدث خطأ أثناء تحميل مستندات الحسابات</td></tr>';
             }
         }
     }
@@ -403,55 +443,104 @@
     function renderTable(data) {
         const tbody = document.getElementById('vouchersBody');
         tbody.innerHTML = '';
-        let total = 0;
+        let totalSum = 0;
 
         if(data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-3 text-muted">لا توجد حركات عملاء مسجلة حالياً</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-3 text-muted">لا توجد حركات عملاء مسجلة حالياً</td></tr>';
             document.getElementById('vouchersTotal').innerText = "0.00 ج.م";
             return;
         }
 
         data.forEach(v => {
-            total += v.amount;
+            totalSum += v.amount;
             const pName = clientsMap[v.partyId] ? clientsMap[v.partyId].name : 'عميل غير مسجل';
             const badgeClass = v.type === 'قبض' ? 'badge-receipt' : 'badge-payment';
-            const pMethod = v.paymentMethod || 'نقدي';
 
             tbody.innerHTML += `<tr>
                     <td><span class="text-secondary fw-bold">${v.date}</span></td>
                     <td><span class="badge-type ${badgeClass}">${v.type}</span></td>
-                    <td><span class="badge bg-secondary text-white">${pMethod}</span></td>
+                    <td class="text-success fw-bold">${v.cashPaid.toFixed(2)}</td>
+                    <td style="color: var(--wallet-color); font-weight:700;">${v.walletPaid.toFixed(2)}</td>
                     <td class="text-end fw-bold text-dark">${pName}</td>
                     <td class="text-end text-muted small">${v.note}</td>
                     <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2})}</td>
                     <td>
-                        <button class="btn-share-row" onclick="openReceiptModal('${v.type}', '${v.date}', ${v.amount}, '${pName}', '${pMethod}')"><i class="fas fa-share-alt"></i></button>
+                        <button class="btn-share-row" onclick="openReceiptModal('${v.id}')" title="مشاركة المعاينة"><i class="fas fa-share-alt"></i></button>
                     </td>
                     <td>
-                        <button class="btn-delete-row" onclick="deleteVoucher('${v.id}')"><i class="fas fa-trash-alt"></i></button>
+                        <button class="btn-edit-row" onclick="editVoucher('${v.id}')" title="تعديل السند"><i class="fas fa-edit"></i></button>
+                    </td>
+                    <td>
+                        <button class="btn-delete-row" onclick="deleteVoucher('${v.id}')" title="حذف السند"><i class="fas fa-trash-alt"></i></button>
                     </td>
                 </tr>`;
         });
 
-        document.getElementById('vouchersTotal').innerText = `${total.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('vouchersTotal').innerText = `${totalSum.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
     }
 
     window.filterData = () => {
         const fType = document.getElementById('filterType').value;
-        const filtered = allVouchers.filter(v => {
-            return (fType === 'الكل' || v.type === fType);
-        });
+        const filtered = allVouchers.filter(v => (fType === 'الكل' || v.type === fType));
         renderTable(filtered);
     };
 
-    window.openReceiptModal = (type, date, amount, clientName, paymentMethod) => {
-        document.getElementById('recType').innerText = type === 'قبض' ? 'سند قبض' : 'سند صرف';
-        document.getElementById('recDate').innerText = date;
-        document.getElementById('recClientName').innerText = clientName;
-        document.getElementById('recPaymentMethod').innerText = paymentMethod || 'نقدي';
-        document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
+    window.openReceiptModal = (voucherId) => {
+        const v = allVouchers.find(item => item.id === voucherId);
+        if(!v) return;
+
+        const pName = clientsMap[v.partyId] ? clientsMap[v.partyId].name : 'عميل غير مسجل';
+        
+        document.getElementById('recType').innerText = v.type === 'قبض' ? 'سند قبض عميل' : 'سند صرف عميل';
+        document.getElementById('recDate').innerText = v.date;
+        document.getElementById('recClientName').innerText = pName;
+        document.getElementById('recCash').innerText = `${v.cashPaid.toFixed(2)} ج.م`;
+        document.getElementById('recWallet').innerText = `${v.walletPaid.toFixed(2)} ج.م`;
+        document.getElementById('recAmount').innerText = `${v.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
+        
+        document.getElementById('recPrevBalance').innerText = `${v.prevBalance.toFixed(2)} ج.م`;
+        document.getElementById('recNewBalance').innerText = `${v.newBalance.toFixed(2)} ج.م`;
+        
         document.getElementById('recClientRow').style.opacity = '1';
         if(receiptModalObj) receiptModalObj.show();
+    };
+
+    window.editVoucher = (id) => {
+        const v = allVouchers.find(item => item.id === id);
+        if(!v) return;
+
+        document.getElementById('editVoucherId').value = v.id;
+        document.getElementById('vType').value = v.type;
+        document.getElementById('vDate').value = v.date;
+        document.getElementById('vCashAmount').value = v.cashPaid;
+        document.getElementById('vWalletAmount').value = v.walletPaid;
+        document.getElementById('vNote').value = v.note;
+        
+        const clientName = clientsMap[v.partyId] ? clientsMap[v.partyId].name : '';
+        const clientBal = clientsMap[v.partyId] ? clientsMap[v.partyId].balance : 0;
+        
+        selectParty(v.partyId, clientName, clientBal);
+
+        document.getElementById('formTitle').innerHTML = `<i class="fas fa-edit me-1"></i> تعديل بيانات السند الحالي`;
+        document.getElementById('btnSubmitForm').innerHTML = `تحديث السند <i class="fas fa-check-double ms-1"></i>`;
+        document.getElementById('btnCancelEdit').classList.remove('d-none');
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    window.resetVoucherForm = () => {
+        document.getElementById('editVoucherId').value = '';
+        document.getElementById('partyId').value = '';
+        document.getElementById('partySearch').value = '';
+        document.getElementById('vCashAmount').value = '0.00';
+        document.getElementById('vWalletAmount').value = '0.00';
+        document.getElementById('vNote').value = '';
+        document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('partyBalanceDisplay').classList.add('d-none');
+        
+        document.getElementById('formTitle').innerHTML = `<i class="fas fa-plus-circle me-1"></i> تسجيل عملية عميل جديدة`;
+        document.getElementById('btnSubmitForm').innerHTML = `حفظ السند <i class="fas fa-save ms-1"></i>`;
+        document.getElementById('btnCancelEdit').classList.add('d-none');
     };
 
     document.getElementById('btnDoShare').addEventListener('click', () => {
@@ -490,60 +579,129 @@
         const partyId = document.getElementById('partyId').value;
         if(!partyId) { alert("الرجاء اختيار العميل الصحيح من قائمة البحث الذكي"); return; }
 
-        const submitBtn = e.target.querySelector('button[type="submit"]');
-        submitBtn.disabled = true;
-        submitBtn.innerText = "جاري الحفظ...";
+        const cashAmt = parseFloat(document.getElementById('vCashAmount').value) || 0;
+        const walletAmt = parseFloat(document.getElementById('vWalletAmount').value) || 0;
+        const totalAmount = cashAmt + walletAmt;
 
+        if (totalAmount <= 0) { alert("يجب أن يكون إجمالي السند أكبر من صفر."); return; }
+
+        const submitBtn = document.getElementById('btnSubmitForm');
+        submitBtn.disabled = true;
+        submitBtn.innerText = "جاري ترحيل ومعالجة البيانات...";
+
+        const editId = document.getElementById('editVoucherId').value;
         const vDateVal = document.getElementById('vDate').value;
         const vTypeVal = document.getElementById('vType').value;
-        const pMethodVal = document.getElementById('paymentMethod').value;
-        const vAmountVal = Number(document.getElementById('vAmount').value);
-        const selectedClientName = document.getElementById('partySearch').value;
-
-        const newVoucher = {
-            date: vDateVal,
-            type: vTypeVal,
-            paymentMethod: pMethodVal,
-            partyType: 'عميل',
-            partyId: partyId,
-            amount: vAmountVal,
-            note: document.getElementById('vNote').value
-        };
+        const noteVal = document.getElementById('vNote').value;
 
         try {
-            await addDoc(collection(db, "transactions"), newVoucher);
-            
-            document.getElementById('vAmount').value = '';
-            document.getElementById('vNote').value = '';
-            document.getElementById('partySearch').value = '';
-            document.getElementById('partyId').value = '';
-            
+            // جلب العميل للحصول على أدق قيمة رصيد حالي من السيرفر
+            const custRef = doc(db, "customers", partyId);
+            const custDoc = await getDoc(custRef);
+            let currentDbBalance = 0;
+            if (custDoc.exists()) {
+                currentDbBalance = Number(custDoc.data().currentBalance || custDoc.data().balance || 0);
+            }
+
+            let previousBalance = currentDbBalance;
+
+            // في حالة التعديل، نقوم أولاً بربط الحساب القديم وعكس التأثير المالي القديم
+            if(editId) {
+                const oldVoucherSnap = await getDoc(doc(db, "transactions", editId));
+                if(oldVoucherSnap.exists()) {
+                    const oldData = oldVoucherSnap.data();
+                    const oldCash = Number(oldData.cashPaid || oldData.cashAmount || 0);
+                    const oldWallet = Number(oldData.walletPaid || oldData.walletAmount || 0);
+                    const oldTotal = oldData.amount || (oldCash + oldWallet);
+                    
+                    // عكس الأرصدة
+                    if (oldData.type === 'قبض') {
+                        previousBalance += oldTotal; // إضافة ما تم قبضه سابقاً لحساب العميل
+                    } else if (oldData.type === 'صرف') {
+                        previousBalance -= oldTotal; // خصم ما تم صرفه سابقاً من حساب العميل
+                    }
+                }
+            }
+
+            // حساب الرصيد التراكمي الجديد للعميل بناءً على العملية الحالية
+            let finalNewBalance = previousBalance;
+            if (vTypeVal === 'قبض') {
+                finalNewBalance -= totalAmount; // القبض يقلل مديونية العميل
+            } else if (vTypeVal === 'صرف') {
+                finalNewBalance += totalAmount; // الصرف يزيد مديونية العميل
+            }
+
+            const voucherPayload = {
+                date: vDateVal,
+                type: vTypeVal,
+                cashPaid: cashAmt,
+                walletPaid: walletAmt,
+                amount: totalAmount,
+                partyType: 'عميل',
+                partyId: partyId,
+                note: noteVal,
+                prevBalance: previousBalance,
+                newBalance: finalNewBalance
+            };
+
+            let targetId = editId;
+            if (editId) {
+                await updateDoc(doc(db, "transactions", editId), voucherPayload);
+            } else {
+                const docRef = await addDoc(collection(db, "transactions"), voucherPayload);
+                targetId = docRef.id;
+            }
+
+            // تحديث رصيد بطاقة العميل الأساسية في Firestore بالفرق الصافي
+            const netBalanceDiff = finalNewBalance - currentDbBalance;
+            await updateDoc(custRef, { currentBalance: increment(netBalanceDiff) });
+
+            resetVoucherForm();
+            await fetchClientsData();
             await loadVouchers();
             
-            // فتح المودال بالبيانات الجديدة
-            openReceiptModal(vTypeVal, vDateVal, vAmountVal, selectedClientName, pMethodVal);
+            // فتح إيصال المعاينة المتكاملة تلقائياً
+            openReceiptModal(targetId);
 
-            // تشغيل دالة المشاركة تلقائياً بعد ثانية واحدة لمنح الصورة وقتاً للاستقرار
             setTimeout(() => {
                 document.getElementById('btnDoShare').click();
             }, 1000);
 
         } catch (err) {
-            alert("حدث خطأ أثناء حفظ بيانات السند");
+            console.error(err);
+            alert("حدث خطأ مالي أثناء ترحيل بيانات السند.");
         } finally {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = 'حفظ السند <i class="fas fa-save ms-1"></i>';
         }
     });
 
     window.deleteVoucher = async (id) => {
-        if(confirm("هل أنت متأكد من حذف حركة العميل هذه نهائياً؟")) {
+        if(confirm("هل أنت متأكد من حذف حركة العميل هذه نهائياً وعكس أرصدة الحسابات؟")) {
             try {
+                const vSnap = await getDoc(doc(db, "transactions", id));
+                if (vSnap.exists()) {
+                    const d = vSnap.value ? vSnap.value() : vSnap.data();
+                    const cash = Number(d.cashPaid || 0);
+                    const wallet = Number(d.walletPaid || 0);
+                    const total = d.amount || (cash + wallet);
+
+                    // عكس الرصيد من بطاقة العميل
+                    let reverseAmount = 0;
+                    if (d.type === 'قبض') {
+                        reverseAmount = total; // إلغاء القبض يعيد المديونية للعميل
+                    } else if (d.type === 'صرف') {
+                        reverseAmount = -total; // إلغاء الصرف يقلل المديونية
+                    }
+
+                    await updateDoc(doc(db, "customers", d.partyId), { currentBalance: increment(reverseAmount) });
+                }
+
                 await deleteDoc(doc(db, "transactions", id));
-                alert("تم حذف السند بنجاح.");
+                alert("تم حذف السند وإعادة ضبط الحساب بنجاح.");
+                await fetchClientsData();
                 await loadVouchers();
             } catch (err) {
-                alert("فشل إجراء الحذف.");
+                alert("فشل إجراء الحذف وعكس الأرصدة.");
             }
         }
     };
@@ -558,17 +716,17 @@
         const filteredData = allVouchers.filter(v => (fType === 'الكل' || v.type === fType));
 
         const excelRows = [];
-        excelRows.push(["التاريخ", "الحركه", "اسم العميل/المورد", "البيان", "عدد جركن", "عدد كرتونه", "سعر جركن", "سعر كرتونه"]);
+        excelRows.push(["التاريخ", "الحركة", "اسم العميل", "البيان والطلب", "سداد نقدي", "سداد محفظة", "الحساب السابق", "الحساب الجديد"]);
 
         filteredData.forEach(v => {
             const pName = clientsMap[v.partyId] ? clientsMap[v.partyId].name : 'عميل غير مسجل';
-            excelRows.push([v.date, "سداد منه نقدى", pName, "سداد نقدى", "", 1, "", v.amount]);
+            excelRows.push([v.date, v.type, pName, v.note, v.cashPaid, v.walletPaid, v.prevBalance, v.newBalance]);
         });
 
         const ws = XLSX.utils.aoa_to_sheet(excelRows);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "حسابات العملاء المودعة");
-        XLSX.writeFile(wb, `تقرير_سندات_العملاء_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "سندات حسابات العملاء المشتركة");
+        XLSX.writeFile(wb, `تقرير_سندات_العملاء_الشامل_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     async function init() {
