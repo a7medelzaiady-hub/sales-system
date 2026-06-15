@@ -263,7 +263,7 @@
                             <td style="text-align:left; color: #333; font-size: 13px;" id="recPrevBalance">0.00 ج.م</td>
                         </tr>
                         <tr>
-                            <td style="text-align:right; font-size: 15px; font-weight: 800;">الحساب الجديد:</td>
+                            <td style="text-align:right; font-size: 15px; font-weight: 800;">صافي الحساب:</td>
                             <td style="text-align:left; font-weight: 900; font-size: 15px;" id="recNewBalance">0.00 ج.م</td>
                         </tr>
                     </table>
@@ -391,7 +391,7 @@
         
         const balIndicator = document.getElementById('partyBalanceDisplay');
         const balSpan = document.getElementById('currentPartyBalance');
-        balSpan.innerText = balance.toFixed(2);
+        balSpan.innerText = balance.toLocaleString('en-US', {minimumFractionDigits: 2});
         balIndicator.classList.remove('d-none');
     };
 
@@ -413,11 +413,8 @@
                 const d = doc.data();
                 if ((d.type === 'قبض' || d.type === 'صرف') && (d.partyType === 'عميل' || clientsMap[d.partyId])) {
                     
-                    // دمج ذكي لقراءة البيانات القديمة والجديدة لضمان عدم ظهور أصفار وهمية في السجل
                     const cashAmt = Number(d.cashPaid !== undefined ? d.cashPaid : (d.cashAmount !== undefined ? d.cashAmount : (d.amount || 0)));
                     const walletAmt = Number(d.walletPaid !== undefined ? d.walletPaid : (d.walletAmount !== undefined ? d.walletAmount : 0));
-                    
-                    // حساب الإجمالي الحقيقي الفعلي
                     const totalAmt = Number(d.amount || (cashAmt + walletAmt));
 
                     allVouchers.push({
@@ -430,8 +427,8 @@
                         partyType: 'عميل',
                         amount: totalAmt,
                         note: d.note || d.notes || '',
-                        prevBalance: Number(d.prevBalance || 0),
-                        newBalance: Number(d.newBalance || 0)
+                        prevBalance: Number(d.prevBalance !== undefined ? d.prevBalance : 0),
+                        newBalance: Number(d.newBalance !== undefined ? d.newBalance : 0)
                     });
                 }
             });
@@ -465,11 +462,11 @@
             tbody.innerHTML += `<tr>
                     <td><span class="text-secondary fw-bold">${v.date}</span></td>
                     <td><span class="badge-type ${badgeClass}">${v.type}</span></td>
-                    <td class="text-success fw-bold">${v.cashPaid > 0 ? v.cashPaid.toFixed(2) : '-'}</td>
-                    <td style="color: var(--wallet-color); font-weight:700;">${v.walletPaid > 0 ? v.walletPaid.toFixed(2) : '-'}</td>
+                    <td class="text-success fw-bold">${v.cashPaid > 0 ? v.cashPaid.toLocaleString('en-US', {minimumFractionDigits: 2}) : '-'}</td>
+                    <td style="color: var(--wallet-color); font-weight:700;">${v.walletPaid > 0 ? v.walletPaid.toLocaleString('en-US', {minimumFractionDigits: 2}) : '-'}</td>
                     <td class="text-end fw-bold text-dark">${pName}</td>
                     <td class="text-end text-muted small">${v.note}</td>
-                    <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2})}</td>
+                    <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
                     <td>
                         <button class="btn-share-row" onclick="openReceiptModal('${v.id}')" title="مشاركة المعاينة"><i class="fas fa-share-alt"></i></button>
                     </td>
@@ -482,7 +479,7 @@
                 </tr>`;
         });
 
-        document.getElementById('vouchersTotal').innerText = `${totalSum.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('vouchersTotal').innerText = `${totalSum.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
     }
 
     window.filterData = () => {
@@ -501,10 +498,9 @@
         document.getElementById('recDate').innerText = v.date;
         document.getElementById('recClientName').innerText = pName;
         
-        document.getElementById('recCash').innerText = `${v.cashPaid.toFixed(2)} ج.م`;
-        document.getElementById('recWallet').innerText = `${v.walletPaid.toFixed(2)} ج.م`;
+        document.getElementById('recCash').innerText = `${v.cashPaid.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('recWallet').innerText = `${v.walletPaid.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
         
-        // ذكاء إخفاء وإظهار طرق السداد الصفرية في الفاتورة الحرارية بشكل قاطع
         if (v.cashPaid > 0 && v.walletPaid > 0) {
             document.getElementById('recCashRow').style.setProperty('display', 'table-row', 'important');
             document.getElementById('recWalletRow').style.setProperty('display', 'table-row', 'important');
@@ -512,14 +508,13 @@
             document.getElementById('recCashRow').style.setProperty('display', 'none', 'important');
             document.getElementById('recWalletRow').style.setProperty('display', 'table-row', 'important');
         } else {
-            // لو كاش بس أو حتى لو الاتنين صفر افتراضياً (يعتبر كاش)
             document.getElementById('recCashRow').style.setProperty('display', 'table-row', 'important');
             document.getElementById('recWalletRow').style.setProperty('display', 'none', 'important');
         }
 
-        document.getElementById('recAmount').innerText = `${v.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
-        document.getElementById('recPrevBalance').innerText = `${v.prevBalance.toFixed(2)} ج.م`;
-        document.getElementById('recNewBalance').innerText = `${v.newBalance.toFixed(2)} ج.م`;
+        document.getElementById('recAmount').innerText = `${v.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('recPrevBalance').innerText = `${v.prevBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('recNewBalance').innerText = `${v.newBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
         
         document.getElementById('recAmountLabel').innerText = "تم سداد";
         document.getElementById('recStatusLabel').innerText = "تم الاستلام";
@@ -604,9 +599,8 @@
 
         let cashAmt = parseFloat(document.getElementById('vCashAmount').value) || 0;
         let walletAmt = parseFloat(document.getElementById('vWalletAmount').value) || 0;
-        
-        // إذا قام بحفظ النموذج دون ملء أي خانة ميزانية، نعتبر إجمالي المبلغ كاش افتراضياً من حقل الدفع الأساسي
         let totalAmount = cashAmt + walletAmt;
+
         if(totalAmount <= 0) {
             alert("يجب أن يكون إجمالي السند أكبر من صفر.");
             return;
@@ -736,7 +730,7 @@
         const filteredData = allVouchers.filter(v => (fType === 'الكل' || v.type === fType));
 
         const excelRows = [];
-        excelRows.push(["التاريخ", "الحركة", "اسم العميل", "البيان والطلب", "سداد نقدي", "سداد محفظة", "الحساب السابق", "الحساب الجديد"]);
+        excelRows.push(["التاريخ", "الحركة", "اسم العميل", "البيان والطلب", "سداد نقدي", "سداد محفظة", "الحساب السابق", "صافي الحساب"]);
 
         filteredData.forEach(v => {
             const pName = clientsMap[v.partyId] ? clientsMap[v.partyId].name : 'عميل غير مسجل';
