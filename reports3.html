@@ -1,78 +1,256 @@
-from pathlib import Path
-
-html = r'''<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>جرد سيارة التوزيع - الزيادي</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<style>
-body{background:#f5f7fb;font-family:Cairo,sans-serif}
-.card{border:none;border-radius:16px;box-shadow:0 2px 10px rgba(0,0,0,.08)}
-.header{background:#0b6641;color:#fff;padding:15px;border-radius:0 0 20px 20px}
-.table input{min-width:80px}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>جرد سيارة التوزيع - الزيادي</title>
+    <!-- Bootstrap RTL -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts (Cairo) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-color: #0b6641;
+            --primary-hover: #084d31;
+            --bg-color: #f8f9fa;
+            --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        }
+        
+        body {
+            background-color: var(--bg-color);
+            font-family: 'Cairo', sans-serif;
+            color: #333;
+        }
+
+        /* هيدر احترافي */
+        .main-header {
+            background: linear-gradient(135deg, var(--primary-color), #148554);
+            color: white;
+            padding: 30px 0;
+            border-bottom-left-radius: 30px;
+            border-bottom-right-radius: 30px;
+            box-shadow: 0 4px 20px rgba(11, 102, 65, 0.2);
+            margin-bottom: 30px;
+        }
+
+        .main-header h3 {
+            font-weight: 700;
+            margin: 0;
+        }
+
+        /* البطاقات */
+        .custom-card {
+            background: #ffffff;
+            border: none;
+            border-radius: 20px;
+            box-shadow: var(--card-shadow);
+            padding: 25px;
+            margin-bottom: 25px;
+            transition: transform 0.3s ease;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 8px;
+        }
+
+        .form-control {
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            padding: 10px 15px;
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.25rem rgba(11, 102, 65, 0.15);
+        }
+
+        /* الجدول */
+        .table-responsive {
+            border-radius: 15px;
+            overflow: hidden;
+            border: 1px solid #eee;
+        }
+
+        .table th {
+            background-color: var(--primary-color) !important;
+            color: white !important;
+            font-weight: 600;
+            padding: 15px;
+            border: none;
+        }
+
+        .table td {
+            padding: 12px;
+            vertical-align: middle;
+            background: #fff;
+        }
+
+        .sold-input {
+            background-color: #e9ecef !important;
+            font-weight: 700;
+            color: var(--primary-color);
+        }
+
+        /* أزرار مخصصة */
+        .btn-custom {
+            border-radius: 10px;
+            padding: 10px 25px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+
+        .btn-add { background-color: #2196f3; color: white; }
+        .btn-add:hover { background-color: #1e88e5; color: white; }
+        .btn-calc { background-color: var(--primary-color); color: white; }
+        .btn-calc:hover { background-color: var(--primary-hover); color: white; }
+        
+        /* لتنسيق خانة البحث الذاتي (Datalist Chrome/Safari styling) */
+        input::-webkit-calendar-picker-indicator {
+            opacity: 1;
+            color: var(--primary-color);
+        }
+
+        /* التنسيق عند الطباعة */
+        @media print {
+            body { background: white; }
+            .main-header { background: #0b6641 !important; color: white !important; border-radius: 0; padding: 15px 0; }
+            .btn-custom, .btn { display: none !important; }
+            .custom-card { box-shadow: none; padding: 0; margin-bottom: 15px; }
+            .form-control { border: 1px solid #000 !important; }
+        }
+    </style>
 </head>
 <body>
-<div class="header text-center">
-<h3><i class="fas fa-truck"></i> جرد سيارة التوزيع</h3>
+
+<!-- الهيدر -->
+<div class="main-header text-center">
+    <div class="container">
+        <h3><i class="fas fa-truck-loading me-2"></i> منظومة جرد سيارات التوزيع - الزيادي</h3>
+    </div>
 </div>
 
-<div class="container mt-3">
-<div class="card p-3 mb-3">
-<div class="row">
-<div class="col-md-4"><label>اسم السائق</label><input id="driver" class="form-control"></div>
-<div class="col-md-4"><label>رقم السيارة</label><input id="car" class="form-control"></div>
-<div class="col-md-4"><label>التاريخ</label><input id="date" type="date" class="form-control"></div>
-</div>
+<div class="container">
+    <!-- بيانات السيارة والسائق -->
+    <div class="custom-card">
+        <div class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label"><i class="fas fa-user text-muted me-1"></i> اسم السائق</label>
+                <input id="driver" class="form-control" placeholder="أدخل اسم السائق">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label"><i class="fas fa-id-card text-muted me-1"></i> رقم السيارة</label>
+                <input id="car" class="form-control" placeholder="أدخل رقم اللوحة">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label"><i class="fas fa-calendar-alt text-muted me-1"></i> التاريخ</label>
+                <input id="date" type="date" class="form-control">
+            </div>
+        </div>
+    </div>
+
+    <!-- جدول الجرد -->
+    <div class="custom-card">
+        <h5 class="mb-4 text-success" style="font-weight: 700;"><i class="fas fa-boxes me-1"></i> تفاصيل جرد البضاعة</h5>
+        
+        <div class="table-responsive mb-3">
+            <table class="table table-hover text-center align-middle" id="tbl">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">الصنف</th>
+                        <th style="width: 20%;">المحمل صباحاً</th>
+                        <th style="width: 20%;">الباقي آخر اليوم</th>
+                        <th style="width: 20%;">المباع</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- الأسطر سيتم إنشاؤها عبر الجافاسكريبت -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- الأزرار التحكم -->
+        <div class="d-flex flex-wrap gap-2 justify-content-between">
+            <div>
+                <button class="btn btn-custom btn-add" onclick="addRow()">
+                    <i class="fas fa-plus"></i> إضافة صنف جديد
+                </button>
+                <button class="btn btn-custom btn-calc" onclick="calc()">
+                    <i class="fas fa-calculator"></i> حساب الجرد
+                </button>
+            </div>
+            <button class="btn btn-custom btn-dark" onclick="window.print()">
+                <i class="fas fa-print"></i> طباعة التقرير
+            </button>
+        </div>
+    </div>
 </div>
 
-<div class="card p-3">
-<h5>أصناف السيارة</h5>
-<table class="table table-bordered text-center" id="tbl">
-<thead>
-<tr>
-<th>الصنف</th>
-<th>المحمل صباحاً</th>
-<th>الباقي آخر اليوم</th>
-<th>المباع</th>
-</tr>
-</thead>
-<tbody></tbody>
-</table>
-
-<button class="btn btn-success" onclick="addRow()">إضافة صنف</button>
-<button class="btn btn-primary" onclick="calc()">حساب الجرد</button>
-<button class="btn btn-dark" onclick="window.print()">طباعة</button>
-</div>
-</div>
+<!-- قائمة الأصناف المخفية للبحث الذاتي (يمكنك التعديل عليها وزيادتها) -->
+<datalist id="products-list">
+    <option value="كرتونة مياه معدنية صغير"></option>
+    <option value="كرتونة مياه معدنية كبير"></option>
+    <option value="صندوق عصير تفاح"></option>
+    <option value="صندوق عصير برتقال"></option>
+    <option value="باكيت كولا علب"></option>
+    <option value="باكيت كولا زجاج"></option>
+    <option value="كرتونة شيبسي عائلي"></option>
+    <option value="كرتونة بسكويت فانيليا"></option>
+</datalist>
 
 <script>
+// تعيين تاريخ اليوم تلقائياً
+document.getElementById('date').valueAsDate = new Date();
+
+// دالة إضافة سطر جديد مع تفعيل البحث الذاتي
 function addRow(){
-let tr=document.createElement('tr');
-tr.innerHTML=`
-<td><input class="form-control product"></td>
-<td><input type="number" class="form-control load" value="0"></td>
-<td><input type="number" class="form-control remain" value="0"></td>
-<td><input class="form-control sold" readonly></td>`;
-document.querySelector('#tbl tbody').appendChild(tr);
+    let tbody = document.querySelector('#tbl tbody');
+    let tr = document.createElement('tr');
+    
+    tr.innerHTML = `
+        <td>
+            <!-- تم ربط الحقل بقائمة الأوتوكومبليت عبر list="products-list" -->
+            <input class="form-control product" list="products-list" placeholder="ابحث أو اكتب اسم الصنف...">
+        </td>
+        <td><input type="number" class="form-control text-center load" value="0" min="0" oninput="quickCalc(this)"></td>
+        <td><input type="number" class="form-control text-center remain" value="0" min="0" oninput="quickCalc(this)"></td>
+        <td><input class="form-control text-center sold sold-input" value="0" readonly></td>
+    `;
+    tbody.appendChild(tr);
 }
 
+// دالة الحساب الفوري عند إدخال الأرقام لراحة المستخدم
+function quickCalc(inputElement) {
+    let row = inputElement.closest('tr');
+    let l = Number(row.querySelector('.load').value || 0);
+    let rem = Number(row.querySelector('.remain').value || 0);
+    row.querySelector('.sold').value = l - rem;
+}
+
+// دالة حساب الجرد الشاملة لكافة الأسطر
 function calc(){
-document.querySelectorAll('#tbl tbody tr').forEach(r=>{
-let l=Number(r.querySelector('.load').value||0);
-let rem=Number(r.querySelector('.remain').value||0);
-r.querySelector('.sold').value=l-rem;
-});
+    document.querySelectorAll('#tbl tbody tr').forEach(r => {
+        let l = Number(r.querySelector('.load').value || 0);
+        let rem = Number(r.querySelector('.remain').value || 0);
+        r.querySelector('.sold').value = l - rem;
+    });
 }
 
-for(let i=0;i<5;i++) addRow();
+// إنشاء 5 أسطر افتراضية عند فتح الصفحة
+for(let i=0; i<5; i++) {
+    addRow();
+}
 </script>
-</body>
-</html>'''
 
-path = "/mnt/data/car_inventory_page.html"
-Path(path).write_text(html, encoding="utf-8")
-print(path)
+</body>
+</html>
