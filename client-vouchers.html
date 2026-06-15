@@ -89,7 +89,7 @@
 
         .balance-indicator { background: #f8f9fa; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border); font-weight: 800; font-size: 0.8rem; display: inline-block; margin-top: 4px; }
 
-        /* حزمة المعالجة القصوى لمنع تداخل الكلام العربي في الـ Canvas */
+        /* حزمة المعالجة لمنع تداخل الكلام العربي في الـ Canvas */
         .receipt-preview-box {
             width: 80mm;
             min-height: 180px;
@@ -97,7 +97,6 @@
             color: #000000;
             padding: 24px 20px;
             margin: 0 auto;
-            /* عزل كامل واستخدام خطوط النظام المحسنة للويب العربي */
             font-family: Arial, Tahoma, "Segoe UI", sans-serif !important;
             letter-spacing: 0px !important;
             word-spacing: 1px !important;
@@ -111,9 +110,7 @@
         .receipt-header-title { font-size: 24px; font-weight: bold; margin: 0; text-align: center; color: #000; }
         .receipt-separator { border-top: 2px dashed #000000; margin: 12px 0; font-size: 1px; line-height: 1px; }
         .receipt-total { font-size: 28px; font-weight: bold; color: #000000; text-align: center; margin: 8px 0; }
-        .hide-on-share { transition: opacity 0.2s; }
         
-        /* ضبط مرونة الخلايا لمنع انضغاط النصوص أفقياً */
         .receipt-table { width: 100%; border-collapse: collapse; }
         .receipt-table tr { display: flex; justify-content: space-between; padding: 5px 0; }
         .receipt-table td { font-size: 14px; color: #000; font-weight: bold; display: inline-block; white-space: nowrap; }
@@ -255,7 +252,7 @@
                             <td>التاريخ:</td>
                             <td id="recDate"></td>
                         </tr>
-                        <tr id="recClientRow" class="hide-on-share">
+                        <tr id="recClientRow">
                             <td>العميل:</td>
                             <td id="recClientName" style="font-weight: bold;"></td>
                         </tr>
@@ -525,7 +522,6 @@
         document.getElementById('recAmountLabel').innerText = "تم سداد";
         document.getElementById('recStatusLabel').innerText = "تم الاستلام";
         
-        document.getElementById('recClientRow').style.opacity = '1';
         if(receiptModalObj) receiptModalObj.show();
     };
 
@@ -567,44 +563,37 @@
         document.getElementById('btnCancelEdit').classList.add('d-none');
     };
 
+    // التعديل هنا: تم إزالة أي كود يقوم بحذف أو إخفاء الاسم، والاسم سيظهر دائماً في الصورة والـ الشير
     document.getElementById('btnDoShare').addEventListener('click', () => {
         const target = document.getElementById('thermalReceipt');
-        const clientRow = document.getElementById('recClientRow');
         
-        if (clientRow) clientRow.style.opacity = '0';
-        
-        setTimeout(() => {
-            // محاكاة أبعاد شاشة مستقرة وثابتة تمنع ضغط الحروف أفقياً تماماً
-            html2canvas(target, { 
-                scale: 3, 
-                useCORS: true,
-                letterRendering: false,
-                logging: false,
-                backgroundColor: "#ffffff",
-                windowWidth: 1200,
-                windowHeight: 900
-            }).then(canvas => {
-                if (clientRow) clientRow.style.opacity = '1';
-
-                canvas.toBlob(blob => {
-                    if (!blob) { alert("فشل إنشاء صورة المعاينة الآمنة"); return; }
-                    const file = new File([blob], "client_receipt.png", { type: "image/png" });
-                    
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        navigator.share({
-                            files: [file],
-                            title: 'إيصال سداد عميل - شركة الزيادي',
-                        }).catch(err => console.log('إلغاء المشاركة'));
-                    } else {
-                        const a = document.createElement('a');
-                        a.href = canvas.toDataURL('image/png');
-                        a.download = `سند_عميل_${new Date().toISOString().split('T')[0]}.png`;
-                        a.click();
-                        alert("تم حفظ الصورة بجهازك بنجاح.");
-                    }
-                }, 'image/png');
-            });
-        }, 150);
+        html2canvas(target, { 
+            scale: 3, 
+            useCORS: true,
+            letterRendering: false,
+            logging: false,
+            backgroundColor: "#ffffff",
+            windowWidth: 1200,
+            windowHeight: 900
+        }).then(canvas => {
+            canvas.toBlob(blob => {
+                if (!blob) { alert("فشل إنشاء صورة المعاينة"); return; }
+                const file = new File([blob], "client_receipt.png", { type: "image/png" });
+                
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({
+                        files: [file],
+                        title: 'إيصال سداد - شركة الزيادي',
+                    }).catch(err => console.log('إلغاء المشاركة'));
+                } else {
+                    const a = document.createElement('a');
+                    a.href = canvas.toDataURL('image/png');
+                    a.download = `سند_سداد_${new Date().toISOString().split('T')[0]}.png`;
+                    a.click();
+                    alert("تم حفظ الصورة بجهازك بنجاح.");
+                }
+            }, 'image/png');
+        });
     });
 
     document.getElementById('voucherForm').addEventListener('submit', async (e) => {
