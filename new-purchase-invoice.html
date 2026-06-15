@@ -298,6 +298,7 @@
 
     window.addNewItemRow = (itemData = null) => {
         const id = Date.now() + Math.random();
+        // إعطاء الأولوية للكرتونة دائمًا كخيار افتراضي أساسي
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
         const isReturnChecked = itemData && itemData.returnQty > 0;
         isDataChanged = true;
@@ -373,8 +374,13 @@
             const found = allInventory.find(p => p.name === e.target.value);
             if(found) {
                 row.querySelector('.item-buy').value = found.buy || 0;
-                unitSelect.value = found.unitName || "كرتونة";
+                // عند اختيار صنف، نضع الأولوية القصوى لـ كرتونة
+                unitSelect.value = "كرتونة";
                 unitSelect.dispatchEvent(new Event('change'));
+            } else {
+                // إذا كتب صنفاً غير موجود، نقوم بمسح الحقل وتنبيهه فوراً لحماية البيانات
+                alert("عذرًا، هذا الصنف غير مسجل بالنظام. يرجى اختيار صنف من القائمة المنسدلة فقط.");
+                e.target.value = "";
             }
             window.calculateTotal();
         });
@@ -425,7 +431,18 @@
         const invoiceDate = document.getElementById('invDate').value;
         const pendingAmount = grossTotal - totalPaid;
         
-        if(!supplierId || document.querySelectorAll('.item-row').length === 0) return alert("برجاء إكمال البيانات وإضافة الأصناف أولاً");
+        const rows = document.querySelectorAll('.item-row');
+        if(!supplierId || rows.length === 0) return alert("برجاء إكمال البيانات وإضافة الأصناف أولاً");
+
+        // نظام التحقق الصارم: منع الحفظ نهائياً في حال وجود صنف غير مطابق للمخزن
+        for (const row of rows) {
+            const name = row.querySelector('.item-name').value.trim();
+            const isExist = allInventory.some(p => p.name === name);
+            if (!isExist || name === "") {
+                alert(`خطأ: الصنف "${name}" غير مسجل بقاعدة البيانات! يرجى إزالته أو اختيار صنف صحيح من القائمة المنسدلة للتمكن من الحفظ.`);
+                return;
+            }
+        }
 
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل...';
@@ -443,7 +460,6 @@
             }
 
             const items = [];
-            const rows = document.querySelectorAll('.item-row');
 
             for (const row of rows) {
                 const name = row.querySelector('.item-name').value;
@@ -466,11 +482,6 @@
                         qty: increment(finalQtyModifier), 
                         totalPcs: increment(finalQtyModifier), 
                         buy: buy, unitName: unitName, lastUpdate: serverTimestamp()
-                    });
-                } else {
-                    await addDoc(collection(db, "inventory"), {
-                        name, qty: finalQtyModifier, totalPcs: finalQtyModifier, buy, 
-                        unitName: unitName || "كرتونة", unitFactor: 1, sell: buy * 1.2, min: 3, category: "عام", timestamp: serverTimestamp()
                     });
                 }
             }
