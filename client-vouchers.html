@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>إدارة سندات القبض والصرف (العملاء) - شركة الزيادي</title>
+    <title>إدارة حسابات وسندات العملاء - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -89,7 +89,7 @@
 
         .balance-indicator { background: #f8f9fa; padding: 5px 12px; border-radius: 8px; border: 1px solid var(--border); font-weight: 800; font-size: 0.8rem; display: inline-block; margin-top: 4px; }
 
-        /* تنسيق الإيصال الحراري الاحترافي المطور 80mm بقوالب خطوط ممتازة */
+        /* تنسيق الإيصال الحراري الاحترافي المطور 80mm */
         .receipt-preview-box {
             width: 80mm;
             min-height: 180px;
@@ -252,11 +252,11 @@
                         </tr>
                         <tr id="recCashRow">
                             <td style="text-align:right;">نقدي (كاش):</td>
-                            <td style="text-align:left;" id="recCash">0.00 ج.م</td>
+                            <td style="text-align:left; font-weight: 800; color: var(--success);" id="recCash">0.00 ج.م</td>
                         </tr>
                         <tr id="recWalletRow">
                             <td style="text-align:right;">محفظة إلكترونية:</td>
-                            <td style="text-align:left;" id="recWallet">0.00 ج.م</td>
+                            <td style="text-align:left; font-weight: 800; color: var(--wallet-color);" id="recWallet">0.00 ج.م</td>
                         </tr>
                         <tr style="border-top: 1px dotted #000;">
                             <td style="text-align:right; color: #333; font-size: 13px;">الحساب السابق:</td>
@@ -264,7 +264,7 @@
                         </tr>
                         <tr>
                             <td style="text-align:right; font-size: 15px; font-weight: 800;">الحساب الجديد:</td>
-                            <td style="text-align:left; font-weight: 900; font-size: 15px;" id="recNewBalance">0.00 ج.m</td>
+                            <td style="text-align:left; font-weight: 900; font-size: 15px;" id="recNewBalance">0.00 ج.م</td>
                         </tr>
                     </table>
 
@@ -412,8 +412,12 @@
             querySnapshot.forEach((doc) => {
                 const d = doc.data();
                 if ((d.type === 'قبض' || d.type === 'صرف') && (d.partyType === 'عميل' || clientsMap[d.partyId])) {
-                    const cashAmt = Number(d.cashPaid || d.cashAmount || 0);
-                    const walletAmt = Number(d.walletPaid || d.walletAmount || 0);
+                    
+                    // دمج ذكي لقراءة البيانات القديمة والجديدة لضمان عدم ظهور أصفار وهمية في السجل
+                    const cashAmt = Number(d.cashPaid !== undefined ? d.cashPaid : (d.cashAmount !== undefined ? d.cashAmount : (d.amount || 0)));
+                    const walletAmt = Number(d.walletPaid !== undefined ? d.walletPaid : (d.walletAmount !== undefined ? d.walletAmount : 0));
+                    
+                    // حساب الإجمالي الحقيقي الفعلي
                     const totalAmt = Number(d.amount || (cashAmt + walletAmt));
 
                     allVouchers.push({
@@ -461,8 +465,8 @@
             tbody.innerHTML += `<tr>
                     <td><span class="text-secondary fw-bold">${v.date}</span></td>
                     <td><span class="badge-type ${badgeClass}">${v.type}</span></td>
-                    <td class="text-success fw-bold">${v.cashPaid.toFixed(2)}</td>
-                    <td style="color: var(--wallet-color); font-weight:700;">${v.walletPaid.toFixed(2)}</td>
+                    <td class="text-success fw-bold">${v.cashPaid > 0 ? v.cashPaid.toFixed(2) : '-'}</td>
+                    <td style="color: var(--wallet-color); font-weight:700;">${v.walletPaid > 0 ? v.walletPaid.toFixed(2) : '-'}</td>
                     <td class="text-end fw-bold text-dark">${pName}</td>
                     <td class="text-end text-muted small">${v.note}</td>
                     <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2})}</td>
@@ -497,27 +501,26 @@
         document.getElementById('recDate').innerText = v.date;
         document.getElementById('recClientName').innerText = pName;
         
-        // تعبئة وعرض المبالغ النقدية والمحفظة بطريقة سليمة
         document.getElementById('recCash').innerText = `${v.cashPaid.toFixed(2)} ج.م`;
         document.getElementById('recWallet').innerText = `${v.walletPaid.toFixed(2)} ج.م`;
         
-        // ذكاء التحكم في إخفاء وإظهار سطور السداد بناءً على القيم المدخلة
+        // ذكاء إخفاء وإظهار طرق السداد الصفرية في الفاتورة الحرارية بشكل قاطع
         if (v.cashPaid > 0 && v.walletPaid > 0) {
-            document.getElementById('recCashRow').style.display = 'table-row';
-            document.getElementById('recWalletRow').style.display = 'table-row';
+            document.getElementById('recCashRow').style.setProperty('display', 'table-row', 'important');
+            document.getElementById('recWalletRow').style.setProperty('display', 'table-row', 'important');
         } else if (v.walletPaid > 0) {
-            document.getElementById('recCashRow').style.display = 'none';
-            document.getElementById('recWalletRow').style.display = 'table-row';
+            document.getElementById('recCashRow').style.setProperty('display', 'none', 'important');
+            document.getElementById('recWalletRow').style.setProperty('display', 'table-row', 'important');
         } else {
-            document.getElementById('recCashRow').style.display = 'table-row';
-            document.getElementById('recWalletRow').style.display = 'none';
+            // لو كاش بس أو حتى لو الاتنين صفر افتراضياً (يعتبر كاش)
+            document.getElementById('recCashRow').style.setProperty('display', 'table-row', 'important');
+            document.getElementById('recWalletRow').style.setProperty('display', 'none', 'important');
         }
 
         document.getElementById('recAmount').innerText = `${v.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2})} ج.م`;
         document.getElementById('recPrevBalance').innerText = `${v.prevBalance.toFixed(2)} ج.م`;
         document.getElementById('recNewBalance').innerText = `${v.newBalance.toFixed(2)} ج.م`;
         
-        // تعديل الكلمات والعبارات المطلوبة
         document.getElementById('recAmountLabel').innerText = "تم سداد";
         document.getElementById('recStatusLabel').innerText = "تم الاستلام";
         
@@ -599,11 +602,15 @@
         const partyId = document.getElementById('partyId').value;
         if(!partyId) { alert("الرجاء اختيار العميل الصحيح من قائمة البحث الذكي"); return; }
 
-        const cashAmt = parseFloat(document.getElementById('vCashAmount').value) || 0;
-        const walletAmt = parseFloat(document.getElementById('vWalletAmount').value) || 0;
-        const totalAmount = cashAmt + walletAmt;
-
-        if (totalAmount <= 0) { alert("يجب أن يكون إجمالي السند أكبر من صفر."); return; }
+        let cashAmt = parseFloat(document.getElementById('vCashAmount').value) || 0;
+        let walletAmt = parseFloat(document.getElementById('vWalletAmount').value) || 0;
+        
+        // إذا قام بحفظ النموذج دون ملء أي خانة ميزانية، نعتبر إجمالي المبلغ كاش افتراضياً من حقل الدفع الأساسي
+        let totalAmount = cashAmt + walletAmt;
+        if(totalAmount <= 0) {
+            alert("يجب أن يكون إجمالي السند أكبر من صفر.");
+            return;
+        }
 
         const submitBtn = document.getElementById('btnSubmitForm');
         submitBtn.disabled = true;
@@ -628,8 +635,8 @@
                 const oldVoucherSnap = await getDoc(doc(db, "transactions", editId));
                 if(oldVoucherSnap.exists()) {
                     const oldData = oldVoucherSnap.data();
-                    const oldCash = Number(oldData.cashPaid || oldData.cashAmount || 0);
-                    const oldWallet = Number(oldData.walletPaid || oldData.walletAmount || 0);
+                    const oldCash = Number(oldData.cashPaid !== undefined ? oldData.cashPaid : (oldData.cashAmount || 0));
+                    const oldWallet = Number(oldData.walletPaid !== undefined ? oldData.walletPaid : (oldData.walletAmount || 0));
                     const oldTotal = oldData.amount || (oldCash + oldWallet);
                     
                     if (oldData.type === 'قبض') {
@@ -695,8 +702,8 @@
                 const vSnap = await getDoc(doc(db, "transactions", id));
                 if (vSnap.exists()) {
                     const d = vSnap.data();
-                    const cash = Number(d.cashPaid || 0);
-                    const wallet = Number(d.walletPaid || 0);
+                    const cash = Number(d.cashPaid !== undefined ? d.cashPaid : (d.cashAmount || 0));
+                    const wallet = Number(d.walletPaid !== undefined ? d.walletPaid : (d.walletAmount || 0));
                     const total = d.amount || (cash + wallet);
 
                     let reverseAmount = 0;
