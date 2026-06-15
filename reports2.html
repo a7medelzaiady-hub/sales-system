@@ -99,7 +99,6 @@ body{
   box-shadow:0 1px 4px rgba(0,0,0,.06);
   padding:12px 8px 10px;
   position:relative;overflow:hidden;
-  /* ← الإصلاح: عمودي وليس أفقي */
   display:flex;flex-direction:column;align-items:center;
   text-align:center;gap:6px;
 }
@@ -125,7 +124,6 @@ body{
   font-size:.62rem;font-weight:800;color:var(--s5);
   letter-spacing:.03em;line-height:1;
 }
-/* ← الإصلاح الرئيسي: كل رقم في سطر منفصل بخط واضح */
 .kpi-val{
   font-size:.75rem;font-weight:800;
   line-height:1.55;
@@ -162,15 +160,15 @@ body{
   border-radius:12px;
   border:1px solid #d0ddd6;
   box-shadow:0 3px 12px rgba(0,0,0,.06);
-  /* ← الإصلاح: تمرير أفقي بدل خروج الجدول */
   overflow-x:auto;
   -webkit-overflow-scrolling:touch;
 }
 table.inv{
   width:100%;
-  /* ← عرض أدنى يضمن قراءة الأعمدة على موبايل */
   min-width:360px;
-  border-collapse:collapse;
+  /* التعديل: تحسين سلوك دمج الحدود مع التثبيت Sticky لتجنب تداخل أو اختفاء الخطوط */
+  border-collapse:separate;
+  border-spacing:0;
   font-size:.78rem;
 }
 
@@ -181,7 +179,9 @@ table.inv thead th{
   padding:10px 6px;
   text-align:center;
   white-space:nowrap;
-  position:sticky;top:56px;z-index:10;
+  position:sticky;
+  top:0; /* ◄ التعديل الرئيسي: جعل الـ top صفر ليثبت بشكل صحيح داخل الحاوية دون حجب أول صف */
+  z-index:10;
 }
 table.inv thead th:first-child{
   text-align:right;padding-right:12px;
@@ -432,9 +432,7 @@ function arDate(iso){
   return`${+d} ${mn[+m-1]} ${y}`;
 }
 
-/* ─── unit detection ───
-   invoices          → item.unit     : 'box' | 'pcs'
-   supplier_transactions → item.unitName : 'كرتونة' | 'قطعة'   */
+/* ─── unit detection ─── */
 function isCarton(item){
   const u=(item.unit||"").trim();
   if(u==="box")return true;
@@ -509,9 +507,7 @@ async function load(){
       });
     });
 
-    /* ══ المشتريات: supplier_transactions ══
-       qty     = كمية مشتراة عادية
-       returnQty = كمية مرتجعة للمورد           */
+    /* ══ المشتريات: supplier_transactions ══ */
     const pSnap=await getDocs(collection(db,"supplier_transactions"));
     pSnap.forEach(doc=>{
       const pur=doc.data();
