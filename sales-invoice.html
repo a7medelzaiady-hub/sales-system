@@ -126,7 +126,6 @@
             color: white; 
             border-radius: var(--card-radius); 
             padding: 15px; 
-            text-align: center; 
             margin-top: 15px; 
             box-shadow: 0 3px 8px rgba(11, 94, 61, 0.15);
         }
@@ -319,24 +318,34 @@
             </div>
         </div>
 
+        <!-- تم تحديث هيكل صندوق الإجماليات لعرض الحالي والسابق والمجمع بشكل منظم ومريح للعين -->
         <div class="total-box">
-            <div class="row align-items-center">
+            <div class="row align-items-center g-2 pb-2 mb-2 border-bottom border-white border-opacity-25 text-center">
                 <div class="col-4 border-end border-white border-opacity-25">
-                    <small class="d-block opacity-75" style="font-size: 0.65rem; margin-bottom: 2px;">صافي الفاتورة</small>
-                    <span id="displayTotal" class="fw-bold text-white fs-6">0.00</span>
+                    <small class="d-block opacity-75" style="font-size: 0.65rem; margin-bottom: 2px;">صافي الفاتورة الحالية</small>
+                    <span id="displayTotal" class="fw-bold text-white" style="font-size: 0.85rem;">0.00</span>
                 </div>
                 <div class="col-4 border-end border-white border-opacity-25">
-                    <small class="d-block" style="font-size: 0.65rem; color: var(--warning); margin-bottom: 2px;">المدفوع للعميل/منه</small>
-                    <span id="displayPaid" class="fw-bold fs-6" style="color: var(--warning);">0.00</span>
+                    <small class="d-block opacity-75" style="font-size: 0.65rem; margin-bottom: 2px;">الحساب السابق</small>
+                    <span id="displayOldBalance" class="fw-bold" style="font-size: 0.85rem; color: var(--warning);">0.00</span>
                 </div>
                 <div class="col-4">
-                    <small class="d-block opacity-75" style="font-size: 0.65rem; margin-bottom: 2px;">المتبقي</small>
-                    <span id="displayRemaining" class="fw-bold text-white fs-6">0.00</span>
+                    <small class="d-block fw-bold" style="font-size: 0.65rem; color: #ffeb3b; margin-bottom: 2px;">الإجمالي الحالي والسابق</small>
+                    <span id="displayGrandTotal" class="fw-bold" style="font-size: 0.95rem; color: #ffeb3b;">0.00</span>
+                </div>
+            </div>
+            <div class="row align-items-center g-2 text-center">
+                <div class="col-6 border-end border-white border-opacity-25">
+                    <small class="d-block opacity-75" style="font-size: 0.65rem; margin-bottom: 2px;">المدفوع الآن</small>
+                    <span id="displayPaid" class="fw-bold text-white" style="font-size: 0.9rem;">0.00</span>
+                </div>
+                <div class="col-6">
+                    <small class="d-block opacity-75" style="font-size: 0.65rem; margin-bottom: 2px;">باقي الحساب الكلي</small>
+                    <span id="displayRemaining" class="fw-bold text-white" style="font-size: 0.95rem;">0.00</span>
                 </div>
             </div>
         </div>
 
-        <!-- تم تعديل استدعاء الدالة هنا ليقوم بالمراجعة أولاً بدلاً من الحفظ المباشر -->
         <button class="btn-save" onclick="openReviewModal()" id="saveBtn">حفظ وتحديث البيانات</button>
     </div>
 </div>
@@ -617,7 +626,7 @@
                     document.getElementById('cashAmount').value = data.cashAmount || 0;
                     document.getElementById('walletAmount').value = data.walletAmount || 0;
                     document.getElementById('paidAmount').value = data.paid || 0;
-                    document.getElementById('discountAmount').value = data.discount || 0; // تحميل الخصم عند التعديل
+                    document.getElementById('discountAmount').value = data.discount || 0; 
 
                     const cust = customers.find(c => c.id === data.customerId);
                     if (cust) {
@@ -630,6 +639,7 @@
                     data.items?.forEach(item => addNewRow(item));
                 }
                 isChanged = false;
+                calc(); // إعادة الاحتساب لضمان تحميل الخانات الجديدة بكفاءة
             }
         } catch (e) { console.error(e); }
     }
@@ -647,6 +657,8 @@
             initialBalanceInput.classList.add('d-none');
             btnSaveCustomer.classList.add('d-none');
             document.getElementById('customerSelect').value = "";
+            currentFetchedOldBalance = 0;
+            calc();
             return; 
         }
 
@@ -668,6 +680,8 @@
             btnSaveCustomer.innerHTML = '<i class="fas fa-user-plus me-1"></i> حفظ كعميل جديد بالرصيد الافتتاحي';
             document.getElementById('customerSelect').value = ""; 
             balanceDiv.style.display = 'none';
+            currentFetchedOldBalance = 0;
+            calc();
         }
     };
 
@@ -893,15 +907,21 @@
             }
         });
         
-        // جلب قيمة الخصم النقدي
         const discount = parseFloat(document.getElementById('discountAmount').value) || 0;
-        // حساب صافي الفاتورة بعد الخصم
         const netTotal = itemsTotal - discount;
-
         const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
+        
+        // حسابات الرصيد السابق والمجمع بناءً على طلبك
+        const oldBalance = parseFloat(currentFetchedOldBalance) || 0;
+        const grandTotal = netTotal + oldBalance; // إجمالي الفاتورة الحالية والسابق معاً
+        const finalRemaining = grandTotal - paid;  // باقي الحساب الكلي النهائي المطلوب ذمته
+
+        // ربط وعرض المتغيرات الجديدة بالواجهة
         document.getElementById('displayTotal').innerText = netTotal.toLocaleString('en-US', {minimumFractionDigits: 2});
+        document.getElementById('displayOldBalance').innerText = oldBalance.toLocaleString('en-US', {minimumFractionDigits: 2});
+        document.getElementById('displayGrandTotal').innerText = grandTotal.toLocaleString('en-US', {minimumFractionDigits: 2});
         document.getElementById('displayPaid').innerText = paid.toLocaleString('en-US', {minimumFractionDigits: 2});
-        document.getElementById('displayRemaining').innerText = (netTotal - paid).toLocaleString('en-US', {minimumFractionDigits: 2});
+        document.getElementById('displayRemaining').innerText = finalRemaining.toLocaleString('en-US', {minimumFractionDigits: 2});
         
         const badge = document.getElementById('itemsBadgeVal');
         if (badge) {
@@ -911,7 +931,6 @@
         return { itemsTotal, discount, total: netTotal, paid, remaining: netTotal - paid };
     };
 
-    // ==================== دوال المراجعة المضافة حديثاً لربط الزر الجديد ====================
     window.openReviewModal = () => {
         const customerId = document.getElementById('customerSelect').value;
         const customerName = document.getElementById('customerSearch').value;
@@ -950,7 +969,6 @@
 
         if (validItemsCount === 0) { return alert("الرجاء إضافة أصناف للفاتورة"); }
 
-        // تعبئة البيانات داخل المودال الملخص
         document.getElementById('revCustomerName').innerText = customerName;
         document.getElementById('revItemsCount').innerText = `${validItemsCount} صنف`;
         document.getElementById('revItemsBody').innerHTML = htmlList;
@@ -959,10 +977,8 @@
         document.getElementById('revDiscountVal').innerText = discount.toFixed(2);
         document.getElementById('revTotalVal').innerText = total.toFixed(2);
 
-        // إظهار نافذة المراجعة
         document.getElementById('reviewModal').style.display = 'flex';
 
-        // ربط زر التأكيد النهائي داخل شاشة المراجعة بعملية الحفظ في الفايربيز
         document.getElementById('finalConfirmSaveBtn').onclick = () => {
             closeReviewModal();
             saveInvoice();
@@ -972,7 +988,6 @@
     window.closeReviewModal = () => {
         document.getElementById('reviewModal').style.display = 'none';
     };
-    // ==============================================================================
 
     window.saveInvoice = async () => {
         const saveBtn = document.getElementById('saveBtn');
@@ -1017,9 +1032,9 @@
             const baseInvoiceData = {
                 customerId: customerId,
                 customerName: customerName,
-                itemsTotal: Number(itemsTotal) || 0, // حفظ إجمالي الأصناف قبل الخصم
-                discount: Number(discount) || 0,     // حفظ قيمة الخصم النقدي
-                total: Number(total) || 0,           // الصافي بعد الخصم
+                itemsTotal: Number(itemsTotal) || 0, 
+                discount: Number(discount) || 0,     
+                total: Number(total) || 0,           
                 paid: Number(finalCash + finalWallet) || 0,
                 remaining: Number(total - (finalCash + finalWallet)) || 0,
                 paymentMethod: finalMethod,
@@ -1112,14 +1127,12 @@
         document.getElementById('recDate').innerText = data.time || originalInvoiceTime;
         document.getElementById('recPaymentMethod').innerText = data.paymentMethod;
         
-        // تحديث الحسابات لتشمل الإجمالي الفرعي والخصم والصافي في الإيصال الحراري
         const itemsTotalVal = data.itemsTotal || data.total + (data.discount || 0);
         document.getElementById('recSubTotal').innerText = Number(itemsTotalVal).toFixed(2);
         
         const discountVal = data.discount || 0;
         document.getElementById('recDiscount').innerText = Number(discountVal).toFixed(2);
         
-        // إخفاء أو إظهار سطر الخصم بناءً على وجود قيمة له
         if (discountVal > 0) {
             document.getElementById('recDiscountRow').style.display = 'flex';
         } else {
