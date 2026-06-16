@@ -178,14 +178,17 @@
     const db = getFirestore(app);
 
     let allInvoices = [];
-    let suppliersNames = {};
+    let suppliersData = {}; // تخزين كاش لبيانات وأرصدة الموردين الحالية
 
     window.init = async function() {
         try {
-            // 1. جلب أسماء الموردين
+            // 1. جلب بيانات الموردين وأرصدتهم بالكامل
             const supSnap = await getDocs(collection(db, "suppliers"));
-            suppliersNames = {};
-            supSnap.forEach(d => suppliersNames[d.id] = d.data().name);
+            suppliersData = {};
+            supSnap.forEach(d => {
+                const data = d.data();
+                suppliersData[d.id] = { name: data.name, currentBalance: Number(data.currentBalance) || 0 };
+            });
 
             // 2. جلب فواتير المشتريات وجدول الخزنة بالتوازي
             const [transSnap, voucherSnap] = await Promise.all([
@@ -202,12 +205,10 @@
                 const data = { id: doc.id, ...doc.data() };
                 const amt = Number(data.grossTotal) || Number(data.total) || 0;
                 
-                // حساب المدفوع الكلي المسجل بداخل كائن الفاتورة (كاش + محفظة)
                 const cashP = Number(data.cashPaid || 0);
                 const walletP = Number(data.walletPaid || 0);
                 const directPaid = data.totalPaid ? Number(data.totalPaid) : (cashP + walletP || Number(data.paidAmount) || 0);
 
-                // صافي المتبقي من الفاتورة نفسها ومطروح منه السداد
                 const netInvoicePending = amt - directPaid;
 
                 data.displayGross = amt;
@@ -228,7 +229,7 @@
                 }
             });
 
-            // 3. حساب إيصالات الصرف والمدفوعات الخارجية اللاحقة للموردين من الخزنة
+            // 3. حساب إيصالات الصرف والمدفوعات الخارجية للموردين من الخزنة
             let totalVoucherPayments = 0;
             voucherSnap.forEach(v => {
                 const tData = v.data();
@@ -260,9 +261,16 @@
         }
 
         container.innerHTML = dataList.map(inv => {
-            const supplierName = suppliersNames[inv.supplierId] || 'مورد غير معروف';
+            const supplierName = suppliersData[inv.supplierId] ? suppliersData[inv.supplierId].name : 'مورد غير معروف';
             
-            // تحديد شارة المظهر الجغرافي لنوع السداد بدقة
+            // حساب "الحساب السابق" للمورد قبل الفاتورة الحالية بشكل دقيق
+            let prevBalance = 0;
+            if (inv.supplierId && suppliersData[inv.supplierId]) {
+                const currentBalance = suppliersData[inv.supplierId].currentBalance;
+                // الحساب السابق = الرصيد الحالي للمورد مطروحاً منه ما ترتب على هذه الفاتورة تحديداً
+                prevBalance = currentBalance - inv.displayNetPending;
+            }
+
             let badgeClass = 'type-credit';
             let badgeText = '<i class="fas fa-user-clock me-1"></i>آجل بالكامل';
 
@@ -311,14 +319,15 @@
                     </div>
                 </div>
 
-                <!-- شريط معلومات فرعي يوضح الحسبة الإجمالية بخط صغير أسفل الكارت -->
-                ${!inv.isReturn ? `
-                <div class="mt-2 pt-2 border-top d-flex justify-content-between text-muted" style="font-size: 0.72rem; font-weight:600;">
+                <!-- شريط معلومات فرعي يوضح تفاصيل الحسبة + الحساب السابق للمورد -->
+                <div class="mt-2 pt-2 border-top d-flex justify-content-between text-muted" style="font-size: 0.72rem; font-weight:600; flex-wrap: wrap; gap: 4px;">
                     <span>الإجمالي: ${Number(inv.displayGross).toFixed(2)}</span>
+                    ${!inv.isReturn ? `
                     <span class="text-success">كاش: ${Number(inv.computedCashPaid).toFixed(2)}</span>
                     <span style="color: var(--info);">محفظة: ${Number(inv.computedWalletPaid).toFixed(2)}</span>
+                    ` : ''}
+                    <span class="fw-bold text-dark">الحساب السابق: ${prevBalance.toFixed(2)}</span>
                 </div>
-                ` : ''}
 
                 <div id="details_${inv.id}" style="display:none;margin-top:10px;">
                     <table class="table table-bordered table-sm">
@@ -350,7 +359,14 @@
         const inv = allInvoices.find(i => i.id === invoiceId);
         if(!inv) return;
 
-        const supName = suppliersNames[inv.supplierId] || 'مورد غير معروف';
+        const supplierName = suppliersData[inv.supplierId] ? suppliersData[inv.supplierId].name : 'مورد غير معروف';
+        
+        // حساب الرصيد السابق للمورد قبل حركة هذه الفاتورة
+        let prevBalance = 0;
+        if (inv.supplierId && suppliersData[inv.supplierId]) {
+            prevBalance = suppliersData[inv.supplierId].currentBalance - inv.displayNetPending;
+        }
+
         const items = inv.items || [];
         const hiddenDiv = document.getElementById('thermalInvoiceHidden');
 
@@ -383,8 +399,10 @@
         const cashPaid = Number(inv.computedCashPaid || 0);
         const walletPaid = Number(inv.computedWalletPaid || 0);
         const netPending = Number(inv.displayNetPending);
+        
+        // الرصيد الإجمالي الكلي المطلوب للمورد بعد معالجة الفاتورة الحالية
+        const finalSupplierTotal = prevBalance + netPending;
 
-        // وصف السداد للصورة الحرارية
         let paymentDesc = "آجل";
         if(cashPaid > 0 && walletPaid > 0) paymentDesc = "مشترك (كاش + محفظة)";
         else if(cashPaid > 0) paymentDesc = "نقدي كاش";
@@ -397,7 +415,7 @@
             </div>
             <div style="font-size: 13px; margin-bottom: 10px; border-bottom:1px dashed #000; padding-bottom:8px;">
                 <div><b>نوع الحركة:</b> ${inv.isReturn ? 'مرتجع شراء ↩️' : 'فاتورة شراء 🧾'}</div>
-                <div><b>المورد:</b> ${supName}</div>
+                <div><b>المورد:</b> ${supplierName}</div>
                 <div><b>التاريخ:</b> ${inv.date || 'بلا تاريخ'}</div>
                 <div><b>طريقة السداد:</b> ${paymentDesc}</div>
             </div>
@@ -413,8 +431,12 @@
                 </tbody>
             </table>
             <div class="term-footer">
+                <div class="term-row" style="color: #555;">
+                    <span>الحساب السابق للمورد:</span>
+                    <span style="font-family:'Consolas', monospace;">${prevBalance.toFixed(2)} ج.م</span>
+                </div>
                 <div class="term-row">
-                    <span>إجمالي الفاتورة:</span>
+                    <span>إجمالي الفاتورة الحالية:</span>
                     <span style="font-family:'Consolas', monospace;">${inv.isReturn ? '-' : ''}${grossTotal.toFixed(2)} ج.م</span>
                 </div>
                 ${cashPaid > 0 ? `
@@ -427,9 +449,13 @@
                     <span>المدفوع محفظة:</span>
                     <span style="font-family:'Consolas', monospace;">-${walletPaid.toFixed(2)} ج.م</span>
                 </div>` : ''}
-                <div class="term-row" style="border-top:1px dashed #000; padding-top:6px; font-size:16px;">
-                    <span>الصافي المتبقي المطلوب:</span>
+                <div class="term-row" style="border-top:1px dotted #000; padding-top:4px;">
+                    <span>الصافي الآجل للفاتورة:</span>
                     <span style="font-family:'Consolas', monospace;">${inv.isReturn ? '-' : ''}${netPending.toFixed(2)} ج.م</span>
+                </div>
+                <div class="term-row" style="border-top:2px dashed #000; padding-top:6px; font-size:16px; color: #0b5e3d;">
+                    <span>إجمالي المتبقي الكلي للمورد:</span>
+                    <span style="font-family:'Consolas', monospace;">${finalSupplierTotal.toFixed(2)} ج.م</span>
                 </div>
             </div>
             <div style="text-align:center; margin-top:20px; font-size:12px; color:#333; border-top:1px dashed #000; padding-top:8px;">
@@ -454,7 +480,7 @@
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = `فاتورة_${supName}.png`;
+                    a.download = `فاتورة_${supplierName}.png`;
                     a.click();
                 }
             }, "image/png");
@@ -467,7 +493,7 @@
     window.searchInvoices = () => {
         const term = document.getElementById('searchInput').value.toLowerCase();
         const filtered = allInvoices.filter(inv => {
-            const name = (suppliersNames[inv.supplierId] || '').toLowerCase();
+            const name = suppliersData[inv.supplierId] ? suppliersData[inv.supplierId].name.toLowerCase() : '';
             return name.includes(term) || (inv.date && inv.date.includes(term));
         });
         renderInvoices(filtered);
@@ -495,7 +521,7 @@
         excelData.push(["التاريخ", "الحركة", "اسم العميل/المورد", "اسم الصنف", "عدد قطعة", "عدد كرتونة", "سعر قطعة", "سعر كرتونة"]);
 
         allInvoices.forEach(inv => {
-            const supplierName = suppliersNames[inv.supplierId] || "";
+            const supplierName = suppliersData[inv.supplierId] ? suppliersData[inv.supplierId].name : "";
 
             if (Array.isArray(inv.items) && inv.items.length > 0) {
                 inv.items.forEach(item => {
