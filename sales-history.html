@@ -312,38 +312,76 @@
         return "00:00 م";  
     }  
   
-    window.renderInvoices = (invoices) => {
-    const container = document.getElementById('invoicesList');
-    container.innerHTML = invoices.map(inv => {
-        // دمج التاريخ والوقت بذكاء
-        let dateDisplay = inv.date ? inv.date : "";
-        let timeDisplay = inv.time ? inv.time : "";
-        
-        // إذا كان التاريخ مدمجاً مع الوقت في حقل واحد (مثل حالة مصطفى العشماوي)
-        if (!dateDisplay && timeDisplay.includes('/')) {
-            const parts = timeDisplay.split(' ');
-            dateDisplay = parts[0];
-            timeDisplay = parts.slice(1).join(' ');
-        }
-
-        return `
-            <div class="invoice-item">
-                <div class="d-flex justify-content-between align-items-start mb-2">
-                    <div>
-                        <h6 class="fw-bold mb-1">${inv.customerName || 'عميل نقدى'}</h6>
-                        <span class="detail-badge">
-                            <i class="far fa-clock ms-1"></i> 
-                            ${dateDisplay ? dateDisplay + ' ' : ''}${timeDisplay || '---'}
-                        </span>
-                    </div>
-                    <button class="btn btn-sm btn-outline-dark" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i></button>
-                </div>
-                <!-- باقي الكود كما هو -->
-            </div>
-        `;
-    }).join('');
-};
-
+    window.renderInvoices = (invoices) => {  
+        currentRenderedInvoices = invoices;  
+        const container = document.getElementById('invoicesList');  
+        if (invoices.length === 0) {  
+            container.innerHTML = `<div class="text-center py-4 text-muted fw-bold">لا توجد فواتير مطابقة للبحث أو الفلتر المختار.</div>`;  
+            return;  
+        }  
+  
+        container.innerHTML = invoices.map(inv => {  
+            let methodBadgeColor = "bg-secondary";  
+            if(inv.paymentMethod === "سداد نقدى" || inv.paymentMethod === "كاش" || inv.paymentMethod === "نقدى") methodBadgeColor = "bg-success";  
+            else if(inv.paymentMethod === "سداد مرئية" || inv.paymentMethod === "سداد محفظه" || inv.paymentMethod === "محفظه") methodBadgeColor = "bg-primary";  
+            else if(inv.paymentMethod === "آجل") methodBadgeColor = "bg-warning text-dark";  
+  
+            const totalPaid = inv.calculatedCash + inv.calculatedWallet;  
+            const displayTime = formatInvoiceTime(inv.time, inv.date);  
+            const originalDate = parseInvoiceDate(inv);  
+            let shortDate = originalDate;  
+            if (originalDate.includes('-')) {  
+                const parts = originalDate.split('-');  
+                shortDate = `${parts[2]}/${parts[1]}`;  
+            }  
+  
+            const isModified = inv.originalDate || (inv.items && inv.items.some(i => i.originalQty !== undefined)) || inv.notes === "معدلة";  
+  
+            return `  
+                <div class="invoice-item">  
+                    <div class="d-flex justify-content-between align-items-start mb-1">  
+                        <div>  
+                            <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.88rem;">${inv.customerName || 'عميل نقدى'}</h6>  
+                            <div class="meta-container">  
+                                <span class="badge ${methodBadgeColor}" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير محدد'}</span>  
+                                <span class="detail-badge" id="badge_date_text_${inv.id}"><i class="far fa-clock"></i> ${shortDate} ${displayTime}</span>  
+                            </div>  
+                            ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة التعديل</div>` : ''}  
+                        </div>  
+                        <div class="invoice-actions-group">  
+                            <button class="btn btn-outline-info text-dark" onclick="toggleDetails('${inv.id}')" title="عرض الأصناف"><i class="fas fa-eye"></i></button>  
+                            <button class="btn btn-outline-dark" onclick="window.printThermalInvoice('${inv.id}')" title="طباعة حرارية 80"><i class="fas fa-print"></i></button>
+                            <button class="btn btn-outline-success" onclick="window.shareThermalInvoice('${inv.id}')" title="مشاركة الفاتورة"><i class="fas fa-share-alt"></i></button>
+                            <button class="btn btn-outline-primary" onclick="editInvoice('${inv.id}')" title="تعديل الفاتورة"><i class="fas fa-edit"></i></button>  
+                            <button class="btn btn-outline-danger" onclick="deleteInvoice('${inv.id}')" title="حذف الفاتورة"><i class="fas fa-trash"></i></button>  
+                        </div>  
+                    </div>  
+                    <div class="financial-grid">  
+                        <div class="fin-box text-dark">إجمالي الفاتورة <span>${(Number(inv.total) || 0).toFixed(2)}</span></div>  
+                        <div class="fin-box text-success">المسدد الشامل <span>${totalPaid.toFixed(2)}</span></div>  
+                        <div class="fin-box text-danger">الأجل (المتبقي) <span>${(Number(inv.remaining) || 0).toFixed(2)}</span></div>  
+                        <div class="fin-box text-secondary">حساب سابق كان كام <span>${(Number(inv.previousBalance || 0) || 0).toFixed(2)}</span></div>  
+                    </div>  
+                    <div id="details_box_${inv.id}" style="display:none;">  
+                        <table class="items-preview-table">  
+                            <thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>  
+                            <tbody>  
+                                ${(inv.items || []).map(itm => `  
+                                    <tr>  
+                                        <td style="text-align:right;">${itm.name}</td>  
+                                        <td>${itm.qty}</td>  
+                                        <td>${(Number(itm.price) || 0).toFixed(2)}</td>  
+                                        <td>${((Number(itm.qty) || 0) * (Number(itm.price) || 0)).toFixed(2)}</td>  
+                                    </tr>  
+                                `).join('')}  
+                            </tbody>  
+                        </table>  
+                    </div>  
+                </div>  
+            `;  
+        }).join('');  
+    };  
+  
     function calculateStats() {  
         let todayCash = 0; let todayWallet = 0; let todayRemaining = 0; let todaySales = 0;  
         const filterInput = document.getElementById('dateFilterInput')?.value;  
