@@ -89,11 +89,8 @@
 </head>  
 <body>  
 
-<!-- ═══ OFFLINE BANNER ═══ -->
-<div id="offlineBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:99999;
-  background:#92400e; color:#fef3c7; padding:8px 16px; text-align:center;
-  font-family:'Cairo',sans-serif; font-size:0.8rem; font-weight:700;
-  align-items:center; justify-content:center; gap:8px;">
+<!-- ═══ BANNER OFFLINE ═══ -->
+<div id="offlineBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:99999; background:#92400e; color:#fef3c7; padding:8px 16px; text-align:center; font-family:'Cairo',sans-serif; font-size:0.8rem; font-weight:700; align-items:center; justify-content:center; gap:8px;">
   <i class="fas fa-wifi" style="opacity:.7"></i>
   <span id="offlineBannerText">أنت غير متصل — تعمل على آخر بيانات محفوظة</span>
 </div>
@@ -436,7 +433,7 @@
     async function loadData() {
         const todayStr = new Date().toLocaleDateString('en-CA');
 
-        // ── خطوة 1: تحميل من الـ cache أولاً (فوري - يعمل offline) ──
+        // تحميل من الكاش المحلي فوراً لضمان السرعة والدعم دون إنترنت
         try {
             const cachedInv  = localStorage.getItem(CACHE_KEY_INVOICES);
             const cachedCust = localStorage.getItem(CACHE_KEY_CUSTOMERS);
@@ -450,7 +447,7 @@
                 calculateStats();
                 const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);
                 window.renderInvoices(todayInvoices);
-                // لو offline وعندنا cache - اكتفى
+                
                 if (!navigator.onLine) {
                     showOfflineBanner(true);
                     return;
@@ -458,7 +455,6 @@
             }
         } catch(_) {}
 
-        // ── خطوة 2: تحديث من Firebase (online) ──
         if (!navigator.onLine) {
             showOfflineBanner(true);
             if (allInvoices.length === 0) {
@@ -468,6 +464,7 @@
             return;
         }
 
+        // جلب وتحديث البيانات الحية من السيرفر (Firebase)
         try {
             const [custSnap, transSnap, invSnap] = await Promise.all([
                 getDocs(collection(db, "customers")),
@@ -491,17 +488,16 @@
 
             const rawInvoices = invSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            // حفظ في localStorage للاستخدام offline
+            // تحديث مخزن الكاش المحلي
             try {
                 localStorage.setItem(CACHE_KEY_CUSTOMERS, JSON.stringify(custMap));
                 localStorage.setItem(CACHE_KEY_TRANS, JSON.stringify(transMap));
-                // حفظ بدون Firestore Timestamps (مش قابلة للـ JSON)
                 const serializableInv = rawInvoices.map(inv => ({
                     ...inv,
                     timestamp: inv.timestamp?.seconds ? { seconds: inv.timestamp.seconds } : null
                 }));
                 localStorage.setItem(CACHE_KEY_INVOICES, JSON.stringify(serializableInv));
-            } catch(_) { /* localStorage ممكن يكون ممتلئ */ }
+            } catch(_) {}
 
             allInvoices = processInvoices(custMap, transMap, rawInvoices);
             calculateStats();
@@ -511,7 +507,6 @@
 
         } catch (e) {
             console.error(e);
-            // Firebase فشل - لو عندنا cache يكفي
             if (allInvoices.length > 0) {
                 showOfflineBanner(true, 'فشل التحديث من السيرفر - عرض آخر بيانات محفوظة');
             } else {
@@ -538,7 +533,7 @@
         }  
     };  
 
-    // كود توليد هيكل وقوالب الفاتورة الحرارية 80 ملم
+    // بناء قالب الفاتورة الحرارية 80 مم
     function generateThermalInvoiceHtml(inv) {
         const displayTime = formatInvoiceTime(inv.time, inv.date);
         const invDate = parseInvoiceDate(inv);
@@ -601,7 +596,6 @@
         `;
     }
 
-    // وظيفة الطباعة الحرارية
     window.printThermalInvoice = (id) => {
         const inv = allInvoices.find(i => i.id === id);
         if (!inv) return;
@@ -610,7 +604,6 @@
         window.print();
     };
 
-    // وظيفة مشاركة الفاتورة كصورة حرارية
     window.shareThermalInvoice = async (id) => {
         const inv = allInvoices.find(i => i.id === id);
         if (!inv) return;
@@ -881,7 +874,6 @@
   
     document.getElementById('exportExcelBtn').onclick = window.exportToExcel;  
   
-
     function showOfflineBanner(show, msg) {
         const banner = document.getElementById('offlineBanner');
         if (show) {
