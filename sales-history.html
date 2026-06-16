@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">  
     <title>سجل المبيعات - الزيادي لزيوت السيارات</title>  
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">  
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">  
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">  
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">  
     
-    <!-- مكتبات التصدير والمشاركة -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
@@ -167,7 +166,6 @@
     </div>  
 </div>  
 
-<!-- حاوية طباعة الفاتورة الحرارية المخفية -->
 <div id="thermalPrintSection"></div>
 
 <div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">  
@@ -182,7 +180,7 @@
 
 <script type="module">  
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";  
-    import { getFirestore, collection, getDocs, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
+    import { getFirestore, collection, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
   
     const firebaseConfig = {  
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",  
@@ -398,14 +396,17 @@
   
     async function loadData() {  
         try {  
+            // جلب البيانات بدون تطبيق ترتيب الفايربيس الصارم لتفادي مشكلة المستندات التي لا تحوي تيمستامب
             const [custSnap, transSnap, invSnap] = await Promise.all([  
                 getDocs(collection(db, "customers")),  
                 getDocs(collection(db, "transactions")),  
-                getDocs(query(collection(db, "invoices"), orderBy("timestamp", "asc")))  
+                getDocs(collection(db, "invoices"))  
             ]);  
+            
             custSnap.forEach(d => {  
                 customersData[d.id] = { id: d.id, name: d.data().name, initialBalance: Number(d.data().initialBalance) || 0 };  
             });  
+            
             let transByCustomer = {};  
             transSnap.forEach(doc => {  
                 const tr = doc.data();  
@@ -413,9 +414,11 @@
                 if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);  
                 else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);  
             });  
+            
             let runningBalances = {};   
             let tempInvoices = [];  
             const todayStr = new Date().toLocaleDateString('en-CA');  
+            
             invSnap.forEach(doc => {  
                 const data = doc.data();  
                 const cid = data.customerId;  
@@ -442,7 +445,14 @@
                 };  
                 tempInvoices.push(parsedInvoice);  
             });  
-            allInvoices = tempInvoices.reverse();  
+            
+            // ترتيب الفواتير برمجياً بواسطة الجافا سكريبت بناءً على التوقيت الزمني بأمان
+            allInvoices = tempInvoices.sort((a, b) => {
+                const timeA = a.timestamp?.seconds || 0;
+                const timeB = b.timestamp?.seconds || 0;
+                return timeA - timeB;
+            }).reverse();  
+            
             calculateStats();  
             const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);  
             window.renderInvoices(todayInvoices);  
@@ -498,7 +508,7 @@
                 <div style="font-size:11px; border-bottom:1px dashed #000; padding-bottom:6px; margin-bottom:8px; line-height:1.5;">
                     <div><b>العميل:</b> ${inv.customerName || 'عميل نقدى'}</div>
                     <div><b>التاريخ:</b> ${invDate} | ${displayTime}</div>
-                    <div><b>طريقة السداد:</b> ${inv.paymentMethod || 'غير محدد'}</div>
+                    <div><b>طريقة السداد:</b> ${inv.paymentMethod || 'غير مححدد'}</div>
                 </div>
                 <table style="width:100%; font-size:11px; border-collapse:collapse; margin-bottom:8px;">
                     <thead>
