@@ -238,6 +238,17 @@
 </head>
 <body>
 
+<!-- ═══ OFFLINE BANNER ═══ -->
+<div id="offlineBanner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;
+  background:#92400e;color:#fef3c7;padding:9px 16px;text-align:center;
+  font-family:'Cairo',sans-serif;font-size:0.82rem;font-weight:700;
+  display:flex;align-items:center;justify-content:center;gap:8px">
+  <i class="fas fa-wifi" style="opacity:.6"></i>
+  أنت غير متصل — الفاتورة ستُحفظ محلياً وتُرسل تلقائياً عند عودة النت
+  <span id="offlinePendingCount"></span>
+</div>
+<!-- ═══════════════════════ -->
+
 <div class="floating-items-badge" id="floatingItemsCount">
     <i class="fas fa-boxes"></i>
     <span>الأصناف:</span>
@@ -517,8 +528,8 @@
 </div>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { initializeFirestore, persistentLocalCache, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -530,8 +541,8 @@
         measurementId: "G-WE04GK5XZZ"
     };
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+    const db = initializeFirestore(app, { localCache: persistentLocalCache() });
     let inventory = [];
     let customers = [];
     let editId = new URLSearchParams(window.location.search).get('edit');
@@ -1049,22 +1060,39 @@
                 const newInvoiceData = {
                     ...baseInvoiceData,
                     time: targetTime,
-                    timestamp: serverTimestamp()
+                    timestamp: serverTimestamp(),
+                    createdAt: new Date().toISOString()
                 };
 
                 for (const item of items) {
-                    const p = inventory.find(i => i.id === item.stockId);
-                    const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                    const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                    
-                    if (item.isReturn) {
-                        await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(qtyPcs) });
-                    } else {
-                        await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
-                    }
+                    try {
+                        const p = inventory.find(i => i.id === item.stockId);
+                        const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                        const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
+                        if (item.isReturn) {
+                            await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(qtyPcs) });
+                        } else {
+                            await updateDoc(doc(db, "inventory", item.stockId), { totalPcs: increment(-qtyPcs) });
+                        }
+                    } catch(_) { /* يكمل حتى لو المخزون فشل offline */ }
                 }
-                const newDocRef = await addDoc(collection(db, "invoices"), newInvoiceData);
-                editId = newDocRef.id;
+                let newDocRef;
+                try {
+                    newDocRef = await addDoc(collection(db, "invoices"), newInvoiceData);
+                    editId = newDocRef.id;
+                } catch (fbErr) {
+                    // Firebase فشل — احفظ offline
+                    if (!navigator.onLine) {
+                        addToOfflineQueue(newInvoiceData);
+                        prepareThermalReceipt(newInvoiceData, currentFetchedOldBalance);
+                        isChanged = false;
+                        saveBtn.disabled = false;
+                        saveBtn.innerText = "حفظ وتحديث البيانات";
+                        document.getElementById('shareModal').style.display = 'flex';
+                        return;
+                    }
+                    throw fbErr; // رمي الخطأ للـ catch الخارجي
+                }
                 
                 prepareThermalReceipt(newInvoiceData, currentFetchedOldBalance);
             } else {
@@ -1189,6 +1217,96 @@
         });
     };
 
+
+    /* ══════════════════════════════════════════
+       OFFLINE QUEUE SYSTEM
+    ══════════════════════════════════════════ */
+    const OFFLINE_QUEUE_KEY = 'zaiady_invoice_queue';
+
+    function getOfflineQueue() {
+        try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); } catch { return []; }
+    }
+    function saveOfflineQueue(q) {
+        localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q));
+    }
+    function addToOfflineQueue(invoiceData) {
+        const q = getOfflineQueue();
+        const entry = {
+            ...invoiceData,
+            _offlineId: Date.now() + '_' + Math.random().toString(36).slice(2),
+            _savedAt: new Date().toLocaleString('ar-EG')
+        };
+        q.push(entry);
+        saveOfflineQueue(q);
+        updateOfflineUI();
+        return entry._offlineId;
+    }
+    function removeFromOfflineQueue(offlineId) {
+        const q = getOfflineQueue().filter(i => i._offlineId !== offlineId);
+        saveOfflineQueue(q);
+        updateOfflineUI();
+    }
+
+    function updateOfflineUI() {
+        const q = getOfflineQueue();
+        const banner = document.getElementById('offlineBanner');
+        const countEl = document.getElementById('offlinePendingCount');
+        if (!navigator.onLine) {
+            banner.style.display = 'flex';
+            // push page content down so banner doesn't overlap
+            document.body.style.paddingTop = '40px';
+        } else {
+            banner.style.display = 'none';
+            document.body.style.paddingTop = '';
+        }
+        if (q.length > 0 && countEl) {
+            countEl.textContent = '| ' + q.length + ' فاتورة معلقة';
+        } else if (countEl) {
+            countEl.textContent = '';
+        }
+    }
+
+    async function syncOfflineQueue() {
+        if (!navigator.onLine) return;
+        const q = getOfflineQueue();
+        if (!q.length) return;
+        let synced = 0;
+        for (const entry of q) {
+            try {
+                const { _offlineId, _savedAt, ...invoiceData } = entry;
+                invoiceData.timestamp = serverTimestamp();
+                invoiceData.offlineSynced = true;
+                await addDoc(collection(db, 'invoices'), invoiceData);
+                // update inventory
+                for (const item of (invoiceData.items || [])) {
+                    if (!item.stockId) continue;
+                    const p = inventory.find(i => i.id === item.stockId);
+                    const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                    const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
+                    try {
+                        await updateDoc(doc(db, 'inventory', item.stockId), {
+                            totalPcs: increment(item.isReturn ? qtyPcs : -qtyPcs)
+                        });
+                    } catch(_) {}
+                }
+                removeFromOfflineQueue(_offlineId);
+                synced++;
+            } catch(err) { console.warn('Sync failed for entry:', err); }
+        }
+        if (synced > 0) {
+            console.log(`✅ تم رفع ${synced} فاتورة محفوظة offline`);
+        }
+    }
+
+    // Network listeners
+    window.addEventListener('online', () => {
+        updateOfflineUI();
+        syncOfflineQueue(); // auto sync when net returns
+    });
+    window.addEventListener('offline', () => updateOfflineUI());
+
+
+    updateOfflineUI();
     init();
 </script>
 </body>
