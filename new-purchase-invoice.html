@@ -157,6 +157,10 @@
         <span class="small text-muted fw-bold"><i class="fas fa-boxes"></i> عدد البنود:</span>
         <span class="fw-bold text-dark fs-6" id="itemsCount">0</span>
     </div>
+    <div class="total-container" style="background: #f8faf9; border-radius: 12px; border: 1px solid var(--border);">
+        <span class="small text-muted fw-bold"><i class="fas fa-wallet"></i> الحساب السابق للمورد:</span>
+        <span class="amount text-dark fs-6 fw-bold" id="displayPreviousBalance">0.00</span>
+    </div>
     <div class="total-container">
         <span class="small text-muted fw-bold"><i class="fas fa-calculator"></i> إجمالي الفاتورة:</span>
         <span class="amount total" id="grossTotal">0.00</span>
@@ -170,8 +174,12 @@
         <span class="amount paid-wallet" id="displayWallet">0.00</span>
     </div>
     <div class="total-container" style="background: #fff5f5; border-radius: 12px; border: 1px solid #ffe3e3;">
-        <span class="small text-danger fw-bold"><i class="fas fa-receipt"></i> الصافي الآجل (المتبقي للمورد):</span>
+        <span class="small text-danger fw-bold"><i class="fas fa-receipt"></i> الصافي الآجل (المتبقي للفاتورة):</span>
         <span class="amount pending" id="netTotal">0.00</span>
+    </div>
+    <div class="total-container" style="background: #eefdf4; border-radius: 12px; border: 1px solid #bbf7d0;">
+        <span class="small text-success fw-bold"><i class="fas fa-file-invoice-dollar"></i> إجمالي الرصيد المتبقي الكلي للمورد:</span>
+        <span class="amount text-success fw-bold fs-5" id="totalSupplierBalance">0.00</span>
     </div>
     <button class="btn-save" id="btnSaveInvoice">حفظ وترحيل الفاتورة</button>
 </div>
@@ -198,6 +206,7 @@
     const orderId = urlParams.get('orderId'); 
 
     let allInventory = [];
+    let suppliersData = {}; // مخزن كاش لبيانات وأرصدة الموردين
     let isDataChanged = false; 
     let isSubmitting = false; 
     let oldInvoiceData = null;
@@ -230,7 +239,15 @@
         const supSelect = document.getElementById('supplierSelect');
         const supSnap = await getDocs(collection(db, "suppliers"));
         supSelect.innerHTML = ""; 
-        supSnap.forEach(d => { supSelect.innerHTML += `<option value="${d.id}">${d.data().name}</option>`; });
+        suppliersData = {}; 
+        supSnap.forEach(d => { 
+            const data = d.data();
+            suppliersData[d.id] = { name: data.name, currentBalance: Number(data.currentBalance) || 0 };
+            supSelect.innerHTML += `<option value="${d.id}">${data.name}</option>`; 
+        });
+
+        // تحديث الحسابات فوراً عند تغيير المورد المختار
+        supSelect.addEventListener('change', () => { window.calculateTotal(); });
 
         const invSnap = await getDocs(collection(db, "inventory"));
         allInventory = [];
@@ -298,7 +315,6 @@
 
     window.addNewItemRow = (itemData = null) => {
         const id = Date.now() + Math.random();
-        // إعطاء الأولوية للكرتونة دائمًا كخيار افتراضي أساسي
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
         const isReturnChecked = itemData && itemData.returnQty > 0;
         isDataChanged = true;
@@ -374,11 +390,9 @@
             const found = allInventory.find(p => p.name === e.target.value);
             if(found) {
                 row.querySelector('.item-buy').value = found.buy || 0;
-                // عند اختيار صنف، نضع الأولوية القصوى لـ كرتونة
                 unitSelect.value = "كرتونة";
                 unitSelect.dispatchEvent(new Event('change'));
             } else {
-                // إذا كتب صنفاً غير موجود، نقوم بمسح الحقل وتنبيهه فوراً لحماية البيانات
                 alert("عذرًا، هذا الصنف غير مسجل بالنظام. يرجى اختيار صنف من القائمة المنسدلة فقط.");
                 e.target.value = "";
             }
@@ -417,6 +431,27 @@
         document.getElementById('displayCash').innerText = cashVal.toFixed(2);
         document.getElementById('displayWallet').innerText = walletVal.toFixed(2);
         document.getElementById('netTotal').innerText = pendingVal.toFixed(2);
+
+        // حساب وإظهار "الحساب السابق للمورد" بدقة
+        const supplierId = document.getElementById('supplierSelect').value;
+        let prevBalance = 0;
+        if (supplierId && suppliersData[supplierId]) {
+            prevBalance = suppliersData[supplierId].currentBalance;
+            
+            // في حالة التعديل: نستبعد تأثير المديونية القديمة للفاتورة لنحصل على الصافي قبل الفاتورة
+            if (editId && oldInvoiceData && supplierId === oldInvoiceData.supplierId) {
+                const oldGross = Number(oldInvoiceData.grossTotal || oldInvoiceData.total || 0);
+                const oldCash = Number(oldInvoiceData.cashPaid || 0);
+                const oldWallet = Number(oldInvoiceData.walletPaid || 0);
+                const oldDebt = oldGross - (oldCash + oldWallet);
+                prevBalance = prevBalance - oldDebt;
+            }
+        }
+        document.getElementById('displayPreviousBalance').innerText = prevBalance.toFixed(2);
+        
+        // حساب إجمالي الرصيد المتبقي الكلي للمورد بعد هذه الفاتورة
+        let totalSupplierFinal = prevBalance + pendingVal;
+        document.getElementById('totalSupplierBalance').innerText = totalSupplierFinal.toFixed(2);
     };
 
     document.getElementById('btnSaveInvoice').addEventListener('click', async () => {
@@ -434,7 +469,6 @@
         const rows = document.querySelectorAll('.item-row');
         if(!supplierId || rows.length === 0) return alert("برجاء إكمال البيانات وإضافة الأصناف أولاً");
 
-        // نظام التحقق الصارم: منع الحفظ نهائياً في حال وجود صنف غير مطابق للمخزن
         for (const row of rows) {
             const name = row.querySelector('.item-name').value.trim();
             const isExist = allInventory.some(p => p.name === name);
@@ -448,7 +482,6 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل...';
 
         try {
-            // عكس التأثير القديم عند التعديل لضبط الرصيد السابق للمورد
             if (editId && oldInvoiceData) {
                 const oldGross = Number(oldInvoiceData.grossTotal || oldInvoiceData.total || 0);
                 const oldCash = Number(oldInvoiceData.cashPaid || 0);
@@ -486,7 +519,6 @@
                 }
             }
 
-            // تحديد مسمى نوع السداد المكتوب في الفاتورة للتوثيق
             let finalPaymentType = "آجل";
             if(cashPaid > 0 && walletPaid > 0) finalPaymentType = "مشترك (كاش + محفظة)";
             else if(cashPaid > 0) finalPaymentType = "نقدي (كاش)";
@@ -506,12 +538,10 @@
                 currentDocId = newDocRef.id;
             }
 
-            // تحديث كشف الحساب التراكمي للمورد بالصافي المتبقي
             if (pendingAmount !== 0) {
                 await updateDoc(doc(db, "suppliers", supplierId), { currentBalance: increment(pendingAmount) });
             }
 
-            // الخزنة الذكية: ترحيل المبالغ المنفصلة حسب نوع الحساب المالي
             if (cashPaid > 0) {
                 await addDoc(collection(db, "transactions"), {
                     amount: cashPaid, type: "صرف", actionType: "سداد مورد",
