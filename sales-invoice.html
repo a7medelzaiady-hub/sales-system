@@ -346,7 +346,6 @@
     </div>
 </div>
 
-<!-- مراجعة بنود الفاتورة -->
 <div id="reviewModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
     <div style="background: white; width: 92%; max-width: 420px; padding: 20px; border-radius: var(--card-radius); box-shadow: 0 12px 30px rgba(0,0,0,0.25); animation: scaleUp 0.2s ease; max-height: 85vh; overflow-y: auto;">
         <div class="text-center mb-3">
@@ -407,7 +406,6 @@
     </div>
 </div>
 
-<!-- نافذة المشاركة -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
     <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: var(--card-radius); text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: scaleUp 0.25s ease;">
         <div style="width: 60px; height: 60px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
@@ -426,7 +424,6 @@
     </div>
 </div>
 
-<!-- حاوية الفاتورة الحرارية -->
 <div id="thermalReceiptContainer" style="position: absolute; left: -9999px; top: -9999px;">
     <div id="thermalReceipt" style="width: 380px; background: #fff; color: #000; padding: 25px 20px; font-family: 'Cairo', sans-serif; direction: rtl; font-size: 14px; line-height: 1.6;">
         <div style="text-align: center; margin-bottom: 20px; border-bottom: 3px double #000; padding-bottom: 12px; width: 100%;">
@@ -1037,7 +1034,7 @@
                 cashAmount: Number(finalCash) || 0,     
                 walletAmount: Number(finalWallet) || 0, 
                 items: items,
-                time: currentInvoiceTime, // تحديث: تم ضمان إرسال حقل الوقت الأصلي/المعدل في الحالتين لمنع اختفائه
+                time: currentInvoiceTime, 
                 notes: "" 
             };
 
@@ -1048,19 +1045,23 @@
                 };
 
                 for (const item of items) {
-                    const itemDocRef = doc(db, "inventory", item.stockId);
-                    const itemSnap = await getDoc(itemDocRef);
-                    
-                    if (itemSnap.exists()) {
-                        const p = inventory.find(i => i.id === item.stockId);
-                        const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                        const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
+                    try {
+                        const itemDocRef = doc(db, "inventory", item.stockId);
+                        const itemSnap = await getDoc(itemDocRef);
                         
-                        if (item.isReturn) {
-                            await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) });
-                        } else {
-                            await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) });
+                        if (itemSnap.exists()) {
+                            const p = inventory.find(i => i.id === item.stockId);
+                            const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                            const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
+                            
+                            if (item.isReturn) {
+                                await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) });
+                            } else {
+                                await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) });
+                            }
                         }
+                    } catch (err) {
+                        console.warn(`تنبيه: صنف ممسوح أو غير متوفر في المخزن أثناء الإضافة: ${item.stockId}`, err);
                     }
                 }
                 const newDocRef = await addDoc(collection(db, "invoices"), newInvoiceData);
@@ -1077,37 +1078,47 @@
                     if (oldData && oldData.items) {
                         for (const oldItem of oldData.items) {
                             if (oldItem.stockId) {
-                                const itemDocRef = doc(db, "inventory", oldItem.stockId);
-                                const itemSnap = await getDoc(itemDocRef);
-                                
-                                if (itemSnap.exists()) {
-                                    const p = inventory.find(i => i.id === oldItem.stockId);
-                                    const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                                    const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * factor : oldItem.qty;
+                                try {
+                                    const itemDocRef = doc(db, "inventory", oldItem.stockId);
+                                    const itemSnap = await getDoc(itemDocRef);
                                     
-                                    if (oldItem.isReturn) {
-                                        await updateDoc(itemDocRef, { totalPcs: increment(-oldQtyPcs) });
-                                    } else {
-                                        await updateDoc(itemDocRef, { totalPcs: increment(oldQtyPcs) });
+                                    if (itemSnap.exists()) {
+                                        const p = inventory.find(i => i.id === oldItem.stockId);
+                                        const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                                        const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * factor : oldItem.qty;
+                                        
+                                        if (oldItem.isReturn) {
+                                            await updateDoc(itemDocRef, { totalPcs: increment(-oldQtyPcs) });
+                                        } else {
+                                            await updateDoc(itemDocRef, { totalPcs: increment(oldQtyPcs) });
+                                        }
                                     }
+                                } catch (err) {
+                                    console.warn(`تنبيه: صنف قديم ممسوح أثناء إعادة الكميات للمخزن: ${oldItem.stockId}`, err);
                                 }
                             }
                         }
                     }
 
                     for (const item of items) {
-                        const itemDocRef = doc(db, "inventory", item.stockId);
-                        const itemSnap = await getDoc(itemDocRef);
-                        
-                        if (itemSnap.exists()) {
-                            const p = inventory.find(i => i.id === item.stockId);
-                            const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                            const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                            
-                            if (item.isReturn) {
-                                await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) });
-                            } else {
-                                await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) });
+                        if (item.stockId) {
+                            try {
+                                const itemDocRef = doc(db, "inventory", item.stockId);
+                                const itemSnap = await getDoc(itemDocRef);
+                                
+                                if (itemSnap.exists()) {
+                                    const p = inventory.find(i => i.id === item.stockId);
+                                    const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                                    const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
+                                    
+                                    if (item.isReturn) {
+                                        await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) });
+                                    } else {
+                                        await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) });
+                                    }
+                                }
+                            } catch (err) {
+                                console.warn(`تنبيه: صنف ممسوح أثناء خصم الكميات الجديدة من المخزن: ${item.stockId}`, err);
                             }
                         }
                     }
