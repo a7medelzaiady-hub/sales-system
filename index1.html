@@ -8,6 +8,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
+    <!-- إعدادات التطبيق الهاتفي PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link class="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0b5e3d">
+
     <style>
         :root {
             --bg-deep: #f4f7f6;
@@ -48,7 +55,8 @@
             margin: 0;
             color: var(--text-primary);
             line-height: 1.6;
-            transition: background 0.3s ease, color 0.3s ease;
+            transition: background 0.3s ease, color 0.3s ease, padding-top 0.3s ease;
+            padding-top: 0;
         }
 
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -123,7 +131,7 @@
             .dashboard { grid-template-columns: repeat(4, 1fr); padding: 25px 20px; }
         }
 
-        /* تنسيق خاص وذكي جداً عندما يتبقى 3 كروت أو أقل للموظف */
+        /* تنسيق كروت الموظف المحدودة */
         .dashboard.restricted-layout {
             display: flex !important;
             flex-direction: row;
@@ -160,7 +168,6 @@
             overflow: hidden;
         }
 
-        /* زيادة حجم وأناقة الكروت في وضع الكروت المحدودة */
         .dashboard.restricted-layout .card {
             padding: 40px 15px;
             border-width: 1.5px;
@@ -198,7 +205,6 @@
             transition: 0.3s;
         }
         
-        /* تكبير الأيقونات والنصوص في وضع العميل المحدود لتعبئة الشاشة بذكاء */
         .dashboard.restricted-layout .icon-box {
             width: 70px;
             height: 70px;
@@ -322,9 +328,15 @@
 </head>
 <body>
 
+    <!-- ═══ BANNER OFFLINE ═══ -->
+    <div id="offlineBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:99999; background:#92400e; color:#fef3c7; padding:8px 16px; text-align:center; font-family:'Cairo',sans-serif; font-size:0.8rem; font-weight:700; align-items:center; justify-content:center; gap:8px;">
+      <i class="fas fa-wifi" style="opacity:.7"></i>
+      <span>أنت تعمل حالياً بدون إنترنت — يتم تصفح النظام عبر الكاش المحلي الآمن</span>
+    </div>
+
     <div class="overlay" id="overlay"></div>
 
-    <header class="top-nav">
+    <header class="top-nav" id="topNavbar">
         <div class="nav-icons">
             <i class="fas fa-bars" onclick="toggleMenu()"></i>
             <i class="fas fa-circle-half-stroke" onclick="toggleTheme()" style="margin-right: 12px;"></i>
@@ -448,16 +460,38 @@
             localStorage.setItem('sanad-theme', body.classList.contains('dark-mode') ? 'dark' : 'light');
         }
 
+        // إدارة شريط وضع الأوفلاين
+        function showOfflineBanner(show) {
+            const banner = document.getElementById('offlineBanner');
+            const navbar = document.getElementById('topNavbar');
+            if (show) {
+                banner.style.display = 'flex';
+                document.body.style.paddingTop = '38px';
+                if (navbar) navbar.style.top = '38px';
+            } else {
+                banner.style.display = 'none';
+                document.body.style.paddingTop = '0';
+                if (navbar) navbar.style.top = '0';
+            }
+        }
+
+        window.addEventListener('online',  () => showOfflineBanner(false));
+        window.addEventListener('offline', () => showOfflineBanner(true));
+
         window.onload = () => {
+            // فحص فوري لحالة الشبكة عند التحميل
+            if (!navigator.onLine) { showOfflineBanner(true); }
+
             if (localStorage.getItem('sanad-theme') === 'dark') {
                 document.body.classList.add('dark-mode');
             }
 
+            // جلب البيانات من جلسة العمل الحالية
             const role = sessionStorage.getItem('role') || 'employee'; 
             const username = sessionStorage.getItem('username') || '';
-
             const savedPermissions = sessionStorage.getItem('permissions');
-            // الصلاحيات الافتراضية للموظف في حالة عدم تحديدها
+            
+            // في وضع الأوفلاين، إذا كانت الجلسة فارغة يمكن الاعتماد على الصلاحيات الافتراضية للموظف Restricted
             const userPermissions = savedPermissions ? JSON.parse(savedPermissions) : ['sales', 'clients', 'vouchers']; 
 
             const roleBadge = document.getElementById('userRoleBadge');
@@ -492,7 +526,7 @@
 
             let visibleCardsCount = 0;
 
-            // --- التحكم في وجهة كارت السندات ديناميكياً بناءً على رتبة الحساب ---
+            // ضبط وجهة كارت السندات بناءً على الرتبة
             const vouchersCard = document.getElementById('cardVouchers');
             if (vouchersCard) {
                 if (role === 'admin') {
@@ -503,7 +537,7 @@
             }
 
             if (role !== 'admin') {
-                // تصفية الكروت بناءً على مصفوفة الصلاحيات الفردية بشكل مرن وبدون إخفاء إجباري للسندات
+                // تصفية الكروت والقوائم الجانبية مرئياً بناءً على مصفوفة صلاحيات الحساب الممررة
                 Object.keys(UI_Permissions_Map).forEach(elementId => {
                     const element = document.getElementById(elementId);
                     if (!element) return;
@@ -512,7 +546,6 @@
 
                     if (userPermissions.includes(requiredPermission)) {
                         element.style.display = '';
-
                         if (elementId.startsWith('card')) {
                             visibleCardsCount++;
                         }
@@ -521,11 +554,10 @@
                     }
                 });
             } else {
-                // إذا كان المدير هو من يسجل الدخول، تظهر جميع الكروت الثمانية تلقائياً
-                visibleCardsCount = 8;
+                visibleCardsCount = 8; // المدير يرى كافة الكروت والخيارات
             }
 
-            // تفعيل الـ restricted-layout تلقائياً لإعادة توزيع وضبط أحجام الكروت إذا كان العدد 3 أو أقل
+            // تفعيل الـ restricted-layout لإعادة ضبط حجم وتوزيع الكروت المتبقية إذا كانت 3 أو أقل
             const dashboardContainer = document.getElementById('mainDashboard');
             if (dashboardContainer && visibleCardsCount <= 3) {
                 dashboardContainer.classList.add('restricted-layout');
@@ -533,5 +565,13 @@
         };
     </script>
 
+    <!-- تسجيل الـ Service Worker لتفعيل تصفح التطبيق بدون إنترنت كاملاً كـ PWA -->
+    <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js")
+        .then(() => console.log("SW Registered Successfully"))
+        .catch((err) => console.log("SW Registration Failed", err));
+    }
+    </script>
 </body>
 </html>
