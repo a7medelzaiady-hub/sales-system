@@ -275,21 +275,13 @@
         const match = dateStr.match(/\d{1,2}[\/-]\d{1,2}[\/-]\d{4}/) || dateStr.match(/\d{4}[\/-]\d{1,2}[\/-]\d{1,2}/);  
         return match ? match[0] : dateStr;  
     }  
-
-    // دالة آمنة وموحدة لجلب تاريخ اليوم بالتوقيت المحلي للجهاز لتجنب مشاكل فوارق التوقيت
-    function getLocalDateString(dateObj = new Date()) {
-        const year = dateObj.getFullYear();
-        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-        const day = String(dateObj.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
   
     function parseInvoiceDate(inv) {  
         let dateStr = "";  
         if (inv.date) { dateStr = cleanDateString(inv.date); }  
         else if (inv.timestamp?.seconds) {  
             const d = new Date(inv.timestamp.seconds * 1000);  
-            return getLocalDateString(d); // معالجة التاريخ بالتوقيت المحلي وليس العالمي الموحد
+            return d.toISOString().split('T')[0];  
         }  
         dateStr = convertToEnglishNumbers(dateStr);  
         let m = dateStr.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);  
@@ -299,47 +291,17 @@
         return dateStr;  
     }  
   
-   function formatInvoiceTime(timeStr, dateStr) {
-    // 1. تنظيف النصوص وتحويل الأرقام إلى إنجليزية لمعالجتها برمجياً
-    let cleanTime = convertToEnglishNumbers(timeStr || "");
-    let cleanDate = convertToEnglishNumbers(dateStr || "");
-
-    // 2. استخراج الوقت (ساعة:دقيقة) وتحديد الفترة (ص/م)
-    let timePattern = /(\d{1,2}):(\d{1,2})/;
-    let timeMatch = cleanTime.match(timePattern) || cleanDate.match(timePattern);
-    
-    let formattedTime = "00:00 م";
-    if (timeMatch) {
-        let hour = timeMatch[1];
-        let min = timeMatch[2];
-        let period = "م";
-        if (cleanTime.includes("ص") || cleanDate.includes("ص") || 
-            cleanTime.toLowerCase().includes("am") || cleanDate.toLowerCase().includes("am")) {
-            period = "ص";
-        }
-        formattedTime = `${hour}:${min} ${period}`;
-    }
-
-    // 3. استخراج التاريخ (يوم/شهر)
-    let datePattern = /(\d{1,2})[\/\-](\d{1,2})/;
-    let dateMatch = cleanDate.match(datePattern) || cleanTime.match(datePattern);
-    
-    let formattedDate = "";
-    if (dateMatch) {
-        // إذا وجد التاريخ في البيانات كـ (16/06) مثلاً
-        formattedDate = `${dateMatch[1]}/${dateMatch[2]}`;
-    } else {
-        // [حل المشكلة]: إذا كان ملف الإكسل غير مسجل به التاريخ (فاضي)،
-        // النظام سيأخذ تاريخ اليوم الحالي تلقائياً للفاتورة بدلاً من تركها فارغة
-        let today = new Date();
-        let day = String(today.getDate()).padStart(2, '0');
-        let month = String(today.getMonth() + 1).padStart(2, '0');
-        formattedDate = `${day}/${month}`;
-    }
-
-    // 4. دمج التاريخ والوقت معاً ليعود بالصيغة الكاملة لجميع الفواتير
-    return `${formattedDate} ${formattedTime}`;
-}
+    function formatInvoiceTime(timeStr, dateStr) {  
+        let raw = convertToEnglishNumbers(timeStr || dateStr || "");  
+        let timePattern = /(\d{1,2}):(\d{1,2})/;  
+        let match = raw.match(timePattern);  
+        if (match) {  
+            let hour = match[1]; let min = match[2]; let period = "م";   
+            if (raw.includes("ص") || raw.toLowerCase().includes("am")) { period = "ص"; }  
+            return `${hour}:${min} ${period}`;  
+        }  
+        return "00:00 م";  
+    }  
   
     window.renderInvoices = (invoices) => {  
         currentRenderedInvoices = invoices;  
@@ -414,7 +376,7 @@
     function calculateStats() {  
         let todayCash = 0; let todayWallet = 0; let todayRemaining = 0; let todaySales = 0;  
         const filterInput = document.getElementById('dateFilterInput')?.value;  
-        const targetDateStr = filterInput ? filterInput : getLocalDateString();   
+        const targetDateStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');   
         const statsTitle = document.getElementById('todayStatsTitle');  
         if (statsTitle) { statsTitle.innerHTML = `<i class="fas fa-calendar-day me-1"></i> إحصائيات يوم (${targetDateStr})`; }  
         allInvoices.forEach(inv => {  
@@ -453,7 +415,7 @@
             });  
             let runningBalances = {};   
             let tempInvoices = [];  
-            const todayStr = getLocalDateString();  
+            const todayStr = new Date().toLocaleDateString('en-CA');  
             invSnap.forEach(doc => {  
                 const data = doc.data();  
                 const cid = data.customerId;  
@@ -717,7 +679,7 @@
         cardElement.classList.add('active-filter');  
         currentFilterType = type;  
         const filterInput = document.getElementById('dateFilterInput')?.value;  
-        const todayStr = filterInput ? filterInput : getLocalDateString();  
+        const todayStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');  
         let filtered = []; let statusLabel = "";  
         filtered = allInvoices.filter(inv => {  
             const invDateStr = parseInvoiceDate(inv);  
@@ -742,7 +704,7 @@
         document.getElementById('searchInput').value = "";  
         document.getElementById('dateFilterInput').value = "";   
         calculateStats();  
-        const todayStr = getLocalDateString();  
+        const todayStr = new Date().toLocaleDateString('en-CA');  
         const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);  
         window.renderInvoices(todayInvoices);  
     };  
