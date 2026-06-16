@@ -88,7 +88,6 @@
         .stat-card.active-filter { border: 2px solid var(--accent) !important; background: #ebf9eb; }  
         .stat-bar { position: absolute; top: 0; left: 0; right: 0; height: 4px; }  
         
-        /* تصميم الكارت الجديد الأنيق */
         .invoice-item { 
             background: var(--white); 
             border: 1px solid var(--border); 
@@ -150,7 +149,6 @@
             width: max-content;
         }
 
-        /* أزرار التحكم العلوية الدائرية (تعديل وحذف) */
         .quick-actions-top {
             display: flex;
             gap: 6px;
@@ -172,7 +170,6 @@
         .btn-circle-delete { color: #e53e3e; }
         .btn-circle-delete:hover { background: #fff5f5; border-color: #fed7d7; }
 
-        /* الشبكة المالية الجذابة */
         .financial-grid { 
             display: grid; 
             grid-template-columns: repeat(2, 1fr); 
@@ -196,7 +193,6 @@
             font-weight: 800; 
         }  
         
-        /* أزرار العمليات السفلية الأنيقة */
         .invoice-bottom-actions {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -699,7 +695,6 @@
   
             return `  
                 <div class="invoice-item">  
-                    <!-- الصف العلوي: معلومات العميل والأزرار السريعة -->
                     <div class="invoice-top-row">
                         <div class="customer-info-block">
                             <div class="customer-title-area">
@@ -712,14 +707,12 @@
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة التعديل</div>` : ''}
                         </div>
                         
-                        <!-- أزرار الحذف والتعديل الدائرية بالأعلى لمنع التكدس -->
                         <div class="quick-actions-top">
                             <button class="btn-circle-action btn-circle-edit" onclick="editInvoice('${inv.id}')" title="تعديل الفاتورة"><i class="fas fa-edit"></i></button>
                             <button class="btn-circle-action btn-circle-delete" onclick="deleteInvoice('${inv.id}')" title="حذف الفاتورة"><i class="fas fa-trash"></i></button>
                         </div>
                     </div>
 
-                    <!-- الشبكة المالية المبسطة والمقروءة -->
                     <div class="financial-grid">  
                         <div class="fin-box text-dark">إجمالي الفاتورة <span>${(Number(inv.total) || 0).toFixed(2)}</span></div>  
                         <div class="fin-box text-success">المسدد الشامل <span>${totalPaid.toFixed(2)}</span></div>  
@@ -727,7 +720,6 @@
                         <div class="fin-box text-secondary">حساب سابق كان كام <span>${(Number(inv.previousBalance || 0) || 0).toFixed(2)}</span></div>  
                     </div>  
 
-                    <!-- صندوق تفاصيل الأصناف المنسدل -->
                     <div id="details_box_${inv.id}" style="display:none;">  
                         <table class="items-preview-table">  
                             <thead><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead>  
@@ -744,7 +736,6 @@
                         </table>  
                     </div>  
 
-                    <!-- أزرار العمليات السفلية بنظام الكروت الأنيق -->
                     <div class="invoice-bottom-actions">
                         <button class="btn-modern-action btn-modern-view" onclick="toggleDetails('${inv.id}')"><i class="fas fa-eye"></i> عرض</button>
                         <button class="btn-modern-action btn-modern-share" onclick="shareInvoiceAsThermalImage('${inv.id}')"><i class="fas fa-share-alt"></i> شير</button>
@@ -996,13 +987,38 @@
 
     window.editInvoice = (id) => { window.location.href = `sales-invoice.html?edit=${id}&allowDateEdit=true`; };  
   
+    // الإصلاح الفعلي لدالة الحذف يكمن هنا:
     window.deleteInvoice = (id) => {  
         window.showCustomUi({  
             title: "تأكيد حذف الفاتورة",  
-            message: "هل تريد حذفها نهائياً؟",  
+            message: "هل تريد حذف هذه الفاتورة نهائياً؟ لا يمكن التراجع عن هذه الخطوة وسيعاد ضبط رصيد العميل فوراً.",  
             type: "confirm",  
             icon: "danger",  
-            onConfirm: async () => { location.reload(); }  
+            onConfirm: async () => { 
+                try {
+                    // أمر الحذف الفعلي من الـ Collection الخاص بـ Firestore
+                    await deleteDoc(doc(db, "invoices", id));
+                    
+                    // إشعار مستخدم بنجاح العملية قبل التحديث
+                    window.showCustomUi({
+                        title: "تم الحذف بنجاح",
+                        message: "تم مسح مستند الفاتورة وتحديث الأرصدة الحسابية المعتمدة عليها.",
+                        type: "alert",
+                        icon: "success",
+                        onConfirm: () => {
+                            location.reload(); // إعادة التحميل لعرض الأرقام الجديدة
+                        }
+                    });
+                } catch (error) {
+                    console.error("خطأ أثناء الحذف البرمجي:", error);
+                    window.showCustomUi({
+                        title: "خطأ في الشبكة",
+                        message: "لم يتم الحذف بسبب مشكلة اتصال أو صلاحيات: " + error.message,
+                        type: "alert",
+                        icon: "danger"
+                    });
+                }
+            }  
         });  
     };  
     
