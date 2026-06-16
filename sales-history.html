@@ -1,3 +1,191 @@
+<!DOCTYPE html>  
+<html lang="ar" dir="rtl">  
+<head>  
+    <meta charset="UTF-8">  
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+    <title>سجل المبيعات - الزيادي لزيوت السيارات</title>  
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">  
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">  
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">  
+    
+    <!-- مكتبات التصدير والمشاركة -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <style>  
+        :root {   
+            --accent: #0b5e3d;          
+            --header-bg: #0b5e3d;       
+            --bg-light: #f4f7f6;        
+            --text-primary: #1b2e26;     
+            --text-secondary: #4a5568;   
+            --border: #dce3de;          
+            --white: #ffffff;  
+            --danger: #d90429;  
+            --success: #2d6a4f;  
+            --warning: #ffb703;  
+            --purple: #6f42c1;  
+            --card-radius: 8px;  
+            --input-radius: 10px;  
+        }  
+        body {   
+            background: var(--bg-light);   
+            font-family: 'Cairo', sans-serif;   
+            color: var(--text-primary);   
+            padding-bottom: 60px;   
+            font-size: 0.85rem;  
+        }  
+        .header-nav {   
+            background: var(--header-bg);   
+            padding: 10px 15px;   
+            display: flex;   
+            align-items: center;   
+            justify-content: space-between;   
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);   
+            color: white;   
+            position: sticky;   
+            top: 0;   
+            z-index: 1000;  
+        }  
+        .add-btn { background: rgba(255,255,255,0.2); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; text-decoration: none; font-size: 0.9rem; border: none; font-family: 'Cairo', sans-serif; }  
+        .add-btn:hover { background: rgba(255,255,255,0.3); color: white; }  
+        .stats-section-title { font-size: 0.78rem; font-weight: 800; color: var(--accent); margin: 6px 0 4px 0; border-bottom: 1px solid var(--border); padding-bottom: 4px; }  
+        .stat-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--card-radius); padding: 8px 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.01); text-align: center; position: relative; overflow: hidden; cursor: pointer; transition: all 0.2s ease; }  
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.08); border-color: var(--accent); }  
+        .stat-card.active-filter { border: 2px solid var(--accent) !important; background: #ebf9eb; }  
+        .stat-bar { position: absolute; top: 0; left: 0; right: 0; height: 3px; }  
+        .invoice-item { background: var(--white); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.02); }  
+        
+        .meta-container { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px; }  
+        .detail-badge { font-size: 0.78rem; padding: 4px 8px; border-radius: 6px; font-weight: 700; background: #f0f4f2; color: var(--text-secondary); display: inline-flex; align-items: center; gap: 5px; direction: ltr; margin: 0; }  
+        
+        .financial-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; background: #f8faf9; padding: 8px; border-radius: 8px; margin-top: 8px; border: 1px dashed var(--border); }  
+        .fin-box { font-size: 0.78rem; font-weight: 700; }  
+        .fin-box span { display: block; font-size: 0.85rem; margin-top: 1px; font-weight: 800; }  
+        .search-box { border: 1px solid var(--border); border-radius: var(--input-radius); padding: 8px 12px; font-weight: 600; font-size: 0.85rem; font-family: 'Cairo', sans-serif; }  
+        .items-preview-table { width: 100%; margin-top: 8px; font-size: 0.78rem; border-collapse: collapse; }  
+        .items-preview-table th { background: #ebf9eb; padding: 4px; border: 1px solid var(--border); font-weight: 700; text-align: center; }  
+        .items-preview-table td { padding: 4px; border: 1px solid var(--border); text-align: center; font-weight: 600; }  
+        .filter-status-bar { display: none; background: #e2e8f0; padding: 6px 12px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; align-items: center; justify-content: space-between; }  
+        
+        .control-panel-card { background: #ffffff; border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }  
+        .btn-fetch-all { background: #fff; color: var(--accent); border: 1.5px solid var(--accent); padding: 5px 10px; font-size: 0.75rem; font-weight: 700; border-radius: 8px; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 4px; }  
+        .btn-fetch-all:hover { background: var(--accent); color: #ffffff; }  
+        
+        .custom-popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(3px); }  
+        .custom-popup-box { background: white; width: 90%; max-width: 360px; padding: 22px; border-radius: 16px; text-align: center; font-family: 'Cairo'; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }  
+
+        .invoice-actions-group { display: flex; flex-wrap: nowrap; gap: 4px; justify-content: flex-end; align-items: center; }  
+        .invoice-actions-group .btn { font-family: 'Cairo', sans-serif; font-size: 0.72rem; font-weight: 700; padding: 4px 6px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; height: 28px; }  
+
+        /* إعدادات الطباعة للفاتورة الحرارية 80 ملم */
+        #thermalPrintSection { display: none; }
+        @media print {
+            body { background: white; color: black; padding: 0; margin: 0; }
+            #content-to-export, .header-nav, .control-panel-card, .stats-section-title, .row, .filter-status-bar, #customGlobalModal, .invoice-item { display: none !important; }
+            #thermalPrintSection { display: block !important; width: 80mm; max-width: 80mm; padding: 4mm 2mm; margin: 0 auto; direction: rtl; font-family: 'Cairo', sans-serif; }
+        }
+    </style>  
+</head>  
+<body>  
+
+<!-- ═══ BANNER OFFLINE ═══ -->
+<div id="offlineBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:99999; background:#92400e; color:#fef3c7; padding:8px 16px; text-align:center; font-family:'Cairo',sans-serif; font-size:0.8rem; font-weight:700; align-items:center; justify-content:center; gap:8px;">
+  <i class="fas fa-wifi" style="opacity:.7"></i>
+  <span id="offlineBannerText">أنت غير متصل — تعمل على آخر بيانات محفوظة</span>
+</div>
+
+<div id="content-to-export">  
+    <div class="header-nav">  
+        <a href="index.html" class="add-btn"><i class="fas fa-arrow-right"></i></a>  
+        <h6 class="m-0 fw-bold" style="font-size: 0.95rem;"><i class="fas fa-history me-1"></i> سجل المبيعات </h6>  
+        <div class="d-flex gap-2">  
+            <button class="add-btn" id="exportExcelBtn" title="تصدير كل الأرشيف إكسيل"><i class="fas fa-file-excel"></i></button>  
+            <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>  
+        </div>  
+    </div>  
+
+    <div class="container px-2 mt-1">  
+        <div class="control-panel-card mt-2">  
+            <div class="d-flex justify-content-between align-items-center">  
+                <button id="loadAllArchiveBtn" class="btn-fetch-all">  
+                    <i class="fas fa-cloud-download-alt"></i> جلب كل الفواتير السابقة  
+                </button>  
+                <button class="btn btn-danger btn-sm fw-bold px-3" id="deleteAllCustomersBtn" style="font-size: 0.75rem; border-radius: 8px; height: 31px; display: inline-flex; align-items: center; gap: 4px;">  
+                    <i class="fas fa-trash-can"></i> تصفير النظام  
+                </button>   
+            </div>  
+        </div>  
+          
+        <div class="stats-section-title" id="todayStatsTitle"><i class="fas fa-calendar-day me-1"></i> إحصائيات اليوم</div>  
+
+        <div class="row g-1 mb-2">  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('today-cash', this)">  
+                    <div class="stat-bar" style="background: var(--success);"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">نقدى اليوم</small>  
+                    <span class="fw-bold d-block text-truncate text-success" id="todayCash" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
+            </div>  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('today-wallet', this)">  
+                    <div class="stat-bar" style="background: var(--purple);"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">محفظه اليوم</small>  
+                    <span class="fw-bold d-block text-truncate text-primary" id="todayWallet" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
+            </div>  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('today-remaining', this)">  
+                    <div class="stat-bar" style="background: var(--warning);"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">آجل اليوم</small>  
+                    <span class="fw-bold d-block text-truncate text-warning" id="todayRemaining" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
+            </div>  
+            <div class="col-3">  
+                <div class="stat-card" onclick="filterByStat('today-total', this)">  
+                    <div class="stat-bar" style="background: #212529;"></div>  
+                    <small class="text-muted d-block text-truncate fw-bold" style="font-size: 0.65rem;">مبيعات اليوم</small>  
+                    <span class="fw-bold d-block text-truncate text-dark" id="todayTotalSales" style="font-size: 0.82rem;">0.0</span>  
+                </div>  
+            </div>  
+        </div>  
+
+        <div class="filter-status-bar mb-2" id="filterStatusBar">  
+            <span id="filterStatusText">عرض فلاتر مخصصة</span>  
+            <button class="btn btn-sm btn-dark py-0" onclick="resetStatFilter()" style="font-size:0.7rem; font-family: 'Cairo';">عرض الكل</button>  
+        </div>  
+
+        <div class="row g-2 mb-2 align-items-end">  
+            <div class="col-6">  
+                <input type="text" id="searchInput" class="form-control search-box h-100" placeholder="البحث باسم العميل أو السداد..." oninput="filterInvoices()">  
+            </div>  
+            <div class="col-6">  
+                <input type="date" id="dateFilterInput" class="form-control h-100" style="font-size: 0.85rem; font-weight: 600; border-radius: var(--input-radius); padding: 7px 12px; font-family: 'Cairo';" onchange="window.handleDateFilterChange()">  
+            </div>  
+        </div>  
+
+        <div id="invoicesList">  
+            <div class="text-center py-5 text-muted">  
+                <i class="fas fa-spinner fa-spin fa-2x"></i>  
+                <p class="mt-2 fw-bold">برجاء الانتظار جار التحميل...</p>  
+            </div>  
+        </div>  
+    </div>  
+</div>  
+
+<!-- حاوية طباعة الفاتورة الحرارية المخفية -->
+<div id="thermalPrintSection"></div>
+
+<div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">  
+    <div class="custom-popup-box" style="max-width: 420px;">  
+        <div id="customModalIcon" style="width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;"></div>  
+        <h6 class="fw-bold mb-2" id="customModalTitle" style="font-size: 1rem;">تنبيه النظام</h6>  
+        <div id="customModalBody" style="font-size: 0.82rem; color: #4a5568; margin-bottom: 18px; text-align: right; white-space: pre-line; line-height: 1.6; max-height: 300px; overflow-y: auto; padding: 5px;"></div>  
+        <input type="text" id="customModalInput" class="form-control text-center mb-3 fw-bold" style="display:none; font-family:'Cairo'; font-size:0.9rem;" placeholder="اكتب كلمة التأكيد هنا...">  
+        <div class="d-flex gap-2 justify-content-center" id="customModalActions"></div>  
+    </div>  
+</div>  
+
 <script type="module">  
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";  
     import { initializeFirestore, persistentLocalCache, collection, getDocs, query, orderBy, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
@@ -94,7 +282,7 @@
         return match ? match[0] : dateStr;  
     }  
   
-    // تعديل الدالة لتقرأ التوقيت المحلي الصحيح للمستخدم وتتجنب فجوة جرينتش
+    // تعديل الدالة لتقرأ التوقيت المحلي الصحيح للمستخدم وتتجنب فجوة توقيت جرينتش
     function parseInvoiceDate(inv) {  
         let dateStr = "";  
         if (inv.date) { dateStr = cleanDateString(inv.date); }  
@@ -125,7 +313,7 @@
         return "00:00 م";  
     }  
 
-    // دالة آمنة وموحدة لجلب تاريخ اليوم الحالي بصيغة YYYY-MM-DD
+    // دالة موحدة لإنشاء نص تاريخ اليوم الحالي بالتوقيت المحلي YYYY-MM-DD
     function getTodayDateString() {
         const now = new Date();
         const y = now.getFullYear();
@@ -258,7 +446,7 @@
     async function loadData() {
         const todayStr = getTodayDateString();
 
-        // 1. تحميل سريع وفوري من الكاش لعدم تعطيل المستخدم
+        // 1. القراءة من الكاش المحلي أولاً للسرعة القصوى ودعم العمل أوفلاين
         try {
             const cachedInv  = localStorage.getItem(CACHE_KEY_INVOICES);
             const cachedCust = localStorage.getItem(CACHE_KEY_CUSTOMERS);
@@ -289,7 +477,7 @@
             return;
         }
 
-        // 2. جلب الحسابات والتحويلات مرة واحدة، ثم ربط الفواتير بـ Real-time listener
+        // 2. جلب الحسابات والتحويلات الأساسية، ثم فتح الاتصال اللحظي المباشر للفواتير على السيرفر
         try {
             const [custSnap, transSnap] = await Promise.all([
                 getDocs(collection(db, "customers")),
@@ -313,7 +501,7 @@
             localStorage.setItem(CACHE_KEY_CUSTOMERS, JSON.stringify(custMap));
             localStorage.setItem(CACHE_KEY_TRANS, JSON.stringify(transMap));
 
-            // الميزة الجديدة: الاستماع الحي والمباشر للفواتير تلقائياً دون الحاجة لـ Refresh
+            // الاستماع الحي (Real-time Listener) لظهور الفواتير فوراً بمجرد حفظها
             const qInvoices = query(collection(db, "invoices"), orderBy("timestamp", "asc"));
             onSnapshot(qInvoices, (invSnap) => {
                 const rawInvoices = invSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -329,12 +517,11 @@
                 allInvoices = processInvoices(custMap, transMap, rawInvoices);
                 calculateStats();
 
-                // التحقق من الفلتر النشط حالياً لإعادة رندرة البيانات المناسبة
+                // تتبع الفلتر النشط لإدراج الفاتورة الجديدة بشكل صحيح وصيغة الرندرة
                 const currentFilterInput = document.getElementById('dateFilterInput')?.value;
                 const activeDate = currentFilterInput ? currentFilterInput : getTodayDateString();
 
                 if (currentFilterType) {
-                    // إذا كان يضغط على أحد كروت الإحصائيات، أعد تفعيل الفلتر لإظهار الفاتورة الجديدة داخله
                     const activeCard = document.querySelector('.stat-card.active-filter');
                     if (activeCard) {
                         window.filterByStat(currentFilterType, activeCard);
@@ -354,7 +541,7 @@
         } catch (e) {
             console.error(e);
             if (allInvoices.length > 0) {
-                showOfflineBanner(true, 'فشل التحديث المباشر - عرض البيانات المسجلة محلياً');
+                showOfflineBanner(true, 'فشل الاتصال المباشر - يتم عرض الكاش المحلي');
             } else {
                 document.getElementById('invoicesList').innerHTML =
                     '<div class="alert alert-danger text-center p-2">حدث خطأ في تحميل البيانات الحية.</div>';
@@ -497,7 +684,7 @@
             console.error(err);
             alert("حدث خطأ أثناء معالجة صورة الفاتورة الحرارية.");
         }
-    };
+    };  
   
     window.showModificationDetails = (invId) => {  
         const inv = allInvoices.find(i => i.id === invId);  
@@ -735,4 +922,6 @@
     window.addEventListener('offline', () => showOfflineBanner(true));
 
     loadData();  
-</script>
+</script>  
+</body>  
+</html>
