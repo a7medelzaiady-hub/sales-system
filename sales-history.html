@@ -8,7 +8,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800&display=swap" rel="stylesheet">  
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">  
     
-    <!-- تحديث المكتبة لدعم تنسيقات الإكسيل مجاناً -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.min.js"></script>  
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>  
     
@@ -469,52 +468,73 @@
         return match ? match[0] : dateStr;  
     }  
   
-    // معالجة ذكية وشاملة لقراءة التاريخ من أي نوع بيانات مخزن داخل السيرفر
+    // معالجة فائقة ومباشرة لقراءة حقل التاريخ من الـ Timestamp للفايربيز
     function parseInvoiceDate(inv) {  
-        if (!inv) return "";
-        let dateObj = null;
-
-        // 1. فحص التيمستامب الرئيسي للفايربيز أولاً
-        if (inv.timestamp && typeof inv.timestamp.toDate === 'function') {
-            dateObj = inv.timestamp.toDate();
-        } else if (inv.timestamp?.seconds) {
-            dateObj = new Date(inv.timestamp.seconds * 1000);
-        }
-        
-        // 2. فحص حقل التاريخ الاحتياطي (إذا كان مخزناً ككائن أو نص)
-        if (!dateObj && inv.date) {
-            if (typeof inv.date.toDate === 'function') {
-                dateObj = inv.date.toDate();
-            } else if (inv.date.seconds) {
-                dateObj = new Date(inv.date.seconds * 1000);
-            } else if (inv.date instanceof Date) {
-                dateObj = inv.date;
-            } else if (typeof inv.date === 'string') {
-                let cleaned = cleanDateString(inv.date);
-                cleaned = convertToEnglishNumbers(cleaned);
+        if (!inv) return "";  
+        let dateObj = null;  
+  
+        // فحص مباشر وأساسي لحقل التيمستامب المرفق من السيرفر لتجنب الاعتماد على النص  
+        if (inv.timestamp) {  
+            if (typeof inv.timestamp.toDate === 'function') {  
+                dateObj = inv.timestamp.toDate();  
+            } else if (inv.timestamp.seconds) {  
+                dateObj = new Date(inv.timestamp.seconds * 1000);  
+            }  
+        }  
+          
+        // حل بديل في حال لم يتواجد الحقل الرئيسي  
+        if (!dateObj && inv.date) {  
+            if (typeof inv.date.toDate === 'function') {  
+                dateObj = inv.date.toDate();  
+            } else if (inv.date.seconds) {  
+                dateObj = new Date(inv.date.seconds * 1000);  
+            } else if (inv.date instanceof Date) {  
+                dateObj = inv.date;  
+            } else if (typeof inv.date === 'string') {  
+                let cleaned = cleanDateString(inv.date);  
+                cleaned = convertToEnglishNumbers(cleaned);  
                 let m = cleaned.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);  
                 if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;  
                 m = cleaned.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);  
                 if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;  
-                
-                const parsed = Date.parse(cleaned);
-                if (!isNaN(parsed)) dateObj = new Date(parsed);
-            }
-        }
-
-        if (dateObj && !isNaN(dateObj.getTime())) {
-            const yyyy = dateObj.getFullYear();
-            const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
-            const dd = String(dateObj.getDate()).padStart(2, '0');
-            return `${yyyy}-${mm}-${dd}`; // يعود بالصيغة الموحدة المطلوبة للبحث والفرز
-        }
-
-        return "";  
+                  
+                const parsed = Date.parse(cleaned);  
+                if (!isNaN(parsed)) dateObj = new Date(parsed);  
+            }  
+        }  
+  
+        // إذا فشل كل شيء، يتم استخدام تاريخ اليوم كأمان  
+        if (!dateObj || isNaN(dateObj.getTime())) {  
+            dateObj = new Date();  
+        }  
+  
+        const yyyy = dateObj.getFullYear();  
+        const mm = String(dateObj.getMonth() + 1).padStart(2, '0');  
+        const dd = String(dateObj.getDate()).padStart(2, '0');  
+        return `${yyyy}-${mm}-${dd}`;  
     }  
   
-    // معالجة ذكية لاستخراج وقت الفاتورة بشكل صحيح وديناميكي
     function formatInvoiceTime(timeStr, dateStr, inv) {  
-        if (timeStr && typeof timeStr === 'string') {
+        let timestamp = inv?.timestamp || inv?.date;  
+        let dateObj = null;  
+          
+        if (timestamp && typeof timestamp.toDate === 'function') dateObj = timestamp.toDate();  
+        else if (timestamp?.seconds) dateObj = new Date(timestamp.seconds * 1000);  
+        else if (timestamp instanceof Date) dateObj = timestamp;  
+          
+        if (dateObj && !isNaN(dateObj.getTime())) {  
+            let hours = dateObj.getHours();  
+            let minutes = String(dateObj.getMinutes()).padStart(2, '0');  
+            let period = "ص";  
+            if (hours >= 12) {  
+                period = "م";  
+                if (hours > 12) hours -= 12;  
+            }  
+            if (hours === 0) hours = 12;  
+            return `${hours}:${minutes} ${period}`;  
+        }  
+  
+        if (timeStr && typeof timeStr === 'string') {  
             let raw = convertToEnglishNumbers(timeStr);  
             let timePattern = /(\d{1,2}):(\d{1,2})/;  
             let match = raw.match(timePattern);  
@@ -524,26 +544,7 @@
                 return `${hour}:${min} ${period}`;  
             }  
         }  
-        
-        // استخراج الوقت الاحتياطي من التيمستامب إذا كان النص غير متوفر أو فارغاً
-        let timestamp = inv?.timestamp || inv?.date;
-        let dateObj = null;
-        if (timestamp && typeof timestamp.toDate === 'function') dateObj = timestamp.toDate();
-        else if (timestamp?.seconds) dateObj = new Date(timestamp.seconds * 1000);
-        else if (timestamp instanceof Date) dateObj = timestamp;
-        
-        if (dateObj && !isNaN(dateObj.getTime())) {
-            let hours = dateObj.getHours();
-            let minutes = String(dateObj.getMinutes()).padStart(2, '0');
-            let period = "ص";
-            if (hours >= 12) {
-                period = "م";
-                if (hours > 12) hours -= 12;
-            }
-            if (hours === 0) hours = 12;
-            return `${hours}:${minutes} ${period}`;
-        }
-        
+          
         return "00:00 م";  
     }  
   
@@ -568,7 +569,7 @@
             
             if (originalDate.includes('-')) {  
                 const parts = originalDate.split('-');  
-                fullDisplayDate = `${parts[2]}/${parts[1]}/${parts[0]}`; // عرض التاريخ كاملاً باليوم/الشهر/السنة بشكل واضح
+                fullDisplayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;  
             }  
   
             const isModified = inv.originalDate || (inv.items && inv.items.some(i => i.originalQty !== undefined)) || inv.notes === "معدلة";  
