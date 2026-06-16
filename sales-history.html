@@ -463,36 +463,87 @@
     }  
   
     function cleanDateString(dateStr) {  
-        if (!dateStr) return "";  
+        if (!dateStr || typeof dateStr !== 'string') return "";  
         dateStr = convertToEnglishNumbers(dateStr);  
         const match = dateStr.match(/\d{1,2}[\/-]\d{1,2}[\/-]\d{4}/) || dateStr.match(/\d{4}[\/-]\d{1,2}[\/-]\d{1,2}/);  
         return match ? match[0] : dateStr;  
     }  
   
+    // معالجة ذكية وشاملة لقراءة التاريخ من أي نوع بيانات مخزن داخل السيرفر
     function parseInvoiceDate(inv) {  
-        let dateStr = "";  
-        if (inv.date) { dateStr = cleanDateString(inv.date); }  
-        else if (inv.timestamp?.seconds) {  
-            const d = new Date(inv.timestamp.seconds * 1000);  
-            return d.toISOString().split('T')[0];  
-        }  
-        dateStr = convertToEnglishNumbers(dateStr);  
-        let m = dateStr.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);  
-        if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;  
-        m = dateStr.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);  
-        if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;  
-        return dateStr;  
+        if (!inv) return "";
+        let dateObj = null;
+
+        // 1. فحص التيمستامب الرئيسي للفايربيز أولاً
+        if (inv.timestamp && typeof inv.timestamp.toDate === 'function') {
+            dateObj = inv.timestamp.toDate();
+        } else if (inv.timestamp?.seconds) {
+            dateObj = new Date(inv.timestamp.seconds * 1000);
+        }
+        
+        // 2. فحص حقل التاريخ الاحتياطي (إذا كان مخزناً ككائن أو نص)
+        if (!dateObj && inv.date) {
+            if (typeof inv.date.toDate === 'function') {
+                dateObj = inv.date.toDate();
+            } else if (inv.date.seconds) {
+                dateObj = new Date(inv.date.seconds * 1000);
+            } else if (inv.date instanceof Date) {
+                dateObj = inv.date;
+            } else if (typeof inv.date === 'string') {
+                let cleaned = cleanDateString(inv.date);
+                cleaned = convertToEnglishNumbers(cleaned);
+                let m = cleaned.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);  
+                if (m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;  
+                m = cleaned.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);  
+                if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;  
+                
+                const parsed = Date.parse(cleaned);
+                if (!isNaN(parsed)) dateObj = new Date(parsed);
+            }
+        }
+
+        if (dateObj && !isNaN(dateObj.getTime())) {
+            const yyyy = dateObj.getFullYear();
+            const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const dd = String(dateObj.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`; // يعود بالصيغة الموحدة المطلوبة للبحث والفرز
+        }
+
+        return "";  
     }  
   
-    function formatInvoiceTime(timeStr, dateStr) {  
-        let raw = convertToEnglishNumbers(timeStr || dateStr || "");  
-        let timePattern = /(\d{1,2}):(\d{1,2})/;  
-        let match = raw.match(timePattern);  
-        if (match) {  
-            let hour = match[1]; let min = match[2]; let period = "م";   
-            if (raw.includes("ص") || raw.toLowerCase().includes("am")) { period = "ص"; }  
-            return `${hour}:${min} ${period}`;  
+    // معالجة ذكية لاستخراج وقت الفاتورة بشكل صحيح وديناميكي
+    function formatInvoiceTime(timeStr, dateStr, inv) {  
+        if (timeStr && typeof timeStr === 'string') {
+            let raw = convertToEnglishNumbers(timeStr);  
+            let timePattern = /(\d{1,2}):(\d{1,2})/;  
+            let match = raw.match(timePattern);  
+            if (match) {  
+                let hour = match[1]; let min = match[2]; let period = "م";   
+                if (raw.includes("ص") || raw.toLowerCase().includes("am")) { period = "ص"; }  
+                return `${hour}:${min} ${period}`;  
+            }  
         }  
+        
+        // استخراج الوقت الاحتياطي من التيمستامب إذا كان النص غير متوفر أو فارغاً
+        let timestamp = inv?.timestamp || inv?.date;
+        let dateObj = null;
+        if (timestamp && typeof timestamp.toDate === 'function') dateObj = timestamp.toDate();
+        else if (timestamp?.seconds) dateObj = new Date(timestamp.seconds * 1000);
+        else if (timestamp instanceof Date) dateObj = timestamp;
+        
+        if (dateObj && !isNaN(dateObj.getTime())) {
+            let hours = dateObj.getHours();
+            let minutes = String(dateObj.getMinutes()).padStart(2, '0');
+            let period = "ص";
+            if (hours >= 12) {
+                period = "م";
+                if (hours > 12) hours -= 12;
+            }
+            if (hours === 0) hours = 12;
+            return `${hours}:${minutes} ${period}`;
+        }
+        
         return "00:00 م";  
     }  
   
@@ -511,12 +562,13 @@
             else if(inv.paymentMethod === "آجل") methodBadgeColor = "bg-warning text-dark";  
   
             const totalPaid = inv.calculatedCash + inv.calculatedWallet;  
-            const displayTime = formatInvoiceTime(inv.time, inv.date);  
+            const displayTime = formatInvoiceTime(inv.time, inv.date, inv);  
             const originalDate = parseInvoiceDate(inv);  
-            let shortDate = originalDate;  
+            let fullDisplayDate = originalDate;  
+            
             if (originalDate.includes('-')) {  
                 const parts = originalDate.split('-');  
-                shortDate = `${parts[2]}/${parts[1]}`;  
+                fullDisplayDate = `${parts[2]}/${parts[1]}/${parts[0]}`; // عرض التاريخ كاملاً باليوم/الشهر/السنة بشكل واضح
             }  
   
             const isModified = inv.originalDate || (inv.items && inv.items.some(i => i.originalQty !== undefined)) || inv.notes === "معدلة";  
@@ -528,7 +580,7 @@
                             <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.88rem;">${inv.customerName || 'عميل نقدي'}</h6>  
                             <div class="meta-container">  
                                 <span class="badge ${methodBadgeColor}" style="font-size:0.68rem; font-family: 'Cairo';">${inv.paymentMethod || 'غير محدد'}</span>  
-                                <span class="detail-badge" id="badge_date_text_${inv.id}"><i class="far fa-clock"></i> ${shortDate} ${displayTime}</span>  
+                                <span class="detail-badge" id="badge_date_text_${inv.id}"><i class="far fa-clock"></i> ${fullDisplayDate} | ${displayTime}</span>  
                             </div>  
                             ${isModified ? `<div class="text-danger fw-bold mt-1" style="font-size:0.75rem; cursor:pointer;" onclick="showModificationDetails('${inv.id}')"><i class="fas fa-info-circle me-1"></i> اضغط هنا لمعرفة التعديل</div>` : ''}  
                         </div>  
@@ -671,12 +723,12 @@
         document.getElementById('p-report-count').innerText = currentRenderedInvoices.length;  
         currentRenderedInvoices.forEach(inv => {  
             const originalDate = parseInvoiceDate(inv);  
-            const displayTime = formatInvoiceTime(inv.time, inv.date);  
+            const displayTime = formatInvoiceTime(inv.time, inv.date, inv);  
             const totalPaid = inv.calculatedCash + inv.calculatedWallet;  
             totalSum += (Number(inv.total) || 0);  
             pbody.innerHTML += `  
                 <tr>  
-                    <td>${originalDate} ${displayTime}</td>  
+                    <td>${originalDate} | ${displayTime}</td>  
                     <td style="font-weight:bold; text-align:right;">${inv.customerName || 'عميل نقدي'}</td>  
                     <td>${inv.paymentMethod || 'غير محدد'}</td>  
                     <td style="font-weight:bold;">${(Number(inv.total) || 0).toFixed(2)}</td>  
@@ -763,7 +815,7 @@
         const inv = allInvoices.find(i => i.id === id);  
         if(!inv) return;  
         const invoiceDate = parseInvoiceDate(inv);  
-        const displayTime = formatInvoiceTime(inv.time, inv.date);  
+        const displayTime = formatInvoiceTime(inv.time, inv.date, inv);  
   
         const printWindow = window.open('', '_blank');  
         printWindow.document.write(`  
@@ -990,7 +1042,6 @@
         });  
     };  
     
-    // الدالة المحدثة بالكامل لتلبية شروط الترتيب والتنسيقات الشاملة
     window.exportToExcel = () => {
         if (!allInvoices || allInvoices.length === 0) {
             alert("لا توجد بيانات للتصدير");
@@ -999,7 +1050,6 @@
 
         let excelData = [];
 
-        // عناوين الجداول
         excelData.push([
             "التاريخ",
             "الحركة",
@@ -1011,7 +1061,6 @@
             "سعر كرتونة"
         ]);
 
-        // ترتيب البيانات من الأقدم للأحدث (عكس المصفوفة الأصلية المرتبة تنازلياً)
         const chronologicalInvoices = [...allInvoices].reverse();
 
         chronologicalInvoices.forEach(inv => {
@@ -1029,7 +1078,6 @@
 
             const invDate = parseInvoiceDate(inv) || inv.date || "";
 
-            // حركات البيع
             invoiceItems.forEach(item => {
                 const isBox = item.unit === "box" || 
                               item.unit === "كرتونة" || 
@@ -1047,7 +1095,6 @@
                 ]);
             });
 
-            // السداد النقدي
             if (inv.calculatedCash > 0) {
                 excelData.push([
                     invDate,
@@ -1061,7 +1108,6 @@
                 ]);
             }
 
-            // سداد المحفظة
             if (inv.calculatedWallet > 0) {
                 excelData.push([
                     invDate,
@@ -1078,7 +1124,6 @@
 
         const worksheet = XLSX.utils.aoa_to_sheet(excelData);
 
-        // تجهيز التنسيق المطلوب (حجم الخط 11، عريض، توسيط كامل، حدود سوداء شاملة)
         const cellStyle = {
             font: { name: "Cairo", size: 11, bold: true },
             alignment: { horizontal: "center", vertical: "center" },
@@ -1090,7 +1135,6 @@
             }
         };
 
-        // تループ على كل الخلايا لتطبيق التنسيق الموحد المختار
         for (let cell in worksheet) {
             if (cell[0] !== '!') { 
                 worksheet[cell].s = cellStyle;
@@ -1098,14 +1142,14 @@
         }
 
         worksheet["!cols"] = [
-            { wch: 15 }, // التاريخ
-            { wch: 18 }, // الحركة
-            { wch: 25 }, // اسم العميل
-            { wch: 35 }, // الصنف
-            { wch: 12 }, // عدد جركن
-            { wch: 12 }, // عدد كرتونة
-            { wch: 15 }, // سعر جركن
-            { wch: 15 }  // سعر كرتونة
+            { wch: 15 }, 
+            { wch: 18 }, 
+            { wch: 25 }, 
+            { wch: 35 }, 
+            { wch: 12 }, 
+            { wch: 12 }, 
+            { wch: 15 }, 
+            { wch: 15 }  
         ];
 
         const workbook = XLSX.utils.book_new();
