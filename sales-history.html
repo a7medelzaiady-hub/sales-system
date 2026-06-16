@@ -275,13 +275,21 @@
         const match = dateStr.match(/\d{1,2}[\/-]\d{1,2}[\/-]\d{4}/) || dateStr.match(/\d{4}[\/-]\d{1,2}[\/-]\d{1,2}/);  
         return match ? match[0] : dateStr;  
     }  
+
+    // دالة آمنة وموحدة لجلب تاريخ اليوم بالتوقيت المحلي للجهاز لتجنب مشاكل فوارق التوقيت
+    function getLocalDateString(dateObj = new Date()) {
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
   
     function parseInvoiceDate(inv) {  
         let dateStr = "";  
         if (inv.date) { dateStr = cleanDateString(inv.date); }  
         else if (inv.timestamp?.seconds) {  
             const d = new Date(inv.timestamp.seconds * 1000);  
-            return d.toISOString().split('T')[0];  
+            return getLocalDateString(d); // معالجة التاريخ بالتوقيت المحلي وليس العالمي الموحد
         }  
         dateStr = convertToEnglishNumbers(dateStr);  
         let m = dateStr.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);  
@@ -376,7 +384,7 @@
     function calculateStats() {  
         let todayCash = 0; let todayWallet = 0; let todayRemaining = 0; let todaySales = 0;  
         const filterInput = document.getElementById('dateFilterInput')?.value;  
-        const targetDateStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');   
+        const targetDateStr = filterInput ? filterInput : getLocalDateString();   
         const statsTitle = document.getElementById('todayStatsTitle');  
         if (statsTitle) { statsTitle.innerHTML = `<i class="fas fa-calendar-day me-1"></i> إحصائيات يوم (${targetDateStr})`; }  
         allInvoices.forEach(inv => {  
@@ -415,7 +423,7 @@
             });  
             let runningBalances = {};   
             let tempInvoices = [];  
-            const todayStr = new Date().toLocaleDateString('en-CA');  
+            const todayStr = getLocalDateString();  
             invSnap.forEach(doc => {  
                 const data = doc.data();  
                 const cid = data.customerId;  
@@ -679,7 +687,7 @@
         cardElement.classList.add('active-filter');  
         currentFilterType = type;  
         const filterInput = document.getElementById('dateFilterInput')?.value;  
-        const todayStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');  
+        const todayStr = filterInput ? filterInput : getLocalDateString();  
         let filtered = []; let statusLabel = "";  
         filtered = allInvoices.filter(inv => {  
             const invDateStr = parseInvoiceDate(inv);  
@@ -704,7 +712,7 @@
         document.getElementById('searchInput').value = "";  
         document.getElementById('dateFilterInput').value = "";   
         calculateStats();  
-        const todayStr = new Date().toLocaleDateString('en-CA');  
+        const todayStr = getLocalDateString();  
         const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);  
         window.renderInvoices(todayInvoices);  
     };  
