@@ -1023,6 +1023,8 @@
                 finalMethod = "سداد نقدي";
             }
 
+            const currentInvoiceTime = document.getElementById('invTime').value || originalInvoiceTime || new Date().toLocaleString('ar-EG');
+
             const baseInvoiceData = {
                 customerId: customerId,
                 customerName: customerName,
@@ -1035,14 +1037,13 @@
                 cashAmount: Number(finalCash) || 0,     
                 walletAmount: Number(finalWallet) || 0, 
                 items: items,
+                time: currentInvoiceTime, // تحديث: تم ضمان إرسال حقل الوقت الأصلي/المعدل في الحالتين لمنع اختفائه
                 notes: "" 
             };
 
             if (!editId) {
-                const targetTime = document.getElementById('invTime').value;
                 const newInvoiceData = {
                     ...baseInvoiceData,
-                    time: targetTime,
                     timestamp: serverTimestamp()
                 };
 
@@ -1079,7 +1080,6 @@
                                 const itemDocRef = doc(db, "inventory", oldItem.stockId);
                                 const itemSnap = await getDoc(itemDocRef);
                                 
-                                // التعديل الأهم: التأكد من وجود الصنف أولاً لتجنب توقف الحفظ أو السيرفر
                                 if (itemSnap.exists()) {
                                     const p = inventory.find(i => i.id === oldItem.stockId);
                                     const factor = p ? (Number(p.unitFactor) || 1) : 1;
@@ -1113,8 +1113,6 @@
                     }
                     
                     await updateDoc(oldRef, baseInvoiceData);
-                    
-                    baseInvoiceData.time = originalInvoiceTime || oldData.time || new Date().toLocaleString('ar-EG'); 
                     prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
                 }
             }  
