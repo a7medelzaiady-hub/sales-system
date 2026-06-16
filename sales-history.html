@@ -385,7 +385,7 @@
     function calculateStats() {  
         let todayCash = 0; let todayWallet = 0; let todayRemaining = 0; let todaySales = 0;  
         const filterInput = document.getElementById('dateFilterInput')?.value;  
-        const targetDateStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');   
+        const targetDateStr = filterInput ? filterInput :getTodayDate()  
         const statsTitle = document.getElementById('todayStatsTitle');  
         if (statsTitle) { statsTitle.innerHTML = `<i class="fas fa-calendar-day me-1"></i> إحصائيات يوم (${targetDateStr})`; }  
         allInvoices.forEach(inv => {  
@@ -434,7 +434,7 @@
     }
 
     async function loadData() {
-        const todayStr = new Date().toLocaleDateString('en-CA');
+        const todayStr = getTodayDate()
 
         // ── خطوة 1: تحميل من الـ cache أولاً (فوري - يعمل offline) ──
         try {
@@ -637,7 +637,14 @@
 
             canvas.toBlob(async (blob) => {
                 if (!blob) return;
-                const file = new File([blob], `فاتورة_${inv.customerName || 'نقدى'}.png`, { type: 'image/png' });
+              const safeName = (inv.customerName || 'نقدى')
+.replace(/[\\/:*?"<>|]/g, '_');
+
+const file = new File(
+    [blob],
+    `فاتورة_${safeName}.png`,
+    { type: 'image/png' }
+);, { type: 'image/png' });
                 
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
                     await navigator.share({
@@ -748,7 +755,7 @@
         cardElement.classList.add('active-filter');  
         currentFilterType = type;  
         const filterInput = document.getElementById('dateFilterInput')?.value;  
-        const todayStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');  
+        const todayStr = filterInput ? filterInput : getTodayDate()
         let filtered = []; let statusLabel = "";  
         filtered = allInvoices.filter(inv => {  
             const invDateStr = parseInvoiceDate(inv);  
@@ -773,7 +780,7 @@
         document.getElementById('searchInput').value = "";  
         document.getElementById('dateFilterInput').value = "";   
         calculateStats();  
-        const todayStr = new Date().toLocaleDateString('en-CA');  
+        const todayStr = getTodayDate()
         const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);  
         window.renderInvoices(todayInvoices);  
     };  
@@ -841,7 +848,7 @@
             invoiceItems.forEach(item => {  
                 const isBox = item.unit === "box" ||   
                               item.unit === "كرتونة" ||   
-                              (item.name && (item.name.includes("كرتونة") || item.name.includes("كرtونه")));  
+                              (item.name && (item.name.includes("كرتونة") || item.name.includes("كرتونة")));  
                 excelData.push([  
                     invDate, "بيع", inv.customerName || "النقدى", item.name || "",  
                     !isBox ? (Number(item.qty) || 0) : 0,    
