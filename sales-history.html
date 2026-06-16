@@ -89,15 +89,6 @@
 </head>  
 <body>  
 
-<!-- ═══ OFFLINE BANNER ═══ -->
-<div id="offlineBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:99999;
-  background:#92400e; color:#fef3c7; padding:8px 16px; text-align:center;
-  font-family:'Cairo',sans-serif; font-size:0.8rem; font-weight:700;
-  align-items:center; justify-content:center; gap:8px;">
-  <i class="fas fa-wifi" style="opacity:.7"></i>
-  <span id="offlineBannerText">أنت غير متصل — تعمل على آخر بيانات محفوظة</span>
-</div>
-
 <div id="content-to-export">  
     <div class="header-nav">  
         <a href="index.html" class="add-btn"><i class="fas fa-arrow-right"></i></a>  
@@ -190,8 +181,8 @@
 </div>  
 
 <script type="module">  
-    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";  
-    import { initializeFirestore, persistentLocalCache, collection, getDocs, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";  
+    import { getFirestore, collection, getDocs, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
   
     const firebaseConfig = {  
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",  
@@ -203,8 +194,8 @@
         measurementId: "G-WE04GK5XZZ"  
     };  
   
-    const app = getApps().length ? getApp() : initializeApp(firebaseConfig);  
-    const db = initializeFirestore(app, { localCache: persistentLocalCache() });  
+    const app = initializeApp(firebaseConfig);  
+    const db = getFirestore(app);  
       
     let allInvoices = [];  
     let customersData = {};  
@@ -405,120 +396,60 @@
         document.getElementById('todayTotalSales').innerText = todaySales.toFixed(1);  
     }  
   
-    const CACHE_KEY_INVOICES = 'zaiady_invoices_cache';
-    const CACHE_KEY_CUSTOMERS = 'zaiady_customers_cache';
-    const CACHE_KEY_TRANS = 'zaiady_trans_cache';
-
-    function processInvoices(customers, transByCustomer, rawInvoices) {
-        let runningBalances = {};
-        let tempInvoices = [];
-        rawInvoices.forEach(data => {
-            const cid = data.customerId;
-            if (!runningBalances[cid]) {
-                runningBalances[cid] = (customers[cid]?.initialBalance || 0) + (transByCustomer[cid] || 0);
-            }
-            const previousBalance = runningBalances[cid];
-            runningBalances[cid] += (Number(data.remaining) || 0);
-            let cPaid = 0; let wPaid = 0;
-            if (data.cashAmount !== undefined || data.walletAmount !== undefined) {
-                cPaid = Number(data.cashAmount) || 0;
-                wPaid = Number(data.walletAmount) || 0;
-            } else {
-                let p = Number(data.paid) || 0;
-                if (data.paymentMethod === "سداد مرئية" || data.paymentMethod === "محفظه" || data.paymentMethod === "سداد محفظه") wPaid = p;
-                else cPaid = p;
-            }
-            tempInvoices.push({ ...data, calculatedCash: cPaid, calculatedWallet: wPaid, previousBalance });
-        });
-        return tempInvoices.reverse();
-    }
-
-    async function loadData() {
-        const todayStr = new Date().toLocaleDateString('en-CA');
-
-        // ── خطوة 1: تحميل من الـ cache أولاً (فوري - يعمل offline) ──
-        try {
-            const cachedInv  = localStorage.getItem(CACHE_KEY_INVOICES);
-            const cachedCust = localStorage.getItem(CACHE_KEY_CUSTOMERS);
-            const cachedTrans = localStorage.getItem(CACHE_KEY_TRANS);
-            if (cachedInv && cachedCust) {
-                const cust = JSON.parse(cachedCust);
-                const trans = JSON.parse(cachedTrans || '{}');
-                const rawInv = JSON.parse(cachedInv);
-                Object.assign(customersData, cust);
-                allInvoices = processInvoices(cust, trans, rawInv);
-                calculateStats();
-                const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);
-                window.renderInvoices(todayInvoices);
-                // لو offline وعندنا cache - اكتفى
-                if (!navigator.onLine) {
-                    showOfflineBanner(true);
-                    return;
-                }
-            }
-        } catch(_) {}
-
-        // ── خطوة 2: تحديث من Firebase (online) ──
-        if (!navigator.onLine) {
-            showOfflineBanner(true);
-            if (allInvoices.length === 0) {
-                document.getElementById('invoicesList').innerHTML =
-                    '<div class="alert alert-warning text-center p-3 fw-bold">أنت غير متصل ولا يوجد بيانات محفوظة محلياً.</div>';
-            }
-            return;
-        }
-
-        try {
-            const [custSnap, transSnap, invSnap] = await Promise.all([
-                getDocs(collection(db, "customers")),
-                getDocs(collection(db, "transactions")),
-                getDocs(query(collection(db, "invoices"), orderBy("timestamp", "asc")))
-            ]);
-
-            const custMap = {};
-            custSnap.forEach(d => {
-                custMap[d.id] = { id: d.id, name: d.data().name, initialBalance: Number(d.data().initialBalance) || 0 };
-            });
-            Object.assign(customersData, custMap);
-
-            const transMap = {};
-            transSnap.forEach(d => {
-                const tr = d.data();
-                if (!transMap[tr.partyId]) transMap[tr.partyId] = 0;
-                if (tr.type === 'قبض') transMap[tr.partyId] -= (Number(tr.amount) || 0);
-                else if (tr.type === 'صرف') transMap[tr.partyId] += (Number(tr.amount) || 0);
-            });
-
-            const rawInvoices = invSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-            // حفظ في localStorage للاستخدام offline
-            try {
-                localStorage.setItem(CACHE_KEY_CUSTOMERS, JSON.stringify(custMap));
-                localStorage.setItem(CACHE_KEY_TRANS, JSON.stringify(transMap));
-                // حفظ بدون Firestore Timestamps (مش قابلة للـ JSON)
-                const serializableInv = rawInvoices.map(inv => ({
-                    ...inv,
-                    timestamp: inv.timestamp?.seconds ? { seconds: inv.timestamp.seconds } : null
-                }));
-                localStorage.setItem(CACHE_KEY_INVOICES, JSON.stringify(serializableInv));
-            } catch(_) { /* localStorage ممكن يكون ممتلئ */ }
-
-            allInvoices = processInvoices(custMap, transMap, rawInvoices);
-            calculateStats();
-            const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);
-            window.renderInvoices(todayInvoices);
-            showOfflineBanner(false);
-
-        } catch (e) {
-            console.error(e);
-            // Firebase فشل - لو عندنا cache يكفي
-            if (allInvoices.length > 0) {
-                showOfflineBanner(true, 'فشل التحديث من السيرفر - عرض آخر بيانات محفوظة');
-            } else {
-                document.getElementById('invoicesList').innerHTML =
-                    '<div class="alert alert-danger text-center p-2">حدث خطأ في تحميل البيانات.</div>';
-            }
-        }
+    async function loadData() {  
+        try {  
+            const [custSnap, transSnap, invSnap] = await Promise.all([  
+                getDocs(collection(db, "customers")),  
+                getDocs(collection(db, "transactions")),  
+                getDocs(query(collection(db, "invoices"), orderBy("timestamp", "asc")))  
+            ]);  
+            custSnap.forEach(d => {  
+                customersData[d.id] = { id: d.id, name: d.data().name, initialBalance: Number(d.data().initialBalance) || 0 };  
+            });  
+            let transByCustomer = {};  
+            transSnap.forEach(doc => {  
+                const tr = doc.data();  
+                if (!transByCustomer[tr.partyId]) transByCustomer[tr.partyId] = 0;  
+                if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);  
+                else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);  
+            });  
+            let runningBalances = {};   
+            let tempInvoices = [];  
+            const todayStr = new Date().toLocaleDateString('en-CA');  
+            invSnap.forEach(doc => {  
+                const data = doc.data();  
+                const cid = data.customerId;  
+                if (!runningBalances[cid]) {  
+                    runningBalances[cid] = (customersData[cid]?.initialBalance || 0) + (transByCustomer[cid] || 0);  
+                }  
+                const previousBalance = runningBalances[cid];  
+                runningBalances[cid] += (Number(data.remaining) || 0);  
+                let cPaid = 0; let wPaid = 0;  
+                if (data.cashAmount !== undefined || data.walletAmount !== undefined) {  
+                    cPaid = Number(data.cashAmount) || 0;  
+                    wPaid = Number(data.walletAmount) || 0;  
+                } else {  
+                    let p = Number(data.paid) || 0;  
+                    if (data.paymentMethod === "سداد مرئية" || data.paymentMethod === "محفظه" || data.paymentMethod === "سداد محفظه") wPaid = p;  
+                    else cPaid = p;   
+                }  
+                const parsedInvoice = {  
+                    id: doc.id,  
+                    ...data,  
+                    calculatedCash: cPaid,  
+                    calculatedWallet: wPaid,  
+                    previousBalance: previousBalance   
+                };  
+                tempInvoices.push(parsedInvoice);  
+            });  
+            allInvoices = tempInvoices.reverse();  
+            calculateStats();  
+            const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);  
+            window.renderInvoices(todayInvoices);  
+        } catch (e) {  
+            console.error(e);  
+            document.getElementById('invoicesList').innerHTML = `<div class="alert alert-danger text-center p-2">حدث خطأ في تحميل البيانات من السيرفر.</div>`;  
+        }  
     }  
   
     document.getElementById('loadAllArchiveBtn').onclick = () => {  
@@ -779,11 +710,11 @@
     };  
   
     window.filterInvoices = () => {  
-        const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();  
-        if(!searchTerm) { if(currentFilterType) return; window.renderInvoices(allInvoices); return; }  
+        const query = document.getElementById('searchInput').value.toLowerCase().trim();  
+        if(!query) { if(currentFilterType) return; window.renderInvoices(allInvoices); return; }  
         const filtered = allInvoices.filter(inv =>   
-            (inv.customerName && inv.customerName.toLowerCase().includes(searchTerm)) ||   
-            (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(searchTerm))  
+            (inv.customerName && inv.customerName.toLowerCase().includes(query)) ||   
+            (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(query))  
         );  
         window.renderInvoices(filtered);  
     };  
@@ -881,22 +812,6 @@
   
     document.getElementById('exportExcelBtn').onclick = window.exportToExcel;  
   
-
-    function showOfflineBanner(show, msg) {
-        const banner = document.getElementById('offlineBanner');
-        if (show) {
-            banner.style.display = 'flex';
-            document.body.style.paddingTop = '36px';
-            if (msg) document.getElementById('offlineBannerText').textContent = msg;
-        } else {
-            banner.style.display = 'none';
-            document.body.style.paddingTop = '';
-        }
-    }
-
-    window.addEventListener('online',  () => { showOfflineBanner(false); loadData(); });
-    window.addEventListener('offline', () => showOfflineBanner(true));
-
     loadData();  
 </script>  
 </body>  
