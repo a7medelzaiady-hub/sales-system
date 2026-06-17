@@ -59,7 +59,6 @@
             width: 100%;
         }
         
-        /* التنسيق الجديد لأزرار الرجوع الواضحة */
         .btn-nav-back {
             flex: 1;
             background: rgba(255, 255, 255, 0.15);
@@ -81,7 +80,6 @@
             color: white;
         }
         
-        /* Order source banner */
         .order-source-banner {
             background: linear-gradient(135deg, #ebf9eb, #d4f5e4);
             border: 1px solid #b7dfc7;
@@ -575,7 +573,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -593,6 +591,7 @@
     let customers = [];
     let editId = new URLSearchParams(window.location.search).get('edit');
     let fromOrderId = new URLSearchParams(window.location.search).get('fromOrder');
+    let deleteOrderAfterSave = new URLSearchParams(window.location.search).get('deleteOrderAfterSave') === "true";
     let isChanged = false;
     let currentFetchedOldBalance = 0;
     let originalInvoiceTime = ""; 
@@ -623,7 +622,6 @@
         if (isChanged) { e.preventDefault(); e.returnValue = ''; }
     });
 
-    // دالة فحص الرجوع الموحدة للتأكد من حفظ البيانات قبل المغادرة
     window.confirmBackToPage = (targetUrl) => {
         if (isChanged && !confirm("لديك بيانات غير محفوظة، هل تريد الخروج؟")) return;
         window.location.href = targetUrl;
@@ -663,7 +661,6 @@
             localStorage.setItem(CACHE_KEYS.customers, JSON.stringify(customers));
             localStorage.setItem(CACHE_KEYS.inventory, JSON.stringify(inventory));
 
-            // ---- Load from order params ----
             const urlParams = new URLSearchParams(window.location.search);
             if (fromOrderId) {
                 const paramCustomerId = urlParams.get('customerId');
@@ -676,7 +673,6 @@
                 banner.style.display = 'flex';
                 document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
 
-                // Set customer
                 document.getElementById('customerSearch').value = paramCustomerName || '';
                 document.getElementById('customerSelect').value = paramCustomerId || '';
 
@@ -689,12 +685,10 @@
                     }
                 }
 
-                // Add item rows from order
                 paramItems.forEach(item => addNewRow(item));
                 calc();
 
             } else if (editId) {
-                // Edit existing invoice
                 document.getElementById('modeText').innerText = "تعديل";
                 const invDoc = await getDoc(doc(db, "invoices", editId));
                 if (invDoc.exists()) {
@@ -1057,160 +1051,4 @@
             let finalCash = parseFloat(document.getElementById('cashAmount').value) || 0;
             let finalWallet = parseFloat(document.getElementById('walletAmount').value) || 0;
             
-            let finalMethod = "آجل";
-            if (finalCash > 0 && finalWallet > 0) finalMethod = "سداد كاش ومحفظة";
-            else if (finalWallet > 0) finalMethod = "سداد محفظة";
-            else if (finalCash > 0) finalMethod = "سداد نقدي";
-
-            const currentInvoiceTime = document.getElementById('invTime').value || originalInvoiceTime || new Date().toLocaleString('ar-EG');
-
-            const baseInvoiceData = {
-                customerId, customerName,
-                itemsTotal: Number(itemsTotal) || 0,
-                discount: Number(discount) || 0,
-                total: Number(total) || 0,
-                paid: Number(finalCash + finalWallet) || 0,
-                remaining: Number(total - (finalCash + finalWallet)) || 0,
-                paymentMethod: finalMethod,
-                cashAmount: Number(finalCash) || 0,
-                walletAmount: Number(finalWallet) || 0,
-                items, time: currentInvoiceTime, notes: ""
-            };
-
-            if (!editId) {
-                const newInvoiceData = { ...baseInvoiceData, timestamp: serverTimestamp() };
-
-                for (const item of items) {
-                    try {
-                        const itemDocRef = doc(db, "inventory", item.stockId);
-                        const itemSnap = await getDoc(itemDocRef);
-                        if (itemSnap.exists()) {
-                            const p = inventory.find(i => i.id === item.stockId);
-                            const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                            const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                            if (item.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) }); }
-                            else { await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) }); }
-                        }
-                    } catch (err) { console.warn(`تنبيه: صنف ممسوح: ${item.stockId}`, err); }
-                }
-
-                const newDocRef = await addDoc(collection(db, "invoices"), newInvoiceData);
-                editId = newDocRef.id;
-
-                // Mark order as done if came from order
-                if (fromOrderId) {
-                    try {
-                        await updateDoc(doc(db, "orders", fromOrderId), { status: 'done', invoiceId: editId });
-                    } catch(e) { console.warn('could not update order status', e); }
-                }
-
-                prepareThermalReceipt(newInvoiceData, currentFetchedOldBalance);
-            } else {
-                const oldRef = doc(db, "invoices", editId);
-                const oldSnap = await getDoc(oldRef);
-                if (oldSnap.exists()) {
-                    const oldData = oldSnap.data();
-                    if (oldData && oldData.items) {
-                        for (const oldItem of oldData.items) {
-                            if (oldItem.stockId) {
-                                try {
-                                    const itemDocRef = doc(db, "inventory", oldItem.stockId);
-                                    const itemSnap = await getDoc(itemDocRef);
-                                    if (itemSnap.exists()) {
-                                        const p = inventory.find(i => i.id === oldItem.stockId);
-                                        const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                                        const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * factor : oldItem.qty;
-                                        if (oldItem.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(-oldQtyPcs) }); }
-                                        else { await updateDoc(itemDocRef, { totalPcs: increment(oldQtyPcs) }); }
-                                    }
-                                } catch (err) { console.warn(`تنبيه: صنف قديم: ${oldItem.stockId}`, err); }
-                            }
-                        }
-                    }
-                    for (const item of items) {
-                        if (item.stockId) {
-                            try {
-                                const itemDocRef = doc(db, "inventory", item.stockId);
-                                const itemSnap = await getDoc(itemDocRef);
-                                if (itemSnap.exists()) {
-                                    const p = inventory.find(i => i.id === item.stockId);
-                                    const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                                    const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                                    if (item.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) }); }
-                                    else { await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) }); }
-                                }
-                            } catch (err) { console.warn(`تنبيه: صنف ممسوح: ${item.stockId}`, err); }
-                        }
-                    }
-                    await updateDoc(oldRef, baseInvoiceData);
-                    prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
-                }
-            }  
-
-            isChanged = false;
-            document.getElementById('shareModal').style.display = 'flex';
-
-        } catch (e) {
-            console.error("Firebase Error: ", e);
-            alert("فشل حفظ التعديل\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
-        } finally {
-            saveBtn.disabled = false;
-            saveBtn.innerText = "حفظ وتحديث البيانات";
-        }
-    };
-
-    function prepareThermalReceipt(data, oldBalance) {
-        document.getElementById('recCustomer').innerText = data.customerName;
-        document.getElementById('recDate').innerText = data.time || originalInvoiceTime;
-        document.getElementById('recPaymentMethod').innerText = data.paymentMethod;
-        const itemsTotalVal = data.itemsTotal || data.total + (data.discount || 0);
-        document.getElementById('recSubTotal').innerText = Number(itemsTotalVal).toFixed(2);
-        const discountVal = data.discount || 0;
-        document.getElementById('recDiscount').innerText = Number(discountVal).toFixed(2);
-        document.getElementById('recDiscountRow').style.display = discountVal > 0 ? 'flex' : 'none';
-        document.getElementById('recTotal').innerText = Number(data.total).toFixed(2);
-        document.getElementById('recOldBalance').innerText = Number(oldBalance).toFixed(2);
-        document.getElementById('recPaid').innerText = Number(data.paid).toFixed(2);
-        document.getElementById('recRemaining').innerText = Number(oldBalance + data.remaining).toFixed(2);
-
-        const recSplitZone = document.getElementById('recSplitDetails');
-        if (data.cashAmount > 0 || data.walletAmount > 0) {
-            recSplitZone.style.display = 'block';
-            document.getElementById('recCashAmount').innerText = Number(data.cashAmount).toFixed(2);
-            document.getElementById('recWalletAmount').innerText = Number(data.walletAmount).toFixed(2);
-        } else { recSplitZone.style.display = 'none'; }
-
-        const tbody = document.getElementById('recItems');
-        tbody.innerHTML = data.items.map(item => `
-            <tr style="border-bottom: 1px dotted #000; ${item.isReturn ? 'background-color: #fce8e6;' : ''}">
-                <td style="padding: 8px 0;">${item.isReturn ? '<span style="color:red; font-weight:bold;">(مرتجع) </span>' : ''}${item.name}</td>
-                <td style="padding: 8px 0; text-align: center;">${item.qty}</td>
-                <td style="padding: 8px 0; text-align: left;">${Number(item.price).toFixed(2)}</td>
-                <td style="padding: 8px 0; text-align: left; ${item.isReturn ? 'color: red;' : ''}">${item.isReturn ? '-' : ''}${(item.qty * item.price).toFixed(2)}</td>
-            </tr>
-        `).join('');
-    }
-
-    document.getElementById('cancelShareBtn').onclick = () => {
-        document.getElementById('shareModal').style.display = 'none';
-        window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html";
-    };
-
-    document.getElementById('confirmShareBtn').onclick = () => {
-        const receipt = document.getElementById('thermalReceipt');
-        html2canvas(receipt, { scale: 2, useCORS: true }).then(canvas => {
-            canvas.toBlob(blob => {
-                const file = new File([blob], `invoice_${editId}.png`, { type: 'image/png' });
-                if (navigator.share) {
-                    navigator.share({ files: [file], title: 'فاتورة مبيعات', text: `فاتورة مبيعات من شركة الزيادي` })
-                        .then(() => { window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html"; })
-                        .catch(err => console.log(err));
-                } else { alert("المشاركة غير مدعومة في هذا المتصفح"); }
-            }, 'image/png');
-        });
-    };
-
-    init();
-</script>
-</body>
-</html>
+            let finalMethod = "
