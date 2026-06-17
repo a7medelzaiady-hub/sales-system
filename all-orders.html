@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>كل الطلبات - شركة الزيادي</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --accent: #0b5e3d;
+            --header-bg: #0b5e3d;
+            --bg-light: #f4f7f6;
+            --text-primary: #1b2e26;
+            --text-secondary: #4a5568;
+            --border: #dce3de;
+            --white: #ffffff;
+            --danger: #d90429;
+            --warning: #ffb703;
+            --card-radius: 16px;
+            --input-radius: 12px;
+        }
+
+        body {
+            background: var(--bg-light);
+            font-family: 'Cairo', sans-serif;
+            color: var(--text-primary);
+            padding-bottom: 90px;
+        }
+
+        .header-nav {
+            background: var(--header-bg);
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .nav-btn {
+            background: rgba(255,255,255,0.15);
+            width: 38px; height: 38px;
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            color: white; text-decoration: none; border: none; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .nav-btn:hover { background: rgba(255,255,255,0.25); color: white; }
+
+        /* Search bar */
+        .search-bar-wrap {
+            padding: 12px 14px 0;
+            position: relative;
+        }
+        .search-bar-wrap input {
+            border: 1.5px solid var(--border);
+            border-radius: 12px;
+            padding: 10px 40px 10px 14px;
+            font-family: 'Cairo', sans-serif;
+            font-weight: 600;
+            font-size: 0.88rem;
+            width: 100%;
+            background: white;
+            color: var(--text-primary);
+            outline: none;
+        }
+        .search-bar-wrap input:focus { border-color: var(--accent); }
+        .search-icon {
+            position: absolute;
+            right: 26px; top: 50%;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 0.9rem;
+            margin-top: 6px;
+        }
+
+        /* Stats bar */
+        .stats-bar {
+            display: flex;
+            gap: 10px;
+            padding: 12px 14px;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .stats-bar::-webkit-scrollbar { display: none; }
+        .stat-chip {
+            background: white;
+            border: 1.5px solid var(--border);
+            border-radius: 20px;
+            padding: 5px 14px;
+            font-size: 0.75rem;
+            font-weight: 800;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .stat-chip.active, .stat-chip:hover {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        .stat-chip .chip-num {
+            background: rgba(255,255,255,0.25);
+            padding: 1px 7px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+        }
+        .stat-chip:not(.active) .chip-num {
+            background: #f1f5f9;
+            color: var(--text-secondary);
+        }
+
+        /* Order card */
+        .order-card {
+            background: white;
+            border: 1.5px solid var(--border);
+            border-radius: var(--card-radius);
+            margin: 0 14px 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .order-card:hover {
+            border-color: var(--accent);
+            box-shadow: 0 4px 16px rgba(11,94,61,0.1);
+            transform: translateY(-1px);
+        }
+        .order-card:active { transform: scale(0.99); }
+
+        .order-card.status-done {
+            border-color: #c3e6cb;
+            opacity: 0.75;
+        }
+
+        .card-header-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px 8px;
+            border-bottom: 1px solid #f5f5f5;
+        }
+
+        .customer-name {
+            font-size: 0.95rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .customer-avatar {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, #0b5e3d, #1a8a5a);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: white;
+            font-size: 0.8rem;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+
+        .status-badge {
+            font-size: 0.68rem;
+            font-weight: 800;
+            padding: 3px 10px;
+            border-radius: 20px;
+        }
+        .status-pending {
+            background: #fff8e1;
+            color: #d97706;
+            border: 1px solid #fde68a;
+        }
+        .status-done {
+            background: #f0fdf4;
+            color: #16a34a;
+            border: 1px solid #bbf7d0;
+        }
+
+        .card-body-row {
+            padding: 10px 14px 12px;
+        }
+
+        .items-preview {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card-footer-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .order-meta {
+            font-size: 0.72rem;
+            color: #94a3b8;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .order-total {
+            font-size: 0.88rem;
+            font-weight: 800;
+            color: var(--accent);
+            background: #f0faf4;
+            padding: 3px 10px;
+            border-radius: 8px;
+        }
+
+        .tap-hint {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.68rem;
+            color: var(--accent);
+            font-weight: 700;
+            margin-top: 6px;
+            padding: 5px 10px;
+            background: #f0faf4;
+            border-radius: 8px;
+            border: 1px dashed #b7dfc7;
+        }
+
+        /* Fab */
+        .fab {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 54px; height: 54px;
+            font-size: 1.3rem;
+            box-shadow: 0 4px 16px rgba(11,94,61,0.35);
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: 0.2s;
+            z-index: 900;
+            text-decoration: none;
+        }
+        .fab:hover { background: #0a5236; color: white; transform: scale(1.05); }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+        .empty-icon {
+            width: 70px; height: 70px;
+            background: #f0faf4;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 16px;
+        }
+
+        /* Loading */
+        .loading-state {
+            text-align: center;
+            padding: 50px 20px;
+        }
+        .spinner {
+            width: 36px; height: 36px;
+            border: 3px solid #e2e8f0;
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin: 0 auto 12px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Section date label */
+        .date-label {
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: var(--text-secondary);
+            padding: 4px 14px 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .date-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* Delete btn inside card (long press hint) */
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #ef4444;
+            font-size: 0.75rem;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-weight: 700;
+            opacity: 0.7;
+        }
+        .delete-btn:hover { opacity: 1; background: #fef2f2; }
+
+        /* Confirm modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-box {
+            background: white;
+            width: 88%;
+            max-width: 360px;
+            border-radius: 18px;
+            padding: 22px 18px;
+            text-align: center;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+            animation: popIn 0.2s ease;
+        }
+        @keyframes popIn {
+            from { transform: scale(0.88); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header-nav">
+    <a href="index.html" class="nav-btn">
+        <i class="fas fa-home"></i>
+    </a>
+    <h6 class="m-0 fw-bold d-flex align-items-center gap-2" style="font-size: 0.92rem;">
+        <i class="fas fa-clipboard-list"></i>
+        <span>كل الطلبات</span>
+        <span class="badge" style="background: rgba(255,255,255,0.2); font-size: 0.7rem; padding: 3px 8px;" id="totalCountBadge">0</span>
+    </h6>
+    <a href="new-order.html" class="nav-btn">
+        <i class="fas fa-plus"></i>
+    </a>
+</div>
+
+<!-- Search -->
+<div class="search-bar-wrap">
+    <i class="fas fa-search search-icon"></i>
+    <input type="text" id="searchInput" placeholder="ابحث باسم العميل أو الصنف..." oninput="filterOrders()">
+</div>
+
+<!-- Filter chips -->
+<div class="stats-bar" id="statsBar">
+    <div class="stat-chip active" onclick="setFilter('all', this)">
+        <i class="fas fa-layer-group"></i>
+        الكل
+        <span class="chip-num" id="chipAll">0</span>
+    </div>
+    <div class="stat-chip" onclick="setFilter('pending', this)">
+        <i class="fas fa-clock"></i>
+        قيد التنفيذ
+        <span class="chip-num" id="chipPending">0</span>
+    </div>
+    <div class="stat-chip" onclick="setFilter('done', this)">
+        <i class="fas fa-check-circle"></i>
+        تم الفوترة
+        <span class="chip-num" id="chipDone">0</span>
+    </div>
+</div>
+
+<!-- Orders list -->
+<div id="ordersList">
+    <div class="loading-state">
+        <div class="spinner"></div>
+        <p style="color: #94a3b8; font-size: 0.85rem; font-weight: 700;">جاري التحميل...</p>
+    </div>
+</div>
+
+<!-- FAB: new order -->
+<a href="new-order.html" class="fab">
+    <i class="fas fa-plus"></i>
+</a>
+
+<!-- Confirm convert to invoice modal -->
+<div class="modal-overlay" id="convertModal">
+    <div class="modal-box">
+        <div style="width:54px; height:54px; background:#f0faf4; border-radius:50%; display:flex; align-items:center; justify-content:center; margin: 0 auto 14px;">
+            <i class="fas fa-file-invoice-dollar" style="color: var(--accent); font-size: 1.6rem;"></i>
+        </div>
+        <h5 class="fw-bold mb-1" style="font-size: 0.95rem;">تحويل الطلبية لفاتورة</h5>
+        <p id="convertModalText" style="color: #64748b; font-size: 0.82rem; margin-bottom: 18px; line-height: 1.5;"></p>
+        <div class="d-flex gap-2">
+            <button id="confirmConvertBtn" class="btn btn-success w-100 fw-bold py-2" style="border-radius: 10px; font-size: 0.88rem;">
+                <i class="fas fa-arrow-left me-1"></i> فتح في الفاتورة
+            </button>
+            <button class="btn btn-light w-100 fw-bold py-2" style="border-radius:10px; border:1px solid #ddd; font-size:0.88rem;" onclick="closeModal()">
+                إلغاء
+            </button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import {
+        getFirestore, collection, getDocs, deleteDoc, doc,
+        query, orderBy
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+        authDomain: "ahmedelzaiady.firebaseapp.com",
+        projectId: "ahmedelzaiady",
+        storageBucket: "ahmedelzaiady.firebasestorage.app",
+        messagingSenderId: "300306825071",
+        appId: "1:300306825071:web:0426ddde56280fa090329a"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let allOrders = [];
+    let currentFilter = 'all';
+    let pendingOrderForConvert = null;
+
+    async function init() {
+        try {
+            const q = query(collection(db, 'orders'), orderBy('timestamp', 'desc'));
+            const snap = await getDocs(q);
+            allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            updateChips();
+            renderOrders();
+        } catch (e) {
+            console.error(e);
+            document.getElementById('ordersList').innerHTML = `
+                <div class="empty-state">
+                    <p style="color:#ef4444; font-size:0.85rem;">خطأ في التحميل، أعد تحميل الصفحة</p>
+                </div>`;
+        }
+    }
+
+    function updateChips() {
+        const pending = allOrders.filter(o => o.status === 'pending').length;
+        const done = allOrders.filter(o => o.status === 'done').length;
+        document.getElementById('chipAll').innerText = allOrders.length;
+        document.getElementById('chipPending').innerText = pending;
+        document.getElementById('chipDone').innerText = done;
+        document.getElementById('totalCountBadge').innerText = allOrders.length;
+    }
+
+    window.setFilter = (filter, el) => {
+        currentFilter = filter;
+        document.querySelectorAll('.stat-chip').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        renderOrders();
+    };
+
+    window.filterOrders = () => renderOrders();
+
+    function renderOrders() {
+        const term = document.getElementById('searchInput').value.trim().toLowerCase();
+
+        let filtered = allOrders;
+
+        if (currentFilter !== 'all') {
+            filtered = filtered.filter(o => o.status === currentFilter);
+        }
+
+        if (term) {
+            filtered = filtered.filter(o => {
+                const nameMatch = o.customerName?.toLowerCase().includes(term);
+                const itemMatch = o.items?.some(i => i.name?.toLowerCase().includes(term));
+                return nameMatch || itemMatch;
+            });
+        }
+
+        const container = document.getElementById('ordersList');
+
+        if (!filtered.length) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">
+                        <i class="fas fa-inbox" style="color: #94a3b8; font-size: 1.8rem;"></i>
+                    </div>
+                    <h6 style="color: var(--text-primary); font-weight: 800;">لا توجد طلبات</h6>
+                    <p style="color: #94a3b8; font-size: 0.82rem;">
+                        ${term ? 'لا توجد نتائج للبحث' : 'لم يتم تسجيل أي طلبيات بعد'}
+                    </p>
+                    <a href="new-order.html" class="btn btn-sm fw-bold" style="background:var(--accent); color:white; border-radius:10px; margin-top:8px;">
+                        <i class="fas fa-plus me-1"></i> سجل أول طلبية
+                    </a>
+                </div>`;
+            return;
+        }
+
+        // Group by date
+        const groups = {};
+        filtered.forEach(o => {
+            const dateKey = o.date ? o.date.split(' ')[0] : 'بدون تاريخ';
+            if (!groups[dateKey]) groups[dateKey] = [];
+            groups[dateKey].push(o);
+        });
+
+        let html = '';
+        Object.keys(groups).forEach(dateKey => {
+            html += `<div class="date-label"><i class="fas fa-calendar-day"></i> ${dateKey}</div>`;
+            groups[dateKey].forEach(order => {
+                html += buildOrderCard(order);
+            });
+        });
+
+        container.innerHTML = html;
+    }
+
+    function buildOrderCard(order) {
+        const isDone = order.status === 'done';
+        const initials = (order.customerName || 'ع').charAt(0);
+        const itemNames = order.items?.map(i => i.name).join(' • ') || '—';
+        const total = Number(order.total || 0).toFixed(2);
+
+        const statusBadge = isDone
+            ? `<span class="status-badge status-done"><i class="fas fa-check-circle me-1"></i>تم الفوترة</span>`
+            : `<span class="status-badge status-pending"><i class="fas fa-clock me-1"></i>قيد التنفيذ</span>`;
+
+        const tapHint = !isDone
+            ? `<div class="tap-hint"><i class="fas fa-arrow-left"></i> اضغط لتحويلها لفاتورة مبيعات</div>`
+            : `<div class="tap-hint" style="background:#f0fdf4; border-color:#bbf7d0; color:#16a34a;"><i class="fas fa-check"></i> تم تحويلها لفاتورة</div>`;
+
+        return `
+            <div class="order-card ${isDone ? 'status-done' : ''}" onclick="onOrderClick('${order.id}')">
+                <div class="card-header-row">
+                    <div class="customer-name">
+                        <div class="customer-avatar">${initials}</div>
+                        ${order.customerName || '—'}
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        ${statusBadge}
+                        ${!isDone ? `<button class="delete-btn" onclick="event.stopPropagation(); confirmDelete('${order.id}', '${order.customerName}')"><i class="fas fa-trash"></i></button>` : ''}
+                    </div>
+                </div>
+                <div class="card-body-row">
+                    <div class="items-preview">
+                        <i class="fas fa-box me-1" style="color: var(--accent); font-size:0.7rem;"></i>
+                        ${itemNames}
+                    </div>
+                    <div class="card-footer-row">
+                        <div class="order-meta">
+                            <i class="fas fa-clock"></i>
+                            ${order.date || '—'}
+                        </div>
+                        <div class="order-total">${total} ج.م</div>
+                    </div>
+                    ${tapHint}
+                </div>
+            </div>`;
+    }
+
+    window.onOrderClick = (orderId) => {
+        const order = allOrders.find(o => o.id === orderId);
+        if (!order) return;
+
+        if (order.status === 'done') {
+            // just show info, can optionally go to invoice edit
+            alert('هذه الطلبية تم تحويلها لفاتورة مبيعات مسبقاً.');
+            return;
+        }
+
+        // Show confirm modal
+        pendingOrderForConvert = order;
+        document.getElementById('convertModalText').innerHTML =
+            `طلبية العميل <b>${order.customerName}</b><br>تحتوي على <b>${order.items?.length || 0} أصناف</b> بإجمالي <b>${Number(order.total || 0).toFixed(2)} ج.م</b><br><br>هل تريد فتحها في صفحة فاتورة المبيعات للتعديل والحفظ؟`;
+
+        document.getElementById('confirmConvertBtn').onclick = () => convertToInvoice(order);
+        document.getElementById('convertModal').style.display = 'flex';
+    };
+
+    window.closeModal = () => {
+        document.getElementById('convertModal').style.display = 'none';
+        pendingOrderForConvert = null;
+    };
+
+    function convertToInvoice(order) {
+        // Build query params to pre-fill invoice page
+        const params = new URLSearchParams({
+            fromOrder: order.id,
+            customerId: order.customerId || '',
+            customerName: order.customerName || '',
+            total: order.total || 0,
+            items: JSON.stringify(order.items || []),
+            notes: order.notes || ''
+        });
+        window.location.href = `sales-invoice.html?${params.toString()}`;
+    }
+
+    window.confirmDelete = (orderId, name) => {
+        if (!confirm(`هل تريد حذف طلبية "${name}"؟ لا يمكن التراجع.`)) return;
+        deleteOrder(orderId);
+    };
+
+    async function deleteOrder(orderId) {
+        try {
+            await deleteDoc(doc(db, 'orders', orderId));
+            allOrders = allOrders.filter(o => o.id !== orderId);
+            updateChips();
+            renderOrders();
+        } catch (e) {
+            alert('فشل الحذف، حاول مرة أخرى');
+        }
+    }
+
+    init();
+</script>
+</body>
+</html>
