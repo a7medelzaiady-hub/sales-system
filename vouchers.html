@@ -347,8 +347,7 @@ function applyRoleRestrictions() {
     // الأزرار ستظهر الآن للجميع بدون قيود
     console.log("تم إظهار الأزرار للجميع");
 }
-        }
-    }
+   
 
     function loadCache() {
         const cachedParties = localStorage.getItem('cache_partiesMap');
@@ -632,45 +631,54 @@ function applyRoleRestrictions() {
             }
         }
 
-        document.getElementById('recPrevBalance').innerText = `${prevBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
-        document.getElementById('recNewBalance').innerText = `${newBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;   
-        
-        if(receiptModalObj) receiptModalObj.show();
-    };
+    document.getElementById('btnDoShare').addEventListener('click', async () => {
 
-    document.getElementById('btnDoShare').addEventListener('click', () => {
-        const target = document.getElementById('thermalReceipt');
-        
-        setTimeout(() => {
-            html2canvas(target, { 
-                scale: 3,                 
-                useCORS: true, 
-                allowTaint: true,
-                backgroundColor: "#ffffff",
-                logging: false,
-                scrollX: 0,
-                scrollY: -window.scrollY
-            }).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
-                
-                canvas.toBlob(blob => {
-                    if (!blob) { alert("فشل إنشاء صورة المعاينة الفورية"); return; }
-                    const file = new File([blob], "receipt.png", { type: "image/png" });
-                    
-                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                        navigator.share({
-                            files: [file],
-                            title: 'إيصال سداد - شركة الزيادي',
-                        }).catch(err => {
-                            triggerDownload(imgData);
-                        });
-                    } else {
-                        triggerDownload(imgData);
-                    }
-                }, 'image/png');
-            });
-        }, 300); 
+    const target = document.getElementById('thermalReceipt');
+
+    const canvas = await html2canvas(target, {
+        scale: 3,
+        backgroundColor: "#ffffff"
     });
+
+    canvas.toBlob(async (blob) => {
+
+        if (!blob) {
+            alert("فشل إنشاء الصورة");
+            return;
+        }
+
+        const file = new File([blob], "receipt.png", {
+            type: "image/png"
+        });
+
+        try {
+
+            if (navigator.share) {
+
+                await navigator.share({
+                    files: [file],
+                    title: "إيصال السداد"
+                });
+
+            } else {
+
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = "receipt.png";
+                link.click();
+            }
+
+        } catch (err) {
+            console.error(err);
+
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = "receipt.png";
+            link.click();
+        }
+
+    }, "image/png");
+});
 
     function triggerDownload(imgData) {
         const a = document.createElement('a');
@@ -724,17 +732,25 @@ function applyRoleRestrictions() {
         }
     });
 
-    window.deleteVoucher = async (id) => {
-        if (!confirm("هل أنت متأكد تماماً من رغبتك في حذف هذا السند نهائياً؟")) return;
-        try {
-            await deleteDoc(doc(db, "transactions", id));
-            alert("تم حذف السند وإلغاء أثره المالي.");
-            await loadVouchers();
-        } catch (err) {
-            console.error("Error deleting transaction:", err);
-            alert("فشل حذف السند، يرجى التحقق من اتصالك بالإنترنت.");
-        }
-    };
+  window.deleteAllVouchers = async () => {
+
+    if (!confirm("تحذير: هل تريد حذف جميع السندات؟")) return;
+
+    try {
+        const promises = allVouchers.map(v =>
+            deleteDoc(doc(db, "transactions", v.id))
+        );
+
+        await Promise.all(promises);
+
+        alert("تم حذف جميع السندات");
+        await loadVouchers();
+
+    } catch (err) {
+        console.error(err);
+        alert("فشل الحذف");
+    }
+};
 
     window.deleteAllVouchers = async () => {
         if (userRole !== 'admin') return; 
