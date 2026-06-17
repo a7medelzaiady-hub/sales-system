@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>الزيادي لزيوت السيارات | استعلام الأسعار</title>
+    <title>الزيادي لزيوت السيارات | استعلام الأسعار من المخزن</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         :root {
-            --primary: #e67e22; /* البرتقالي من لون الشعار */
-            --dark-bg: #2c3e50; /* الرمادي الداكن */
+            --primary: #e67e22; /* البرتقالي المتناسق مع شعار الزيوت */
+            --dark-bg: #2c3e50; 
             --body-bg: #f5f7fa;
         }
 
@@ -73,6 +73,7 @@
             outline: none;
             box-sizing: border-box;
             transition: 0.3s;
+            text-align: center;
         }
 
         .search-box input:focus {
@@ -90,7 +91,7 @@
             border: 1px solid #e2e9e5;
             border-top: none;
             border-radius: 0 0 15px 15px;
-            max-height: 200px;
+            max-height: 220px;
             overflow-y: auto;
             z-index: 1000;
             box-shadow: 0 8px 15px rgba(0,0,0,0.05);
@@ -109,18 +110,19 @@
         }
 
         .autocomplete-item:hover {
-            background-color: var(--glass, rgba(230, 126, 34, 0.1));
+            background-color: rgba(230, 126, 34, 0.08);
             color: var(--primary);
         }
 
-        /* صندوق عرض السعر النهائي */
+        /* صندوق السعر النهائي المطور */
         .price-display {
             margin-top: 25px;
-            padding: 20px;
+            padding: 25px 20px;
             border-radius: 15px;
             background: #fafbfc;
-            border: 1px dashed #e67e22;
+            border: 2px dashed var(--primary);
             display: none;
+            animation: fadeIn 0.3s ease-in-out;
         }
 
         .price-display.active {
@@ -128,16 +130,21 @@
         }
 
         .price-title {
-            font-size: 14px;
+            font-size: 15px;
             color: #7f8c8d;
             font-weight: 700;
-            margin-bottom: 5px;
+            margin-bottom: 8px;
         }
 
         .price-amount {
-            font-size: 32px;
+            font-size: 36px;
             font-weight: 900;
-            color: #2ecc71; /* لون أخضر مريح للعين للأسعار */
+            color: #2ecc71; /* الأخضر لتمييز السعر */
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
     </style>
 </head>
@@ -146,14 +153,15 @@
     <div class="search-container">
         <div class="logo-area">
             <h1>الزيادي <span>لزيوت السيارات</span></h1>
-            <p>استعلام سريع عن أسعار الأصناف</p>
+            <p>استعلام فوري مباشر من بيانات المخزن</p>
         </div>
 
         <div class="search-box">
-            <input type="text" id="oilSearch" placeholder="اكتب اسم الزيت أو اللزوجة هنا..." autocomplete="off">
+            <input type="text" id="oilSearch" placeholder="اكتب صنف الزيت أو اللزوجة..." autocomplete="off">
             <div id="autocompleteList" class="autocomplete-list"></div>
         </div>
 
+        <!-- صندوق عرض السعر المستدعى -->
         <div id="priceDisplay" class="price-display">
             <div class="price-title" id="selectedItemName">--</div>
             <div class="price-amount" id="selectedItemPrice">0 ج.م</div>
@@ -161,28 +169,21 @@
     </div>
 
     <script>
-        // قاعدة البيانات المبسطة (الأصناف والأسعار)
-        const itemsDatabase = [
-            { name: "زيت الزيادي الترا سوبر 5W-30", price: "1250 ج.م" },
-            { name: "زيت توتال كوارترز 5W-40", price: "1400 ج.م" },
-            { name: "زيت موبيل وان 0W-20", price: "1650 ج.م" },
-            { name: "زيت الزيادي سبيد 10W-40", price: "850 ج.م" },
-            { name: "زيت شل هيلكس الأصفر 10W-40", price: "920 ج.م" },
-            { name: "زيت مصر للبترول 20W-50", price: "550 ج.م" },
-            { name: "زيت التعاون ديزل ثقيل", price: "1100 ج.م" },
-            { name: "فلتر زيت تويوتا كورولا أصلي", price: "220 ج.م" },
-            { name: "فلتر هواء هيونداي إلنترا", price: "350 ج.م" },
-            { name: "مياه رادياتير حمراء موبيل", price: "280 ج.م" },
-            { name: "منظف دورة الوقود ليكوي مولي", price: "420 ج.م" }
-        ];
-
         const searchInput = document.getElementById('oilSearch');
         const autocompleteList = document.getElementById('autocompleteList');
         const priceDisplay = document.getElementById('priceDisplay');
         const selectedItemName = document.getElementById('selectedItemName');
         const selectedItemPrice = document.getElementById('selectedItemPrice');
 
-        // دالة التحكم في الكتابة والـ Autocomplete
+        // جلب المنتجات الحقيقية المخزنة في الـ LocalStorage
+        function getWarehouseData() {
+            // "sanad-products" هو المفتاح المعتاد الذي يحفظ الكود القديم المنتجات عليه
+            // إذا لم يجد بيانات، يعود بمصفوفة فارغة لكي لا يتوقف الكود
+            const storedProducts = localStorage.getItem('sanad-products') || localStorage.getItem('products');
+            return storedProducts ? JSON.parse(storedProducts) : [];
+        }
+
+        // دالة تصفية المنتجات وظهور الـ Autocomplete عند الكتابة
         searchInput.addEventListener('input', function() {
             const query = this.value.trim().toLowerCase();
             autocompleteList.innerHTML = '';
@@ -193,22 +194,31 @@
                 return;
             }
 
-            // تصفية الأصناف بناء على كتابة المستخدم
-            const matches = itemsDatabase.filter(item => item.name.toLowerCase().includes(query));
+            // سحب البيانات المحدثة من المخزن فوراً
+            const currentDatabase = getWarehouseData();
+
+            // تصفية المنتجات بناءً على مطابقة الاسم أو اللزوجة المكتوبة
+            const matches = currentDatabase.filter(item => {
+                const itemName = (item.name || item.title || '').toLowerCase();
+                return itemName.includes(query);
+            });
 
             if (matches.length > 0) {
                 matches.forEach(item => {
+                    const finalName = item.name || item.title;
+                    const finalPrice = item.price ? `${item.price} ج.م` : 'غير محدد';
+
                     const div = document.createElement('div');
                     div.className = 'autocomplete-item';
-                    div.innerText = item.name;
+                    div.innerText = finalName;
                     
-                    // عند الضغط على صنف من القائمة
+                    // عند اختيار الصنف من قائمة الاقتراحات
                     div.addEventListener('click', function() {
-                        searchInput.value = item.name;
+                        searchInput.value = finalName;
                         autocompleteList.style.display = 'none';
                         
-                        // إظهار السعر فورا
-                        showPrice(item.name, item.price);
+                        // عرض السعر النهائي فوراً
+                        showPrice(finalName, finalPrice);
                     });
                     
                     autocompleteList.appendChild(div);
@@ -220,14 +230,14 @@
             }
         });
 
-        // دالة عرض السعر
+        // دالة طباعة السعر باللون الأخضر داخل الصندوق
         function showPrice(name, price) {
             selectedItemName.innerText = name;
             selectedItemPrice.innerText = price;
             priceDisplay.classList.add('active');
         }
 
-        // إغلاق قائمة الاقتراحات إذا ضغط المستخدم في أي مكان خارجها
+        // إغلاق قائمة الاقتراحات التلقائية إذا ضغط المستخدم خارج الخانة
         document.addEventListener('click', function(e) {
             if (e.target !== searchInput) {
                 autocompleteList.style.display = 'none';
