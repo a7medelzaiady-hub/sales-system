@@ -648,47 +648,44 @@
         } catch (e) { return Number(initialBalance); }
     }
 
-    // --- ميزة جلب السعر الذكي الجديد المخصصة لشركة الزيادي ---
+    // --- آلية جلب السعر الذكي المُعدلة والآمنة بدون تطلب كشافات مركبة ---
     async function fetchSmartPrice(stockId, customerId, selectedUnit) {
         try {
-            // المحاولة الأولى: البحث عن آخر سعر للصنف عند هذا العميل بالتحديد
+            // المحاولة الأولى: جلب آخر فواتير لهذا العميل بالتحديد
             if (customerId) {
-                const qCustInvoices = query(
-                    collection(db, "invoices"),
-                    where("customerId", "==", customerId),
-                    orderBy("timestamp", "desc"),
-                    limit(5) 
-                );
+                const qCustInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
                 const snapCustInvoices = await getDocs(qCustInvoices);
-                for (const docSnap of snapCustInvoices.docs) {
-                    const invData = docSnap.data();
-                    if (editId && docSnap.id === editId) continue; // تخطي الفاتورة الحالية في وضع التعديل
+                
+                // تحويلهم لمصفوفة لفرزهم بحسب الأحدث يدوياً لتفادي كشافات الأندكس المركبة في فايربيز
+                let sortedDocs = snapCustInvoices.docs.map(d => ({id: d.id, ...d.data()}));
+                sortedDocs.sort((a, b) => (b.time || "").localeCompare(a.time || ""));
+
+                for (const invData of sortedDocs) {
+                    if (editId && invData.id === editId) continue; 
                     const matchedItem = invData.items?.find(item => item.stockId === stockId && item.unit === selectedUnit);
-                    if (matchedItem && matchedItem.price) {
+                    if (matchedItem && matchedItem.price !== undefined) {
                         return Number(matchedItem.price);
                     }
                 }
             }
 
-            // المحاولة الثانية: إذا لم يجد للعميل، يبحث عن آخر سعر تم البيع به عموماً لأي عميل آخر
-            const qGeneralInvoices = query(
-                collection(db, "invoices"),
-                orderBy("timestamp", "desc"),
-                limit(15) 
-            );
+            // المحاولة الثانية: جلب آخر فواتير في السستم عموماً والبحث فيها
+            const qGeneralInvoices = query(collection(db, "invoices"), limit(20));
             const snapGeneralInvoices = await getDocs(qGeneralInvoices);
-            for (const docSnap of snapGeneralInvoices.docs) {
-                const invData = docSnap.data();
-                if (editId && docSnap.id === editId) continue;
+            let sortedGenDocs = snapGeneralInvoices.docs.map(d => ({id: d.id, ...d.data()}));
+            sortedGenDocs.sort((a, b) => (b.time || "").localeCompare(a.time || ""));
+
+            for (const invData of sortedGenDocs) {
+                if (editId && invData.id === editId) continue;
                 const matchedItem = invData.items?.find(item => item.stockId === stockId && item.unit === selectedUnit);
-                if (matchedItem && matchedItem.price) {
+                if (matchedItem && matchedItem.price !== undefined) {
                     return Number(matchedItem.price);
                 }
             }
         } catch (error) {
             console.error("خطأ أثناء جلب السعر التاريخي المخصص:", error);
         }
-        return null; // سيتم استخدام السعر الافتراضي من جدول المخزن إن لم يعثر على سجلات
+        return null; 
     }
 
     window.addEventListener('beforeunload', (e) => {
@@ -798,6 +795,10 @@
         } catch (e) { console.error(e); }
     }
 
+    function showBalance(val) {
+        document.getElementById('curBalanceVal').innerText = Number(val).toFixed(2);
+    }
+
     window.searchCustomer = (input) => {
         const term = input.value.toLowerCase().trim();
         const resultsDiv = document.getElementById('customerResults');
@@ -855,7 +856,6 @@
         currentFetchedOldBalance = realDebt;
         showBalance(realDebt);
 
-        // تحديث أسعار الأسطر المدخلة حالياً لتلائم أسعار العميل المختار الجديد
         const rows = document.querySelectorAll('.product-row');
         for (const row of rows) {
             const unitSel = row.querySelector('.p-unit');
@@ -1012,7 +1012,6 @@
         return id;
     };
 
-    // تحديث السعر تلقائياً بناءً على العميل الحالي أو آخر سعر عام
     window.updateRowPrice = async (unitSel) => {
         const row = unitSel.closest('.product-row');
         const stockId = row.querySelector('.p-select').value;
@@ -1024,13 +1023,8 @@
         const p = inventory.find(i => i.id === stockId);
         if (!p) return;
 
-        // إظهار علامة انتظار مؤقتة داخل حقل السعر أثناء الجلب الذكي
-        row.querySelector('.p-price').placeholder = "جاري حساب السعر...";
-        
-        // استدعاء دالة فحص السعر الذكي (آخر سعر للعميل ثم آخر سعر عام)
         let finalPrice = await fetchSmartPrice(stockId, customerId, selectedUnit);
 
-        // إذا لم يعثر على أسعار بيع سابقة مسجلة، يعود للسعر الافتراضي الحالي من الكرتونة/القطعة بالمخزن
         if (finalPrice === null || finalPrice === undefined) {
             finalPrice = (selectedUnit === 'box') ? (p.sell || 0) : ((p.sell || 0) / (p.unitFactor || 1));
         }
@@ -1159,4 +1153,148 @@
                 remaining: Number(total - (finalCash + finalWallet)) || 0,
                 paymentMethod: finalMethod,
                 cashAmount: Number(finalCash) || 0,
-                walletAmount: Number(final
+                walletAmount: Number(finalWallet) || 0,
+                items, time: currentInvoiceTime, notes: ""
+            };
+
+            if (!editId) {
+                const newInvoiceData = { ...baseInvoiceData, timestamp: serverTimestamp() };
+
+                for (const item of items) {
+                    try {
+                        const itemDocRef = doc(db, "inventory", item.stockId);
+                        const itemSnap = await getDoc(itemDocRef);
+                        if (itemSnap.exists()) {
+                            const p = inventory.find(i => i.id === item.stockId);
+                            const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                            const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
+                            if (item.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) }); }
+                            else { await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) }); }
+                        }
+                    } catch (err) { console.warn(`تنبيه: صنف ممسوح: ${item.stockId}`, err); }
+                }
+
+                const newDocRef = await addDoc(collection(db, "invoices"), newInvoiceData);
+                editId = newDocRef.id;
+
+                if (fromOrderId) {
+                    try {
+                        if (deleteOrderAfterSave) {
+                            await deleteDoc(doc(db, "orders", fromOrderId));
+                            console.log(`تم حذف الطلبية ${fromOrderId} بنجاح بعد حفظ الفاتورة.`);
+                        } else {
+                            await updateDoc(doc(db, "orders", fromOrderId), { status: 'done', invoiceId: editId });
+                        }
+                    } catch(e) { console.warn('لم يتمكن النظام من تحديث أو حذف الطلبية المرجعية', e); }
+                }
+
+                prepareThermalReceipt(newInvoiceData, currentFetchedOldBalance);
+            } else {
+                const oldRef = doc(db, "invoices", editId);
+                const oldSnap = await getDoc(oldRef);
+                if (oldSnap.exists()) {
+                    const oldData = oldSnap.data();
+                    if (oldData && oldData.items) {
+                        for (const oldItem of oldData.items) {
+                            if (oldItem.stockId) {
+                                try {
+                                    const itemDocRef = doc(db, "inventory", oldItem.stockId);
+                                    const itemSnap = await getDoc(itemDocRef);
+                                    if (itemSnap.exists()) {
+                                        const p = inventory.find(i => i.id === oldItem.stockId);
+                                        const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                                        const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * factor : oldItem.qty;
+                                        if (oldItem.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(-oldQtyPcs) }); }
+                                        else { await updateDoc(itemDocRef, { totalPcs: increment(oldQtyPcs) }); }
+                                    }
+                                } catch (err) { console.warn(`تنبيه: صنف قديم: ${oldItem.stockId}`, err); }
+                            }
+                        }
+                    }
+                    for (const item of items) {
+                        if (item.stockId) {
+                            try {
+                                const itemDocRef = doc(db, "inventory", item.stockId);
+                                const itemSnap = await getDoc(itemDocRef);
+                                if (itemSnap.exists()) {
+                                    const p = inventory.find(i => i.id === item.stockId);
+                                    const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                                    const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
+                                    if (item.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) }); }
+                                    else { await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) }); }
+                                }
+                            } catch (err) { console.warn(`تنبيه: صنف ممسوح: ${item.stockId}`, err); }
+                        }
+                    }
+                    await updateDoc(oldRef, baseInvoiceData);
+                    prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
+                }
+            }  
+
+            isChanged = false;
+            document.getElementById('shareModal').style.display = 'flex';
+
+        } catch (e) {
+            console.error("Firebase Error: ", e);
+            alert("فشل حفظ الفاتورة\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerText = "حفظ وتحديث البيانات";
+        }
+    };
+
+    function prepareThermalReceipt(data, oldBalance) {
+        document.getElementById('recCustomer').innerText = data.customerName;
+        document.getElementById('recDate').innerText = data.time || originalInvoiceTime;
+        document.getElementById('recPaymentMethod').innerText = data.paymentMethod;
+        const itemsTotalVal = data.itemsTotal || data.total + (data.discount || 0);
+        document.getElementById('recSubTotal').innerText = Number(itemsTotalVal).toFixed(2);
+        const discountVal = data.discount || 0;
+        document.getElementById('recDiscount').innerText = Number(discountVal).toFixed(2);
+        document.getElementById('recDiscountRow').style.display = discountVal > 0 ? 'flex' : 'none';
+        document.getElementById('recTotal').innerText = Number(data.total).toFixed(2);
+        document.getElementById('recOldBalance').innerText = Number(oldBalance).toFixed(2);
+        document.getElementById('recPaid').innerText = Number(data.paid).toFixed(2);
+        document.getElementById('recRemaining').innerText = Number(oldBalance + data.remaining).toFixed(2);
+
+        const recSplitZone = document.getElementById('recSplitDetails');
+        if (data.cashAmount > 0 || data.walletAmount > 0) {
+            recSplitZone.style.display = 'block';
+            document.getElementById('recCashAmount').innerText = Number(data.cashAmount).toFixed(2);
+            document.getElementById('recWalletAmount').innerText = Number(data.walletAmount).toFixed(2);
+        } else { recSplitZone.style.display = 'none'; }
+
+        const tbody = document.getElementById('recItems');
+        tbody.innerHTML = data.items.map(item => `
+            <tr style="border-bottom: 1px dotted #000; ${item.isReturn ? 'background-color: #fce8e6;' : ''}">
+                <td style="padding: 8px 0;">${item.isReturn ? '<span style="color:red; font-weight:bold;">(مرتجع) </span>' : ''}${item.name}</td>
+                <td style="padding: 8px 0; text-align: center;">${item.qty}</td>
+                <td style="padding: 8px 0; text-align: left;">${Number(item.price).toFixed(2)}</td>
+                <td style="padding: 8px 0; text-align: left; ${item.isReturn ? 'color: red;' : ''}">${item.isReturn ? '-' : ''}${(item.qty * item.price).toFixed(2)}</td>
+            </tr>
+        `).join('');
+    }
+
+    document.getElementById('cancelShareBtn').onclick = () => {
+        document.getElementById('shareModal').style.display = 'none';
+        window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html";
+    };
+
+    document.getElementById('confirmShareBtn').onclick = () => {
+        const receipt = document.getElementById('thermalReceipt');
+        html2canvas(receipt, { scale: 2, useCORS: true }).then(canvas => {
+            canvas.toBlob(blob => {
+                const file = new File([blob], `invoice_${editId}.png`, { type: 'image/png' });
+                if (navigator.share) {
+                    navigator.share({ files: [file], title: 'فاتورة مبيعات', text: `فاتورة مبيعات من شركة الزيادي` })
+                        .then(() => { window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html"; })
+                        .catch(err => console.log(err));
+                } else { alert("المشاركة غير مدعومة في هذا المتصفح"); }
+            }, 'image/png');
+        });
+    };
+
+    init();
+</script>
+</body>
+</html>
