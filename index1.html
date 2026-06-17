@@ -8,7 +8,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- إعدادات التطبيق الهاتفي PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -32,6 +31,12 @@
             --shadow: 0 8px 24px rgba(11, 94, 61, 0.04);
             --radius-lg: 20px;
             --radius-md: 14px;
+            
+            /* ألوان التنبيهات للوضع المضيء */
+            --alert-bg: linear-gradient(135deg, #fff3cd, #ffeeba);
+            --alert-border: #ffe8a1;
+            --alert-text: #856404;
+            --alert-btn: #856404;
         }
 
         body.dark-mode {
@@ -45,6 +50,12 @@
             --text-secondary: #87948e;
             --border: #1f2924;
             --shadow: 0 10px 30px rgba(0,0,0,0.3);
+            
+            /* ألوان التنبيهات للوضع الليلي */
+            --alert-bg: linear-gradient(135deg, #2c2510, #3a3012);
+            --alert-border: #54441b;
+            --alert-text: #ffe082;
+            --alert-btn: #ffb300;
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -105,8 +116,75 @@
         }
         .logout-btn:hover { background: rgba(228, 30, 63, 0.2); border-color: var(--danger); }
 
+        /* ═══ تنسيقات صندوق تنبيهات الطلبات اليومية ═══ */
+        .orders-alert-wrapper {
+            max-width: 1200px;
+            margin: 15px auto 0;
+            padding: 0 20px;
+            display: none; /* مخفي افتراضياً ويظهر بالجافاسكريبت */
+            animation: slideDownFade 0.4s ease-out;
+        }
+        .orders-alert-card {
+            background: var(--alert-bg);
+            border: 1px solid var(--alert-border);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            color: var(--alert-text);
+            box-shadow: var(--shadow);
+        }
+        .orders-alert-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 800;
+            font-size: 14px;
+            border-bottom: 1px dashed rgba(223, 161, 0, 0.2);
+            padding-bottom: 6px;
+            margin-bottom: 8px;
+        }
+        .orders-alert-header i {
+            animation: ringBell 2s infinite ease-in-out;
+            margin-left: 6px;
+        }
+        .orders-alert-list {
+            max-height: 130px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .orders-alert-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 4px 0;
+        }
+        .orders-alert-btn {
+            background: var(--alert-btn);
+            color: var(--bg-card) !important;
+            padding: 3px 10px;
+            border-radius: 8px;
+            font-size: 11px;
+            text-decoration: none;
+            font-weight: 800;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        @keyframes slideDownFade {
+            from { transform: translateY(-10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes ringBell {
+            0%, 100% { transform: rotate(0); }
+            10%, 30% { transform: rotate(15deg); }
+            20%, 40% { transform: rotate(-15deg); }
+            50% { transform: rotate(0); }
+        }
+
         .welcome-banner {
-            padding: 35px 20px 10px;
+            padding: 25px 20px 10px;
             max-width: 1200px;
             margin: 0 auto;
             text-align: center;
@@ -328,7 +406,6 @@
 </head>
 <body>
 
-    <!-- ═══ BANNER OFFLINE ═══ -->
     <div id="offlineBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:99999; background:#92400e; color:#fef3c7; padding:8px 16px; text-align:center; font-family:'Cairo',sans-serif; font-size:0.8rem; font-weight:700; align-items:center; justify-content:center; gap:8px;">
       <i class="fas fa-wifi" style="opacity:.7"></i>
       <span>أنت تعمل حالياً بدون إنترنت — يتم تصفح النظام عبر الكاش المحلي الآمن</span>
@@ -350,7 +427,22 @@
         </div>
     </header>
 
-    <!-- حاوية عرض الكروت الديناميكية -->
+    <div class="orders-alert-wrapper" id="todayOrdersAlert">
+        <div class="orders-alert-card">
+            <div class="orders-alert-header">
+                <span><i class="fas fa-bell"></i> تنبيه: طلبيات تستحق التسليم اليوم!</span>
+                <a href="orders-home.html" class="orders-alert-btn">عرض الكل</a>
+            </div>
+            <div class="orders-alert-list" id="todayOrdersList">
+                </div>
+        </div>
+    </div>
+
+    <div class="welcome-banner">
+        <h1>مرحباً بك</h1>
+        <p>نظام إدارة المبيعات والمخازن الذكي</p>
+    </div>
+
     <div class="dashboard" id="mainDashboard">
         <a href="mabiat-menu.html" class="card-link" id="cardSales">
             <div class="card">
@@ -478,20 +570,71 @@
         window.addEventListener('online',  () => showOfflineBanner(false));
         window.addEventListener('offline', () => showOfflineBanner(true));
 
+        // ═══ دالة جلب وفحص طلبيات اليوم من الـ Firebase ═══
+        function loadTodayOrdersAlerts() {
+            // التحقق من أن Firebase تم استدعاؤه في الصفحة بنجاح
+            if (typeof db === "undefined") return;
+
+            // الحصول على تاريخ اليوم الحالي بصيغة YYYY-MM-DD متوافقة مع مخزنك الرقمي
+            const today = new Date();
+            const yyyy = today.getFullYear();
+            const mm = String(today.getMonth() + 1).padStart(2, '0');
+            const dd = String(today.getDate()).padStart(2, '0');
+            const todayStr = `${yyyy}-${mm}-${dd}`;
+
+            // الاستماع الفوري للطلبات غير المستلمة والتي يحين موعدها اليوم
+            db.collection("orders")
+              .where("deliveryDate", "==", todayStr)
+              .onSnapshot((querySnapshot) => {
+                  const alertWrapper = document.getElementById("todayOrdersAlert");
+                  const listContainer = document.getElementById("todayOrdersList");
+                  
+                  listContainer.innerHTML = ""; 
+                  let activeOrdersCount = 0;
+
+                  querySnapshot.forEach((doc) => {
+                      const order = doc.data();
+                      
+                      // فلترة مخصصة للتأكد أن الطلب لم يتم تسليمه أو إغلاقه بعد
+                      if (order.status !== "delivered" && order.status !== "completed") {
+                          activeOrdersCount++;
+                          
+                          const item = document.createElement("div");
+                          item.className = "orders-alert-item";
+                          item.innerHTML = `
+                              <span><i class="fas fa-circle-user" style="font-size:11px; margin-left:4px; color:var(--accent);"></i> العميل: ${order.customerName || 'عميل غير مسجل'}</span>
+                              <span style="color:var(--danger); font-size:11px;">مطلوب تسليمه اليوم 🕒</span>
+                          `;
+                          listContainer.appendChild(item);
+                      }
+                  });
+
+                  // إظهار التنبيه في الأعلى فقط في حال وجود طلبيات مستحقة اليوم
+                  if (activeOrdersCount > 0) {
+                      alertWrapper.style.display = "block";
+                  } else {
+                      alertWrapper.style.display = "none";
+                  }
+              }, (error) => {
+                  console.error("حدث خطأ أثناء جلب طلبيات اليوم: ", error);
+              });
+        }
+
         window.onload = () => {
-            // فحص فوري لحالة الشبكة عند التحميل
             if (!navigator.onLine) { showOfflineBanner(true); }
 
             if (localStorage.getItem('sanad-theme') === 'dark') {
                 document.body.classList.add('dark-mode');
             }
 
+            // تشغيل فحص طلبيات اليوم فورا عند التحميل
+            loadTodayOrdersAlerts();
+
             // جلب البيانات من جلسة العمل الحالية
             const role = sessionStorage.getItem('role') || 'employee'; 
             const username = sessionStorage.getItem('username') || '';
             const savedPermissions = sessionStorage.getItem('permissions');
             
-            // في وضع الأوفلاين، إذا كانت الجلسة فارغة يمكن الاعتماد على الصلاحيات الافتراضية للموظف Restricted
             const userPermissions = savedPermissions ? JSON.parse(savedPermissions) : ['sales', 'clients', 'vouchers']; 
 
             const roleBadge = document.getElementById('userRoleBadge');
@@ -526,7 +669,6 @@
 
             let visibleCardsCount = 0;
 
-            // ضبط وجهة كارت السندات بناءً على الرتبة
             const vouchersCard = document.getElementById('cardVouchers');
             if (vouchersCard) {
                 if (role === 'admin') {
@@ -537,7 +679,6 @@
             }
 
             if (role !== 'admin') {
-                // تصفية الكروت والقوائم الجانبية مرئياً بناءً على مصفوفة صلاحيات الحساب الممررة
                 Object.keys(UI_Permissions_Map).forEach(elementId => {
                     const element = document.getElementById(elementId);
                     if (!element) return;
@@ -554,10 +695,9 @@
                     }
                 });
             } else {
-                visibleCardsCount = 8; // المدير يرى كافة الكروت والخيارات
+                visibleCardsCount = 8;
             }
 
-            // تفعيل الـ restricted-layout لإعادة ضبط حجم وتوزيع الكروت المتبقية إذا كانت 3 أو أقل
             const dashboardContainer = document.getElementById('mainDashboard');
             if (dashboardContainer && visibleCardsCount <= 3) {
                 dashboardContainer.classList.add('restricted-layout');
@@ -565,7 +705,6 @@
         };
     </script>
 
-    <!-- تسجيل الـ Service Worker لتفعيل تصفح التطبيق بدون إنترنت كاملاً كـ PWA -->
     <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("./sw.js")
