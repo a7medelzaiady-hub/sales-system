@@ -116,7 +116,6 @@
                 <a href="index.html" class="btn-action d-flex align-items-center justify-content-center text-decoration-none" title="الصفحة الرئيسية">
                     <i class="fas fa-home"></i>
                 </a>
-                <!-- تم إضافة المعرفات لإخفاء الأزرار الحساسة برمجياً للموظفين -->
                 <button id="btnExcelExport" class="btn-action btn-excel-custom" onclick="exportToExcel()" title="تصدير إكسل"><i class="fas fa-file-excel fa-lg"></i></button>
                 <button id="btnPurgeAll" class="btn-action btn-danger-custom" onclick="deleteAllVouchers()" title="حذف كافة البيانات"><i class="fas fa-trash-sweep fa-lg"></i></button>
             </div>
@@ -159,7 +158,7 @@
                     <label class="form-label small fw-bold">التاريخ</label>
                     <input type="date" class="form-control form-control-sm" id="vDate" required>
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-2">
                     <label class="form-label small fw-bold">المبلغ (ج.م)</label>
                     <input type="number" step="0.01" class="form-control form-control-sm" id="vAmount" placeholder="0.00" required>
                 </div>
@@ -313,13 +312,11 @@
     let partiesMap = {}; 
     let receiptModalObj = null;
     
-    // جلب رتبة المستخدم الحالية من النظام المحلي
     const userRole = localStorage.getItem('userRole') || 'user'; 
 
     document.addEventListener("DOMContentLoaded", async () => {
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
         
-        // تطبيق قيود الواجهة فوراً للموظفين قبل جلب البيانات لمنع وميض الشاشة
         applyRoleRestrictions();
         
         loadCache();
@@ -329,32 +326,13 @@
 
     document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
 
-    // دالة التحكم في الصلاحيات وعناصر الواجهة
     function applyRoleRestrictions() {
+        // تم إلغاء قفل حقل الاختيار والفلترة هنا ليعود الحساب عملاء وموردين دائماً لكل الرتب
         if (userRole !== 'admin') {
-            // 1. تغيير عنوان الصفحة الرئيسي
-            const mainTitle = document.getElementById('pageMainTitle');
-            if (mainTitle) mainTitle.innerText = "إدارة سندات العملاء (قبض / صرف)";
-
-            // 2. إخفاء أزرار الإكسل والمسح الكلي لحماية البيانات العامة
             const btnExcel = document.getElementById('btnExcelExport');
             const btnPurge = document.getElementById('btnPurgeAll');
             if (btnExcel) btnExcel.style.setProperty('display', 'none', 'important');
             if (btnPurge) btnPurge.style.setProperty('display', 'none', 'important');
-
-            // 3. تثبيت نوع الطرف في نموذج الإدخال على عميل وقفل الحقل
-            const partyTypeSelect = document.getElementById('partyType');
-            if (partyTypeSelect) {
-                partyTypeSelect.value = 'عميل';
-                partyTypeSelect.disabled = true;
-            }
-
-            // 4. تعديل فلتر الفرز السفلي ليقتصر على العملاء فقط
-            const filterPartySelect = document.getElementById('filterParty');
-            if (filterPartySelect) {
-                filterPartySelect.innerHTML = '<option value="عميل">العملاء فقط</option>';
-                filterPartySelect.disabled = true;
-            }
         }
     }
 
@@ -367,9 +345,7 @@
         }
         if (cachedVouchers) {
             allVouchers = JSON.parse(cachedVouchers);
-            // إذا كان المستخدم موظفاً، يتم فلترة الكاش لعرض العملاء فقط
-            const displayData = userRole !== 'admin' ? allVouchers.filter(v => v.partyType === 'عميل') : allVouchers;
-            renderTable(displayData);
+            renderTable(allVouchers);
         }
     }
 
@@ -474,14 +450,7 @@
             });
 
             localStorage.setItem('cache_allVouchers', JSON.stringify(allVouchers));
-            
-            // تطبيق الفلترة الصارمة عند جلب البيانات الحية من الفايربيز
-            if (userRole !== 'admin') {
-                const customerOnlyData = allVouchers.filter(v => v.partyType === 'عميل');
-                renderTable(customerOnlyData);
-            } else {
-                renderTable(allVouchers);
-            }
+            renderTable(allVouchers);
 
         } catch (err) {
             console.error(err);
@@ -535,10 +504,7 @@
 
         document.getElementById('editVoucherId').value = voucher.id;
         document.getElementById('vType').value = voucher.type;
-        
-        if (userRole === 'admin') {
-            document.getElementById('partyType').value = voucher.partyType;
-        }
+        document.getElementById('partyType').value = voucher.partyType;
         
         document.getElementById('partyId').value = voucher.partyId;
         document.getElementById('partySearch').value = partiesMap[voucher.partyId] ? partiesMap[voucher.partyId].name : '';
@@ -561,10 +527,6 @@
         document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('partyId').value = '';
         
-        if (userRole !== 'admin') {
-            document.getElementById('partyType').value = 'عميل';
-        }
-        
         document.getElementById('formTitle').innerHTML = '<i class="fas fa-plus-circle me-1"></i> تسجيل عملية جديدة';
         const submitBtn = document.getElementById('btnSubmitForm');
         submitBtn.innerText = "حفظ البيانات";
@@ -574,8 +536,7 @@
 
     window.filterData = () => {
         const fType = document.getElementById('filterType').value;
-        // إذا كان المستخدم عادياً، نثبت الفلتر على "عميل" بغض النظر عن القيمة المحددة
-        const fParty = userRole !== 'admin' ? 'عميل' : document.getElementById('filterParty').value;
+        const fParty = document.getElementById('filterParty').value;
 
         const filtered = allVouchers.filter(v => {
             const matchType = (fType === 'الكل' || v.type === fType);
@@ -719,7 +680,7 @@
         const note = document.getElementById('vNote').value;
 
         if (!partyId) {
-            alert("خطأ: يرجى كتابة اسم العميل واختياره من قائمة البحث الذكي المنبثقة.");
+            alert("خطأ: يرجى كتابة الاسم واختياره من قائمة البحث الذكي المنبثقة.");
             return;
         }
 
@@ -762,7 +723,7 @@
     };
 
     window.deleteAllVouchers = async () => {
-        if (userRole !== 'admin') return; // حماية إضافية برمجية
+        if (userRole !== 'admin') return; 
         if (!confirm("تحذير أمني صارم: هل أنت متأكد من حذف كافة السندات المسجلة نهائياً؟ لا يمكن استرجاع هذه البيانات بعد الحذف!")) return;
         if (!confirm("تأكيد أخير: هل أنت متأكد حقاً؟")) return;
         
@@ -778,9 +739,7 @@
     };
 
     window.exportToExcel = () => {
-        if (userRole !== 'admin' || allVouchers.length === 0) {
-            return;
-        }
+        if (allVouchers.length === 0) return;
 
         const excelRows = allVouchers.map(v => {
             const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
