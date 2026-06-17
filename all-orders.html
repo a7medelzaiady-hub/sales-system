@@ -359,7 +359,7 @@
            ══════════════════════════════════════════════════ */
         .thermal-capture-container {
             position: absolute;
-            left: -9999px; /* جعلها خارج الشاشة لتجهيز الكانفاس بوضوح كامل */
+            left: -9999px;
             top: 0;
         }
         #thermalReceiptArea {
@@ -406,6 +406,72 @@
             font-weight: 700;
             border-top: 1px dashed #000000;
             padding-top: 10px;
+        }
+
+        /* ══════════════════════════════════════════════════
+           تنسيقات نظام الإشعارات الاحترافي المضاف
+           ══════════════════════════════════════════════════ */
+        .toast-notification {
+            position: fixed;
+            bottom: 25px;
+            right: 50%;
+            transform: translateX(50%) translateY(100px);
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            color: #ffffff;
+            padding: 10px 18px;
+            border-radius: 30px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 2000;
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            width: calc(100% - 30px);
+            max-width: 340px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .toast-notification.show {
+            transform: translateX(50%) translateY(0);
+            opacity: 1;
+        }
+        .toast-bell-icon {
+            width: 32px;
+            height: 32px;
+            background: rgba(255, 183, 3, 0.2);
+            color: var(--warning);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.95rem;
+            animation: ring-bell 2s ease infinite;
+        }
+        .toast-text {
+            font-size: 0.82rem;
+            font-weight: 600;
+            flex-grow: 1;
+            line-height: 1.4;
+        }
+        .toast-close {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.85rem;
+            cursor: pointer;
+            padding: 0 4px;
+        }
+        .toast-close:hover { color: #ffffff; }
+
+        @keyframes ring-bell {
+            0%, 100% { transform: rotate(0); }
+            10%, 30% { transform: rotate(15deg); }
+            20%, 40% { transform: rotate(-15deg); }
+            50% { transform: rotate(0); }
+        }
+        .header-bell-animated {
+            animation: ring-bell 2.5s ease infinite;
+            color: var(--warning);
         }
     </style>
 </head>
@@ -459,6 +525,17 @@
     </div>
 </div>
 
+<!-- نظام الإشعارات والكبسولة العائمة الاحترافية -->
+<div class="toast-notification" id="orderToastNotification">
+    <div class="toast-bell-icon">
+        <i class="fas fa-bell"></i>
+    </div>
+    <div class="toast-text" id="toastMessageText">
+        جاري فحص الطلبات المعلقة...
+    </div>
+    <button class="toast-close" onclick="dismissToast()"><i class="fas fa-times"></i></button>
+</div>
+
 <!-- FAB: new order -->
 <a href="customer-orders.html" class="fab">
     <i class="fas fa-plus"></i>
@@ -504,7 +581,6 @@
                 <span>رقم الطلب: <span id="thOrderId">0000</span></span>
                 <span>التاريخ: <span id="thOrderDate">0000</span></span>
             </div>
-            <!-- اسم العميل مثبت بوضوح كامل داخل حاوية توليد الكانفاس لتجنب مسحه نهائياً -->
             <div class="receipt-info-row" style="margin-top: 4px;">
                 <span>العميل: <strong id="thCustomerName">—</strong></span>
             </div>
@@ -562,6 +638,7 @@
             const snap = await getDocs(q);
             allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             updateChips();
+            triggerOrderNotification(); // استدعاء الإشعار الذكي فور اكتمال جلب البيانات
             renderOrders();
         } catch (e) {
             console.error(e);
@@ -580,6 +657,48 @@
         document.getElementById('chipDone').innerText = done;
         document.getElementById('totalCountBadge').innerText = allOrders.length;
     }
+
+    // ══════════════════════════════════════════════════
+    // منطق عمل الإشعارات التنبيهية الذكية
+    // ══════════════════════════════════════════════════
+    function triggerOrderNotification() {
+        const pendingCount = allOrders.filter(o => o.status === 'pending').length;
+        const toastElement = document.getElementById('orderToastNotification');
+        const textElement = document.getElementById('toastMessageText');
+        const headerTitle = document.querySelector('.header-nav h6 i');
+
+        if (pendingCount > 0) {
+            // تحديث جرس الهيدر ليصبح تفاعلياً ومتحركاً
+            if (headerTitle) {
+                headerTitle.className = "fas fa-bell header-bell-animated";
+            }
+            
+            // صياغة نص التنبيه الاحترافي
+            textElement.innerHTML = `لديك <span class="fw-bold text-warning">${pendingCount} طلبات معلقة</span> قيد التنفيذ حالياً وتنتظر الفوترة الحسابية.`;
+            
+            // إظهار التنبيه بتأثير الصعود المنساب بعد ثانية واحدة من التحميل
+            setTimeout(() => {
+                toastElement.classList.add('show');
+            }, 1000);
+
+            // إخفاء الإشعار تلقائياً بعد 6 ثوانٍ لمنح واجهة المستخدم مساحة مريحة
+            setTimeout(() => {
+                dismissToast();
+            }, 7000);
+        } else {
+            if (headerTitle) {
+                headerTitle.className = "fas fa-clipboard-list";
+            }
+            toastElement.classList.remove('show');
+        }
+    }
+
+    window.dismissToast = () => {
+        const toastElement = document.getElementById('orderToastNotification');
+        if (toastElement) {
+            toastElement.classList.remove('show');
+        }
+    };
 
     window.setFilter = (filter, el) => {
         currentFilter = filter;
@@ -736,17 +855,13 @@
         window.location.href = `customer-orders.html?editOrderId=${orderId}`;
     };
 
-    // ══════════════════════════════════════════════════
-    // دالة إنشاء الفاتورة كصورة حرارية والمشاركة الحقيقية
-    // ══════════════════════════════════════════════════
     window.shareAsThermalInvoice = (orderId) => {
         const order = allOrders.find(o => o.id === orderId);
         if (!order) return;
 
         const loadingModal = document.getElementById('shareLoadingModal');
-        loadingModal.style.display = 'flex'; // إظهار مؤشر الانتظار
+        loadingModal.style.display = 'flex';
 
-        // 1. تعبئة بيانات الفاتورة داخل القالب الحراري المخفي بشكل صريح وثابت لعدم فقدان اسم العميل
         document.getElementById('thOrderId').innerText = order.id.substring(0, 6).toUpperCase();
         document.getElementById('thOrderDate').innerText = order.date ? order.date.split(' ')[0] : '—';
         document.getElementById('thCustomerName').innerText = order.customerName || 'عميل نقدي';
@@ -769,21 +884,19 @@
         }
         document.getElementById('thReceiptItems').innerHTML = itemsHtml;
 
-        // 2. معالجة وحقن المنطقة إلى صورة رقمية باستخدام التقاط Canvas متقدم
         setTimeout(() => {
             const captureArea = document.getElementById('thermalReceiptArea');
             html2canvas(captureArea, {
-                scale: 2.5, // زيادة الدقة لضمان قراءتها بوضوح على طابعات الـ 80 مم المحمولة
+                scale: 2.5,
                 backgroundColor: '#ffffff',
                 useCORS: true
             }).then(canvas => {
                 canvas.toBlob(function(blob) {
-                    loadingModal.style.display = 'none'; // إخفاء مؤشر الانتظار
+                    loadingModal.style.display = 'none';
 
                     const customerCleanName = (order.customerName || 'عميل').replace(/\s+/g, '_');
                     const file = new File([blob], `فاتورة_${customerCleanName}.png`, { type: 'image/png' });
 
-                    // استخدام Web Share API الأصلية في الهاتف لمشاركة ملف الصورة مباشرة للواتساب
                     if (navigator.canShare && navigator.canShare({ files: [file] })) {
                         navigator.share({
                             files: [file],
@@ -791,14 +904,12 @@
                             text: `فاتورة حرارية صادرة من شركة الزيادي لزيوت السيارات - عميل: ${order.customerName}`
                         }).catch(err => console.log('إلغاء أو خطأ في المشاركة:', err));
                     } else {
-                        // طريقة بديلة متكاملة للهواتف والأجهزة التي لا تدعم مشاركة الملفات المباشرة بالمتصفح
                         alert('تنبيه: سيتم تنزيل الفاتورة كصورة حرارية بجهازك، يرجى إرسالها يدوياً للعميل عبر الواتساب.');
                         const link = document.createElement('a');
                         link.download = `فاتورة_${customerCleanName}.png`;
                         link.href = canvas.toDataURL('image/png');
                         link.click();
                         
-                        // فتح نافذة المحادثة النصية للمساعدة
                         const fallbackUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent('مرفق لكم الفاتورة الحرارية من شركة الزيادي لزيوت السيارات.')}`;
                         window.open(fallbackUrl, '_blank');
                     }
@@ -808,7 +919,7 @@
                 console.error('حدث خطأ أثناء معالجة الصورة الحرارية:', error);
                 alert('عذراً، فشل توليد الصورة الحرارية.');
             });
-        }, 400); // مهلة زمنية قصيرة لضمان استقرار شجرة الـ DOM وضمان حقن اسم العميل بالكامل
+        }, 400);
     };
 
     window.confirmDelete = (orderId, name) => {
@@ -821,6 +932,7 @@
             await deleteDoc(doc(db, 'orders', orderId));
             allOrders = allOrders.filter(o => o.id !== orderId);
             updateChips();
+            triggerOrderNotification(); // إعادة احتساب التنبيهات بعد الحذف
             renderOrders();
         } catch (e) {
             alert('فشل الحذف، حاول مرة أخرى');
