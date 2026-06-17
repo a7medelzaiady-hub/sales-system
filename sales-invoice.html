@@ -648,44 +648,47 @@
         } catch (e) { return Number(initialBalance); }
     }
 
-    // --- آلية جلب السعر الذكي المُعدلة والآمنة بدون تطلب كشافات مركبة ---
+    // --- ميزة جلب السعر الذكي الجديد المخصصة لشركة الزيادي ---
     async function fetchSmartPrice(stockId, customerId, selectedUnit) {
         try {
-            // المحاولة الأولى: جلب آخر فواتير لهذا العميل بالتحديد
+            // المحاولة الأولى: البحث عن آخر سعر للصنف عند هذا العميل بالتحديد
             if (customerId) {
-                const qCustInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
+                const qCustInvoices = query(
+                    collection(db, "invoices"),
+                    where("customerId", "==", customerId),
+                    orderBy("timestamp", "desc"),
+                    limit(5) 
+                );
                 const snapCustInvoices = await getDocs(qCustInvoices);
-                
-                // تحويلهم لمصفوفة لفرزهم بحسب الأحدث يدوياً لتفادي كشافات الأندكس المركبة في فايربيز
-                let sortedDocs = snapCustInvoices.docs.map(d => ({id: d.id, ...d.data()}));
-                sortedDocs.sort((a, b) => (b.time || "").localeCompare(a.time || ""));
-
-                for (const invData of sortedDocs) {
-                    if (editId && invData.id === editId) continue; 
+                for (const docSnap of snapCustInvoices.docs) {
+                    const invData = docSnap.data();
+                    if (editId && docSnap.id === editId) continue; // تخطي الفاتورة الحالية في وضع التعديل
                     const matchedItem = invData.items?.find(item => item.stockId === stockId && item.unit === selectedUnit);
-                    if (matchedItem && matchedItem.price !== undefined) {
+                    if (matchedItem && matchedItem.price) {
                         return Number(matchedItem.price);
                     }
                 }
             }
 
-            // المحاولة الثانية: جلب آخر فواتير في السستم عموماً والبحث فيها
-            const qGeneralInvoices = query(collection(db, "invoices"), limit(20));
+            // المحاولة الثانية: إذا لم يجد للعميل، يبحث عن آخر سعر تم البيع به عموماً لأي عميل آخر
+            const qGeneralInvoices = query(
+                collection(db, "invoices"),
+                orderBy("timestamp", "desc"),
+                limit(15) 
+            );
             const snapGeneralInvoices = await getDocs(qGeneralInvoices);
-            let sortedGenDocs = snapGeneralInvoices.docs.map(d => ({id: d.id, ...d.data()}));
-            sortedGenDocs.sort((a, b) => (b.time || "").localeCompare(a.time || ""));
-
-            for (const invData of sortedGenDocs) {
-                if (editId && invData.id === editId) continue;
+            for (const docSnap of snapGeneralInvoices.docs) {
+                const invData = docSnap.data();
+                if (editId && docSnap.id === editId) continue;
                 const matchedItem = invData.items?.find(item => item.stockId === stockId && item.unit === selectedUnit);
-                if (matchedItem && matchedItem.price !== undefined) {
+                if (matchedItem && matchedItem.price) {
                     return Number(matchedItem.price);
                 }
             }
         } catch (error) {
             console.error("خطأ أثناء جلب السعر التاريخي المخصص:", error);
         }
-        return null; 
+        return null; // سيتم استخدام السعر الافتراضي من جدول المخزن إن لم يعثر على سجلات
     }
 
     window.addEventListener('beforeunload', (e) => {
@@ -795,10 +798,6 @@
         } catch (e) { console.error(e); }
     }
 
-    function showBalance(val) {
-        document.getElementById('curBalanceVal').innerText = Number(val).toFixed(2);
-    }
-
     window.searchCustomer = (input) => {
         const term = input.value.toLowerCase().trim();
         const resultsDiv = document.getElementById('customerResults');
@@ -856,6 +855,7 @@
         currentFetchedOldBalance = realDebt;
         showBalance(realDebt);
 
+        // تحديث أسعار الأسطر المدخلة حالياً لتلائم أسعار العميل المختار الجديد
         const rows = document.querySelectorAll('.product-row');
         for (const row of rows) {
             const unitSel = row.querySelector('.p-unit');
@@ -1012,6 +1012,7 @@
         return id;
     };
 
+    // تحديث السعر تلقائياً بناءً على العميل الحالي أو آخر سعر عام
     window.updateRowPrice = async (unitSel) => {
         const row = unitSel.closest('.product-row');
         const stockId = row.querySelector('.p-select').value;
@@ -1023,8 +1024,13 @@
         const p = inventory.find(i => i.id === stockId);
         if (!p) return;
 
+        // إظهار علامة انتظار مؤقتة داخل حقل السعر أثناء الجلب الذكي
+        row.querySelector('.p-price').placeholder = "جاري حساب السعر...";
+        
+        // استدعاء دالة فحص السعر الذكي (آخر سعر للعميل ثم آخر سعر عام)
         let finalPrice = await fetchSmartPrice(stockId, customerId, selectedUnit);
 
+        // إذا لم يعثر على أسعار بيع سابقة مسجلة، يعود للسعر الافتراضي الحالي من الكرتونة/القطعة بالمخزن
         if (finalPrice === null || finalPrice === undefined) {
             finalPrice = (selectedUnit === 'box') ? (p.sell || 0) : ((p.sell || 0) / (p.unitFactor || 1));
         }
@@ -1236,7 +1242,7 @@
 
         } catch (e) {
             console.error("Firebase Error: ", e);
-            alert("فشل حفظ الفاتورة\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
+            alert("فشل حفظ التعديل\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
         } finally {
             saveBtn.disabled = false;
             saveBtn.innerText = "حفظ وتحديث البيانات";
