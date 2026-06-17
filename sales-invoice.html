@@ -46,6 +46,21 @@
             z-index: 1000;
         }
         
+        /* Order source banner */
+        .order-source-banner {
+            background: linear-gradient(135deg, #ebf9eb, #d4f5e4);
+            border: 1px solid #b7dfc7;
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+        
         .invoice-card { 
             background: var(--white); 
             border: 1px solid var(--border); 
@@ -257,6 +272,15 @@
 </div>
 
 <div class="container px-2">
+    <!-- Banner: loaded from order -->
+    <div class="order-source-banner" id="orderSourceBanner" style="display:none; margin-top:14px;">
+        <i class="fas fa-cart-check" style="font-size:1.2rem;"></i>
+        <div>
+            <div style="font-size:0.78rem; opacity:0.8;">تم تحميل البيانات من الطلبية</div>
+            <div id="orderSourceText" style="font-size:0.85rem;"></div>
+        </div>
+    </div>
+
     <div class="invoice-card">
         <div class="row g-2 mb-3">
             <div class="col-7 position-relative">
@@ -346,6 +370,7 @@
     </div>
 </div>
 
+<!-- Review Modal -->
 <div id="reviewModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
     <div style="background: white; width: 92%; max-width: 420px; padding: 20px; border-radius: var(--card-radius); box-shadow: 0 12px 30px rgba(0,0,0,0.25); animation: scaleUp 0.2s ease; max-height: 85vh; overflow-y: auto;">
         <div class="text-center mb-3">
@@ -406,6 +431,7 @@
     </div>
 </div>
 
+<!-- Share Modal -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
     <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: var(--card-radius); text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: scaleUp 0.25s ease;">
         <div style="width: 60px; height: 60px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;">
@@ -424,6 +450,7 @@
     </div>
 </div>
 
+<!-- Thermal Receipt (hidden) -->
 <div id="thermalReceiptContainer" style="position: absolute; left: -9999px; top: -9999px;">
     <div id="thermalReceipt" style="width: 380px; background: #fff; color: #000; padding: 25px 20px; font-family: 'Cairo', sans-serif; direction: rtl; font-size: 14px; line-height: 1.6;">
         <div style="text-align: center; margin-bottom: 20px; border-bottom: 3px double #000; padding-bottom: 12px; width: 100%;">
@@ -528,6 +555,7 @@
     let inventory = [];
     let customers = [];
     let editId = new URLSearchParams(window.location.search).get('edit');
+    let fromOrderId = new URLSearchParams(window.location.search).get('fromOrder');
     let isChanged = false;
     let currentFetchedOldBalance = 0;
     let originalInvoiceTime = ""; 
@@ -559,8 +587,9 @@
     });
 
     window.confirmBack = () => {
-        if (isChanged && !confirm("لديك بيانات غير محفوظة، هل تريد الخروج والرجوع للسجل؟")) return;
-        window.location.href = "sales-history.html";
+        const backTo = fromOrderId ? "all-orders.html" : "sales-history.html";
+        if (isChanged && !confirm("لديك بيانات غير محفوظة، هل تريد الخروج؟")) return;
+        window.location.href = backTo;
     };
 
     window.handleInput = () => { isChanged = true; calc(); };
@@ -568,7 +597,6 @@
     window.handleSplitInput = () => {
         let cash = parseFloat(document.getElementById('cashAmount').value) || 0;
         let wallet = parseFloat(document.getElementById('walletAmount').value) || 0;
-        
         document.getElementById('paidAmount').value = cash + wallet;
         window.handleInput();
     };
@@ -586,25 +614,50 @@
 
             const cachedCustomers = localStorage.getItem(CACHE_KEYS.customers);
             const cachedInventory = localStorage.getItem(CACHE_KEYS.inventory);
-
             if (cachedCustomers) customers = JSON.parse(cachedCustomers);
             if (cachedInventory) inventory = JSON.parse(cachedInventory);
-
-            if (!editId) addNewRow();
-            calc();
 
             const [cSnap, iSnap] = await Promise.all([
                 getDocs(collection(db, "customers")),
                 getDocs(collection(db, "inventory"))
             ]);
-
             customers = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
             inventory = iSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
             localStorage.setItem(CACHE_KEYS.customers, JSON.stringify(customers));
             localStorage.setItem(CACHE_KEYS.inventory, JSON.stringify(inventory));
 
-            if (editId) {
+            // ---- Load from order params ----
+            const urlParams = new URLSearchParams(window.location.search);
+            if (fromOrderId) {
+                const paramCustomerId = urlParams.get('customerId');
+                const paramCustomerName = urlParams.get('customerName');
+                const paramItems = JSON.parse(urlParams.get('items') || '[]');
+
+                document.getElementById('modeText').innerText = "من طلبية";
+
+                const banner = document.getElementById('orderSourceBanner');
+                banner.style.display = 'flex';
+                document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
+
+                // Set customer
+                document.getElementById('customerSearch').value = paramCustomerName || '';
+                document.getElementById('customerSelect').value = paramCustomerId || '';
+
+                if (paramCustomerId) {
+                    const cust = customers.find(c => c.id === paramCustomerId);
+                    if (cust) {
+                        const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
+                        currentFetchedOldBalance = realB;
+                        showBalance(realB);
+                    }
+                }
+
+                // Add item rows from order
+                paramItems.forEach(item => addNewRow(item));
+                calc();
+
+            } else if (editId) {
+                // Edit existing invoice
                 document.getElementById('modeText').innerText = "تعديل";
                 const invDoc = await getDoc(doc(db, "invoices", editId));
                 if (invDoc.exists()) {
@@ -633,7 +686,11 @@
                 }
                 isChanged = false;
                 calc(); 
+            } else {
+                addNewRow();
+                calc();
             }
+
         } catch (e) { console.error(e); }
     }
 
@@ -682,7 +739,6 @@
         document.getElementById('customerSearch').value = name;
         document.getElementById('customerSelect').value = id;
         document.getElementById('customerResults').style.display = 'none';
-        
         document.getElementById('newCustomerInitialBalance').classList.add('d-none');
         document.getElementById('btnAddNewCustomer').classList.add('d-none');
         
@@ -701,15 +757,12 @@
     window.enableBalanceEditing = () => {
         const customerId = document.getElementById('customerSelect').value;
         if (!customerId) return;
-
         const cust = customers.find(c => c.id === customerId);
         if (cust) {
             const balanceInput = document.getElementById('newCustomerInitialBalance');
             const btnSaveCustomer = document.getElementById('btnAddNewCustomer');
-
             balanceInput.value = cust.initialBalance || 0; 
             balanceInput.classList.remove('d-none'); 
-            
             btnSaveCustomer.classList.remove('d-none'); 
             btnSaveCustomer.innerHTML = '<i class="fas fa-user-edit me-1"></i> تحديث الرصيد الافتتاحي للعميل الحالي';
         }
@@ -725,10 +778,7 @@
         const customerName = nameInput.value.trim();
         const newInitialBalance = parseFloat(balanceInput.value) || 0;
 
-        if (!customerName) {
-            alert("برجاء تحديد أو كتابة اسم العميل أولاً");
-            return;
-        }
+        if (!customerName) { alert("برجاء تحديد أو كتابة اسم العميل أولاً"); return; }
 
         try {
             btnSaveCustomer.disabled = true;
@@ -736,29 +786,19 @@
 
             if (!customerId) {
                 const docRef = await addDoc(collection(db, "customers"), {
-                    name: customerName,
-                    initialBalance: newInitialBalance,
-                    createdAt: serverTimestamp()
+                    name: customerName, initialBalance: newInitialBalance, createdAt: serverTimestamp()
                 });
-
                 const newCustomerObj = { id: docRef.id, name: customerName, initialBalance: newInitialBalance };
                 customers.push(newCustomerObj);
                 idInput.value = docRef.id;
-
                 currentFetchedOldBalance = newInitialBalance;
                 showBalance(newInitialBalance);
                 alert(`تم حفظ العميل الجديد "${customerName}" بنجاح.`);
             } else {
                 const customerRef = doc(db, "customers", customerId);
-                await updateDoc(customerRef, {
-                    initialBalance: newInitialBalance
-                });
-
+                await updateDoc(customerRef, { initialBalance: newInitialBalance });
                 const custIndex = customers.findIndex(c => c.id === customerId);
-                if (custIndex !== -1) {
-                    customers[custIndex].initialBalance = newInitialBalance;
-                }
-
+                if (custIndex !== -1) customers[custIndex].initialBalance = newInitialBalance;
                 const updatedRealBalance = await getRealBalance(customerId, newInitialBalance);
                 currentFetchedOldBalance = updatedRealBalance;
                 showBalance(updatedRealBalance);
@@ -766,15 +806,12 @@
             }
 
             localStorage.setItem(CACHE_KEYS.customers, JSON.stringify(customers));
-
             balanceInput.classList.add('d-none');
             btnSaveCustomer.classList.add('d-none');
-            
             isChanged = true;
             calc();
-
         } catch (error) {
-            console.error("حدث خطأ أثناء معالجة بيانات العميل: ", error);
+            console.error(error);
             alert("حدث خطأ، برجاء المحاولة مرة أخرى");
         } finally {
             btnSaveCustomer.disabled = false;
@@ -814,11 +851,8 @@
 
     window.toggleReturnMode = (checkbox, rowId) => {
         const row = document.getElementById(rowId);
-        if (checkbox.checked) {
-            row.classList.add('is-return-row');
-        } else {
-            row.classList.remove('is-return-row');
-        }
+        if (checkbox.checked) { row.classList.add('is-return-row'); }
+        else { row.classList.remove('is-return-row'); }
         window.handleInput();
     };
 
@@ -849,7 +883,6 @@
                     <div class="col-3"><span class="sub-lbl">الكمية</span><input type="number" class="form-control p-qty" value="${oldData ? oldData.qty : 1}" oninput="handleInput()"></div>
                     <div class="col-3"><span class="sub-lbl">السعر</span><input type="number" class="form-control p-price" value="${oldData ? oldData.price : ''}" oninput="handleInput()"></div>
                     <div class="col-3"><span class="sub-lbl">الإجمالي</span><input type="text" class="form-control p-subtotal" readonly value="0.00" style="background:#f8faf9!important;"></div>
-                    
                     <div class="col-3">
                         <div class="return-switch-container">
                             <span class="return-switch-label"><i class="fas fa-undo-alt"></i> مرتجع</span>
@@ -889,21 +922,14 @@
             const qty = parseFloat(r.querySelector('.p-qty').value) || 0;
             const price = parseFloat(r.querySelector('.p-price').value) || 0;
             const isReturn = r.querySelector('.p-return-checkbox').checked;
-            
             const sub = qty * price;
             r.querySelector('.p-subtotal').value = (isReturn ? "-" : "") + sub.toFixed(2);
-            
-            if (isReturn) {
-                itemsTotal -= sub;
-            } else {
-                itemsTotal += sub;
-            }
+            if (isReturn) { itemsTotal -= sub; } else { itemsTotal += sub; }
         });
         
         const discount = parseFloat(document.getElementById('discountAmount').value) || 0;
         const netTotal = itemsTotal - discount;
         const paid = parseFloat(document.getElementById('paidAmount').value) || 0;
-        
         const oldBalance = parseFloat(currentFetchedOldBalance) || 0;
         const grandTotal = netTotal + oldBalance; 
         const finalRemaining = grandTotal - paid;  
@@ -915,9 +941,7 @@
         document.getElementById('displayRemaining').innerText = finalRemaining.toLocaleString('en-US', {minimumFractionDigits: 2});
         
         const badge = document.getElementById('itemsBadgeVal');
-        if (badge) {
-            badge.innerText = document.querySelectorAll('.product-row').length;
-        }
+        if (badge) badge.innerText = document.querySelectorAll('.product-row').length;
 
         return { itemsTotal, discount, total: netTotal, paid, remaining: netTotal - paid };
     };
@@ -925,7 +949,6 @@
     window.openReviewModal = () => {
         const customerId = document.getElementById('customerSelect').value;
         const customerName = document.getElementById('customerSearch').value;
-
         if (!customerId || !customerName) { return alert("الرجاء اختيار العميل"); }
 
         const rows = document.querySelectorAll('.product-row');
@@ -939,13 +962,10 @@
             const qty = Number(r.querySelector('.p-qty')?.value || 0);
             const price = Number(r.querySelector('.p-price')?.value || 0);
             const isReturn = r.querySelector('.p-return-checkbox').checked;
-
             if (!pid || qty <= 0) return;
             validItemsCount++;
-
             const unitText = unit === 'box' ? 'كرتونة' : 'قطعة';
             const returnStyle = isReturn ? 'color: red; font-weight: bold; background-color: #fff0f1;' : '';
-
             htmlList += `
                 <tr style="${returnStyle}">
                     <td style="text-align: right; padding-right: 8px;">
@@ -954,8 +974,7 @@
                     </td>
                     <td>${qty} ${unitText}</td>
                     <td>${price.toFixed(2)} ج.م</td>
-                </tr>
-            `;
+                </tr>`;
         });
 
         if (validItemsCount === 0) { return alert("الرجاء إضافة أصناف للفاتورة"); }
@@ -967,27 +986,18 @@
         const { discount, total } = calc();
         document.getElementById('revDiscountVal').innerText = discount.toFixed(2);
         document.getElementById('revTotalVal').innerText = total.toFixed(2);
-
         document.getElementById('reviewModal').style.display = 'flex';
-
-        document.getElementById('finalConfirmSaveBtn').onclick = () => {
-            closeReviewModal();
-            saveInvoice();
-        };
+        document.getElementById('finalConfirmSaveBtn').onclick = () => { closeReviewModal(); saveInvoice(); };
     };
 
-    window.closeReviewModal = () => {
-        document.getElementById('reviewModal').style.display = 'none';
-    };
+    window.closeReviewModal = () => { document.getElementById('reviewModal').style.display = 'none'; };
 
     window.saveInvoice = async () => {
         const saveBtn = document.getElementById('saveBtn');
-
         try {
             const { itemsTotal, discount, total, paid, remaining } = calc();
             const customerId = document.getElementById('customerSelect').value;
             const customerName = document.getElementById('customerSearch').value;
-
             if (!customerId || !customerName) { return alert("الرجاء اختيار العميل"); }
 
             const items = [];
@@ -998,7 +1008,6 @@
                 const qty = Number(r.querySelector('.p-qty')?.value || 0);
                 const price = Number(r.querySelector('.p-price')?.value || 0);
                 const isReturn = r.querySelector('.p-return-checkbox').checked;
-
                 if (!pid || qty <= 0) return;
                 items.push({ stockId: pid, name: name || "", unit: unit || "pcs", qty, price, isReturn });
             });
@@ -1012,117 +1021,90 @@
             let finalWallet = parseFloat(document.getElementById('walletAmount').value) || 0;
             
             let finalMethod = "آجل";
-            if (finalCash > 0 && finalWallet > 0) {
-                finalMethod = "سداد كاش ومحفظة";
-            } else if (finalWallet > 0) {
-                finalMethod = "سداد محفظة";
-            } else if (finalCash > 0) {
-                finalMethod = "سداد نقدي";
-            }
+            if (finalCash > 0 && finalWallet > 0) finalMethod = "سداد كاش ومحفظة";
+            else if (finalWallet > 0) finalMethod = "سداد محفظة";
+            else if (finalCash > 0) finalMethod = "سداد نقدي";
 
             const currentInvoiceTime = document.getElementById('invTime').value || originalInvoiceTime || new Date().toLocaleString('ar-EG');
 
             const baseInvoiceData = {
-                customerId: customerId,
-                customerName: customerName,
-                itemsTotal: Number(itemsTotal) || 0, 
-                discount: Number(discount) || 0,     
-                total: Number(total) || 0,           
+                customerId, customerName,
+                itemsTotal: Number(itemsTotal) || 0,
+                discount: Number(discount) || 0,
+                total: Number(total) || 0,
                 paid: Number(finalCash + finalWallet) || 0,
                 remaining: Number(total - (finalCash + finalWallet)) || 0,
                 paymentMethod: finalMethod,
-                cashAmount: Number(finalCash) || 0,     
-                walletAmount: Number(finalWallet) || 0, 
-                items: items,
-                time: currentInvoiceTime, 
-                notes: "" 
+                cashAmount: Number(finalCash) || 0,
+                walletAmount: Number(finalWallet) || 0,
+                items, time: currentInvoiceTime, notes: ""
             };
 
             if (!editId) {
-                const newInvoiceData = {
-                    ...baseInvoiceData,
-                    timestamp: serverTimestamp()
-                };
+                const newInvoiceData = { ...baseInvoiceData, timestamp: serverTimestamp() };
 
                 for (const item of items) {
                     try {
                         const itemDocRef = doc(db, "inventory", item.stockId);
                         const itemSnap = await getDoc(itemDocRef);
-                        
                         if (itemSnap.exists()) {
                             const p = inventory.find(i => i.id === item.stockId);
                             const factor = p ? (Number(p.unitFactor) || 1) : 1;
                             const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                            
-                            if (item.isReturn) {
-                                await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) });
-                            } else {
-                                await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) });
-                            }
+                            if (item.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) }); }
+                            else { await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) }); }
                         }
-                    } catch (err) {
-                        console.warn(`تنبيه: صنف ممسوح أو غير متوفر في المخزن أثناء الإضافة: ${item.stockId}`, err);
-                    }
+                    } catch (err) { console.warn(`تنبيه: صنف ممسوح: ${item.stockId}`, err); }
                 }
+
                 const newDocRef = await addDoc(collection(db, "invoices"), newInvoiceData);
                 editId = newDocRef.id;
-                
+
+                // Mark order as done if came from order
+                if (fromOrderId) {
+                    try {
+                        await updateDoc(doc(db, "orders", fromOrderId), { status: 'done', invoiceId: editId });
+                    } catch(e) { console.warn('could not update order status', e); }
+                }
+
                 prepareThermalReceipt(newInvoiceData, currentFetchedOldBalance);
             } else {
                 const oldRef = doc(db, "invoices", editId);
                 const oldSnap = await getDoc(oldRef);
-
                 if (oldSnap.exists()) {
                     const oldData = oldSnap.data();
-                    
                     if (oldData && oldData.items) {
                         for (const oldItem of oldData.items) {
                             if (oldItem.stockId) {
                                 try {
                                     const itemDocRef = doc(db, "inventory", oldItem.stockId);
                                     const itemSnap = await getDoc(itemDocRef);
-                                    
                                     if (itemSnap.exists()) {
                                         const p = inventory.find(i => i.id === oldItem.stockId);
                                         const factor = p ? (Number(p.unitFactor) || 1) : 1;
                                         const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * factor : oldItem.qty;
-                                        
-                                        if (oldItem.isReturn) {
-                                            await updateDoc(itemDocRef, { totalPcs: increment(-oldQtyPcs) });
-                                        } else {
-                                            await updateDoc(itemDocRef, { totalPcs: increment(oldQtyPcs) });
-                                        }
+                                        if (oldItem.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(-oldQtyPcs) }); }
+                                        else { await updateDoc(itemDocRef, { totalPcs: increment(oldQtyPcs) }); }
                                     }
-                                } catch (err) {
-                                    console.warn(`تنبيه: صنف قديم ممسوح أثناء إعادة الكميات للمخزن: ${oldItem.stockId}`, err);
-                                }
+                                } catch (err) { console.warn(`تنبيه: صنف قديم: ${oldItem.stockId}`, err); }
                             }
                         }
                     }
-
                     for (const item of items) {
                         if (item.stockId) {
                             try {
                                 const itemDocRef = doc(db, "inventory", item.stockId);
                                 const itemSnap = await getDoc(itemDocRef);
-                                
                                 if (itemSnap.exists()) {
                                     const p = inventory.find(i => i.id === item.stockId);
                                     const factor = p ? (Number(p.unitFactor) || 1) : 1;
                                     const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                                    
-                                    if (item.isReturn) {
-                                        await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) });
-                                    } else {
-                                        await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) });
-                                    }
+                                    if (item.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) }); }
+                                    else { await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) }); }
                                 }
-                            } catch (err) {
-                                console.warn(`تنبيه: صنف ممسوح أثناء خصم الكميات الجديدة من المخزن: ${item.stockId}`, err);
-                            }
+                            } catch (err) { console.warn(`تنبيه: صنف ممسوح: ${item.stockId}`, err); }
                         }
                     }
-                    
                     await updateDoc(oldRef, baseInvoiceData);
                     prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
                 }
@@ -1133,8 +1115,7 @@
 
         } catch (e) {
             console.error("Firebase Error: ", e);
-            let msg = e?.message || e?.toString() || "خطأ غير معروف";
-            alert("فشل حفظ التعديل\n\n" + msg);
+            alert("فشل حفظ التعديل\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
         } finally {
             saveBtn.disabled = false;
             saveBtn.innerText = "حفظ وتحديث البيانات";
@@ -1145,19 +1126,11 @@
         document.getElementById('recCustomer').innerText = data.customerName;
         document.getElementById('recDate').innerText = data.time || originalInvoiceTime;
         document.getElementById('recPaymentMethod').innerText = data.paymentMethod;
-        
         const itemsTotalVal = data.itemsTotal || data.total + (data.discount || 0);
         document.getElementById('recSubTotal').innerText = Number(itemsTotalVal).toFixed(2);
-        
         const discountVal = data.discount || 0;
         document.getElementById('recDiscount').innerText = Number(discountVal).toFixed(2);
-        
-        if (discountVal > 0) {
-            document.getElementById('recDiscountRow').style.display = 'flex';
-        } else {
-            document.getElementById('recDiscountRow').style.display = 'none';
-        }
-
+        document.getElementById('recDiscountRow').style.display = discountVal > 0 ? 'flex' : 'none';
         document.getElementById('recTotal').innerText = Number(data.total).toFixed(2);
         document.getElementById('recOldBalance').innerText = Number(oldBalance).toFixed(2);
         document.getElementById('recPaid').innerText = Number(data.paid).toFixed(2);
@@ -1168,9 +1141,7 @@
             recSplitZone.style.display = 'block';
             document.getElementById('recCashAmount').innerText = Number(data.cashAmount).toFixed(2);
             document.getElementById('recWalletAmount').innerText = Number(data.walletAmount).toFixed(2);
-        } else {
-            recSplitZone.style.display = 'none';
-        }
+        } else { recSplitZone.style.display = 'none'; }
 
         const tbody = document.getElementById('recItems');
         tbody.innerHTML = data.items.map(item => `
@@ -1185,7 +1156,7 @@
 
     document.getElementById('cancelShareBtn').onclick = () => {
         document.getElementById('shareModal').style.display = 'none';
-        window.location.href = "sales-history.html";
+        window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html";
     };
 
     document.getElementById('confirmShareBtn').onclick = () => {
@@ -1194,16 +1165,10 @@
             canvas.toBlob(blob => {
                 const file = new File([blob], `invoice_${editId}.png`, { type: 'image/png' });
                 if (navigator.share) {
-                    navigator.share({
-                        files: [file],
-                        title: 'فاتورة مبيعات',
-                        text: `فاتورة مبيعات من شركة الزيادي`
-                    }).then(() => {
-                        window.location.href = "sales-history.html";
-                    }).catch(err => console.log(err));
-                } else {
-                    alert("المشاركة غير مدعومة في هذا المتصفح");
-                }
+                    navigator.share({ files: [file], title: 'فاتورة مبيعات', text: `فاتورة مبيعات من شركة الزيادي` })
+                        .then(() => { window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html"; })
+                        .catch(err => console.log(err));
+                } else { alert("المشاركة غير مدعومة في هذا المتصفح"); }
             }, 'image/png');
         });
     };
