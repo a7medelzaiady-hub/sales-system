@@ -2,11 +2,15 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>كل الطلبات - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- استدعاء مكتبة html2canvas لتحويل التصميم إلى صورة حرارية نقية بدقة عالية -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
     <style>
         :root {
             --accent: #0b5e3d;
@@ -237,35 +241,31 @@
             border: 1px dashed #b7dfc7;
         }
 
-        /* Card Action Buttons */
+        /* تحسين شكل زر الشير المطور والمتجاوب للموبايل */
         .action-btn {
-            background: #f1f5f9;
             border: none;
-            color: var(--text-secondary);
-            width: 30px;
-            height: 30px;
-            border-radius: 8px;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.82rem;
+            font-size: 0.95rem;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease-in-out;
+            -webkit-user-select: none;
+            user-select: none;
         }
         .action-btn.btn-share {
-            background: #e8f5e9;
-            color: #2e7d32;
+            background: linear-gradient(135deg, #25d366, #128c7e);
+            color: white;
+            box-shadow: 0 3px 8px rgba(37, 211, 102, 0.2);
         }
-        .action-btn.btn-share:hover { background: #2e7d32; color: white; }
-        .action-btn.btn-edit {
-            background: #e3f2fd;
-            color: #1565c0;
-        }
+        .action-btn.btn-share:active { transform: scale(0.92); }
+        
+        .action-btn.btn-edit { background: #e3f2fd; color: #1565c0; }
         .action-btn.btn-edit:hover { background: #1565c0; color: white; }
-        .action-btn.btn-delete {
-            background: #ffebee;
-            color: #c62828;
-        }
+        .action-btn.btn-delete { background: #ffebee; color: #c62828; }
         .action-btn.btn-delete:hover { background: #c62828; color: white; }
 
         /* Fab */
@@ -289,10 +289,7 @@
         .fab:hover { background: #0a5236; color: white; transform: scale(1.05); }
 
         /* Empty state */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-        }
+        .empty-state { text-align: center; padding: 60px 20px; }
         .empty-icon {
             width: 70px; height: 70px;
             background: #f0faf4;
@@ -302,10 +299,7 @@
         }
 
         /* Loading */
-        .loading-state {
-            text-align: center;
-            padding: 50px 20px;
-        }
+        .loading-state { text-align: center; padding: 50px 20px; }
         .spinner {
             width: 36px; height: 36px;
             border: 3px solid #e2e8f0;
@@ -333,7 +327,7 @@
             background: var(--border);
         }
 
-        /* Confirm modal */
+        /* Modals */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -358,6 +352,60 @@
         @keyframes popIn {
             from { transform: scale(0.88); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
+        }
+
+        /* ══════════════════════════════════════════════════
+           تنسيق قالب المعاينة للفاتورة الحرارية المستهدفة (80mm)
+           ══════════════════════════════════════════════════ */
+        .thermal-capture-container {
+            position: absolute;
+            left: -9999px; /* جعلها خارج الشاشة لتجهيز الكانفاس بوضوح كامل */
+            top: 0;
+        }
+        #thermalReceiptArea {
+            background: #ffffff;
+            width: 380px;
+            padding: 18px;
+            color: #000000;
+            font-family: 'Cairo', sans-serif;
+        }
+        .receipt-header {
+            text-align: center;
+            border-bottom: 2px dashed #000000;
+            padding-bottom: 12px;
+            margin-bottom: 12px;
+        }
+        .receipt-header h3 { margin: 0; font-size: 21px; font-weight: 800; }
+        .receipt-header p { margin: 4px 0 0; font-size: 13px; font-weight: 700; }
+        
+        .receipt-info {
+            font-size: 13px;
+            font-weight: 700;
+            border-bottom: 1px dashed #000000;
+            padding-bottom: 10px;
+            margin-bottom: 12px;
+        }
+        .receipt-info-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+        
+        .receipt-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        .receipt-table th { border-bottom: 2px solid #000000; text-align: right; font-size: 13px; font-weight: 800; padding: 4px 0; }
+        .receipt-table td { padding: 7px 0; font-size: 13px; font-weight: 700; border-bottom: 1px dashed #cccccc; }
+        
+        .receipt-total-row {
+            border-top: 2px dashed #000000;
+            padding-top: 10px;
+            font-size: 16px;
+            font-weight: 800;
+            display: flex;
+            justify-content: space-between;
+        }
+        .receipt-footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            border-top: 1px dashed #000000;
+            padding-top: 10px;
         }
     </style>
 </head>
@@ -416,7 +464,7 @@
     <i class="fas fa-plus"></i>
 </a>
 
-<!-- Confirm convert to invoice modal -->
+<!-- موديول تحويل الطلبية لفاتورة -->
 <div class="modal-overlay" id="convertModal">
     <div class="modal-box">
         <div style="width:54px; height:54px; background:#f0faf4; border-radius:50%; display:flex; align-items:center; justify-content:center; margin: 0 auto 14px;">
@@ -434,6 +482,56 @@
         </div>
     </div>
 </div>
+
+<!-- موديول معالجة الصورة ومؤشر الانتظار لتوليد الفاتورة الحرارية -->
+<div class="modal-overlay" id="shareLoadingModal">
+    <div class="modal-box" style="max-width: 300px; padding: 25px 15px;">
+        <div class="spinner mb-3"></div>
+        <h6 class="fw-bold text-dark m-0" style="font-size: 0.88rem;">جاري إنشاء الفاتورة كصورة حرارية...</h6>
+        <p class="text-muted small mt-2 mb-0">انتظار فتح شاشة المشاركة عبر WhatsApp</p>
+    </div>
+</div>
+
+<!-- القالب السري المخفي لإنشاء الصورة الحرارية النقية لمنع تشويه الألوان أو الهوامش -->
+<div class="thermal-capture-container">
+    <div id="thermalReceiptArea">
+        <div class="receipt-header">
+            <h3>شركة الزيادي</h3>
+            <p>لزيوت السيارات والمحركات</p>
+        </div>
+        <div class="receipt-info">
+            <div class="receipt-info-row">
+                <span>رقم الطلب: <span id="thOrderId">0000</span></span>
+                <span>التاريخ: <span id="thOrderDate">0000</span></span>
+            </div>
+            <!-- اسم العميل مثبت بوضوح كامل داخل حاوية توليد الكانفاس لتجنب مسحه نهائياً -->
+            <div class="receipt-info-row" style="margin-top: 4px;">
+                <span>العميل: <strong id="thCustomerName">—</strong></span>
+            </div>
+        </div>
+        <table class="receipt-table">
+            <thead>
+                <tr>
+                    <th>الصنف</th>
+                    <th style="text-align: center; width: 60px;">الكمية</th>
+                    <th style="text-align: left; width: 80px;">الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody id="thReceiptItems">
+                <!-- يتم بناؤه برمجياً عند الضغط على زر الشير -->
+            </tbody>
+        </table>
+        <div class="receipt-total-row">
+            <span>الإجمالي النهائي:</span>
+            <span id="thFinalTotal">0.00 ج.م</span>
+        </div>
+        <div class="receipt-footer">
+            <p>شكراً لتعاملكم معنا - شركة الزيادي اختيارك الموثوق</p>
+            <p style="font-size: 10px; margin-top: 5px; color: #555;">anas POS Pro</p>
+        </div>
+    </div>
+</div>
+
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -528,7 +626,6 @@
             return;
         }
 
-        // Group by date
         const groups = {};
         filtered.forEach(o => {
             const dateKey = o.date ? o.date.split(' ')[0] : 'بدون تاريخ';
@@ -570,7 +667,7 @@
                     </div>
                     <div class="d-flex align-items-center gap-1">
                         ${statusBadge}
-                        <button class="action-btn btn-share" title="مشاركة الفاتورة" onclick="event.stopPropagation(); shareAsThermalInvoice('${order.id}')">
+                        <button class="action-btn btn-share" title="مشاركة الفاتورة كصورة" onclick="event.stopPropagation(); shareAsThermalInvoice('${order.id}')">
                             <i class="fab fa-whatsapp"></i>
                         </button>
                         ${!isDone ? `
@@ -636,46 +733,82 @@
     }
 
     window.editOrder = (orderId) => {
-        // توجيه لصفحة إنشاء/تعديل الطلبيات مع تمرير رقم الطلب للتعديل
         window.location.href = `customer-orders.html?editOrderId=${orderId}`;
     };
 
+    // ══════════════════════════════════════════════════
+    // دالة إنشاء الفاتورة كصورة حرارية والمشاركة الحقيقية
+    // ══════════════════════════════════════════════════
     window.shareAsThermalInvoice = (orderId) => {
         const order = allOrders.find(o => o.id === orderId);
         if (!order) return;
 
-        // تنسيق نص الفاتورة الحرارية 80 مم
-        let receipt = `=== شركة الـزيـادي لـزيـوت الـسـيـارات ===\n`;
-        receipt += `طلب مبيعات رقم: ${order.id.substring(0, 6).toUpperCase()}\n`;
-        receipt += `التاريخ: ${order.date || '—'}\n`;
-        receipt += `العميل: ${order.customerName || '—'}\n`;
-        receipt += `------------------------------------------\n`;
-        receipt += `الصنف            الكمية    السعر     الإجمالي\n`;
-        receipt += `------------------------------------------\n`;
+        const loadingModal = document.getElementById('shareLoadingModal');
+        loadingModal.style.display = 'flex'; // إظهار مؤشر الانتظار
 
+        // 1. تعبئة بيانات الفاتورة داخل القالب الحراري المخفي بشكل صريح وثابت لعدم فقدان اسم العميل
+        document.getElementById('thOrderId').innerText = order.id.substring(0, 6).toUpperCase();
+        document.getElementById('thOrderDate').innerText = order.date ? order.date.split(' ')[0] : '—';
+        document.getElementById('thCustomerName').innerText = order.customerName || 'عميل نقدي';
+        document.getElementById('thFinalTotal').innerText = `${Number(order.total || 0).toFixed(2)} ج.م`;
+
+        let itemsHtml = '';
         if (order.items && order.items.length > 0) {
             order.items.forEach(item => {
-                const name = item.name.padEnd(16).substring(0, 16);
-                const qty = String(item.quantity || 1).padEnd(6);
-                const price = Number(item.price || 0).toFixed(1).padEnd(9);
-                const subtotal = Number((item.quantity || 1) * (item.price || 0)).toFixed(1);
-                receipt += `${name} ${qty} ${price} ${subtotal}\n`;
+                const itemTotal = Number((item.quantity || 1) * (item.price || 0)).toFixed(2);
+                itemsHtml += `
+                    <tr>
+                        <td>${item.name}</td>
+                        <td style="text-align: center;">${item.quantity || 1}</td>
+                        <td style="text-align: left;">${itemTotal} ج.م</td>
+                    </tr>
+                `;
             });
         } else {
-            receipt += `لا توجد أصناف\n`;
+            itemsHtml = `<tr><td colspan="3" style="text-align:center;">لا توجد أصناف</td></tr>`;
         }
+        document.getElementById('thReceiptItems').innerHTML = itemsHtml;
 
-        receipt += `------------------------------------------\n`;
-        receipt += `الإجمالي النهائي: ${Number(order.total || 0).toFixed(2)} ج.م\n`;
-        if (order.notes) {
-            receipt += `ملاحظات: ${order.notes}\n`;
-        }
-        receipt += `==========================================\n`;
-        receipt += `شكراً لتعاملكم معنا!`;
+        // 2. معالجة وحقن المنطقة إلى صورة رقمية باستخدام التقاط Canvas متقدم
+        setTimeout(() => {
+            const captureArea = document.getElementById('thermalReceiptArea');
+            html2canvas(captureArea, {
+                scale: 2.5, // زيادة الدقة لضمان قراءتها بوضوح على طابعات الـ 80 مم المحمولة
+                backgroundColor: '#ffffff',
+                useCORS: true
+            }).then(canvas => {
+                canvas.toBlob(function(blob) {
+                    loadingModal.style.display = 'none'; // إخفاء مؤشر الانتظار
 
-        // ترميز وتوليد رابط الواتساب مباشر للنسخة المحمولة والمكتبية
-        const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(receipt)}`;
-        window.open(url, '_blank');
+                    const customerCleanName = (order.customerName || 'عميل').replace(/\s+/g, '_');
+                    const file = new File([blob], `فاتورة_${customerCleanName}.png`, { type: 'image/png' });
+
+                    // استخدام Web Share API الأصلية في الهاتف لمشاركة ملف الصورة مباشرة للواتساب
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        navigator.share({
+                            files: [file],
+                            title: `فاتورة ${order.customerName}`,
+                            text: `فاتورة حرارية صادرة من شركة الزيادي لزيوت السيارات - عميل: ${order.customerName}`
+                        }).catch(err => console.log('إلغاء أو خطأ في المشاركة:', err));
+                    } else {
+                        // طريقة بديلة متكاملة للهواتف والأجهزة التي لا تدعم مشاركة الملفات المباشرة بالمتصفح
+                        alert('تنبيه: سيتم تنزيل الفاتورة كصورة حرارية بجهازك، يرجى إرسالها يدوياً للعميل عبر الواتساب.');
+                        const link = document.createElement('a');
+                        link.download = `فاتورة_${customerCleanName}.png`;
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                        
+                        // فتح نافذة المحادثة النصية للمساعدة
+                        const fallbackUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent('مرفق لكم الفاتورة الحرارية من شركة الزيادي لزيوت السيارات.')}`;
+                        window.open(fallbackUrl, '_blank');
+                    }
+                }, 'image/png');
+            }).catch(error => {
+                loadingModal.style.display = 'none';
+                console.error('حدث خطأ أثناء معالجة الصورة الحرارية:', error);
+                alert('عذراً، فشل توليد الصورة الحرارية.');
+            });
+        }, 400); // مهلة زمنية قصيرة لضمان استقرار شجرة الـ DOM وضمان حقن اسم العميل بالكامل
     };
 
     window.confirmDelete = (orderId, name) => {
