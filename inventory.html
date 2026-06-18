@@ -272,7 +272,7 @@
 
 <script type="module">
     import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, enableIndexedDbPersistence, getDocs }
+    import { getFirestore, collection, onSnapshot, enableIndexedDbPersistence, getDocs, collectionGroup }
         from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -436,101 +436,100 @@
         const modalBody = document.getElementById('modalBody');
         
         modalTitle.textContent = `حركات الصنف: ${itemName}`;
-        modalBody.innerHTML = `<div class="loading"><div class="spinner"></div><p>جاري فحص فواتير البيع والشراء والعمليات...</p></div>`;
+        modalBody.innerHTML = `<div class="loading"><div class="spinner"></div><p>جاري فحص الفواتير والعمليات بدقة...</p></div>`;
         modal.style.display = 'flex';
 
         try {
             let foundTransactions = [];
-            const targetCollections = ["orders", "transactions", "purchase_orders"];
             
-            // دالة مساعدة لتنظيف النصوص ومقارنتها بمرونة كاملة
+            // إضافة مجموعات إضافية شائعة جداً في هياكل الكاش وفواتير المبيعات اليومية
+            const targetCollections = ["orders", "transactions", "purchase_orders", "sales", "invoice", "invoices"];
+            
             const cleanText = (txt) => String(txt || '').trim().toLowerCase().replace(/\s+/g, ' ');
             const targetId = cleanText(itemId);
             const targetName = cleanText(itemName);
 
+            // دالة تفكيك وفحص أي كائن بشكل مرن تام لمطابقة الصنف واستخراج معلوماته
+            const inspectObj = (obj) => {
+                let match = false;
+                let extractedQty = 0;
+
+                for (let key in obj) {
+                    const lowerKey = key.toLowerCase();
+                    // مطابقة الـ ID
+                    if (lowerKey.includes('id') || lowerKey.includes('key') || lowerKey === 'code') {
+                        if (cleanText(obj[key]) === targetId && targetId !== '') match = true;
+                    }
+                    // مطابقة الاسم
+                    if (lowerKey.includes('name') || lowerKey.includes('title') || lowerKey.includes('item') || lowerKey.includes('product')) {
+                        if (cleanText(obj[key]).includes(targetName) && targetName !== '') match = true;
+                    }
+                }
+
+                if (match) {
+                    for (let key in obj) {
+                        const lowerKey = key.toLowerCase();
+                        if (['qty', 'quantity', 'count', 'amount', 'totalpcs', 'pcs', 'number'].includes(lowerKey)) {
+                            const parsed = parseInt(obj[key]);
+                            if (!isNaN(parsed) && parsed > 0) { extractedQty = parsed; break; }
+                        }
+                    }
+                    if (extractedQty === 0 && typeof obj.qty === 'number') extractedQty = obj.qty;
+                    if (extractedQty === 0 && typeof obj.count === 'number') extractedQty = obj.count;
+                }
+                return { match, qty: extractedQty };
+            };
+
+            // دالة مساعدة لمعالجة المستند المسترجع
+            const processDoc = (docSnap, colName) => {
+                const d = docSnap.data();
+                
+                // فحص الحقول الرئيسية بالمستند
+                const topResult = inspectObj(d);
+                if (topResult.match && topResult.qty > 0) {
+                    foundTransactions.push({ id: docSnap.id, ...d, finalCalculatedQty: topResult.qty, detectedSource: colName });
+                }
+
+                // فحص عميق لكل الحقول للوصول لأي مصفوفات (Arrays) مفككة بالداخل
+                for (let key in d) {
+                    if (Array.isArray(d[key])) {
+                        d[key].forEach(subItem => {
+                            if (subItem && typeof subItem === 'object') {
+                                const subResult = inspectObj(subItem);
+                                if (subResult.match && subResult.qty > 0) {
+                                    foundTransactions.push({ id: docSnap.id, ...d, finalCalculatedQty: subResult.qty, detectedSource: colName });
+                                }
+                            }
+                        });
+                    } else if (d[key] && typeof d[key] === 'object') {
+                        // دعم في حالة كانت الأصناف مخزنة داخل Map مخصص وليس مصفوفة
+                        const subResult = inspectObj(d[key]);
+                        if (subResult.match && subResult.qty > 0) {
+                            foundTransactions.push({ id: docSnap.id, ...d, finalCalculatedQty: subResult.qty, detectedSource: colName });
+                        }
+                    }
+                }
+            };
+
+            // 1. فحص المجموعات الرئيسية
             for (const colName of targetCollections) {
                 try {
                     const snap = await getDocs(collection(db, colName));
-                    snap.forEach(docSnap => {
-                        const d = docSnap.data();
-                        
-                        // دالة داخلية لفحص أي كائن (سواء كان مستند علوي أو عنصر داخل مصفوفة)
-                        const inspectObj = (obj) => {
-                            let match = false;
-                            let extractedQty = 0;
-
-                            // 1. فحص الحقول المرتبطة بالـ ID بأي صيغة كُتبت
-                            for (let key in obj) {
-                                const lowerKey = key.toLowerCase();
-                                if (lowerKey.includes('id') || lowerKey.includes('key')) {
-                                    if (cleanText(obj[key]) === targetId && targetId !== '') {
-                                        match = true;
-                                    }
-                                }
-                            }
-
-                            // 2. فحص الحقول المرتبطة بالاسم (إذا لم يتطابق الـ ID أو كخط دفاع أول)
-                            for (let key in obj) {
-                                const lowerKey = key.toLowerCase();
-                                if (lowerKey.includes('name') || lowerKey.includes('title') || lowerKey.includes('item')) {
-                                    if (cleanText(obj[key]).includes(targetName) && targetName !== '') {
-                                        match = true;
-                                    }
-                                }
-                            }
-
-                            // 3. إذا حدث تطابق، نستخلص الكمية بأي مسمى حقل متوقع
-                            if (match) {
-                                for (let key in obj) {
-                                    const lowerKey = key.toLowerCase();
-                                    if (lowerKey === 'qty' || lowerKey === 'quantity' || lowerKey === 'count' || lowerKey === 'amount' || lowerKey === 'totalpcs') {
-                                        const parsed = parseInt(obj[key]);
-                                        if (!isNaN(parsed) && parsed > 0) {
-                                            extractedQty = parsed;
-                                            break;
-                                        }
-                                    }
-                                }
-                                // إذا لم نجد حقل صريح، نأخذ أي قيمة رقمية منطقية
-                                if (extractedQty === 0 && typeof obj.qty === 'number') extractedQty = obj.qty;
-                            }
-
-                            return { match, qty: extractedQty };
-                        };
-
-                        // أولاً: فحص هيكل المستند العلوي مباشرة
-                        const topResult = inspectObj(d);
-                        if (topResult.match && topResult.qty > 0) {
-                            foundTransactions.push({
-                                id: docSnap.id,
-                                ...d,
-                                finalCalculatedQty: topResult.qty,
-                                detectedSource: colName
-                            });
-                        }
-
-                        // ثانياً: الدوران داخل المستند للبحث عن أي مصفوفات تفصيلية وفكها (مثل قائمة الأصناف بالفاتورة)
-                        for (let key in d) {
-                            if (Array.isArray(d[key])) {
-                                d[key].forEach(subItem => {
-                                    if (subItem && typeof subItem === 'object') {
-                                        const subResult = inspectObj(subItem);
-                                        if (subResult.match && subResult.qty > 0) {
-                                            foundTransactions.push({
-                                                id: docSnap.id,
-                                                ...d,
-                                                finalCalculatedQty: subResult.qty,
-                                                detectedSource: colName
-                                            });
-                                        }
-                                    }
-                                });
-                            }
-                        }
-                    });
+                    snap.forEach(docSnap => processDoc(docSnap, colName));
                 } catch(e) {
-                    console.warn(`تخطي الكولكشن ${colName} مؤقتاً.`);
+                    console.warn(`تخطى الوصول المباشر لـ ${colName}`);
                 }
+            }
+
+            // 2. استخدام collectionGroup كحل سحري لاختراق الكولكشنز الفرعية (Subcollections) مثل daily_sales -> orders
+            try {
+                const subOrderSnap = await getDocs(collectionGroup(db, 'orders'));
+                subOrderSnap.forEach(docSnap => processDoc(docSnap, 'orders_sub'));
+                
+                const subItemsSnap = await getDocs(collectionGroup(db, 'items'));
+                subItemsSnap.forEach(docSnap => processDoc(docSnap, 'items_sub'));
+            } catch (e) {
+                console.warn("تخطى فحص مجموعات الـ Group الفرعية.");
             }
 
             // ترتيب تنازلي دقيق للحركات (من الأحدث تاريخاً للأقدم تاريخاً)
@@ -540,11 +539,11 @@
                 return dateB - dateA;
             });
 
-            // فلترة السجلات المكررة الناتجة عن تطابق المستند والمصفوفة معاً
+            // فلترة السجلات المكررة الناتجة عن تداخل البحث
             const uniqueTransactions = [];
             const seenIds = new Set();
             foundTransactions.forEach(t => {
-                const uniqueKey = `${t.id}_${t.finalCalculatedQty}_${t.detectedSource}`;
+                const uniqueKey = `${t.id}_${t.finalCalculatedQty}`;
                 if (!seenIds.has(uniqueKey)) {
                     seenIds.add(uniqueKey);
                     uniqueTransactions.push(t);
@@ -567,10 +566,9 @@
                 let sign = '-';
                 let amtClass = 'minus';
 
-                // التعرف الذكي الشامل على نوع الحركة بناءً على الكولكشن والنوع الداخلي بالفايربيز
                 const rawType = cleanText(tx.type || tx.status || tx.detectedSource || '');
                 
-                if (rawType.includes('purchase') || rawType.includes('شراء') || rawType.includes('تزويد') || rawType.includes('وارد')) {
+                if (rawType.includes('purchase') || rawType.includes('شراء') || rawType.includes('تزويد') || rawType.includes('وارد') || rawType.includes('supp')) {
                     typeClass = 'purchase'; typeText = 'شراء'; sign = '+'; amtClass = 'plus';
                 } else if (rawType.includes('return') || rawType.includes('مرتجع') || rawType.includes('ارتجاع')) {
                     typeClass = 'return'; typeText = 'مرتجع'; sign = '+'; amtClass = 'plus';
@@ -578,7 +576,6 @@
                     typeClass = 'loss'; typeText = 'تالف'; sign = '-'; amtClass = 'minus';
                 }
 
-                // صياغة التاريخ والوقت بشكل منسق وقابل للقراءة
                 let dateStr = 'بدون تاريخ';
                 const fireDate = tx.date || tx.createdAt || tx.timestamp;
                 if (fireDate) {
@@ -586,8 +583,7 @@
                     dateStr = d.toLocaleDateString('ar-EG', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
                 }
 
-                // جلب اسم العميل، المورد، أو الملاحظات لتمييز الحركة
-                let description = tx.notes || tx.clientName || tx.customerName || tx.supplierName || tx.customer || 'معاملة مسجلة للنظام';
+                let description = tx.notes || tx.clientName || tx.customerName || tx.supplierName || tx.customer || tx.userName || 'معاملة مسجلة بالنظام';
 
                 html += `
                 <div class="tx-item">
