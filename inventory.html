@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>شركة الزيادى | إدارة الأصناف والمخزون</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-deep: #f4f7f6;
+            --bg-card: #ffffff;
+            --glass: rgba(11, 94, 61, 0.06);
+            --accent: #0b5e3d;
+            --accent-light: #128256;
+            --header-bg: #0b5e3d;
+            --text-primary: #1b2e26;
+            --text-secondary: #61736b;
+            --danger: #e41e3f;
+            --success: #2dbe57;
+            --gold: #dfa100;
+            --border: #e2e9e5;
+            --shadow: 0 8px 24px rgba(11, 94, 61, 0.04);
+            --radius-lg: 20px;
+            --radius-md: 14px;
+            --low-stock: #fff3cd;
+            --low-stock-text: #856404;
+            --out-stock: #fde8ec;
+            --out-stock-text: #e41e3f;
+            --in-stock: #e8f8ee;
+            --in-stock-text: #1a7a3c;
+        }
+
+        body.dark-mode {
+            --bg-deep: #090d0b;
+            --bg-card: #121815;
+            --glass: rgba(29, 138, 90, 0.1);
+            --accent: #1d8a5a;
+            --accent-light: #28b377;
+            --header-bg: #0b110e;
+            --text-primary: #f0f6f3;
+            --text-secondary: #87948e;
+            --border: #1f2924;
+            --shadow: 0 10px 30px rgba(0,0,0,0.3);
+            --low-stock: #3a2e00;
+            --low-stock-text: #ffd54f;
+            --out-stock: #2e0a10;
+            --out-stock-text: #ff6b7a;
+            --in-stock: #0a2e18;
+            --in-stock-text: #5ce888;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: var(--bg-deep);
+            margin: 0;
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+        /* Header */
+        header.top-nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 24px;
+            background: var(--header-bg);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        .nav-icons { display: flex; gap: 18px; align-items: center; }
+        .nav-icons i { font-size: 20px; color: #ffffff; cursor: pointer; transition: transform 0.2s, opacity 0.2s; opacity: 0.9; }
+        .nav-icons i:hover { transform: scale(1.1); opacity: 1; }
+        .app-title { font-size: 18px; font-weight: 800; color: #ffffff; }
+        .app-title span { color: #ffce31; }
+        .back-btn {
+            background: rgba(255,255,255,0.12);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            font-family: 'Cairo', sans-serif;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .back-btn:hover { background: rgba(255,255,255,0.22); }
+
+        /* Stats Row */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            padding: 20px 20px 0;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        @media (min-width: 600px) { .stats-row { grid-template-columns: repeat(4, 1fr); } }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 18px 16px;
+            text-align: center;
+            box-shadow: var(--shadow);
+        }
+        .stat-card .stat-num { font-size: 28px; font-weight: 800; line-height: 1; }
+        .stat-card .stat-label { font-size: 12px; color: var(--text-secondary); font-weight: 700; margin-top: 4px; }
+        .stat-card.total .stat-num { color: var(--accent); }
+        .stat-card.instock .stat-num { color: var(--success); }
+        .stat-card.low .stat-num { color: var(--gold); }
+        .stat-card.out .stat-num { color: var(--danger); }
+
+        /* Controls */
+        .controls {
+            max-width: 1200px;
+            margin: 16px auto 0;
+            padding: 0 20px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 11px 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: var(--shadow);
+        }
+        .search-box i { color: var(--text-secondary); }
+        .search-box input {
+            border: none; background: transparent;
+            width: 100%; font-family: 'Cairo', sans-serif;
+            font-size: 14px; color: var(--text-primary); outline: none;
+        }
+        .filter-select {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 11px 16px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 14px;
+            color: var(--text-primary);
+            outline: none;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+        }
+        .add-btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-lg);
+            padding: 11px 20px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: 0.2s;
+            white-space: nowrap;
+        }
+        .add-btn:hover { background: var(--accent-light); transform: translateY(-1px); }
+
+        /* Table Section */
+        .table-section {
+            max-width: 1200px;
+            margin: 16px auto 100px;
+            padding: 0 20px;
+        }
+        .table-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+        }
+        .table-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .table-header h3 { margin: 0; font-size: 15px; font-weight: 800; color: var(--accent); }
+        .items-count { font-size: 12px; color: var(--text-secondary); font-weight: 700; }
+
+        .table-wrapper { overflow-x: auto; }
+        table.inv-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: right;
+            font-size: 14px;
+            min-width: 700px;
+        }
+        table.inv-table th {
+            padding: 12px 16px;
+            font-weight: 800;
+            color: var(--text-secondary);
+            font-size: 12px;
+            background: var(--glass);
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        table.inv-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 700;
+            vertical-align: middle;
+        }
+        table.inv-table tr:last-child td { border-bottom: none; }
+        table.inv-table tr:hover td { background: var(--glass); }
+
+        .item-name-cell { display: flex; align-items: center; gap: 10px; }
+        .item-icon { width: 36px; height: 36px; background: var(--glass); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 15px; flex-shrink: 0; }
+
+        /* Stock Badge */
+        .stock-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 800;
+        }
+        .stock-badge.in { background: var(--in-stock); color: var(--in-stock-text); }
+        .stock-badge.low { background: var(--low-stock); color: var(--low-stock-text); }
+        .stock-badge.out { background: var(--out-stock); color: var(--out-stock-text); }
+
+        .qty-cell { font-size: 18px; font-weight: 800; }
+        .qty-cell.low-qty { color: var(--gold); }
+        .qty-cell.out-qty { color: var(--danger); }
+        .qty-cell.ok-qty { color: var(--success); }
+
+        .wh-badge {
+            background: var(--glass);
+            color: var(--accent);
+            padding: 4px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .price-cell { color: var(--danger); font-weight: 800; }
+
+        /* Action Buttons */
+        .action-btns { display: flex; gap: 8px; justify-content: flex-end; }
+        .act-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            font-size: 13px;
+            transition: 0.2s;
+            color: var(--text-secondary);
+        }
+        .act-btn.edit:hover { background: rgba(11,94,61,0.1); color: var(--accent); border-color: var(--accent); }
+        .act-btn.del:hover { background: rgba(228,30,63,0.1); color: var(--danger); border-color: var(--danger); }
+        .act-btn.qty-up:hover { background: rgba(45,190,87,0.1); color: var(--success); border-color: var(--success); }
+        .act-btn.qty-down:hover { background: rgba(223,161,0,0.1); color: var(--gold); border-color: var(--gold); }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+        .empty-state i { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+        .empty-state p { font-size: 15px; font-weight: 700; margin: 0; }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            z-index: 3000;
+            backdrop-filter: blur(4px);
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--bg-card);
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 480px;
+            padding: 28px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            animation: modalIn 0.25s ease;
+        }
+        @keyframes modalIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--accent);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 800; color: var(--text-secondary); margin-bottom: 6px; }
+        .form-group input, .form-group select {
+            width: 100%;
+            background: var(--bg-deep);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 12px 16px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 15px;
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus { border-color: var(--accent); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .modal-footer { display: flex; gap: 10px; margin-top: 24px; }
+        .btn-save {
+            flex: 1;
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            border-radius: var(--radius-md);
+            padding: 13px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-save:hover { background: var(--accent-light); }
+        .btn-cancel {
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 13px 20px;
+            font-family: 'Cairo', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            color: var(--text-secondary);
+            transition: 0.2s;
+        }
+        .btn-cancel:hover { border-color: var(--danger); color: var(--danger); }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: var(--accent);
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: var(--radius-lg);
+            font-size: 14px;
+            font-weight: 700;
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 5000;
+            white-space: nowrap;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.error { background: var(--danger); }
+
+        /* Qty inline editor */
+        .qty-editor {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .qty-editor button {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            width: 28px; height: 28px;
+            font-size: 14px; font-weight: 800;
+            cursor: pointer;
+            color: var(--text-primary);
+            transition: 0.15s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .qty-editor button:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+        .qty-editor .qty-val {
+            font-size: 18px;
+            font-weight: 800;
+            min-width: 36px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-title">
+                <i class="fas fa-box-open"></i>
+                <span id="modalTitle">إضافة صنف جديد</span>
+            </div>
+            <div class="form-group">
+                <label>اسم الصنف</label>
+                <input type="text" id="fName" placeholder="مثال: شاشة كمبيوتر 24 بوصة">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>الكمية الحالية</label>
+                    <input type="number" id="fQty" placeholder="0" min="0">
+                </div>
+                <div class="form-group">
+                    <label>حد التنبيه (أقل من)</label>
+                    <input type="number" id="fMin" placeholder="5" min="1">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>سعر الشراء</label>
+                    <input type="text" id="fPrice" placeholder="0 ج.م">
+                </div>
+                <div class="form-group">
+                    <label>المخزن</label>
+                    <select id="fWarehouse">
+                        <option value="1">المخزن الرئيسي</option>
+                        <option value="2">مخزن المواد الخام</option>
+                        <option value="3">مخزن التعبئة والتغليف</option>
+                        <option value="4">مخزن المنتجات الجاهزة</option>
+                        <option value="5">مخزن العوازل والقطع</option>
+                        <option value="6">مخزن الهوالك والرجوع</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-save" onclick="saveItem()">
+                    <i class="fas fa-check"></i> حفظ الصنف
+                </button>
+                <button class="btn-cancel" onclick="closeModal()">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <header class="top-nav">
+        <div class="nav-icons">
+            <i class="fas fa-circle-half-stroke" onclick="toggleTheme()"></i>
+        </div>
+        <div class="app-title">شركة <span>الزيادى</span> | الأصناف</div>
+        <div class="nav-icons">
+            <button class="back-btn" onclick="history.back()">
+                <i class="fas fa-arrow-right"></i> رجوع
+            </button>
+        </div>
+    </header>
+
+    <div class="stats-row" id="statsRow">
+        <div class="stat-card total">
+            <div class="stat-num" id="statTotal">0</div>
+            <div class="stat-label">إجمالي الأصناف</div>
+        </div>
+        <div class="stat-card instock">
+            <div class="stat-num" id="statIn">0</div>
+            <div class="stat-label">متوفر</div>
+        </div>
+        <div class="stat-card low">
+            <div class="stat-num" id="statLow">0</div>
+            <div class="stat-label">كمية منخفضة</div>
+        </div>
+        <div class="stat-card out">
+            <div class="stat-num" id="statOut">0</div>
+            <div class="stat-label">نفد المخزون</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <div class="search-box">
+            <i class="fas fa-magnifying-glass"></i>
+            <input type="text" id="searchInput" oninput="renderTable()" placeholder="ابحث عن صنف...">
+        </div>
+        <select class="filter-select" id="filterWarehouse" onchange="renderTable()">
+            <option value="">كل المخازن</option>
+            <option value="1">المخزن الرئيسي</option>
+            <option value="2">مخزن المواد الخام</option>
+            <option value="3">مخزن التعبئة والتغليف</option>
+            <option value="4">مخزن المنتجات الجاهزة</option>
+            <option value="5">مخزن العوازل والقطع</option>
+            <option value="6">مخزن الهوالك والرجوع</option>
+        </select>
+        <select class="filter-select" id="filterStatus" onchange="renderTable()">
+            <option value="">كل الحالات</option>
+            <option value="in">متوفر</option>
+            <option value="low">منخفض</option>
+            <option value="out">نفد</option>
+        </select>
+        <button class="add-btn" onclick="openAddModal()">
+            <i class="fas fa-plus"></i> إضافة صنف
+        </button>
+    </div>
+
+    <div class="table-section">
+        <div class="table-card">
+            <div class="table-header">
+                <h3><i class="fas fa-boxes-stacked" style="margin-left:8px;"></i>قائمة الأصناف</h3>
+                <span class="items-count" id="itemsCountLabel">0 صنف</span>
+            </div>
+            <div class="table-wrapper">
+                <table class="inv-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>اسم الصنف</th>
+                            <th>الكمية</th>
+                            <th>الحالة</th>
+                            <th>سعر الشراء</th>
+                            <th>المخزن</th>
+                            <th>إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+                <div class="empty-state" id="emptyState" style="display:none;">
+                    <i class="fas fa-box-open"></i>
+                    <p>لا توجد أصناف — ابدأ بالإضافة</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== بيانات المخازن =====
+        const defaultWarehouseNames = {
+            1: "المخزن الرئيسي",
+            2: "مخزن المواد الخام",
+            3: "مخزن التعبئة والتغليف",
+            4: "مخزن المنتجات الجاهزة",
+            5: "مخزن العوازل والقطع",
+            6: "مخزن الهوالك والرجوع"
+        };
+
+        function getWarehouseName(id) {
+            return localStorage.getItem(`warehouse-name-${id}`) || defaultWarehouseNames[id] || `مخزن ${id}`;
+        }
+
+        // تحديث قوائم المخازن في الفورم والفلاتر
+        function refreshWarehouseOptions() {
+            const selects = [document.getElementById('fWarehouse'), document.getElementById('filterWarehouse')];
+            selects.forEach((sel, i) => {
+                const currentVal = sel.value;
+                // للفلتر: أبقِ الخيار الأول "كل المخازن"
+                const startIdx = i === 1 ? 1 : 0;
+                const options = sel.options;
+                for (let w = 1; w <= 6; w++) {
+                    const idx = startIdx + w - 1;
+                    if (options[idx]) options[idx].text = getWarehouseName(w);
+                }
+                sel.value = currentVal;
+            });
+        }
+
+        // ===== قاعدة البيانات المحلية =====
+        let items = JSON.parse(localStorage.getItem('inv-items') || '[]');
+        let editingId = null;
+
+        // بيانات تجريبية إذا مفيش بيانات محفوظة
+        if (items.length === 0) {
+            items = [
+                { id: 1, name: "شاشة كمبيوتر 24 بوصة", qty: 12, minQty: 3, price: "4500 ج.م", whId: 1 },
+                { id: 2, name: "لوحة مفاتيح لاسلكية", qty: 2, minQty: 5, price: "350 ج.م", whId: 1 },
+                { id: 3, name: "كابل طاقة نحاسي 5 متر", qty: 0, minQty: 10, price: "120 ج.م", whId: 2 },
+                { id: 4, name: "كرتونة تغليف حجم كبير", qty: 45, minQty: 15, price: "25 ج.م", whId: 3 },
+                { id: 5, name: "أكياس فقاعات هوائية شحن", qty: 4, minQty: 20, price: "85 ج.م", whId: 3 },
+                { id: 6, name: "حاسوب محمول Core i7", qty: 7, minQty: 2, price: "28000 ج.م", whId: 4 },
+                { id: 7, name: "شاحن سريع طاقة 65 واط", qty: 18, minQty: 5, price: "600 ج.م", whId: 4 },
+                { id: 8, name: "شريط لاصق عازل رول", qty: 0, minQty: 10, price: "40 ج.م", whId: 5 },
+                { id: 9, name: "بوردة هاتف تالفة للتخريد", qty: 3, minQty: 1, price: "150 ج.م", whId: 6 }
+            ];
+            saveItems();
+        }
+
+        function saveItems() {
+            localStorage.setItem('inv-items', JSON.stringify(items));
+        }
+
+        function getStatus(item) {
+            if (item.qty === 0) return 'out';
+            if (item.qty < item.minQty) return 'low';
+            return 'in';
+        }
+
+        function getStatusLabel(status) {
+            if (status === 'out') return '<span class="stock-badge out"><i class="fas fa-circle-xmark"></i> نفد</span>';
+            if (status === 'low') return '<span class="stock-badge low"><i class="fas fa-triangle-exclamation"></i> منخفض</span>';
+            return '<span class="stock-badge in"><i class="fas fa-circle-check"></i> متوفر</span>';
+        }
+
+        function getQtyClass(item) {
+            const s = getStatus(item);
+            if (s === 'out') return 'out-qty';
+            if (s === 'low') return 'low-qty';
+            return 'ok-qty';
+        }
+
+        // ===== Render Table =====
+        function renderTable() {
+            const query = document.getElementById('searchInput').value.trim().toLowerCase();
+            const whFilter = document.getElementById('filterWarehouse').value;
+            const statusFilter = document.getElementById('filterStatus').value;
+
+            let filtered = items.filter(item => {
+                const matchSearch = item.name.toLowerCase().includes(query);
+                const matchWh = whFilter === '' || item.whId == whFilter;
+                const matchStatus = statusFilter === '' || getStatus(item) === statusFilter;
+                return matchSearch && matchWh && matchStatus;
+            });
+
+            const tbody = document.getElementById('tableBody');
+            const emptyState = document.getElementById('emptyState');
+            document.getElementById('itemsCountLabel').textContent = `${filtered.length} صنف`;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.style.display = 'block';
+            } else {
+                emptyState.style.display = 'none';
+                tbody.innerHTML = filtered.map((item, idx) => `
+                    <tr>
+                        <td style="color:var(--text-secondary); font-size:13px;">${idx + 1}</td>
+                        <td>
+                            <div class="item-name-cell">
+                                <div class="item-icon"><i class="fas fa-box"></i></div>
+                                <span>${item.name}</span>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="qty-editor">
+                                <button onclick="changeQty(${item.id}, -1)" title="تخفيض">−</button>
+                                <span class="qty-val ${getQtyClass(item)}">${item.qty}</span>
+                                <button onclick="changeQty(${item.id}, 1)" title="زيادة">+</button>
+                            </div>
+                        </td>
+                        <td>${getStatusLabel(getStatus(item))}</td>
+                        <td class="price-cell">${item.price}</td>
+                        <td><span class="wh-badge"><i class="fas fa-warehouse" style="margin-left:5px;"></i>${getWarehouseName(item.whId)}</span></td>
+                        <td>
+                            <div class="action-btns">
+                                <button class="act-btn edit" onclick="openEditModal(${item.id})" title="تعديل"><i class="fas fa-pen"></i></button>
+                                <button class="act-btn del" onclick="deleteItem(${item.id})" title="حذف"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+
+            updateStats();
+        }
+
+        function updateStats() {
+            const total = items.length;
+            const inStock = items.filter(i => getStatus(i) === 'in').length;
+            const low = items.filter(i => getStatus(i) === 'low').length;
+            const out = items.filter(i => getStatus(i) === 'out').length;
+
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statIn').textContent = inStock;
+            document.getElementById('statLow').textContent = low;
+            document.getElementById('statOut').textContent = out;
+        }
+
+        // ===== Quantity Change =====
+        function changeQty(id, delta) {
+            const item = items.find(i => i.id === id);
+            if (!item) return;
+            item.qty = Math.max(0, item.qty + delta);
+            saveItems();
+            renderTable();
+            showToast(delta > 0 ? `تمت الإضافة ✔` : `تم التخفيض ✔`);
+        }
+
+        // ===== Modal =====
+        function openAddModal() {
+            editingId = null;
+            document.getElementById('modalTitle').textContent = 'إضافة صنف جديد';
+            document.getElementById('fName').value = '';
+            document.getElementById('fQty').value = '';
+            document.getElementById('fMin').value = '5';
+            document.getElementById('fPrice').value = '';
+            document.getElementById('fWarehouse').value = '1';
+            document.getElementById('modalOverlay').classList.add('active');
+        }
+
+        function openEditModal(id) {
+            const item = items.find(i => i.id === id);
+            if (!item) return;
+            editingId = id;
+            document.getElementById('modalTitle').textContent = 'تعديل الصنف';
+            document.getElementById('fName').value = item.name;
+            document.getElementById('fQty').value = item.qty;
+            document.getElementById('fMin').value = item.minQty;
+            document.getElementById('fPrice').value = item.price;
+            document.getElementById('fWarehouse').value = item.whId;
+            document.getElementById('modalOverlay').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('active');
+        }
+
+        function saveItem() {
+            const name = document.getElementById('fName').value.trim();
+            const qty = parseInt(document.getElementById('fQty').value) || 0;
+            const minQty = parseInt(document.getElementById('fMin').value) || 5;
+            const price = document.getElementById('fPrice').value.trim() || '0 ج.م';
+            const whId = parseInt(document.getElementById('fWarehouse').value);
+
+            if (!name) {
+                showToast('من فضلك ادخل اسم الصنف', true);
+                return;
+            }
+
+            if (editingId) {
+                const item = items.find(i => i.id === editingId);
+                Object.assign(item, { name, qty, minQty, price, whId });
+                showToast('تم تعديل الصنف ✔');
+            } else {
+                const newId = items.length > 0 ? Math.max(...items.map(i => i.id)) + 1 : 1;
+                items.push({ id: newId, name, qty, minQty, price, whId });
+                showToast('تمت الإضافة بنجاح ✔');
+            }
+
+            saveItems();
+            closeModal();
+            renderTable();
+        }
+
+        function deleteItem(id) {
+            if (!confirm('هل أنت متأكد من حذف هذا الصنف؟')) return;
+            items = items.filter(i => i.id !== id);
+            saveItems();
+            renderTable();
+            showToast('تم الحذف');
+        }
+
+        // ===== Toast =====
+        function showToast(msg, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.className = 'toast' + (isError ? ' error' : '') + ' show';
+            setTimeout(() => { toast.className = 'toast'; }, 2500);
+        }
+
+        // ===== Theme =====
+        function toggleTheme() {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            localStorage.setItem('sanad-theme', isDark ? 'dark' : 'light');
+        }
+
+        // Close modal on overlay click
+        document.getElementById('modalOverlay').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        // ===== Init =====
+        window.onload = () => {
+            if (localStorage.getItem('sanad-theme') === 'dark') {
+                document.body.classList.add('dark-mode');
+            }
+            refreshWarehouseOptions();
+            renderTable();
+        };
+    </script>
+</body>
+</html>
