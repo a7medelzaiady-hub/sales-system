@@ -107,9 +107,11 @@
             display: flex; align-items: center;
             padding: 10px 14px; border-bottom: 1px solid var(--border);
             gap: 10px; transition: background 0.12s;
+            cursor: pointer; /* جعل السطر قابل للضغط */
         }
         .item-row:last-child { border-bottom: none; }
-        .item-row:active { background: rgba(11,94,61,0.04); }
+        .item-row:hover { background: rgba(11,94,61,0.02); }
+        .item-row:active { background: rgba(11,94,61,0.06); }
         .item-row.zero-row { background: rgba(228,30,63,0.025); }
         .item-row.low-row  { background: rgba(201,138,0,0.025); }
 
@@ -175,6 +177,46 @@
         .empty-state p { font-size: 13px; font-weight: 700; }
         .err-box { margin: 14px; background: rgba(228,30,63,0.07); border: 1px solid rgba(228,30,63,0.2); border-radius: var(--r); padding: 20px; text-align: center; color: var(--danger); font-weight: 700; font-size: 13px; }
         .err-box i { font-size: 26px; display: block; margin-bottom: 8px; }
+
+        /* Modal Styles (نافذة الحركات المنبثقة) */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(27, 46, 38, 0.6); backdrop-filter: blur(4px);
+            z-index: 1000; display: none; align-items: center; justify-content: center;
+            padding: 16px;
+        }
+        .modal-card {
+            background: var(--card); width: 100%; max-width: 600px;
+            border-radius: var(--r); box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden; display: flex; flex-direction: column; max-height: 85vh;
+            animation: modalFade 0.25s ease-out;
+        }
+        @keyframes modalFade { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-header {
+            background: var(--accent); color: #fff; padding: 14px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .modal-header h4 { font-size: 15px; font-weight: 800; }
+        .close-modal { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 28px; height: 28px; border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .modal-body { padding: 16px; overflow-y: auto; flex: 1; }
+        
+        /* History Table / Timeline */
+        .tx-item {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 12px 10px; border-bottom: 1px solid var(--border); gap: 10px;
+        }
+        .tx-item:last-child { border-bottom: none; }
+        .tx-type { padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; color: #fff; text-align: center; min-width: 65px; }
+        .tx-type.sale { background: var(--success); }
+        .tx-type.purchase { background: var(--accent-light); }
+        .tx-type.return { background: var(--gold); }
+        .tx-type.loss { background: var(--danger); }
+        .tx-details { flex: 1; }
+        .tx-title { font-size: 12px; font-weight: 800; }
+        .tx-date { font-size: 10px; color: var(--sub); font-weight: 600; margin-top: 1px; }
+        .tx-amount { font-size: 14px; font-weight: 900; text-align: left; }
+        .tx-amount.plus { color: var(--success); }
+        .tx-amount.minus { color: var(--danger); }
     </style>
 </head>
 <body>
@@ -216,9 +258,20 @@
     </div>
 </div>
 
+<div class="modal-overlay" id="historyModal" onclick="closeHistoryModal()">
+    <div class="modal-card" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h4 id="modalItemName">سجل حركات الصنف</h4>
+            <button class="close-modal" onclick="closeHistoryModal()"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="modal-body" id="modalBody">
+            </div>
+    </div>
+</div>
+
 <script type="module">
     import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, enableIndexedDbPersistence }
+    import { getFirestore, collection, onSnapshot, enableIndexedDbPersistence, query, where, getDocs, orderBy }
         from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -235,16 +288,8 @@
     let allItems = [];
 
     enableIndexedDbPersistence(db)
-        .then(() => {
-            console.log("تم تفعيل الكاش المحلي بنجاح (Offline Persistence Active)");
-        })
-        .catch((err) => {
-            if (err.code == 'failed-precondition') {
-                console.warn("تنبيه: الكاش لم يفعل لأن هناك علامة تبويب أخرى مفتوحة للموقع.");
-            } else if (err.code == 'unimplemented') {
-                console.warn("تنبيه: المتصفح الحالي لا يدعم التخزين المحلي.");
-            }
-        });
+        .then(() => { console.log("تم تفعيل الكاش المحلي بنجاح"); })
+        .catch((err) => { console.warn("تنبيه الكاش:", err.message); });
 
     onSnapshot(collection(db, "inventory"), snap => {
         allItems = [];
@@ -340,7 +385,6 @@
         if (totalPcs === 0)          status = 'zero';
         else if (totalPcs <= minPcs) status = 'low';
 
-        // تهيئة اسم الوحدة الصغيرة وضمان عدم تسميتها بـ "كرتونة"
         let unitName = (item.unitName && item.unitName.trim() !== 'كرتونة') ? item.unitName.trim() : 'جركن';
         
         let boxDisplay = '';
@@ -350,12 +394,10 @@
         if (status === 'zero') {
             boxDisplay = 'صفر';
         } else if (boxes === 0 && jars > 0) {
-            // التعديل الرئيسي: إذا كان المخزون قطع فقط أقل من كرتونة كاملة، يتم رفع القطع للأعلى وتحويل التسمية إلى جركن مباشرة
             boxDisplay = jars.toLocaleString();
             labelDisplay = unitName; 
             extraHtml = ''; 
         } else {
-            // في حالة وجود كراتين كاملة، تظهر كلمة كرتونة، ويظهر التاج الأزرق بالأسفل للجراكن الفكة إن وجدت
             boxDisplay = boxes.toLocaleString();
             labelDisplay = 'كرتونة';
             extraHtml = (jars > 0)
@@ -366,8 +408,10 @@
         const catHtml   = item.category ? `<span class="cat-tag">${item.category}</span>` : '';
         const priceHtml = item.sell     ? `<span>${Number(item.sell).toLocaleString()} ج.م</span>` : '';
 
+        // تم ربط السطر هنا بـ دالة onclick و تمرير معرف المنتج id واسمه كـ نص آمن بالكامل
+        const safeName = (item.name || 'بدون اسم').replace(/'/g, "\\'");
         return `
-        <div class="item-row${status==='zero' ? ' zero-row' : status==='low' ? ' low-row' : ''}">
+        <div class="item-row${status==='zero' ? ' zero-row' : status==='low' ? ' low-row' : ''}" onclick="showItemHistory('${item.id}', '${safeName}')">
             <span class="row-num">${num}</span>
             <div class="row-icon"><i class="fas fa-${status==='zero' ? 'box-open' : 'box'}"></i></div>
             <div class="row-info">
@@ -382,6 +426,80 @@
             <div class="status-dot ${status}"></div>
         </div>`;
     }
+
+    // دالة فتح النافذة المنبثقة وجلب بيانات التحركات من الفايربيز
+    window.showItemHistory = async function(itemId, itemName) {
+        const modal = document.getElementById('historyModal');
+        const modalTitle = document.getElementById('modalItemName');
+        const modalBody = document.getElementById('modalBody');
+        
+        modalTitle.textContent = `حركات الصنف: ${itemName}`;
+        modalBody.innerHTML = `<div class="loading"><div class="spinner"></div><p>جاري تحميل سجل الحركة...</p></div>`;
+        modal.style.display = 'flex';
+
+        try {
+            // كويري لجلب العمليات المرتبطة بالصنف من جدول الـ transactions ومُرتبة بالأحدث
+            const q = query(collection(db, "transactions"), where("itemId", "==", itemId));
+            const querySnapshot = await getDocs(q);
+            
+            let txList = [];
+            querySnapshot.forEach(doc => {
+                txList.push({ id: doc.id, ...doc.data() });
+            });
+
+            // ترتيب الحركات محلياً حسب التاريخ لضمان العمل بلا حاجة لإنشاء Index معقد في Firestore
+            txList.sort((a,b) => (b.date || 0) - (a.date || 0));
+
+            if (txList.length === 0) {
+                modalBody.innerHTML = `<div class="empty-state"><i class="fas fa-history"></i><p>لا توجد حركات مسجلة لهذا الصنف بعد</p></div>`;
+                return;
+            }
+
+            let html = '';
+            txList.forEach(tx => {
+                let typeClass = 'sale';
+                let typeText = 'بيع';
+                let sign = '-';
+                let amtClass = 'minus';
+
+                // تخصيص الألوان والمسميات حسب نوع الحركة القادمة من قاعدة البيانات
+                if (tx.type === 'purchase' || tx.type === 'شراء') {
+                    typeClass = 'purchase'; typeText = 'شراء'; sign = '+'; amtClass = 'plus';
+                } else if (tx.type === 'return' || tx.type === 'مرتجع') {
+                    typeClass = 'return'; typeText = 'مرتجع'; sign = '+'; amtClass = 'plus';
+                } else if (tx.type === 'loss' || tx.type === 'تالف') {
+                    typeClass = 'loss'; typeText = 'تالف'; sign = '-'; amtClass = 'minus';
+                }
+
+                // صياغة وعرض تاريخ المعاملة
+                let dateStr = 'بدون تاريخ';
+                if (tx.date) {
+                    const d = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+                    dateStr = d.toLocaleDateString('ar-EG', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
+                }
+
+                html += `
+                <div class="tx-item">
+                    <span class="tx-type ${typeClass}">${typeText}</span>
+                    <div class="tx-details">
+                        <div class="tx-title">${tx.notes || tx.clientName || 'حركة مخزنية'}</div>
+                        <div class="tx-date">${dateStr}</div>
+                    </div>
+                    <div class="tx-amount ${amtClass}">${sign}${tx.qty || 0}</div>
+                </div>`;
+            });
+
+            modalBody.innerHTML = html;
+
+        } catch (err) {
+            console.error(err);
+            modalBody.innerHTML = `<div class="err-box"><i class="fas fa-exclamation-triangle"></i>فشل في جلب البيانات<br><small>${err.message}</small></div>`;
+        }
+    };
+
+    window.closeHistoryModal = function() {
+        document.getElementById('historyModal').style.display = 'none';
+    };
 </script>
 </body>
 </html>
