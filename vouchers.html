@@ -65,7 +65,7 @@
         .statement-table tr td:first-child { border-right: 1px solid var(--border); border-radius: 0 8px 8px 0; }
         .statement-table tr td:last-child { border-left: 1px solid var(--border); border-radius: 8px 0 0 8px; }
         
-        .badge-type { padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.7rem; }
+        .badge-type { padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.7 Clubpx; font-size: 0.7rem; }
         .badge-receipt { background-color: #e8f5e9; color: var(--success); }
         .badge-payment { background-color: #ffebee; color: var(--danger); }
 
@@ -74,8 +74,19 @@
             background: rgba(255,255,255,0.1); color: #fff; transition: 0.3s; font-size: 0.85rem;
         }
         .btn-action:hover { background: #fff; color: var(--accent); }
-        .btn-excel-custom { background: #fff; color: #1f7246 !important; border: 1px solid #1f7246; }
-        .btn-excel-custom:hover { background: #1f7246; color: #fff !important; }
+        
+        .btn-excel-custom {
+            background-color: #27ae60 !important; 
+            border: 2px solid #fff !important;    
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2); 
+            padding: 10px 15px !important;       
+            width: auto !important;              
+            height: auto !important;
+        }
+        .btn-excel-custom:hover {
+            background-color: #2ecc71 !important;
+            transform: scale(1.1);               
+        }
         
         .btn-danger-custom { background: #fff; color: var(--danger) !important; border: 1px solid var(--danger); }
         .btn-danger-custom:hover { background: var(--danger); color: #fff !important; }
@@ -105,21 +116,6 @@
         .receipt-table-layout td {
             padding: 4px 2px; font-size: 0.8rem; vertical-align: middle; border: none !important;
         }
-        /* تنسيق خاص لتكبير وإبراز زر الإكسل */
-.btn-excel-custom {
-    background-color: #27ae60 !important; /* لون أخضر جذاب */
-    border: 2px solid #fff !important;    /* إطار أبيض */
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* إضافة ظل لإبرازه */
-    padding: 10px 15px !important;       /* زيادة الحجم */
-    width: auto !important;              /* تعديل العرض */
-    height: auto !important;
-}
-
-/* تأثير عند تمرير الفأرة فوق الزر */
-.btn-excel-custom:hover {
-    background-color: #2ecc71 !important;
-    transform: scale(1.1);               /* تكبير بسيط عند التمرير */
-}
     </style>
 </head>
 <body>
@@ -158,7 +154,6 @@
                 </div>
                 <div class="col-md-2">
                     <label class="form-label small fw-bold">حساب الطرف</label>
-                    <!-- تم إزالة أي خاصية قفل أو تعطيل من هنا تماماً ليعود اختيار العميل والمورد حراً ومفتوحاً للجميع -->
                     <select class="form-select form-select-sm" id="partyType" required>
                         <option value="عميل">عميل</option>
                         <option value="مورد">مورد</option>
@@ -197,7 +192,6 @@
                     <option value="قبض">القبض فقط</option>
                     <option value="صرف">الصرف فقط</option>
                 </select>
-                <!-- تم تصحيح الفلتر هنا وإزالة التثبيت والتعطيل ليعود لعرض كل الأطراف -->
                 <select class="form-select form-select-sm w-auto" id="filterParty" onchange="filterData()">
                     <option value="الكل">كل الأطراف</option>
                     <option value="عميل">العملاء فقط</option>
@@ -333,21 +327,12 @@
 
     document.addEventListener("DOMContentLoaded", async () => {
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
-        
-        applyRoleRestrictions();
+        document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
         
         loadCache();
         await fetchPartiesData();
         await loadVouchers();
     });
-
-    document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
-
-function applyRoleRestrictions() {
-    // الأزرار ستظهر الآن للجميع بدون قيود
-    console.log("تم إظهار الأزرار للجميع");
-}
-   
 
     function loadCache() {
         const cachedParties = localStorage.getItem('cache_partiesMap');
@@ -369,6 +354,7 @@ function applyRoleRestrictions() {
                 getDocs(collection(db, "customers"))
             ]);
             
+            partiesMap = {};
             supSnap.forEach(doc => {
                 partiesMap[doc.id] = {
                     name: doc.data().name,
@@ -615,7 +601,6 @@ function applyRoleRestrictions() {
         
         const currentBalance = await calculateCustomerBalance(partyId);
         let prevBalance = currentBalance;
-        let newBalance = currentBalance;
 
         if (pType === 'عميل') {
             if (type === 'قبض') {
@@ -631,54 +616,47 @@ function applyRoleRestrictions() {
             }
         }
 
+        document.getElementById('recPrevBalance').innerText = `${prevBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('recNewBalance').innerText = `${currentBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        
+        receiptModalObj.show();
+    };
+
     document.getElementById('btnDoShare').addEventListener('click', async () => {
-
-    const target = document.getElementById('thermalReceipt');
-
-    const canvas = await html2canvas(target, {
-        scale: 3,
-        backgroundColor: "#ffffff"
-    });
-
-    canvas.toBlob(async (blob) => {
-
-        if (!blob) {
-            alert("فشل إنشاء الصورة");
-            return;
-        }
-
-        const file = new File([blob], "receipt.png", {
-            type: "image/png"
-        });
-
+        const target = document.getElementById('thermalReceipt');
         try {
+            const canvas = await html2canvas(target, {
+                scale: 3,
+                backgroundColor: "#ffffff"
+            });
 
-            if (navigator.share) {
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    alert("فشل إنشاء الصورة");
+                    return;
+                }
 
-                await navigator.share({
-                    files: [file],
-                    title: "إيصال السداد"
-                });
+                const file = new File([blob], "receipt.png", { type: "image/png" });
 
-            } else {
-
-                const link = document.createElement('a');
-                link.href = URL.createObjectURL(blob);
-                link.download = "receipt.png";
-                link.click();
-            }
-
-        } catch (err) {
-            console.error(err);
-
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = "receipt.png";
-            link.click();
+                try {
+                    if (navigator.share) {
+                        await navigator.share({
+                            files: [file],
+                            title: "إيصال السداد"
+                        });
+                    } else {
+                        triggerDownload(canvas.toDataURL("image/png"));
+                    }
+                } catch (err) {
+                    console.error(err);
+                    triggerDownload(canvas.toDataURL("image/png"));
+                }
+            }, "image/png");
+        } catch (e) {
+            console.error(e);
+            alert("حدث خطأ أثناء معالجة الصورة للمشاركة");
         }
-
-    }, "image/png");
-});
+    });
 
     function triggerDownload(imgData) {
         const a = document.createElement('a');
@@ -687,7 +665,7 @@ function applyRoleRestrictions() {
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        alert("تنبيه: تم حفظ الإيصال كصورة بالاستوديو بنجاح. يمكنك إرسالها يدوياً الآن.");
+        alert("تنبيه: تم حفظ الإيصال كصورة بنجاح. يمكنك إرسالها يدوياً الآن.");
     }
 
     document.getElementById('voucherForm').addEventListener('submit', async (e) => {
@@ -722,7 +700,7 @@ function applyRoleRestrictions() {
             } else {
                 await addDoc(collection(db, "transactions"), docData);
                 alert("تم حفظ السند الجديد بنجاح بقاعدة البيانات.");
-                openReceiptModal(type, date, amount, partyId);
+                await openReceiptModal(type, date, amount, partyId);
             }
             resetVoucherForm();
             await loadVouchers();
@@ -732,28 +710,19 @@ function applyRoleRestrictions() {
         }
     });
 
-  window.deleteAllVouchers = async () => {
-
-    if (!confirm("تحذير: هل تريد حذف جميع السندات؟")) return;
-
-    try {
-        const promises = allVouchers.map(v =>
-            deleteDoc(doc(db, "transactions", v.id))
-        );
-
-        await Promise.all(promises);
-
-        alert("تم حذف جميع السندات");
-        await loadVouchers();
-
-    } catch (err) {
-        console.error(err);
-        alert("فشل الحذف");
-    }
-};
+    window.deleteVoucher = async (id) => {
+        if (!confirm("هل أنت متأكد من حذف هذا السند نهائياً؟")) return;
+        try {
+            await deleteDoc(doc(db, "transactions", id));
+            alert("تم حذف السند بنجاح.");
+            await loadVouchers();
+        } catch (err) {
+            console.error("Error deleting document:", err);
+            alert("فشل حذف السند.");
+        }
+    };
 
     window.deleteAllVouchers = async () => {
-        if (userRole !== 'admin') return; 
         if (!confirm("تحذير أمني صارم: هل أنت متأكد من حذف كافة السندات المسجلة نهائياً؟ لا يمكن استرجاع هذه البيانات بعد الحذف!")) return;
         if (!confirm("تأكيد أخير: هل أنت متأكد حقاً؟")) return;
         
