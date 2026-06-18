@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">  
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>  
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>  
     
     <style>  
         :root {   
@@ -46,8 +46,13 @@
             top: 0;   
             z-index: 1000;  
         }  
-        .add-btn { background: rgba(255,255,255,0.2); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; text-decoration: none; font-size: 0.9rem; border: none; font-family: 'Cairo', sans-serif; }  
+        .add-btn { background: rgba(255,255,255,0.2); width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; text-decoration: none; font-size: 0.9rem; border: none; font-family: 'Cairo', sans-serif; transition: all 0.2s; }  
         .add-btn:hover { background: rgba(255,255,255,0.3); color: white; }  
+        
+        /* كلاس مخصص لزر السلة ليكون مميزاً باللون الأحمر داخل الهيدر */
+        .trash-nav-btn { background: #d90429 !important; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+        .trash-nav-btn:hover { background: #b30322 !important; }
+
         .stats-section-title { font-size: 0.78rem; font-weight: 800; color: var(--accent); margin: 6px 0 4px 0; border-bottom: 1px solid var(--border); padding-bottom: 4px; }  
         .stat-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--card-radius); padding: 8px 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.01); text-align: center; position: relative; overflow: hidden; cursor: pointer; transition: all 0.2s ease; }  
         .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.08); border-color: var(--accent); }  
@@ -92,6 +97,7 @@
         <a href="index.html" class="add-btn"><i class="fas fa-arrow-right"></i></a>  
         <h6 class="m-0 fw-bold" style="font-size: 0.95rem;"><i class="fas fa-history me-1"></i> سجل المبيعات </h6>  
         <div class="d-flex gap-2">  
+            <a href="trashi.html" class="add-btn trash-nav-btn" title="فتح سلة المحذوفات"><i class="fas fa-trash-alt"></i></a>  
             <button class="add-btn" id="exportExcelBtn" title="تصدير كل الأرشيف إكسيل"><i class="fas fa-file-excel"></i></button>  
             <a href="sales-invoice.html" class="add-btn"><i class="fas fa-plus"></i></a>  
         </div>  
@@ -780,85 +786,4 @@
             icon: "danger",  
             onConfirm: async () => {  
                 try {  
-                    await updateDoc(doc(db, "invoices", id), { 
-                        isDeleted: true, 
-                        deletedAt: serverTimestamp() 
-                    });  
-                    window.showCustomUi({  
-                        title: "تم النقل بنجاح",  
-                        message: "تم نقل الفاتورة بنجاح إلى سلة المحذوفات ويمكنك استعادتها من هناك.",  
-                        icon: "success"
-                    });  
-                } catch (e) {   
-                    window.showCustomUi({ title: "خطأ", message: "فشلت عملية نقل الفاتورة للسلة.", icon: "danger" });  
-                }  
-            }  
-        });  
-    };  
-    
-    window.exportToExcel = () => {  
-        if (!allInvoices || allInvoices.length === 0) {  
-            alert("لا توجد بيانات للتصدير");  
-            return;  
-        }  
-        let excelData = [];  
-        excelData.push([  
-            "التاريخ", "الحركة", "اسم العميل", "الصنف", "عدد جركن", "عدد كرتونة", "سعر جركن", "سعر كرتونة"  
-        ]);  
-        allInvoices.forEach(inv => {  
-            let invoiceItems = [];  
-            if (Array.isArray(inv.items)) {  
-                invoiceItems = inv.items;  
-            } else {  
-                Object.keys(inv).forEach(key => {  
-                    if (!isNaN(key) && inv[key]) { invoiceItems.push(inv[key]); }  
-                });  
-            }  
-            const invDate = parseInvoiceDate(inv) || inv.date || "بدون تاريخ";  
-            invoiceItems.forEach(item => {  
-                const isBox = item.unit === "box" ||   
-                              item.unit === "كرتونة" ||   
-                              (item.name && (item.name.includes("كرتونة") || item.name.includes("كرtونه")));  
-                excelData.push([  
-                    invDate, "بيع", inv.customerName || "النقدى", item.name || "",  
-                    !isBox ? (Number(item.qty) || 0) : 0,    
-                    isBox ? (Number(item.qty) || 0) : 0,     
-                    !isBox ? (Number(item.price) || 0) : 0,   
-                    isBox ? (Number(item.price) || 0) : 0    
-                ]);  
-            });  
-            if (inv.calculatedCash > 0) {  
-                excelData.push([  
-                    invDate, "سداد منه نقدى", inv.customerName || "النقدى", "سداد نقدى", 0, 0, 0, inv.calculatedCash   
-                ]);  
-            }  
-            if (inv.calculatedWallet > 0) {  
-                excelData.push([  
-                    invDate, "سداد منه محفظه", inv.customerName || "النقدى", "سداد محفظه", 0, 0, 0, inv.calculatedWallet   
-                ]);  
-            }  
-        });  
-        const worksheet = XLSX.utils.aoa_to_sheet(excelData);  
-        worksheet["!cols"] = [  
-            { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 35 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }    
-        ];  
-        const workbook = XLSX.utils.book_new();  
-        XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات والأرشيف");  
-        const wbout = XLSX.write(workbook, { bookType: "xlsx", type: "array" });  
-        const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });  
-        const url = URL.createObjectURL(blob);  
-        const a = document.createElement("a");  
-        a.href = url;  
-        a.download = `سجل_مبيعات_الزيادي_${new Date().toISOString().slice(0,10)}.xlsx`;  
-        document.body.appendChild(a);  
-        a.click();  
-        document.body.removeChild(a);  
-        setTimeout(() => { URL.revokeObjectURL(url); }, 1000);  
-    };  
-  
-    document.getElementById('exportExcelBtn').onclick = window.exportToExcel;  
-  
-    loadData();  
-</script>  
-</body>  
-</html>
+                    await updateDoc(doc(db, "invoices
