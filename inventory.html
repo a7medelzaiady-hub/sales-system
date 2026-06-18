@@ -428,7 +428,7 @@
     }
 
     // =============================================================
-    // محرك الفحص والمسح المصفوفي العميق (Deep Array Scan Engine)
+    // محرك الفحص والمسح المصفوفي المرن والعميق (Fuzzy Array Scan Engine)
     // =============================================================
     window.showItemHistory = async function(itemId, itemName) {
         const modal = document.getElementById('historyModal');
@@ -441,59 +441,91 @@
 
         try {
             let foundTransactions = [];
-            
-            // الكولكشنز الحقيقية والكاملة الموجودة بقاعدة بياناتك طبقاً للصورة المرتبطة بنظامك
             const targetCollections = ["orders", "transactions", "purchase_orders"];
             
-            const targetNameClean = itemName.trim().toLowerCase();
+            // دالة مساعدة لتنظيف النصوص ومقارنتها بمرونة كاملة
+            const cleanText = (txt) => String(txt || '').trim().toLowerCase().replace(/\s+/g, ' ');
+            const targetId = cleanText(itemId);
+            const targetName = cleanText(itemName);
 
             for (const colName of targetCollections) {
                 try {
                     const snap = await getDocs(collection(db, colName));
                     snap.forEach(docSnap => {
                         const d = docSnap.data();
-                        let itemMatchFound = false;
-                        let matchedQty = 0;
+                        
+                        // دالة داخلية لفحص أي كائن (سواء كان مستند علوي أو عنصر داخل مصفوفة)
+                        const inspectObj = (obj) => {
+                            let match = false;
+                            let extractedQty = 0;
 
-                        // حالة 1: الحركات المخزنية المباشرة (المنتج مسجل كحقول منفصلة علوية)
-                        if (
-                            d.itemId === itemId || d.productId === itemId || d.id === itemId ||
-                            (d.itemName && d.itemName.trim().toLowerCase() === targetNameClean) ||
-                            (d.productName && d.productName.trim().toLowerCase() === targetNameClean)
-                        ) {
-                            itemMatchFound = true;
-                            matchedQty = d.qty || d.quantity || d.count || d.totalPcs || 0;
-                        }
-
-                        // حالة 2: الفواتير المركبة (الأصناف مخزنة بداخل مصفوفة Array مثل فواتير الكاش والأوردرات)
-                        // الكود هنا يطوف على كل حقول المستند ويبحث عن أي مصفوفة أصناف ويفككها داخلياً
-                        for (let key in d) {
-                            if (Array.isArray(d[key])) {
-                                d[key].forEach(subItem => {
-                                    if (
-                                        subItem.itemId === itemId || 
-                                        subItem.productId === itemId || 
-                                        subItem.id === itemId ||
-                                        (subItem.name && subItem.name.trim().toLowerCase() === targetNameClean) ||
-                                        (subItem.itemName && subItem.itemName.trim().toLowerCase() === targetNameClean) ||
-                                        (subItem.productName && subItem.productName.trim().toLowerCase() === targetNameClean)
-                                    ) {
-                                        itemMatchFound = true;
-                                        // استخلاص كمية الصنف المحددة والخاصة به من مصفوفة الفاتورة
-                                        matchedQty = subItem.qty || subItem.quantity || subItem.count || subItem.totalPcs || matchedQty;
+                            // 1. فحص الحقول المرتبطة بالـ ID بأي صيغة كُتبت
+                            for (let key in obj) {
+                                const lowerKey = key.toLowerCase();
+                                if (lowerKey.includes('id') || lowerKey.includes('key')) {
+                                    if (cleanText(obj[key]) === targetId && targetId !== '') {
+                                        match = true;
                                     }
-                                });
+                                }
                             }
-                        }
 
-                        // إذا تم العثور على الصنف بأي من الحالتين، يتم إدراج الحركة فوراً في القائمة
-                        if (itemMatchFound) {
+                            // 2. فحص الحقول المرتبطة بالاسم (إذا لم يتطابق الـ ID أو كخط دفاع أول)
+                            for (let key in obj) {
+                                const lowerKey = key.toLowerCase();
+                                if (lowerKey.includes('name') || lowerKey.includes('title') || lowerKey.includes('item')) {
+                                    if (cleanText(obj[key]).includes(targetName) && targetName !== '') {
+                                        match = true;
+                                    }
+                                }
+                            }
+
+                            // 3. إذا حدث تطابق، نستخلص الكمية بأي مسمى حقل متوقع
+                            if (match) {
+                                for (let key in obj) {
+                                    const lowerKey = key.toLowerCase();
+                                    if (lowerKey === 'qty' || lowerKey === 'quantity' || lowerKey === 'count' || lowerKey === 'amount' || lowerKey === 'totalpcs') {
+                                        const parsed = parseInt(obj[key]);
+                                        if (!isNaN(parsed) && parsed > 0) {
+                                            extractedQty = parsed;
+                                            break;
+                                        }
+                                    }
+                                }
+                                // إذا لم نجد حقل صريح، نأخذ أي قيمة رقمية منطقية
+                                if (extractedQty === 0 && typeof obj.qty === 'number') extractedQty = obj.qty;
+                            }
+
+                            return { match, qty: extractedQty };
+                        };
+
+                        // أولاً: فحص هيكل المستند العلوي مباشرة
+                        const topResult = inspectObj(d);
+                        if (topResult.match && topResult.qty > 0) {
                             foundTransactions.push({
                                 id: docSnap.id,
                                 ...d,
-                                finalCalculatedQty: matchedQty,
+                                finalCalculatedQty: topResult.qty,
                                 detectedSource: colName
                             });
+                        }
+
+                        // ثانياً: الدوران داخل المستند للبحث عن أي مصفوفات تفصيلية وفكها (مثل قائمة الأصناف بالفاتورة)
+                        for (let key in d) {
+                            if (Array.isArray(d[key])) {
+                                d[key].forEach(subItem => {
+                                    if (subItem && typeof subItem === 'object') {
+                                        const subResult = inspectObj(subItem);
+                                        if (subResult.match && subResult.qty > 0) {
+                                            foundTransactions.push({
+                                                id: docSnap.id,
+                                                ...d,
+                                                finalCalculatedQty: subResult.qty,
+                                                detectedSource: colName
+                                            });
+                                        }
+                                    }
+                                });
+                            }
                         }
                     });
                 } catch(e) {
@@ -508,7 +540,18 @@
                 return dateB - dateA;
             });
 
-            if (foundTransactions.length === 0) {
+            // فلترة السجلات المكررة الناتجة عن تطابق المستند والمصفوفة معاً
+            const uniqueTransactions = [];
+            const seenIds = new Set();
+            foundTransactions.forEach(t => {
+                const uniqueKey = `${t.id}_${t.finalCalculatedQty}_${t.detectedSource}`;
+                if (!seenIds.has(uniqueKey)) {
+                    seenIds.add(uniqueKey);
+                    uniqueTransactions.push(t);
+                }
+            });
+
+            if (uniqueTransactions.length === 0) {
                 modalBody.innerHTML = `
                     <div class="empty-state">
                         <i class="fas fa-receipt" style="font-size:32px; color:var(--sub); opacity:0.4;"></i>
@@ -518,14 +561,14 @@
             }
 
             let html = '<div class="history-list">';
-            foundTransactions.forEach(tx => {
+            uniqueTransactions.forEach(tx => {
                 let typeClass = 'sale';
                 let typeText = 'بيع';
                 let sign = '-';
                 let amtClass = 'minus';
 
                 // التعرف الذكي الشامل على نوع الحركة بناءً على الكولكشن والنوع الداخلي بالفايربيز
-                const rawType = (tx.type || tx.status || tx.detectedSource || '').toLowerCase();
+                const rawType = cleanText(tx.type || tx.status || tx.detectedSource || '');
                 
                 if (rawType.includes('purchase') || rawType.includes('شراء') || rawType.includes('تزويد') || rawType.includes('وارد')) {
                     typeClass = 'purchase'; typeText = 'شراء'; sign = '+'; amtClass = 'plus';
