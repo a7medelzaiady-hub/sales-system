@@ -411,13 +411,12 @@
             let transByCustomer = {};  
             transSnap.forEach(doc => {  
                 const tr = doc.data();  
-                if (tr.isDeleted === true) return; // تخطي الحركات المحذوفة مؤقتاً
+                if (tr.isDeleted === true) return; 
                 if (!transByCustomer[tr.partyId]) transByCustomer[tr.partyId] = 0;  
                 if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);  
                 else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);  
             });  
             
-            // تعديل: الاستماع المباشر للفواتير واستثناء المحذوفة (Soft Deleted)
             onSnapshot(collection(db, "invoices"), (invSnap) => {
                 let runningBalances = {};   
                 let tempInvoices = [];  
@@ -425,7 +424,7 @@
 
                 invSnap.forEach(doc => {  
                     const data = doc.data();  
-                    if (data.isDeleted === true) return; // شرط تخطي الفواتير المنقولة للسلة 🚀
+                    if (data.isDeleted === true) return; 
                     
                     const cid = data.customerId;  
                     if (!runningBalances[cid]) {  
@@ -460,7 +459,6 @@
 
                 calculateStats();  
 
-                // تحديث العرض حسب الفلتر الحالي إن وجد أو عرض فواتير اليوم
                 if (currentFilterType) {
                     const filterInput = document.getElementById('dateFilterInput')?.value;
                     const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
@@ -518,7 +516,7 @@
         `).join('');
 
         return `
-            <div style="width:100%; font-family:'Cairo', sans-serif; color:#000; direction:rtl; padding:3px; background:#fff;">
+            <div style="width:100%; font-family:'Cairo', sans-serif; color:#000; direction:rtl; padding:8px; background:#fff; box-sizing: border-box;">
                 <div style="text-align:center; margin-bottom:12px;">
                     <h5 style="margin:0; font-weight:800; font-size:16px;">الزيادي لزيوت السيارات</h5>
                     <p style="margin:2px 0; font-size:11px; font-weight:600;">مبيعات وأرشيف الفواتير</p>
@@ -526,7 +524,7 @@
                 <div style="font-size:11px; border-bottom:1px dashed #000; padding-bottom:6px; margin-bottom:8px; line-height:1.5;">
                     <div><b>العميل:</b> ${inv.customerName || 'عميل نقدى'}</div>
                     <div><b>التاريخ:</b> ${invDate} | ${displayTime}</div>
-                    <div><b>طريقة السداد:</b> ${inv.paymentMethod || 'غير مححدد'}</div>
+                    <div><b>طريقة السداد:</b> ${inv.paymentMethod || 'غير محدد'}</div>
                 </div>
                 <table style="width:100%; font-size:11px; border-collapse:collapse; margin-bottom:8px;">
                     <thead>
@@ -576,9 +574,8 @@
         shareContainer.style.position = 'fixed';
         shareContainer.style.right = '-9999px';
         shareContainer.style.top = '0';
-        shareContainer.style.width = '340px';
+        shareContainer.style.width = '340px'; 
         shareContainer.style.background = '#ffffff';
-        shareContainer.style.padding = '12px';
         shareContainer.style.boxSizing = 'border-box';
         shareContainer.innerHTML = generateThermalInvoiceHtml(inv);
         document.body.appendChild(shareContainer);
@@ -657,7 +654,6 @@
         window.showCustomUi({ title: "تفاصيل تعديل الفاتورة", message: report, icon: "info", type: "alert" });  
     };  
   
-    // تغيير التصفير ليقوم بالنقل الشامل إلى سلة المحذوفات (Soft Delete لجميع الجداول المطلوبة) 🚀
     document.getElementById('deleteAllCustomersBtn').onclick = () => {  
         window.showCustomUi({  
             title: "🔒 تصفير الحسابات ونقلها للسلة",  
@@ -695,7 +691,7 @@
                                 }  
                                 await batch.commit();
                                 window.showCustomUi({  
-                                    title: "نجاح التصفير"،  
+                                    title: "نجاح التصفير",  
                                     message: "🚀 تم تصفير البيانات بنجاح ونقلها بالكامل إلى السلة.",  
                                     icon: "success",  
                                     onConfirm: () => { location.reload(); }  
@@ -774,7 +770,6 @@
         window.location.href = `sales-invoice.html?edit=${id}&allowDateEdit=true`;   
     };  
   
-    // تعديل دالة حذف الفاتورة الفردية لتصبح نقل آمن للسلة (Soft Delete) 🚀
     window.deleteInvoice = (id) => {  
         const inv = allInvoices.find(i => i.id === id);
         const nameDisplay = inv ? (inv.customerName || 'عميل نقدي') : '';
@@ -785,7 +780,6 @@
             icon: "danger",  
             onConfirm: async () => {  
                 try {  
-                    // تحديث المستند بإضافة علامة المسح والوقت بدلاً من deleteDoc
                     await updateDoc(doc(db, "invoices", id), { 
                         isDeleted: true, 
                         deletedAt: serverTimestamp() 
@@ -794,7 +788,6 @@
                         title: "تم النقل بنجاح",  
                         message: "تم نقل الفاتورة بنجاح إلى سلة المحذوفات ويمكنك استعادتها من هناك.",  
                         icon: "success"
-                        // لا داعي لـ reload لأن onSnapshot سيحدث الشاشة تلقائياً!
                     });  
                 } catch (e) {   
                     window.showCustomUi({ title: "خطأ", message: "فشلت عملية نقل الفاتورة للسلة.", icon: "danger" });  
@@ -836,12 +829,12 @@
             });  
             if (inv.calculatedCash > 0) {  
                 excelData.push([  
-                    invDate, "سداد منه نقدى", inv.customerName || "النقدى", "سداد نقدى", 0, 1, 0, inv.calculatedCash   
+                    invDate, "سداد منه نقدى", inv.customerName || "النقدى", "سداد نقدى", 0, 0, 0, inv.calculatedCash   
                 ]);  
             }  
             if (inv.calculatedWallet > 0) {  
                 excelData.push([  
-                    invDate, "سداد منه محفظه", inv.customerName || "النقدى", "سداد محفظه", 0, 1, 0, inv.calculatedWallet   
+                    invDate, "سداد منه محفظه", inv.customerName || "النقدى", "سداد محفظه", 0, 0, 0, inv.calculatedWallet   
                 ]);  
             }  
         });  
