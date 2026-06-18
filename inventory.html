@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>شركة الزيادى الأصناف</title>
+    <title>شركة الزيادى | الأصناف</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -327,6 +327,7 @@
     };
 
     function buildRow(item, num) {
+        // حماية معامل التحويل من القيم الصفرية أو الخاطئة لتجنب مشاكل القسمة
         let factor = Number(item.unitFactor) || 1;
         if (factor <= 0) factor = 1;
 
@@ -340,4 +341,36 @@
         if (totalPcs === 0)          status = 'zero';
         else if (totalPcs <= minPcs) status = 'low';
 
-        const boxDisplay =
+        const boxDisplay = status === 'zero' ? 'صفر' : boxes.toLocaleString();
+        
+        // استخراج اسم الوحدة الصغيرة وضمان عدم تطابقها مع الوحدة الكبرى بالخطأ
+        let unitName = (item.unitName || 'جركن').trim();
+
+        // حل مشكلة الصورة 1781781801428.jpg: 
+        // لا يتم عرض التاج الأزرق الصغير إذا كانت الكسور صفراً، أو إذا كان اسم الوحدة المكتوب يساوي "كرتونة" بالخطأ
+        const extraHtml = (jars > 0 && status !== 'zero' && unitName !== 'كرتونة')
+            ? `<div class="qty-extra"><i class="fas fa-tag" style="font-size:9px;"></i>${jars} ${unitName}</div>`
+            : '';
+
+        const catHtml   = item.category ? `<span class="cat-tag">${item.category}</span>` : '';
+        const priceHtml = item.sell     ? `<span>${Number(item.sell).toLocaleString()} ج.م</span>` : '';
+
+        return `
+        <div class="item-row${status==='zero' ? ' zero-row' : status==='low' ? ' low-row' : ''}">
+            <span class="row-num">${num}</span>
+            <div class="row-icon"><i class="fas fa-${status==='zero' ? 'box-open' : 'box'}"></i></div>
+            <div class="row-info">
+                <div class="row-name">${item.name || 'بدون اسم'}</div>
+                <div class="row-meta">${catHtml}${priceHtml}</div>
+            </div>
+            <div class="row-qty">
+                <div class="qty-main ${status}">${boxDisplay}</div>
+                <div class="qty-lbl">كرتونة</div>
+                ${extraHtml}
+            </div>
+            <div class="status-dot ${status}"></div>
+        </div>`;
+    }
+</script>
+</body>
+</html>
