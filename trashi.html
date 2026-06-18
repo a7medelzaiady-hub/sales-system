@@ -17,6 +17,7 @@
             --white: #ffffff;
             --danger: #d90429;
             --success: #2d6a4f;
+            --warning: #f39c12;
             --card-radius: 12px;
         }
         body {
@@ -57,11 +58,32 @@
             color: #7f8c8d;
             border: none;
             border-bottom: 3px solid transparent;
+            cursor: pointer;
         }
         .nav-tabs .nav-link.active {
             color: var(--danger);
             border-bottom-color: var(--danger);
             background: none;
+        }
+        .bulk-actions-bar {
+            background: var(--white);
+            border: 1px dashed #cbd5e1;
+            border-radius: var(--card-radius);
+            padding: 8px 12px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .bulk-actions-bar .btn {
+            font-family: 'Cairo';
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
         }
         .trash-card {
             background: var(--white);
@@ -103,6 +125,21 @@
         <li class="nav-item"><a class="nav-link" onclick="switchTab('transactions')">💸 العمليات</a></li>
     </ul>
 
+    <!-- شريط العمليات الجماعية (مسح واستعادة الكل) -->
+    <div id="bulkActionsContainer" style="display: none;">
+        <div class="bulk-actions-bar animate__animated animate__fadeIn">
+            <span class="text-muted fw-bold" id="itemsCountText" style="font-size: 0.75rem;"></span>
+            <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-success" onclick="bulkRestore()">
+                    <i class="fas fa-undo-alt"></i> استعادة الكل
+                </button>
+                <button class="btn btn-sm btn-danger" onclick="bulkHardDelete()">
+                    <i class="fas fa-dumpster animate__animated animate__shakeX"></i> مسح الكل نهائياً
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- مكان عرض العناصر -->
     <div id="trashContainer">
         <div class="text-center py-5 text-muted">
@@ -124,7 +161,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, updateDoc, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, updateDoc, deleteDoc, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -141,10 +178,18 @@
     let currentTab = 'invoices';
     let trashItems = [];
 
+    // قاموس لتحويل اسم القسم للغة العربية في التنبيهات
+    const tabNamesAr = {
+        'invoices': 'الفواتير',
+        'inventory': 'الأصناف',
+        'customers': 'العملاء',
+        'transactions': 'العمليات'
+    };
+
     window.showCustomUi = (options) => {
         const modal = document.getElementById('customGlobalModal');
         document.getElementById('customModalTitle').innerText = options.title || "تنبيه";
-        document.getElementById('customModalBody').innerText = options.message || "";
+        document.getElementById('customModalBody').innerHTML = options.message || "";
         const actions = document.getElementById('customModalActions');
         actions.innerHTML = "";
 
@@ -174,13 +219,17 @@
     window.switchTab = (tabName) => {
         currentTab = tabName;
         document.querySelectorAll('#trashTabs .nav-link').forEach(link => link.classList.remove('active'));
-        event.target.classList.add('active');
+        if(event && event.target) {
+            event.target.classList.add('active');
+        }
         loadTrashData();
     };
 
     async function loadTrashData() {
         const container = document.getElementById('trashContainer');
+        const bulkBar = document.getElementById('bulkActionsContainer');
         container.innerHTML = `<div class="text-center py-4 text-muted"><i class="fas fa-spinner fa-spin fa-2x"></i></div>`;
+        bulkBar.style.display = 'none';
         
         try {
             const snap = await getDocs(collection(db, currentTab));
@@ -197,6 +246,10 @@
                 container.innerHTML = `<div class="text-center py-5 text-muted fw-bold"><i class="fas fa-folder-open fa-2x d-block mb-2"></i> السلة trashi فارغة في هذا القسم</div>`;
                 return;
             }
+
+            // إظهار شريط التحكم وتحديث العدد
+            document.getElementById('itemsCountText').innerText = `عدد العناصر: ${trashItems.length}`;
+            bulkBar.style.display = 'block';
 
             container.innerHTML = trashItems.map(item => {
                 let detailsText = "";
@@ -246,6 +299,48 @@
             type: "confirm",
             onConfirm: async () => {
                 await deleteDoc(doc(db, currentTab, id));
+                loadTrashData();
+            }
+        });
+    };
+
+    // --- العمليات الجماعية المضافة حديثاً وبشكل احترافي ---
+
+    window.bulkRestore = () => {
+        if (trashItems.length === 0) return;
+        const currentNameAr = tabNamesAr[currentTab];
+        
+        window.showCustomUi({
+            title: "🔄 استعادة كل " + currentNameAr,
+            message: `هل تريد بالتأكيد استعادة جميع العناصر الموجودة في قسم <b>(${currentNameAr})</b> وإعادتها للنظام دفعة واحدة؟ <br><b class="text-success">العدد: ${trashItems.length} عنصر</b>`,
+            type: "confirm",
+            onConfirm: async () => {
+                const batch = writeBatch(db);
+                trashItems.forEach(item => {
+                    const itemRef = doc(db, currentTab, item.id);
+                    batch.update(itemRef, { isDeleted: false, deletedAt: null });
+                });
+                await batch.commit();
+                loadTrashData();
+            }
+        });
+    };
+
+    window.bulkHardDelete = () => {
+        if (trashItems.length === 0) return;
+        const currentNameAr = tabNamesAr[currentTab];
+        
+        window.showCustomUi({
+            title: "🛑 تدمير وحذف كل " + currentNameAr,
+            message: `⚠️ <b>تحذير صارم جداً!</b><br>أنت على وشك حذف <b>جميع محتويات قسم (${currentNameAr}) نهائياً من السيرفر</b>.<br>سيتم مسح <b class="text-danger">${trashItems.length} عنصر</b> تماماً ولا يمكن التراجع أو استرجاع البيانات نهائياً! هل أنت متأكد؟`,
+            type: "confirm",
+            onConfirm: async () => {
+                const batch = writeBatch(db);
+                trashItems.forEach(item => {
+                    const itemRef = doc(db, currentTab, item.id);
+                    batch.delete(itemRef);
+                });
+                await batch.commit();
                 loadTrashData();
             }
         });
