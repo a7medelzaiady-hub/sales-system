@@ -77,7 +77,6 @@
         .invoice-actions-group { display: flex; flex-wrap: nowrap; gap: 4px; justify-content: flex-end; align-items: center; }  
         .invoice-actions-group .btn { font-family: 'Cairo', sans-serif; font-size: 0.72rem; font-weight: 700; padding: 4px 6px; border-radius: 6px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; height: 28px; }  
 
-        /* إعدادات الطباعة للفاتورة الحرارية 80 ملم */
         #thermalPrintSection { display: none; }
         @media print {
             body { background: white; color: black; padding: 0; margin: 0; }
@@ -105,7 +104,7 @@
                     <i class="fas fa-cloud-download-alt"></i> جلب كل الفواتير السابقة  
                 </button>  
                 <button class="btn btn-danger btn-sm fw-bold px-3" id="deleteAllCustomersBtn" style="font-size: 0.75rem; border-radius: 8px; height: 31px; display: inline-flex; align-items: center; gap: 4px;">  
-                    <i class="fas fa-trash-can"></i> تصفير النظام  
+                    <i class="fas fa-trash-can"></i> تصفير النظام للسلة  
                 </button>   
             </div>  
         </div>  
@@ -180,7 +179,7 @@
 
 <script type="module">  
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";  
-    import { getFirestore, collection, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
+    import { getFirestore, collection, getDocs, updateDoc, doc, writeBatch, serverTimestamp, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";  
   
     const firebaseConfig = {  
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",  
@@ -345,7 +344,7 @@
                             <button class="btn btn-outline-dark" onclick="window.printThermalInvoice('${inv.id}')" title="طباعة حرارية 80"><i class="fas fa-print"></i></button>
                             <button class="btn btn-outline-success" onclick="window.shareThermalInvoice('${inv.id}')" title="مشاركة الفاتورة"><i class="fas fa-share-alt"></i></button>
                             <button class="btn btn-outline-primary" onclick="editInvoice('${inv.id}')" title="تعديل الفاتورة"><i class="fas fa-edit"></i></button>  
-                            <button class="btn btn-outline-danger" onclick="deleteInvoice('${inv.id}')" title="حذف الفاتورة"><i class="fas fa-trash"></i></button>  
+                            <button class="btn btn-outline-danger" onclick="deleteInvoice('${inv.id}')" title="نقل الفاتورة للسلة"><i class="fas fa-trash"></i></button>  
                         </div>  
                     </div>  
                     <div class="financial-grid">  
@@ -400,10 +399,9 @@
   
     async function loadData() {  
         try {  
-            const [custSnap, transSnap, invSnap] = await Promise.all([  
+            const [custSnap, transSnap] = await Promise.all([  
                 getDocs(collection(db, "customers")),  
-                getDocs(collection(db, "transactions")),  
-                getDocs(collection(db, "invoices"))  
+                getDocs(collection(db, "transactions"))  
             ]);  
             
             custSnap.forEach(d => {  
@@ -413,54 +411,68 @@
             let transByCustomer = {};  
             transSnap.forEach(doc => {  
                 const tr = doc.data();  
+                if (tr.isDeleted === true) return; // تخطي الحركات المحذوفة مؤقتاً
                 if (!transByCustomer[tr.partyId]) transByCustomer[tr.partyId] = 0;  
                 if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);  
                 else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);  
             });  
             
-            let runningBalances = {};   
-            let tempInvoices = [];  
-            const todayStr = new Date().toLocaleDateString('en-CA');  
+            // تعديل: الاستماع المباشر للفواتير واستثناء المحذوفة (Soft Deleted)
+            onSnapshot(collection(db, "invoices"), (invSnap) => {
+                let runningBalances = {};   
+                let tempInvoices = [];  
+                const todayStr = new Date().toLocaleDateString('en-CA');  
+
+                invSnap.forEach(doc => {  
+                    const data = doc.data();  
+                    if (data.isDeleted === true) return; // شرط تخطي الفواتير المنقولة للسلة 🚀
+                    
+                    const cid = data.customerId;  
+                    if (!runningBalances[cid]) {  
+                        runningBalances[cid] = (customersData[cid]?.initialBalance || 0) + (transByCustomer[cid] || 0);  
+                    }  
+                    const previousBalance = runningBalances[cid];  
+                    runningBalances[cid] += (Number(data.remaining) || 0);  
+                    let cPaid = 0; let wPaid = 0;  
+                    if (data.cashAmount !== undefined || data.walletAmount !== undefined) {  
+                        cPaid = Number(data.cashAmount) || 0;  
+                        wPaid = Number(data.walletAmount) || 0;  
+                    } else {  
+                        let p = Number(data.paid) || 0;  
+                        if (data.paymentMethod === "سداد مرئية" || data.paymentMethod === "محفظه" || data.paymentMethod === "سداد محفظه") wPaid = p;  
+                        else cPaid = p;   
+                    }  
+                    const parsedInvoice = {  
+                        id: doc.id,  
+                        ...data,  
+                        calculatedCash: cPaid,  
+                        calculatedWallet: wPaid,  
+                        previousBalance: previousBalance   
+                    };  
+                    tempInvoices.push(parsedInvoice);  
+                });  
+
+                allInvoices = tempInvoices.sort((a, b) => {
+                    const timeA = a.timestamp?.seconds || 0;
+                    const timeB = b.timestamp?.seconds || 0;
+                    return timeA - timeB;
+                }).reverse();  
+
+                calculateStats();  
+
+                // تحديث العرض حسب الفلتر الحالي إن وجد أو عرض فواتير اليوم
+                if (currentFilterType) {
+                    const filterInput = document.getElementById('dateFilterInput')?.value;
+                    const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
+                    executeFilterLogic(currentFilterType, targetDate);
+                } else {
+                    const filterInput = document.getElementById('dateFilterInput')?.value;
+                    const targetDate = filterInput ? filterInput : todayStr;
+                    const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === targetDate);  
+                    window.renderInvoices(todayInvoices);  
+                }
+            });
             
-            invSnap.forEach(doc => {  
-                const data = doc.data();  
-                const cid = data.customerId;  
-                if (!runningBalances[cid]) {  
-                    runningBalances[cid] = (customersData[cid]?.initialBalance || 0) + (transByCustomer[cid] || 0);  
-                }  
-                const previousBalance = runningBalances[cid];  
-                runningBalances[cid] += (Number(data.remaining) || 0);  
-                let cPaid = 0; let wPaid = 0;  
-                if (data.cashAmount !== undefined || data.walletAmount !== undefined) {  
-                    cPaid = Number(data.cashAmount) || 0;  
-                    wPaid = Number(data.walletAmount) || 0;  
-                } else {  
-                    let p = Number(data.paid) || 0;  
-                    if (data.paymentMethod === "سداد مرئية" || data.paymentMethod === "محفظه" || data.paymentMethod === "سداد محفظه") wPaid = p;  
-                    else cPaid = p;   
-                }  
-                const parsedInvoice = {  
-                    id: doc.id,  
-                    ...data,  
-                    calculatedCash: cPaid,  
-                    calculatedWallet: wPaid,  
-                    previousBalance: previousBalance   
-                };  
-                tempInvoices.push(parsedInvoice);  
-            });  
-            
-            allInvoices = tempInvoices.sort((a, b) => {
-                const timeA = a.timestamp?.seconds || 0;
-                const timeB = b.timestamp?.seconds || 0;
-                return timeA - timeB;
-            }).reverse();  
-            
-            calculateStats();  
-            
-            // تعديل: فلترة وعرض فواتير اليوم الحالي فقط عند الإقلاع الأول بدون الفواتير فارغة التاريخ
-            const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);  
-            
-            window.renderInvoices(todayInvoices);  
         } catch (e) {  
             console.error(e);  
             document.getElementById('invoicesList').innerHTML = `<div class="alert alert-danger text-center p-2">حدث خطأ في تحميل البيانات من السيرفر.</div>`;  
@@ -480,7 +492,6 @@
             const filtered = allInvoices.filter(inv => parseInvoiceDate(inv) === filterInput);  
             window.renderInvoices(filtered);  
         } else {  
-            // إذا فرغ خانة التاريخ، نعود لعرض فواتير اليوم الحالي فقط لحماية الصفحة من التكدس
             const todayStr = new Date().toLocaleDateString('en-CA');
             const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);
             window.renderInvoices(todayInvoices);  
@@ -646,13 +657,14 @@
         window.showCustomUi({ title: "تفاصيل تعديل الفاتورة", message: report, icon: "info", type: "alert" });  
     };  
   
+    // تغيير التصفير ليقوم بالنقل الشامل إلى سلة المحذوفات (Soft Delete لجميع الجداول المطلوبة) 🚀
     document.getElementById('deleteAllCustomersBtn').onclick = () => {  
         window.showCustomUi({  
-            title: "🔒 تصفير الحسابات والنظام",  
-            message: "الرجاء إدخل كلمة التأكيد (الزيادي) للمتابعة في تصفير النظام:",  
+            title: "🔒 تصفير الحسابات ونقلها للسلة",  
+            message: "الرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة في تصفير النظام ونقله للسلة:",  
             type: "prompt",  
             icon: "danger",  
-            confirmText: "تأكيد الحذف",  
+            confirmText: "تأكيد التصفير المؤقت",  
             onConfirm: async (inputValue) => {  
                 if (inputValue !== "الزيادي") {  
                     setTimeout(() => {  
@@ -662,25 +674,34 @@
                 }  
                 setTimeout(() => {  
                     window.showCustomUi({  
-                        title: "🛑 تحذير نهائي",  
-                        message: "هل أنت متأكد تماماً للمرة الأخيرة؟ سيتم تدمير جميع بيانات الفواتير والعمليات نهائياً.",  
+                        title: "🛑 تحذير نقل للسلة",  
+                        message: "هل أنت متأكد من تصفير المخزن، الفواتير، والعمليات ونقلها جميعاً لسلة المحذوفات؟",  
                         type: "confirm",  
                         icon: "danger",  
                         onConfirm: async () => {  
                             try {  
-                                const collections = ["customers", "invoices", "transactions"];  
-                                for (const colName of collections) {  
+                                const batch = writeBatch(db);
+                                const collectionsToTrash = ["invoices", "transactions", "inventory", "customers", "suppliers", "purchases"];  
+                                
+                                for (const colName of collectionsToTrash) {  
                                     const snap = await getDocs(collection(db, colName));  
-                                    for (const d of snap.docs) { await deleteDoc(doc(db, colName, d.id)); }  
+                                    snap.forEach(d => {
+                                        const docRef = doc(db, colName, d.id);
+                                        batch.update(docRef, { 
+                                            isDeleted: true, 
+                                            deletedAt: serverTimestamp() 
+                                        });
+                                    });
                                 }  
+                                await batch.commit();
                                 window.showCustomUi({  
-                                    title: "نجاح تصفير السيستم",  
-                                    message: "🚀 تم تصفير قاعدة البيانات بالكامل وبنجاح.",  
+                                    title: "نجاح التصفير"،  
+                                    message: "🚀 تم تصفير البيانات بنجاح ونقلها بالكامل إلى السلة.",  
                                     icon: "success",  
                                     onConfirm: () => { location.reload(); }  
                                 });  
                             } catch (err) {   
-                                window.showCustomUi({ title: "خطأ", message: "حدث خطأ في عملية الحذف من السيرفر الرئيسي.", icon: "danger" });  
+                                window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء نقل البيانات للسلة.", icon: "danger" });  
                             }  
                         }  
                     });  
@@ -695,22 +716,26 @@
         currentFilterType = type;  
         const filterInput = document.getElementById('dateFilterInput')?.value;  
         const todayStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');  
+        executeFilterLogic(type, todayStr);
+    };  
+
+    function executeFilterLogic(type, dateStr) {
         let filtered = []; let statusLabel = "";  
         filtered = allInvoices.filter(inv => {  
             const invDateStr = parseInvoiceDate(inv);  
-            const isToday = (invDateStr === todayStr);  
+            const isToday = (invDateStr === dateStr);  
             switch(type) {  
-                case 'today-cash': statusLabel = `نقدى يوم (${todayStr})`; return isToday && inv.calculatedCash > 0;  
-                case 'today-wallet': statusLabel = `محفظه يوم (${todayStr})`; return isToday && inv.calculatedWallet > 0;  
-                case 'today-remaining': statusLabel = `آجل يوم (${todayStr})`; return isToday && Number(inv.remaining) > 0;  
-                case 'today-total': statusLabel = `مبيعات يوم (${todayStr})`; return isToday;  
+                case 'today-cash': statusLabel = `نقدى يوم (${dateStr})`; return isToday && inv.calculatedCash > 0;  
+                case 'today-wallet': statusLabel = `محفظه يوم (${dateStr})`; return isToday && inv.calculatedWallet > 0;  
+                case 'today-remaining': statusLabel = `آجل يوم (${dateStr})`; return isToday && Number(inv.remaining) > 0;  
+                case 'today-total': statusLabel = `مبيعات يوم (${dateStr})`; return isToday;  
                 default: return true;  
             }  
         });  
         document.getElementById('filterStatusText').innerText = `${statusLabel} (${filtered.length} فاتورة)`;  
         document.getElementById('filterStatusBar').style.display = "flex";  
         window.renderInvoices(filtered);  
-    };  
+    }
   
     window.resetStatFilter = () => {  
         document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active-filter'));  
@@ -727,7 +752,6 @@
     window.filterInvoices = () => {  
         const query = document.getElementById('searchInput').value.toLowerCase().trim();  
         if(!query) { 
-            // إذا تم مسح مربع البحث، نعود لعرض فواتير اليوم أو الفلتر الفعال بدلاً من عرض الأرشيف كاملاً
             const filterInput = document.getElementById('dateFilterInput').value;
             const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
             const filtered = allInvoices.filter(inv => parseInvoiceDate(inv) === targetDate);
@@ -750,23 +774,30 @@
         window.location.href = `sales-invoice.html?edit=${id}&allowDateEdit=true`;   
     };  
   
+    // تعديل دالة حذف الفاتورة الفردية لتصبح نقل آمن للسلة (Soft Delete) 🚀
     window.deleteInvoice = (id) => {  
+        const inv = allInvoices.find(i => i.id === id);
+        const nameDisplay = inv ? (inv.customerName || 'عميل نقدي') : '';
         window.showCustomUi({  
-            title: "تأكيد حذف الفاتورة",  
-            message: "هل أنت متأكد من رغبتك في حذف هذه الفاتورة نهائياً من سجل المبيعات؟",  
+            title: "نقل الفاتورة إلى السلة",  
+            message: `هل أنت متأكد من نقل فاتورة "${nameDisplay}" إلى سلة المحذوفات؟`,  
             type: "confirm",  
             icon: "danger",  
             onConfirm: async () => {  
                 try {  
-                    await deleteDoc(doc(db, "invoices", id));  
+                    // تحديث المستند بإضافة علامة المسح والوقت بدلاً من deleteDoc
+                    await updateDoc(doc(db, "invoices", id), { 
+                        isDeleted: true, 
+                        deletedAt: serverTimestamp() 
+                    });  
                     window.showCustomUi({  
-                        title: "تم الحذف",  
-                        message: "تم حذف الفاتورة المحددة بنجاح من قاعدة البيانات الرئيسية.",  
-                        icon: "success",  
-                        onConfirm: () => { location.reload(); }  
+                        title: "تم النقل بنجاح",  
+                        message: "تم نقل الفاتورة بنجاح إلى سلة المحذوفات ويمكنك استعادتها من هناك.",  
+                        icon: "success"
+                        // لا داعي لـ reload لأن onSnapshot سيحدث الشاشة تلقائياً!
                     });  
                 } catch (e) {   
-                    window.showCustomUi({ title: "خطأ", message: "فشلت عملية الحذف المباشر.", icon: "danger" });  
+                    window.showCustomUi({ title: "خطأ", message: "فشلت عملية نقل الفاتورة للسلة.", icon: "danger" });  
                 }  
             }  
         });  
