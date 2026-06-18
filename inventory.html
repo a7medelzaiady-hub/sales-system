@@ -218,7 +218,8 @@
 
 <script type="module">
     import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot }
+    // تم إضافة enableIndexedDbPersistence هنا لتمكين الكاش المحلي
+    import { getFirestore, collection, onSnapshot, enableIndexedDbPersistence }
         from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -234,6 +235,22 @@
     const db  = getFirestore(app);
     let allItems = [];
 
+    // تفعيل حفظ البيانات أوفلاين بمجرد تشغيل الصفحة
+    enableIndexedDbPersistence(db)
+        .then(() => {
+            console.log("تم تفعيل الكاش المحلي بنجاح (Offline Persistence Active)");
+        })
+        .catch((err) => {
+            if (err.code == 'failed-precondition') {
+                // يحدث إذا كانت هناك تبويبات متعددة مفتوحة من نفس الصفحة في نفس الوقت
+                console.warn("تنبيه: الكاش لم يفعل لأن هناك علامة تبويب أخرى مفتوحة للموقع.");
+            } else if (err.code == 'unimplemented') {
+                // المتصفح قديم جداً ولا يدعم خاصية التخزين المحلي لفايربيس
+                console.warn("تنبيه: المتصفح الحالي لا يدعم التخزين المحلي.");
+            }
+        });
+
+    // سيعمل onSnapshot الآن مباشرة وبسرعة فائقة بالاعتماد على التخزين المحلي أولاً، ثم يجلب الفروقات فقط
     onSnapshot(collection(db, "inventory"), snap => {
         allItems = [];
         snap.forEach(d => {
@@ -254,9 +271,12 @@
         updateStats();
         renderList();
 
+        // توضيح إذا كانت البيانات من الكاش أو حية لتأكيد توفير البيانات
+        const isFromCache = snap.metadata.fromCache;
         const now = new Date();
         document.getElementById('syncTime').textContent =
-            `آخر تحديث: ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+            `آخر تحديث: ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}` + 
+            (isFromCache ? " (محلي)" : " (مباشر)");
 
     }, err => {
         document.getElementById('listBody').innerHTML =
@@ -314,26 +334,20 @@
     };
 
     function buildRow(item, num) {
-        // ===== الحساب من totalPcs + unitFactor (زي الكود الأصلي بتاعك) =====
         const factor   = Number(item.unitFactor) || 1;
         const totalPcs = Number(item.totalPcs)   || 0;
         const minPcs   = (Number(item.min) || 0) * factor;
 
-        const boxes = Math.floor(totalPcs / factor);   // عدد الكرتونات
-        const jars  = totalPcs % factor;               // الجركن المتبقية
+        const boxes = Math.floor(totalPcs / factor);
+        const jars  = totalPcs % factor;
 
-        // حالة
         let status = 'ok';
         if (totalPcs === 0)          status = 'zero';
         else if (totalPcs <= minPcs) status = 'low';
 
-        // عرض الكرتونات
         const boxDisplay = status === 'zero' ? 'صفر' : boxes.toLocaleString();
-
-        // اسم الوحدة داخل الكرتونة — لو موجود في Firebase استخدمه، وإلا "جركن"
         const unitName = item.unitName || 'جركن';
 
-        // الجركن الزيادة (بس لو مش صفر)
         const extraHtml = (jars > 0 && status !== 'zero')
             ? `<div class="qty-extra"><i class="fas fa-tag" style="font-size:9px;"></i>${jars} ${unitName}</div>`
             : '';
