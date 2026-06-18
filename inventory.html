@@ -201,6 +201,7 @@
         .modal-body { padding: 16px; overflow-y: auto; flex: 1; }
         
         /* History Timeline */
+        .history-list { display: flex; flex-direction: column; gap: 2px; }
         .tx-item {
             display: flex; align-items: center; justify-content: space-between;
             padding: 12px 10px; border-bottom: 1px solid var(--border); gap: 10px;
@@ -211,10 +212,10 @@
         .tx-type.purchase { background: var(--accent-light); }
         .tx-type.return { background: var(--gold); }
         .tx-type.loss { background: var(--danger); }
-        .tx-details { flex: 1; }
-        .tx-title { font-size: 12px; font-weight: 800; }
+        .tx-details { flex: 1; text-align: right; }
+        .tx-title { font-size: 12px; font-weight: 800; color: var(--text); }
         .tx-date { font-size: 10px; color: var(--sub); font-weight: 600; margin-top: 1px; }
-        .tx-amount { font-size: 14px; font-weight: 900; text-align: left; }
+        .tx-amount { font-size: 15px; font-weight: 900; text-align: left; direction: ltr; }
         .tx-amount.plus { color: var(--success); }
         .tx-amount.minus { color: var(--danger); }
     </style>
@@ -426,86 +427,124 @@
         </div>`;
     }
 
-    // دالة البحث الشاملة والمرنة والمحدثة لحل المشكلة جذرياً
+    // =============================================================
+    // محرك الفحص والمسح المصفوفي العميق (Deep Array Scan Engine)
+    // =============================================================
     window.showItemHistory = async function(itemId, itemName) {
         const modal = document.getElementById('historyModal');
         const modalTitle = document.getElementById('modalItemName');
         const modalBody = document.getElementById('modalBody');
         
         modalTitle.textContent = `حركات الصنف: ${itemName}`;
-        modalBody.innerHTML = `<div class="loading"><div class="spinner"></div><p>جاري البحث الفائق في السجلات...</p></div>`;
+        modalBody.innerHTML = `<div class="loading"><div class="spinner"></div><p>جاري فحص فواتير البيع والشراء والعمليات...</p></div>`;
         modal.style.display = 'flex';
 
         try {
             let foundTransactions = [];
             
-            // قائمة بأسماء الكولكشن المحتملة للعمليات في قاعدة بياناتك لضمان عدم فوات أي حركة
-            const collectionNames = ["transactions", "sales", "invoices", "orders", "history"];
+            // الكولكشنز الحقيقية والكاملة الموجودة بقاعدة بياناتك طبقاً للصورة المرتبطة بنظامك
+            const targetCollections = ["orders", "transactions", "purchase_orders"];
             
-            for (const colName of collectionNames) {
+            const targetNameClean = itemName.trim().toLowerCase();
+
+            for (const colName of targetCollections) {
                 try {
                     const snap = await getDocs(collection(db, colName));
-                    snap.forEach(doc => {
-                        const d = doc.data();
-                        
-                        // فحص بذكاء فائق إن كانت الحركة تخص هذا الصنف عبر مطابقة أي حقل معرّف محتمل
+                    snap.forEach(docSnap => {
+                        const d = docSnap.data();
+                        let itemMatchFound = false;
+                        let matchedQty = 0;
+
+                        // حالة 1: الحركات المخزنية المباشرة (المنتج مسجل كحقول منفصلة علوية)
                         if (
-                            d.itemId === itemId || 
-                            d.productId === itemId || 
-                            d.id === itemId || 
-                            d.itemId === Number(itemId) ||
-                            (d.itemName && d.itemName.trim() === itemName.trim()) ||
-                            (d.name && d.name.trim() === itemName.trim())
+                            d.itemId === itemId || d.productId === itemId || d.id === itemId ||
+                            (d.itemName && d.itemName.trim().toLowerCase() === targetNameClean) ||
+                            (d.productName && d.productName.trim().toLowerCase() === targetNameClean)
                         ) {
-                            foundTransactions.push({ id: doc.id, ...d, sourceCol: colName });
+                            itemMatchFound = true;
+                            matchedQty = d.qty || d.quantity || d.count || d.totalPcs || 0;
+                        }
+
+                        // حالة 2: الفواتير المركبة (الأصناف مخزنة بداخل مصفوفة Array مثل فواتير الكاش والأوردرات)
+                        // الكود هنا يطوف على كل حقول المستند ويبحث عن أي مصفوفة أصناف ويفككها داخلياً
+                        for (let key in d) {
+                            if (Array.isArray(d[key])) {
+                                d[key].forEach(subItem => {
+                                    if (
+                                        subItem.itemId === itemId || 
+                                        subItem.productId === itemId || 
+                                        subItem.id === itemId ||
+                                        (subItem.name && subItem.name.trim().toLowerCase() === targetNameClean) ||
+                                        (subItem.itemName && subItem.itemName.trim().toLowerCase() === targetNameClean) ||
+                                        (subItem.productName && subItem.productName.trim().toLowerCase() === targetNameClean)
+                                    ) {
+                                        itemMatchFound = true;
+                                        // استخلاص كمية الصنف المحددة والخاصة به من مصفوفة الفاتورة
+                                        matchedQty = subItem.qty || subItem.quantity || subItem.count || subItem.totalPcs || matchedQty;
+                                    }
+                                });
+                            }
+                        }
+
+                        // إذا تم العثور على الصنف بأي من الحالتين، يتم إدراج الحركة فوراً في القائمة
+                        if (itemMatchFound) {
+                            foundTransactions.push({
+                                id: docSnap.id,
+                                ...d,
+                                finalCalculatedQty: matchedQty,
+                                detectedSource: colName
+                            });
                         }
                     });
                 } catch(e) {
-                    // تجاهل الكولكشنز غير الموجودة والانتفال للتالي بسلاسة
+                    console.warn(`تخطي الكولكشن ${colName} مؤقتاً.`);
                 }
             }
 
-            // ترتيب الحركات تنازلياً من الأحدث للأقدم
+            // ترتيب تنازلي دقيق للحركات (من الأحدث تاريخاً للأقدم تاريخاً)
             foundTransactions.sort((a,b) => {
-                const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date || 0);
-                const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date || 0);
+                const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date || a.createdAt || a.timestamp || 0);
+                const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date || b.createdAt || b.timestamp || 0);
                 return dateB - dateA;
             });
 
             if (foundTransactions.length === 0) {
-                modalBody.innerHTML = `<div class="empty-state"><i class="fas fa-history"></i><p>لا توجد حركات مسجلة لهذا الصنف بعد</p></div>`;
+                modalBody.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-receipt" style="font-size:32px; color:var(--sub); opacity:0.4;"></i>
+                        <p>لا توجد حركات مسجلة (بيع/شراء) لهذا الصنف في السجلات حالياً.</p>
+                    </div>`;
                 return;
             }
 
-            let html = '';
+            let html = '<div class="history-list">';
             foundTransactions.forEach(tx => {
                 let typeClass = 'sale';
                 let typeText = 'بيع';
                 let sign = '-';
                 let amtClass = 'minus';
 
-                // كشف طبيعة المعاملة وتحديد الألوان والرموز
-                const type = (tx.type || tx.status || tx.sourceCol || '').toLowerCase();
+                // التعرف الذكي الشامل على نوع الحركة بناءً على الكولكشن والنوع الداخلي بالفايربيز
+                const rawType = (tx.type || tx.status || tx.detectedSource || '').toLowerCase();
                 
-                if (type.includes('purchase') || type.includes('شراء') || type.includes('تزويد') || type.includes('import')) {
+                if (rawType.includes('purchase') || rawType.includes('شراء') || rawType.includes('تزويد') || rawType.includes('وارد')) {
                     typeClass = 'purchase'; typeText = 'شراء'; sign = '+'; amtClass = 'plus';
-                } else if (type.includes('return') || type.includes('مرتجع') || type.includes('refund')) {
+                } else if (rawType.includes('return') || rawType.includes('مرتجع') || rawType.includes('ارتجاع')) {
                     typeClass = 'return'; typeText = 'مرتجع'; sign = '+'; amtClass = 'plus';
-                } else if (type.includes('loss') || type.includes('تالف') || type.includes('damage')) {
+                } else if (rawType.includes('loss') || rawType.includes('تالف') || rawType.includes('اتلاف')) {
                     typeClass = 'loss'; typeText = 'تالف'; sign = '-'; amtClass = 'minus';
-                } else {
-                    // افتراضي بيع إذا لم يتطابق مع ما سبق
-                    typeClass = 'sale'; typeText = 'بيع'; sign = '-'; amtClass = 'minus';
                 }
 
+                // صياغة التاريخ والوقت بشكل منسق وقابل للقراءة
                 let dateStr = 'بدون تاريخ';
-                if (tx.date) {
-                    const d = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+                const fireDate = tx.date || tx.createdAt || tx.timestamp;
+                if (fireDate) {
+                    const d = fireDate.toDate ? fireDate.toDate() : new Date(fireDate);
                     dateStr = d.toLocaleDateString('ar-EG', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
                 }
 
-                // تحديد نص وصف الحركة الذكي
-                let description = tx.notes || tx.clientName || tx.customer || tx.supplier || 'حركة مخزنية';
+                // جلب اسم العميل، المورد، أو الملاحظات لتمييز الحركة
+                let description = tx.notes || tx.clientName || tx.customerName || tx.supplierName || tx.customer || 'معاملة مسجلة للنظام';
 
                 html += `
                 <div class="tx-item">
@@ -514,15 +553,16 @@
                         <div class="tx-title">${description}</div>
                         <div class="tx-date">${dateStr}</div>
                     </div>
-                    <div class="tx-amount ${amtClass}">${sign}${tx.qty || tx.quantity || tx.count || 0}</div>
+                    <div class="tx-amount ${amtClass}">${sign}${tx.finalCalculatedQty}</div>
                 </div>`;
             });
+            html += '</div>';
 
             modalBody.innerHTML = html;
 
         } catch (err) {
             console.error(err);
-            modalBody.innerHTML = `<div class="err-box"><i class="fas fa-exclamation-triangle"></i>فشل في جلب البيانات<br><small>${err.message}</small></div>`;
+            modalBody.innerHTML = `<div class="err-box"><i class="fas fa-exclamation-triangle"></i>فشل في جلب الحركات وسحب البيانات المحدثة<br><small>${err.message}</small></div>`;
         }
     };
 
