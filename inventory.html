@@ -325,8 +325,8 @@
 
         document.getElementById('listBody').innerHTML = html;
     };
+
     function buildRow(item, num) {
-        // حماية معامل التحويل من القيم الصفرية أو الخاطئة لتجنب مشاكل القسمة
         let factor = Number(item.unitFactor) || 1;
         if (factor <= 0) factor = 1;
 
@@ -340,15 +340,28 @@
         if (totalPcs === 0)          status = 'zero';
         else if (totalPcs <= minPcs) status = 'low';
 
-        const boxDisplay = status === 'zero' ? 'صفر' : boxes.toLocaleString();
-        
-        // تحديد اسم الوحدة الصغيرة: نستخدم "جركن" كقيمة أساسية افتراضية للأجزاء
+        // تهيئة اسم الوحدة الصغيرة وضمان عدم تسميتها بـ "كرتونة"
         let unitName = (item.unitName && item.unitName.trim() !== 'كرتونة') ? item.unitName.trim() : 'جركن';
+        
+        let boxDisplay = '';
+        let labelDisplay = 'كرتونة';
+        let extraHtml = '';
 
-        // عرض التاج الأزرق الصغير للجرأكن (الكسور المتبقية المتبقية) فقط إذا كانت أكبر من صفر
-        const extraHtml = (jars > 0 && status !== 'zero')
-            ? `<div class="qty-extra"><i class="fas fa-tag" style="font-size:9px;"></i>${jars} ${unitName}</div>`
-            : '';
+        if (status === 'zero') {
+            boxDisplay = 'صفر';
+        } else if (boxes === 0 && jars > 0) {
+            // التعديل الرئيسي: إذا كان المخزون قطع فقط أقل من كرتونة كاملة، يتم رفع القطع للأعلى وتحويل التسمية إلى جركن مباشرة
+            boxDisplay = jars.toLocaleString();
+            labelDisplay = unitName; 
+            extraHtml = ''; 
+        } else {
+            // في حالة وجود كراتين كاملة، تظهر كلمة كرتونة، ويظهر التاج الأزرق بالأسفل للجراكن الفكة إن وجدت
+            boxDisplay = boxes.toLocaleString();
+            labelDisplay = 'كرتونة';
+            extraHtml = (jars > 0)
+                ? `<div class="qty-extra"><i class="fas fa-tag" style="font-size:9px;"></i>${jars} ${unitName}</div>`
+                : '';
+        }
 
         const catHtml   = item.category ? `<span class="cat-tag">${item.category}</span>` : '';
         const priceHtml = item.sell     ? `<span>${Number(item.sell).toLocaleString()} ج.م</span>` : '';
@@ -363,13 +376,12 @@
             </div>
             <div class="row-qty">
                 <div class="qty-main ${status}">${boxDisplay}</div>
-                <div class="qty-lbl">كرتونة</div>
+                <div class="qty-lbl">${labelDisplay}</div>
                 ${extraHtml}
             </div>
             <div class="status-dot ${status}"></div>
         </div>`;
     }
-
 </script>
 </body>
 </html>
