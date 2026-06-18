@@ -132,7 +132,7 @@
         /* ════ TODAY ORDERS ALERT (MODERN TOAST) ════ */
         .index-toast-notification {
             position: fixed;
-            bottom: 95px; /* يرتفع ليكون فوق الـ Bottom Bar تماماً */
+            bottom: 95px;
             right: 50%;
             transform: translateX(50%) translateY(120px);
             background: linear-gradient(135deg, #1e293b, #0f172a);
@@ -440,7 +440,7 @@
         <a href="inventory-menu.html" class="card-link" id="cardInventory">
             <div class="card">
                 <div class="icon-box"><i class="fas fa-boxes-stacked"></i></div>
-                <p>المخزن</p>
+                <p>المخزن (قائمة)</p>
             </div>
         </a>
         <a href="vouchers-hub.html" class="card-link" id="cardVouchers">
@@ -468,11 +468,14 @@
             </div>
         </a>
         
-        <a href="inventory.html" class="card-link" id="cardPurchases">
+        <!-- الكارت الجديد الذي تم إصلاح معرّفه وإغلاقه بشكل صحيح -->
+        <a href="inventory.html" class="card-link" id="cardInventoryLegacy">
             <div class="card">
-                <div class="icon-box"><i class="fas fa-cart-arrow-down"></i></div>
+                <div class="icon-box"><i class="fas fa-boxes-packing"></i></div>
                 <p>المخزن</p>
             </div>
+        </a>
+    </div>
 
     <!-- SIDEBAR -->
     <aside class="sidebar" id="sidebar">
@@ -515,7 +518,7 @@
                 <span>استعلام سعر</span>
             </a>
             <a href="expenses.html" class="nav-action" id="bottomExpenses">
-                <i class="fas fa-money-bill-transfer"></i>
+                <i class="fas gear fa-money-bill-transfer"></i>
                 <span>قيد مصروف</span>
             </a>
         </nav>
@@ -554,11 +557,9 @@
         function loadTodayOrdersAlerts() {
             if (typeof db === 'undefined') return;
             
-            // الحصول على تاريخ اليوم الحالي بصيغة YYYY-MM-DD
             const today = new Date();
             const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
 
-            // استماع حي ومستمر للطلبات المجدولة اليوم وحالتها قيد التنفيذ (pending)
             db.collection('orders')
               .where('date', '>=', todayStr)
               .where('status', '==', 'pending')
@@ -566,7 +567,6 @@
                   const toastElement = document.getElementById('pendingOrdersToast');
                   const textElement = document.getElementById('indexToastMessage');
                   
-                  // حساب عدد الطلبات المعلقة المتوافقة مع تاريخ اليوم
                   let pendingCount = 0;
                   snapshot.forEach(doc => {
                       const orderData = doc.data();
@@ -593,7 +593,7 @@
 
             const role              = sessionStorage.getItem('role') || 'employee';
             const savedPermissions  = sessionStorage.getItem('permissions');
-            const userPermissions   = savedPermissions ? JSON.parse(savedPermissions) : ['sales','clients','vouchers'];
+            const userPermissions   = savedPermissions ? JSON.parse(savedPermissions) : ['sales','clients','vouchers','inventory'];
 
             const roleBadge = document.getElementById('userRoleBadge');
             if (roleBadge) {
@@ -602,16 +602,18 @@
                                     : 'موظف';
             }
 
+            // تم إضافة الكارت الجديد cardInventoryLegacy وربطه بصلاحية المخزن inventory
             const permMap = {
-                cardSales:       'sales',
-                cardPurchases:   'purchases',
-                cardClients:     'clients',
-                cardSuppliers:   'suppliers',
-                cardInventory:   'inventory',
-                cardVouchers:    'vouchers',
-                cardBanknote:    'banknote',
-                cardReports:     'reports',
-                cardPriceSearch: 'sales',
+                cardSales:           'sales',
+                cardPurchases:       'purchases',
+                cardClients:         'clients',
+                cardSuppliers:       'suppliers',
+                cardInventory:       'inventory',
+                cardInventoryLegacy: 'inventory', 
+                cardVouchers:        'vouchers',
+                cardBanknote:        'banknote',
+                cardReports:         'reports',
+                cardPriceSearch:     'sales',
 
                 sideTransactions:   'banknote',
                 sidePurchaseOrders: 'purchases',
@@ -642,7 +644,7 @@
                     }
                 });
             } else {
-                visibleCards = 9;
+                visibleCards = 10;
             }
 
             const dash = document.getElementById('mainDashboard');
