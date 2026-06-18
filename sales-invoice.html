@@ -504,7 +504,7 @@
             <i class="fab fa-whatsapp" style="color: #25D366; font-size: 2.2rem;"></i>
         </div>
         <h5 style="font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">تم الحفظ بنجاح! 🎉</h5>
-        <p style="color: #555; font-size: 0.85rem; margin-bottom: 18px; line-height: 1.4;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل؟</p>
+        <p style="color: #555; font-size: 0.85rem; margin-bottom: 18px; line-height: 1.4;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل?</p>
         <div style="display: flex; flex-direction: column; gap: 8px;">
             <button id="confirmShareBtn" style="background: #25D366; color: white; border: none; padding: 10px; border-radius: 10px; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
                 <i class="fab fa-whatsapp"></i> مشاركة الفاتورة كصورة
@@ -648,10 +648,8 @@
         } catch (e) { return Number(initialBalance); }
     }
 
-    // --- ميزة جلب السعر الذكي الجديد المخصصة لشركة الزيادي ---
     async function fetchSmartPrice(stockId, customerId, selectedUnit) {
         try {
-            // المحاولة الأولى: البحث عن آخر سعر للصنف عند هذا العميل بالتحديد
             if (customerId) {
                 const qCustInvoices = query(
                     collection(db, "invoices"),
@@ -662,7 +660,7 @@
                 const snapCustInvoices = await getDocs(qCustInvoices);
                 for (const docSnap of snapCustInvoices.docs) {
                     const invData = docSnap.data();
-                    if (editId && docSnap.id === editId) continue; // تخطي الفاتورة الحالية في وضع التعديل
+                    if (editId && docSnap.id === editId) continue; 
                     const matchedItem = invData.items?.find(item => item.stockId === stockId && item.unit === selectedUnit);
                     if (matchedItem && matchedItem.price) {
                         return Number(matchedItem.price);
@@ -670,7 +668,6 @@
                 }
             }
 
-            // المحاولة الثانية: إذا لم يجد للعميل، يبحث عن آخر سعر تم البيع به عموماً لأي عميل آخر
             const qGeneralInvoices = query(
                 collection(db, "invoices"),
                 orderBy("timestamp", "desc"),
@@ -688,13 +685,14 @@
         } catch (error) {
             console.error("خطأ أثناء جلب السعر التاريخي المخصص:", error);
         }
-        return null; // سيتم استخدام السعر الافتراضي من جدول المخزن إن لم يعثر على سجلات
+        return null; 
     }
 
     window.addEventListener('beforeunload', (e) => {
         if (isChanged) { e.preventDefault(); e.returnValue = ''; }
     });
 
+    // --- ربط جميع الدوال بالـ Window أولاً قبل أي عملية جلب لضمان صلاحية الوصول الفوري ---
     window.confirmBackToPage = (targetUrl) => {
         if (isChanged && !confirm("لديك بيانات غير محفوظة، هل تريد الخروج؟")) return;
         window.location.href = targetUrl;
@@ -708,95 +706,6 @@
         document.getElementById('paidAmount').value = cash + wallet;
         window.handleInput();
     };
-
-    const CACHE_KEYS = {
-        customers: "cache_customers",
-        inventory: "cache_inventory"
-    };
-
-    async function init() {
-        try {
-            if (!editId) {
-                document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
-            }
-
-            const cachedCustomers = localStorage.getItem(CACHE_KEYS.customers);
-            const cachedInventory = localStorage.getItem(CACHE_KEYS.inventory);
-            if (cachedCustomers) customers = JSON.parse(cachedCustomers);
-            if (cachedInventory) inventory = JSON.parse(cachedInventory);
-
-            const [cSnap, iSnap] = await Promise.all([
-                getDocs(collection(db, "customers")),
-                getDocs(collection(db, "inventory"))
-            ]);
-            customers = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            inventory = iSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-            localStorage.setItem(CACHE_KEYS.customers, JSON.stringify(customers));
-            localStorage.setItem(CACHE_KEYS.inventory, JSON.stringify(inventory));
-
-            const urlParams = new URLSearchParams(window.location.search);
-            if (fromOrderId) {
-                const paramCustomerId = urlParams.get('customerId');
-                const paramCustomerName = urlParams.get('customerName');
-                const paramItems = JSON.parse(urlParams.get('items') || '[]');
-
-                document.getElementById('modeText').innerText = "من طلبية";
-
-                const banner = document.getElementById('orderSourceBanner');
-                banner.style.display = 'flex';
-                document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
-
-                document.getElementById('customerSearch').value = paramCustomerName || '';
-                document.getElementById('customerSelect').value = paramCustomerId || '';
-
-                if (paramCustomerId) {
-                    const cust = customers.find(c => c.id === paramCustomerId);
-                    if (cust) {
-                        const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
-                        currentFetchedOldBalance = realB;
-                        showBalance(realB);
-                    }
-                }
-
-                paramItems.forEach(item => addNewRow(item));
-                calc();
-
-            } else if (editId) {
-                document.getElementById('modeText').innerText = "تعديل";
-                const invDoc = await getDoc(doc(db, "invoices", editId));
-                if (invDoc.exists()) {
-                    const data = invDoc.data();
-                    document.getElementById('customerSelect').value = data.customerId || "";
-                    document.getElementById('customerSearch').value = data.customerName || 'عميل نقدي';
-                    
-                    originalInvoiceTime = data.time || "";
-                    document.getElementById('invTime').value = originalInvoiceTime;
-                    document.getElementById('invTime').readOnly = true;
-
-                    document.getElementById('cashAmount').value = data.cashAmount || 0;
-                    document.getElementById('walletAmount').value = data.walletAmount || 0;
-                    document.getElementById('paidAmount').value = data.paid || 0;
-                    document.getElementById('discountAmount').value = data.discount || 0; 
-
-                    const cust = customers.find(c => c.id === data.customerId);
-                    if (cust) {
-                        const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
-                        currentFetchedOldBalance = realB;
-                        showBalance(realB);
-                    }
-
-                    document.getElementById("itemsContainer").innerHTML = "";
-                    data.items?.forEach(item => addNewRow(item));
-                }
-                isChanged = false;
-                calc(); 
-            } else {
-                addNewRow();
-                calc();
-            }
-
-        } catch (e) { console.error(e); }
-    }
 
     window.searchCustomer = (input) => {
         const term = input.value.toLowerCase().trim();
@@ -855,16 +764,22 @@
         currentFetchedOldBalance = realDebt;
         showBalance(realDebt);
 
-        // تحديث أسعار الأسطر المدخلة حالياً لتلائم أسعار العميل المختار الجديد
         const rows = document.querySelectorAll('.product-row');
         for (const row of rows) {
             const unitSel = row.querySelector('.p-unit');
-            if (unitSel) await updateRowPrice(unitSel);
+            if (unitSel) await window.updateRowPrice(unitSel);
         }
 
         isChanged = true;
         calc();
     };
+
+    function showBalance(val) {
+        const balanceSpan = document.getElementById('curBalanceVal');
+        if(balanceSpan) {
+            balanceSpan.innerText = Number(val).toFixed(2);
+        }
+    }
 
     window.enableBalanceEditing = () => {
         const customerId = document.getElementById('customerSelect').value;
@@ -950,7 +865,7 @@
         const p = inventory.find(i => i.id === pid);
         if(p) {
             row.querySelector('.unit-info-area').innerHTML = `<i class="fas fa-warehouse me-1"></i> رصيد المخزن المتوفر: ${p.totalPcs} ق`;
-            await updateRowPrice(row.querySelector('.p-unit'));
+            await window.updateRowPrice(row.querySelector('.p-unit'));
         }
         isChanged = true;
     };
@@ -1012,7 +927,6 @@
         return id;
     };
 
-    // تحديث السعر تلقائياً بناءً على العميل الحالي أو آخر سعر عام
     window.updateRowPrice = async (unitSel) => {
         const row = unitSel.closest('.product-row');
         const stockId = row.querySelector('.p-select').value;
@@ -1024,13 +938,10 @@
         const p = inventory.find(i => i.id === stockId);
         if (!p) return;
 
-        // إظهار علامة انتظار مؤقتة داخل حقل السعر أثناء الجلب الذكي
         row.querySelector('.p-price').placeholder = "جاري حساب السعر...";
         
-        // استدعاء دالة فحص السعر الذكي (آخر سعر للعميل ثم آخر سعر عام)
         let finalPrice = await fetchSmartPrice(stockId, customerId, selectedUnit);
 
-        // إذا لم يعثر على أسعار بيع سابقة مسجلة، يعود للسعر الافتراضي الحالي من الكرتونة/القطعة بالمخزن
         if (finalPrice === null || finalPrice === undefined) {
             finalPrice = (selectedUnit === 'box') ? (p.sell || 0) : ((p.sell || 0) / (p.unitFactor || 1));
         }
@@ -1187,7 +1098,6 @@
                     try {
                         if (deleteOrderAfterSave) {
                             await deleteDoc(doc(db, "orders", fromOrderId));
-                            console.log(`تم حذف الطلبية ${fromOrderId} بنجاح بعد حفظ الفاتورة.`);
                         } else {
                             await updateDoc(doc(db, "orders", fromOrderId), { status: 'done', invoiceId: editId });
                         }
@@ -1300,6 +1210,99 @@
         });
     };
 
+    const CACHE_KEYS = {
+        customers: "cache_customers",
+        inventory: "cache_inventory"
+    };
+
+    // --- دالة التشغيل والبناء الرئيسية ---
+    async function init() {
+        try {
+            if (!editId) {
+                document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
+            }
+
+            const cachedCustomers = localStorage.getItem(CACHE_KEYS.customers);
+            const cachedInventory = localStorage.getItem(CACHE_KEYS.inventory);
+            if (cachedCustomers) customers = JSON.parse(cachedCustomers);
+            if (cachedInventory) inventory = JSON.parse(cachedInventory);
+
+            const [cSnap, iSnap] = await Promise.all([
+                getDocs(collection(db, "customers")),
+                getDocs(collection(db, "inventory"))
+            ]);
+            customers = cSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            inventory = iSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+            localStorage.setItem(CACHE_KEYS.customers, JSON.stringify(customers));
+            localStorage.setItem(CACHE_KEYS.inventory, JSON.stringify(inventory));
+
+            const urlParams = new URLSearchParams(window.location.search);
+            if (fromOrderId) {
+                const paramCustomerId = urlParams.get('customerId');
+                const paramCustomerName = urlParams.get('customerName');
+                const paramItems = JSON.parse(urlParams.get('items') || '[]');
+
+                document.getElementById('modeText').innerText = "من طلبية";
+
+                const banner = document.getElementById('orderSourceBanner');
+                banner.style.display = 'flex';
+                document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
+
+                document.getElementById('customerSearch').value = paramCustomerName || '';
+                document.getElementById('customerSelect').value = paramCustomerId || '';
+
+                if (paramCustomerId) {
+                    const cust = customers.find(c => c.id === paramCustomerId);
+                    if (cust) {
+                        const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
+                        currentFetchedOldBalance = realB;
+                        showBalance(realB);
+                    }
+                }
+
+                paramItems.forEach(item => window.addNewRow(item));
+                calc();
+
+            } else if (editId) {
+                document.getElementById('modeText').innerText = "تعديل";
+                const invDoc = await getDoc(doc(db, "invoices", editId));
+                if (invDoc.exists()) {
+                    const data = invDoc.data();
+                    document.getElementById('customerSelect').value = data.customerId || "";
+                    document.getElementById('customerSearch').value = data.customerName || 'عميل نقدي';
+                    
+                    originalInvoiceTime = data.time || "";
+                    document.getElementById('invTime').value = originalInvoiceTime;
+                    document.getElementById('invTime').readOnly = true;
+
+                    document.getElementById('cashAmount').value = data.cashAmount || 0;
+                    document.getElementById('walletAmount').value = data.walletAmount || 0;
+                    document.getElementById('paidAmount').value = data.paid || 0;
+                    document.getElementById('discountAmount').value = data.discount || 0; 
+
+                    const cust = customers.find(c => c.id === data.customerId);
+                    if (cust) {
+                        const balanceDiv = document.getElementById('customerBalanceInfo');
+                        if (balanceDiv) balanceDiv.style.display = 'block';
+                        const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
+                        currentFetchedOldBalance = realB;
+                        showBalance(realB);
+                    }
+
+                    document.getElementById("itemsContainer").innerHTML = "";
+                    data.items?.forEach(item => window.addNewRow(item));
+                }
+                isChanged = false;
+                calc(); 
+            } else {
+                window.addNewRow();
+                calc();
+            }
+
+        } catch (e) { console.error(e); }
+    }
+
+    // التنفيذ النهائي
     init();
 </script>
 </body>
