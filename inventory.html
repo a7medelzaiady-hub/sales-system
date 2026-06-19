@@ -308,6 +308,13 @@
     const db  = getFirestore(app);
     let allItems = [];
 
+    // كاش لمستندات الفواتير/الحركات عشان نقلل القراءات من Firebase
+    // أول ما حد يدوس على أي صنف بنجيب كل المستندات مرة واحدة ونخزنها هنا،
+    // وأي ضغطة بعد كده على أي صنف تاني بتتفلتر من الكاش من غير قراءة جديدة من فايربيس
+    let rawDocsCache = null;       // مصفوفة المستندات الخام بعد الجلب
+    let cacheTimestamp = 0;        // وقت آخر جلب
+    const CACHE_TTL_MS = 5 * 60 * 1000; // صلاحية الكاش 5 دقايق
+
     enableIndexedDbPersistence(db)
         .then(() => { console.log("تم تفعيل الكاش المحلي بنجاح"); })
         .catch((err) => { console.warn("تنبيه الكاش:", err.message); });
@@ -455,21 +462,58 @@
     }
 
     // =============================================================
-    // محرك الفحص والمسح مع الترتيب التنازلي التام (الأحدث أولاً)
+    // جلب كل مستندات الفواتير/الحركات مرة واحدة وتخزينها بالكاش
+    // بدل ما نقرأ من Firebase في كل ضغطة على أي صنف
     // =============================================================
-    window.showItemHistory = async function(itemId, itemName) {
+    async function getRawDocs(forceRefresh) {
+        const now = Date.now();
+        const cacheValid = rawDocsCache && (now - cacheTimestamp) < CACHE_TTL_MS;
+        if (cacheValid && !forceRefresh) {
+            return rawDocsCache; // استخدام الكاش - صفر قراءات من فايربيس
+        }
+
+        const targetCollections = ["orders", "transactions", "purchase_orders", "sales", "invoice", "invoices"];
+        const docs = [];
+
+        // 1. مسح الكولكشنز الرئيسية
+        for (const colName of targetCollections) {
+            try {
+                const snap = await getDocs(collection(db, colName));
+                snap.forEach(docSnap => docs.push({ id: docSnap.id, data: docSnap.data(), colName }));
+            } catch(e) { console.warn(`تخطى الكولكشن المباشر: ${colName}`); }
+        }
+
+        // 2. مسح الكولكشنز الفرعية
+        try {
+            const subOrderSnap = await getDocs(collectionGroup(db, 'orders'));
+            subOrderSnap.forEach(docSnap => docs.push({ id: docSnap.id, data: docSnap.data(), colName: 'orders_sub' }));
+
+            const subItemsSnap = await getDocs(collectionGroup(db, 'items'));
+            subItemsSnap.forEach(docSnap => docs.push({ id: docSnap.id, data: docSnap.data(), colName: 'items_sub' }));
+        } catch (e) { console.warn("تخطى فحص مجموعات الـ Group الفرعية."); }
+
+        rawDocsCache = docs;
+        cacheTimestamp = now;
+        return docs;
+    }
+
+    // =============================================================
+    // محرك الفحص والفلترة (في الذاكرة، من غير أي قراءة إضافية من فايربيس)
+    // مع الترتيب التنازلي التام (الأحدث أولاً)
+    // =============================================================
+    window.showItemHistory = async function(itemId, itemName, forceRefresh) {
         const modal = document.getElementById('historyModal');
         const modalTitle = document.getElementById('modalItemName');
         const modalBody = document.getElementById('modalBody');
-        
-        modalTitle.textContent = `حركات الصنف: ${itemName}`;
-        modalBody.innerHTML = `<div class="loading"><div class="spinner"></div><p>جاري فحص الفواتير وترتيبها زمنياً من الأحدث...</p></div>`;
+
+        modalTitle.innerHTML = `حركات الصنف: ${itemName}
+            <i class="fas fa-rotate" title="تحديث من فايربيس" style="font-size:12px; cursor:pointer; margin-right:8px; opacity:.8;"
+               onclick="event.stopPropagation(); window.showItemHistory('${itemId}', '${itemName}', true)"></i>`;
+        modalBody.innerHTML = `<div class="loading"><div class="spinner"></div><p>${forceRefresh ? 'جاري إعادة الجلب من Firebase...' : 'جاري الفحص...'}</p></div>`;
         modal.style.display = 'flex';
+        window.__lastHistoryItem = { itemId, itemName };
 
         try {
-            let foundTransactions = [];
-            const targetCollections = ["orders", "transactions", "purchase_orders", "sales", "invoice", "invoices"];
-            
             const cleanText = (txt) => String(txt || '').trim().toLowerCase().replace(/\s+/g, ' ');
             const targetId = cleanText(itemId);
             const targetName = cleanText(itemName);
@@ -502,12 +546,12 @@
                 return { match, qty: extractedQty };
             };
 
-            const processDoc = (docSnap, colName) => {
-                const d = docSnap.data();
-                
+            let foundTransactions = [];
+
+            const processDoc = (id, d, colName) => {
                 const topResult = inspectObj(d);
                 if (topResult.match && topResult.qty > 0) {
-                    foundTransactions.push({ id: docSnap.id, ...d, finalCalculatedQty: topResult.qty, detectedSource: colName });
+                    foundTransactions.push({ id, ...d, finalCalculatedQty: topResult.qty, detectedSource: colName });
                 }
 
                 for (let key in d) {
@@ -516,35 +560,22 @@
                             if (subItem && typeof subItem === 'object') {
                                 const subResult = inspectObj(subItem);
                                 if (subResult.match && subResult.qty > 0) {
-                                    foundTransactions.push({ id: docSnap.id, ...d, finalCalculatedQty: subResult.qty, detectedSource: colName });
+                                    foundTransactions.push({ id, ...d, finalCalculatedQty: subResult.qty, detectedSource: colName });
                                 }
                             }
                         });
                     } else if (d[key] && typeof d[key] === 'object') {
                         const subResult = inspectObj(d[key]);
                         if (subResult.match && subResult.qty > 0) {
-                            foundTransactions.push({ id: docSnap.id, ...d, finalCalculatedQty: subResult.qty, detectedSource: colName });
+                            foundTransactions.push({ id, ...d, finalCalculatedQty: subResult.qty, detectedSource: colName });
                         }
                     }
                 }
             };
 
-            // 1. مسح الكولكشنز الرئيسية
-            for (const colName of targetCollections) {
-                try {
-                    const snap = await getDocs(collection(db, colName));
-                    snap.forEach(docSnap => processDoc(docSnap, colName));
-                } catch(e) { console.warn(`تخطى الكولكشن المباشر: ${colName}`); }
-            }
-
-            // 2. مسح الكولكشنز الفرعية
-            try {
-                const subOrderSnap = await getDocs(collectionGroup(db, 'orders'));
-                subOrderSnap.forEach(docSnap => processDoc(docSnap, 'orders_sub'));
-                
-                const subItemsSnap = await getDocs(collectionGroup(db, 'items'));
-                subItemsSnap.forEach(docSnap => processDoc(docSnap, 'items_sub'));
-            } catch (e) { console.warn("تخطى فحص مجموعات الـ Group الفرعية."); }
+            // الجلب من الكاش لو متاح وصالح، وإلا قراءة جديدة من فايربيس (مرة واحدة بس)
+            const rawDocs = await getRawDocs(forceRefresh);
+            rawDocs.forEach(({ id, data, colName }) => processDoc(id, data, colName));
 
             // 🌟 الفلترة وإزالة التكرار قبل الترتيب
             const uniqueTransactions = [];
