@@ -7,49 +7,29 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root {
-            --bg: #f0f4f2;
-            --card: #ffffff;
-            --accent: #0b5e3d;
-            --border: #e4ede8;
-            --text: #1b2e26;
-            --r: 12px;
-        }
+        :root { --bg: #f0f4f2; --card: #ffffff; --accent: #0b5e3d; --border: #e4ede8; --text: #1b2e26; --r: 12px; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Cairo', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 20px; }
-
+        body { font-family: 'Cairo', sans-serif; background: var(--bg); color: var(--text); }
         header { background: var(--accent); padding: 15px; color: #fff; text-align: center; position: sticky; top: 0; z-index: 100; }
-        .h-title { font-weight: 800; }
-        
         .search-wrap { padding: 10px; max-width: 800px; margin: auto; }
         .search-inner { background: #fff; padding: 10px; border-radius: var(--r); border: 1px solid var(--border); display: flex; align-items: center; }
         .search-inner input { border: none; width: 100%; padding-right: 10px; font-family: 'Cairo'; outline: none; }
-
-        /* الجدول الجديد */
-        .table-container { max-width: 800px; margin: 10px auto; background: #fff; border-radius: var(--r); overflow: hidden; border: 1px solid var(--border); }
-        .inventory-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr;
-            padding: 12px;
-            border-bottom: 1px solid var(--border);
-            align-items: center;
-            cursor: pointer;
-        }
-        .header-row { background: #f8f9f9; font-weight: 900; color: var(--accent); font-size: 13px; cursor: default; }
-        .col-name { text-align: right; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .col-val { text-align: center; font-size: 13px; font-weight: 600; }
-        .inventory-grid:active { background: #f0f4f2; }
-
-        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 10px; }
-        .modal-card { background: #fff; width: 100%; max-width: 500px; border-radius: var(--r); max-height: 80vh; overflow-y: auto; }
+        
+        /* الجدول */
+        .table-wrap { max-width: 800px; margin: 10px auto; background: #fff; border-radius: var(--r); border: 1px solid var(--border); overflow: hidden; }
+        .grid-row { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; padding: 12px; border-bottom: 1px solid var(--border); align-items: center; cursor: pointer; }
+        .grid-header { background: #f8f9f9; font-weight: 900; color: var(--accent); font-size: 13px; }
+        .col { text-align: center; font-size: 13px; }
+        .col-name { text-align: right; font-weight: 700; }
+        
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-card { background: #fff; width: 95%; max-width: 500px; border-radius: var(--r); max-height: 80vh; overflow-y: auto; }
         .modal-header { padding: 15px; background: var(--accent); color: #fff; display: flex; justify-content: space-between; }
     </style>
 </head>
 <body>
 
-<header>
-    <div class="h-title">شركة الزيادى | الأصناف</div>
-</header>
+<header>شركة الزيادى | الأصناف</header>
 
 <div class="search-wrap">
     <div class="search-inner">
@@ -58,73 +38,65 @@
     </div>
 </div>
 
-<div class="table-container">
-    <div class="inventory-grid header-row">
+<div class="table-wrap">
+    <div class="grid-row grid-header">
         <div class="col-name">الصنف</div>
-        <div class="col-val">كرتونة</div>
-        <div class="col-val">قطعة</div>
-        <div class="col-val">إجمالي</div>
+        <div class="col">كرتونة</div>
+        <div class="col">قطعة</div>
+        <div class="col">إجمالي</div>
     </div>
     <div id="listBody"></div>
 </div>
 
-<div class="modal-overlay" id="historyModal" onclick="closeHistoryModal()">
+<div class="modal-overlay" id="historyModal" onclick="this.style.display='none'">
     <div class="modal-card" onclick="event.stopPropagation()">
-        <div class="modal-header"><span>سجل الحركات</span><i class="fas fa-times" onclick="closeHistoryModal()"></i></div>
+        <div class="modal-header"><span>سجل الحركات</span><i class="fas fa-times" onclick="document.getElementById('historyModal').style.display='none'"></i></div>
         <div id="modalBody" style="padding: 15px;"></div>
     </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, getDocs, collectionGroup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    const firebaseConfig = {
+    const db = getFirestore(initializeApp({
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
         authDomain: "ahmedelzaiady.firebaseapp.com",
         projectId: "ahmedelzaiady",
         storageBucket: "ahmedelzaiady.firebasestorage.app",
         messagingSenderId: "300306825071",
         appId: "1:300306825071:web:0426ddde56280fa090329a"
-    };
+    }));
 
-    const db = getFirestore(initializeApp(firebaseConfig));
     let allItems = [];
-
     onSnapshot(collection(db, "inventory"), snap => {
         allItems = [];
         snap.forEach(d => { if(d.data().isDeleted !== true) allItems.push({ id: d.id, ...d.data() }); });
         renderList();
     });
 
-    window.renderList = function() {
+    window.renderList = () => {
         const term = document.getElementById('searchInput').value.toLowerCase();
-        const list = allItems.filter(i => (i.name||'').toLowerCase().includes(term));
         const body = document.getElementById('listBody');
         body.innerHTML = '';
-        
-        list.forEach(item => {
+        allItems.filter(i => (i.name||'').toLowerCase().includes(term)).forEach(item => {
             const factor = Number(item.unitFactor) || 1;
             const total = Number(item.totalPcs) || 0;
-            const boxes = Math.floor(total / factor);
-            const jars = total % factor;
-
             body.innerHTML += `
-            <div class="inventory-grid" onclick="showHistory('${item.id}', '${item.name}')">
+            <div class="grid-row" onclick="showHistory('${item.id}', '${item.name}')">
                 <div class="col-name">${item.name}</div>
-                <div class="col-val">${boxes}</div>
-                <div class="col-val">${jars}</div>
-                <div class="col-val" style="color:var(--accent); font-weight:900;">${total}</div>
+                <div class="col">${Math.floor(total / factor)}</div>
+                <div class="col">${total % factor}</div>
+                <div class="col" style="font-weight:900; color:var(--accent)">${total}</div>
             </div>`;
         });
     };
 
-    window.showHistory = (id, name) => {
+    window.showHistory = async (id, name) => {
         document.getElementById('historyModal').style.display = 'flex';
-        document.getElementById('modalBody').innerHTML = "جاري جلب البيانات...";
-        // منطق عرض السجل الخاص بك كما هو سابقاً
+        document.getElementById('modalBody').innerHTML = "جاري التحميل...";
+        // نفس منطق الفحص الذي كنت تستخدمه سابقاً
     };
-    window.closeHistoryModal = () => document.getElementById('historyModal').style.display = 'none';
 </script>
 </body>
 </html>
