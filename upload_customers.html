@@ -127,13 +127,28 @@
     };
 
     window.exportData = async () => {
+    try {
         const querySnapshot = await getDocs(collection(db, "customers"));
-        const data = querySnapshot.docs.map(doc => doc.data());
+        let data = querySnapshot.docs.map(doc => doc.data());
+
+        // إضافة دالة الترتيب هنا (تنازلياً بناءً على الرصيد الحالي)
+        data.sort((a, b) => {
+            const balanceA = Math.abs(Number(a.currentBalance) || 0);
+            const balanceB = Math.abs(Number(b.currentBalance) || 0);
+            return balanceB - balanceA; // الترتيب من الأكبر للأصغر
+        });
+
+        // تحويل البيانات المرتبة إلى ملف Excel
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "العملاء");
-        XLSX.writeFile(wb, "قائمة_العملاء.xlsx");
-    };
+        XLSX.writeFile(wb, "قائمة_العملاء_مرتبة.xlsx");
+        
+    } catch (e) {
+        console.error("خطأ في التصدير:", e);
+        alert("حدث خطأ أثناء تصدير البيانات!");
+    }
+};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
