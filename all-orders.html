@@ -857,4 +857,119 @@ return;
 
 pendingOrderForConvert = order;
 document.getElementById('convertModalText').innerHTML =
-`طلبية العميل <b>${order.customerName}</b><br>تحتوي على <b>${order.items?.length || 0} أصناف</b> بإجمالي <b>${Number(order.total || 0).toFixed(2)} ج
+`طلبية العميل <b>${order.customerName}</b><br>تحتوي على <b>${order.items?.length || 0} أصناف</b> بإجمالي <b>${Number(order.total || 0).toFixed(2)} ج.م</b><br><br>هل تريد فتحها في صفحة فاتورة المبيعات للتعديل والحفظ؟`;
+
+document.getElementById('confirmConvertBtn').onclick = () => convertToInvoice(order);
+document.getElementById('convertModal').style.display = 'flex';
+};
+
+window.closeModal = () => {
+document.getElementById('convertModal').style.display = 'none';
+pendingOrderForConvert = null;
+};
+
+function convertToInvoice(order) {
+const params = new URLSearchParams({
+fromOrder: order.id,
+customerId: order.customerId || '',
+customerName: order.customerName || '',
+total: order.total || 0,
+items: JSON.stringify(order.items || []),
+notes: order.notes || '',
+deleteOrderAfterSave: "true"
+});
+window.location.href = `sales-invoice.html?${params.toString()}`;
+}
+
+window.editOrder = (orderId) => {
+window.location.href = `customer-orders.html?editOrderId=${orderId}`;
+};
+
+window.shareAsThermalInvoice = (orderId) => {
+const order = allOrders.find(o => o.id === orderId);
+if (!order) return;
+
+const loadingModal = document.getElementById('shareLoadingModal');
+loadingModal.style.display = 'flex';
+
+document.getElementById('thOrderId').innerText = order.id.substring(0, 6).toUpperCase();
+document.getElementById('thOrderDate').innerText = order.date ? order.date.split(' ')[0] : '—';
+document.getElementById('thCustomerName').innerText = order.customerName || 'عميل نقدي';
+document.getElementById('thFinalTotal').innerText = `${Number(order.total || 0).toFixed(2)} ج.م`;
+
+let itemsHtml = '';
+if (order.items && order.items.length > 0) {
+order.items.forEach(item => {
+const itemTotal = Number((item.quantity || 1) * (item.price || 0)).toFixed(2);
+itemsHtml += `
+<tr>
+<td>${item.name}</td>
+<td style="text-align: center;">${item.quantity || 1}</td>
+<td style="text-align: left;">${itemTotal} ج.م</td>
+</tr>
+`;
+});
+} else {
+itemsHtml = `<tr><td colspan="3" style="text-align:center;">لا توجد أصناف</td></tr>`;
+}
+document.getElementById('thReceiptItems').innerHTML = itemsHtml;
+
+setTimeout(() => {
+const captureArea = document.getElementById('thermalReceiptArea');
+html2canvas(captureArea, {
+scale: 2.5,
+backgroundColor: '#ffffff',
+useCORS: true
+}).then(canvas => {
+canvas.toBlob(function(blob) {
+loadingModal.style.display = 'none';
+
+const customerCleanName = (order.customerName || 'عميل').replace(/\s+/g, '_');
+const file = new File([blob], `فاتورة_${customerCleanName}.png`, { type: 'image/png' });
+
+if (navigator.canShare && navigator.canShare({ files: [file] })) {
+navigator.share({
+files: [file],
+title: `فاتورة ${order.customerName}`,
+text: `فاتورة حرارية صادرة من شركة الزيادي لزيوت السيارات - عميل: ${order.customerName}`
+}).catch(err => console.log('إلغاء أو خطأ في المشاركة:', err));
+} else {
+alert('تنبيه: سيتم تنزيل الفاتورة كصورة حرارية بجهازك، يرجى إرسالها يدوياً للعميل عبر الواتساب.');
+const link = document.createElement('a');
+link.download = `فاتورة_${customerCleanName}.png`;
+link.href = canvas.toDataURL('image/png');
+link.click();
+
+const fallbackUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent('مرفق لكم الفاتورة الحرارية من شركة الزيادي لزيوت السيارات.')}`;
+window.open(fallbackUrl, '_blank');
+}
+}, 'image/png');
+}).catch(error => {
+loadingModal.style.display = 'none';
+console.error('حدث خطأ أثناء معالجة الصورة الحرارية:', error);
+alert('عذراً، فشل توليد الصورة الحرارية.');
+});
+}, 400);
+};
+
+window.confirmDelete = (orderId, name) => {
+if (!confirm(`هل تريد حذف طلبية "${name}"؟ لا يمكن التراجع.`)) return;
+deleteOrder(orderId);
+};
+
+async function deleteOrder(orderId) {
+try {
+await deleteDoc(doc(db, 'orders', orderId));
+allOrders = allOrders.filter(o => o.id !== orderId);
+updateChips();
+triggerOrderNotification();
+renderOrders();
+} catch (e) {
+alert('فشل الحذف، حاول مرة أخرى');
+}
+}
+
+init();
+</script>
+</body>
+</html>
