@@ -797,63 +797,66 @@ document.getElementById('successModal').style.display = 'flex';
         document.getElementById('itemsContainer').innerHTML = '';
         hideBadge();
         rowCounter = 0;
+        editOrderId = null;
         addItemRow();
         recalc();
+        document.getElementById('submitBtn').innerHTML = '<i class="fas fa-paper-plane"></i> تسجيل الطلبية';
     };
-// ------------------ تحميل الطلبية للتعديل ------------------
-async function loadOrderForEdit() {
-    const params = new URLSearchParams(window.location.search);
-    editOrderId = params.get("id");
 
-    if (!editOrderId) return;
+    // ------------------ تحميل الطلبية للتعديل ------------------
+    async function loadOrderForEdit() {
+        const params = new URLSearchParams(window.location.search);
+        editOrderId = params.get("id");
 
-    try {
-        const orderRef = doc(db, "orders", editOrderId);
-        const orderSnap = await getDoc(orderRef);
+        if (!editOrderId) return;
 
-        if (!orderSnap.exists()) {
-            alert("الطلبية غير موجودة");
-            return;
+        try {
+            const orderRef = doc(db, "orders", editOrderId);
+            const orderSnap = await getDoc(orderRef);
+
+            if (!orderSnap.exists()) {
+                alert("الطلبية غير موجودة");
+                return;
+            }
+
+            const order = orderSnap.data();
+
+            document.getElementById("customerInput").value = order.customerName || "";
+            document.getElementById("customerId").value = order.customerId || "";
+            document.getElementById("orderDate").value = order.date || "";
+            document.getElementById("orderNotes").value = order.notes || "";
+
+            showBadge(order.customerName);
+
+            document.getElementById("itemsContainer").innerHTML = "";
+            rowCounter = 0;
+
+            order.items.forEach(item => {
+                addItemRow();
+
+                const rowsNow = document.querySelectorAll(".item-row");
+                const currentRow = rowsNow[rowsNow.length - 1];
+
+                currentRow.querySelector(".p-name").value = item.name;
+                currentRow.querySelector(".p-id").value = item.stockId;
+                currentRow.querySelector(".p-unit").value = item.unit;
+                currentRow.querySelector(".p-qty").value = item.qty;
+                currentRow.querySelector(".p-price").value = item.price;
+            });
+
+            recalc();
+
+            document.getElementById("submitBtn").innerHTML =
+                '<i class="fas fa-save"></i> حفظ التعديلات';
+
+        } catch (err) {
+            console.error(err);
         }
-
-        const order = orderSnap.data();
-
-        document.getElementById("customerInput").value = order.customerName || "";
-        document.getElementById("customerId").value = order.customerId || "";
-        document.getElementById("orderDate").value = order.date || "";
-        document.getElementById("orderNotes").value = order.notes || "";
-
-        showBadge(order.customerName);
-
-        document.getElementById("itemsContainer").innerHTML = "";
-        rowCounter = 0;
-
-        order.items.forEach(item => {
-            addItemRow();
-
-            const row = document.querySelectorAll(".item-row");
-            const currentRow = row[row.length - 1];
-
-            currentRow.querySelector(".p-name").value = item.name;
-            currentRow.querySelector(".p-id").value = item.stockId;
-            currentRow.querySelector(".p-unit").value = item.unit;
-            currentRow.querySelector(".p-qty").value = item.qty;
-            currentRow.querySelector(".p-price").value = item.price;
-        });
-
-        recalc();
-
-        document.getElementById("submitBtn").innerHTML =
-            '<i class="fas fa-save"></i> حفظ التعديلات';
-
-    } catch (err) {
-        console.error(err);
     }
-}
-    
+
+    // ------------------ تشغيل التهيئة ------------------
     await init();
-await loadOrderForEdit();
-});
+    await loadOrderForEdit();
 </script>
 </body>
 </html>
