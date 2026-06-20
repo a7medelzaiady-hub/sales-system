@@ -1153,17 +1153,56 @@
         window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html";
     };
 
+    function downloadReceiptImage(blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `invoice_${editId}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }
+
     document.getElementById('confirmShareBtn').onclick = () => {
         const receipt = document.getElementById('thermalReceipt');
+        const shareBtn = document.getElementById('confirmShareBtn');
+        const originalBtnHtml = shareBtn.innerHTML;
+        shareBtn.disabled = true;
+        shareBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري التجهيز...';
+
         html2canvas(receipt, { scale: 2, useCORS: true }).then(canvas => {
             canvas.toBlob(blob => {
                 const file = new File([blob], `invoice_${editId}.png`, { type: 'image/png' });
-                if (navigator.share) {
+
+                // Web Share API with file support is NOT available on Firefox (desktop or
+                // mobile), and on other browsers navigator.share existing doesn't guarantee
+                // file sharing works — must check navigator.canShare({ files }) explicitly.
+                const canShareFiles = !!(navigator.canShare && navigator.share && navigator.canShare({ files: [file] }));
+
+                if (canShareFiles) {
                     navigator.share({ files: [file], title: 'فاتورة مبيعات', text: `فاتورة مبيعات من شركة الزيادي` })
                         .then(() => { window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html"; })
-                        .catch(err => console.log(err));
-                } else { alert("المشاركة غير مدعومة في هذا المتصفح"); }
+                        .catch(err => {
+                            console.log(err);
+                            shareBtn.disabled = false;
+                            shareBtn.innerHTML = originalBtnHtml;
+                        });
+                } else {
+                    // Fallback for Firefox and any browser without file-share support:
+                    // download the receipt image so the user can attach it manually on WhatsApp.
+                    downloadReceiptImage(blob);
+                    alert("متصفحك (مثل Firefox) لا يدعم المشاركة المباشرة للصور.\nتم تنزيل صورة الفاتورة على جهازك، يمكنك إرسالها يدويًا عبر واتساب.");
+                    shareBtn.disabled = false;
+                    shareBtn.innerHTML = originalBtnHtml;
+                    window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html";
+                }
             }, 'image/png');
+        }).catch(err => {
+            console.error(err);
+            shareBtn.disabled = false;
+            shareBtn.innerHTML = originalBtnHtml;
+            alert("حدث خطأ أثناء تجهيز صورة الفاتورة");
         });
     };
 
