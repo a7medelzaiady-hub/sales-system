@@ -211,9 +211,8 @@
             </div>
             <div class="col-6 col-md-3">
                 <label><i class="fas fa-truck-field"></i> اسم المورد المستحق</label>
-                <!-- تم تعطيل جلب البيانات هنا وتحويلها لخانة اختيار فارغة ثابتة بناء على طلبك -->
                 <select id="supplierSelect" class="form-select">
-                    <option value="">-- لم يتم جلب الموردين --</option>
+                    <option value="">جاري تحميل الموردين...</option>
                 </select>
             </div>
             <div class="col-6 col-md-3">
@@ -319,15 +318,26 @@
     cashInput.addEventListener('input', () => { window.calculateTotal(); });
     walletInput.addEventListener('input', () => { window.calculateTotal(); });
 
-    // مراجعة وتحديث دالة التحميل لمنع جلب الموردين نهائياً بطلب من المستخدم
+    // مراجعة وإعادة تفعيل جلب الموردين من الـ Firebase بنجاح
     async function loadData() {
         const supSelect = document.getElementById('supplierSelect');
         
-        // تعديل: تفريغ قائمة الموردين تماماً وعدم الاتصال بجدول الـ suppliers بالـ Firebase
-        supSelect.innerHTML = '<option value="">-- لم يتم جلب الموردين --</option>'; 
-        suppliersBase = {}; 
+        // 1. جلب الموردين وأرصدتهم الافتتاحية الأساسية وعرضهم بالقائمة
+        try {
+            const supSnap = await getDocs(collection(db, "suppliers"));
+            supSelect.innerHTML = '<option value="">اختر المورد من القائمة...</option>'; 
+            suppliersBase = {}; 
+            supSnap.forEach(d => { 
+                const data = d.data();
+                suppliersBase[d.id] = { name: data.name, openingBalance: Number(data.openingBalance) || 0 };
+                supSelect.innerHTML += `<option value="${d.id}">${data.name}</option>`; 
+            });
+        } catch (err) {
+            console.error("Error loading suppliers: ", err);
+            supSelect.innerHTML = '<option value="">خطأ في جلب الموردين</option>';
+        }
 
-        // جلب بقية البيانات اللازمة للمخزن والفواتير لضمان عدم تعطل السيستم
+        // 2. جلب جميع الحركات السابقة والحالية لبناء الرصيد التراكمي
         const [transSnap, voucherSnap, invSnap] = await Promise.all([
             getDocs(query(collection(db, "supplier_transactions"), orderBy("timestamp", "asc"))), 
             getDocs(collection(db, "transactions")),
@@ -355,6 +365,7 @@
             });
         });
 
+        // 3. تعبئة قائمة الأصناف الذكية للبحث الذاتي المنسدل
         allInventory = [];
         const prodDataList = document.getElementById('productsData');
         prodDataList.innerHTML = "";
@@ -365,9 +376,6 @@
         });
 
         supSelect.addEventListener('change', () => { window.calculateTotal(); });
-        
-        // تفعيل تشغيل الحسابات تلقائياً بدون شرط وجود موردين
-        window.calculateTotal();
         
         if (editId) { 
             await loadInvoiceForEdit(); 
@@ -426,6 +434,9 @@
 
         if (invSnap.exists()) {
             oldInvoiceData = invSnap.data();
+            if (oldInvoiceData.supplierId) {
+                document.getElementById('supplierSelect').value = oldInvoiceData.supplierId;
+            }
             document.getElementById('invDate').value = oldInvoiceData.date;
             document.getElementById('cashAmount').value = oldInvoiceData.cashPaid || '0.00';
             document.getElementById('walletAmount').value = oldInvoiceData.walletPaid || '0.00';
@@ -443,6 +454,9 @@
             const orderSnap = await getDoc(doc(db, "purchase_orders", id));
             if (orderSnap.exists()) {
                 const data = orderSnap.data();
+                if (data.supplierId) {
+                    document.getElementById('supplierSelect').value = data.supplierId;
+                }
                 document.getElementById('itemsList').innerHTML = ""; 
                 data.items.forEach(item => {
                     addNewItemRow({ name: item.name, qty: item.qty, returnQty: item.returnQty || 0, buy: item.buy || 0, unitName: item.unitName || 'كرتونة' });
@@ -466,7 +480,7 @@
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
                         <label><i class="fas fa-tag"></i> اسم الصنف</label>
-                        <input type="text" list="productsData" class="form-control item-name" value="${itemData ? itemData.name : ''}" placeholder="ابحث أو اكتب اسم صنف">
+                        <input type="text" list="productsData" class="form-control item-name" value="${itemData ? itemData.name : ''}" placeholder="ابدأ بكتابة أول حرف من الصنف...">
                     </div>
                     <div class="col-6 col-md-3">
                         <label><i class="fas fa-boxes-stacked"></i> نوع الوحدة</label>
@@ -525,14 +539,38 @@
             window.calculateTotal();
         });
 
+        // ميزة الإكمال التلقائي الذكي بمجرد كتابة أول حرف
+        nameInput.addEventListener('input', (e) => {
+            const currentText = e.target.value.trim();
+            if(currentText.length >= 1) {
+                // البحث عن أول صنف يبدأ أو يحتوي على النص المكتوب
+                const matchedProduct = allInventory.find(p => p.name.toLowerCase().startsWith(currentText.toLowerCase()) || p.name.toLowerCase().includes(currentText.toLowerCase()));
+                
+                if(matchedProduct && matchedProduct.name !== currentText) {
+                    const oldLen = currentText.length;
+                    e.target.value = matchedProduct.name;
+                    
+                    // عمل تحديد (Selection) للحروف المكملة بحيث إذا استمر بالتدوين يمسحها تلقائياً
+                    e.target.setSelectionRange(oldLen, matchedProduct.name.length);
+                    
+                    // تعبئة البيانات التابعة فوراً
+                    row.querySelector('.item-buy').value = matchedProduct.buy || 0;
+                    unitSelect.value = "كرتونة";
+                    document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (كرتونة)`;
+                    document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (كرتونة)`;
+                    window.calculateTotal();
+                }
+            }
+        });
+
         nameInput.addEventListener('change', (e) => {
             const found = allInventory.find(p => p.name === e.target.value);
             if(found) {
                 row.querySelector('.item-buy').value = found.buy || 0;
                 unitSelect.value = "كرتونة";
                 unitSelect.dispatchEvent(new Event('change'));
-            } else {
-                alert("عذرًا، هذا الصنف غير مسجل بالنظام. يرجى اختيار صنف من القائمة المنسدلة فقط.");
+            } else if (e.target.value !== "") {
+                alert("عذرًا، هذا الصنف غير مسجل بالنظام. يرجى اختيار صنف صحيح.");
                 e.target.value = "";
             }
             window.calculateTotal();
@@ -574,7 +612,6 @@
         const supplierId = document.getElementById('supplierSelect').value;
         let prevBalance = 0;
         
-        // فحص آمن لعدم احتساب أرصدة سابقة لعدم وجود مورد مسحوب
         if (supplierId && suppliersBase[supplierId]) {
             const targetTimestamp = editId ? oldInvoiceData?.timestamp : null;
             prevBalance = calculateHistoricalPreviousBalance(supplierId, targetTimestamp);
@@ -599,14 +636,14 @@
         
         const rows = document.querySelectorAll('.item-row');
         
-        // تعديل التحقق: السماح بحفظ الفاتورة بدون إلزامية تحديد المورد (أو التنبيه بملء بقية البيانات)
+        if(!supplierId) return alert("برجاء اختيار المورد أولاً");
         if(rows.length === 0) return alert("برجاء إضافة الأصناف أولاً");
 
         for (const row of rows) {
             const name = row.querySelector('.item-name').value.trim();
             const isExist = allInventory.some(p => p.name === name);
             if (!isExist || name === "") {
-                alert(`خطأ: الصنف "${name}" غير مسجل بقاعدة البيانات! يرجى إزالته أو اختيار صنف صحيح من القائمة المنسدلة للتمكن من الحفظ.`);
+                alert(`خطأ: الصنف "${name}" غير مسجل بقاعدة البيانات! يرجى اختيار صنف صحيح.`);
                 return;
             }
         }
@@ -615,7 +652,6 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل والموازنة الحالية...';
 
         try {
-            // الموازنة الحسابية للموردين تعمل فقط في حال تم تمرير معرف المورد لتجنب الأخطاء
             if (supplierId && editId && oldInvoiceData) {
                 const oldGross = Number(oldInvoiceData.grossTotal || oldInvoiceData.total || 0);
                 const oldCash = Number(oldInvoiceData.cashPaid || 0);
@@ -659,7 +695,7 @@
             else if(walletPaid > 0) finalPaymentType = "محفظة إلكترونية";
 
             const invoiceObj = {
-                supplierId: supplierId || "", 
+                supplierId: supplierId, 
                 total: grossTotal, grossTotal: grossTotal, 
                 cashPaid: cashPaid, walletPaid: walletPaid, totalPaid: totalPaid, netTotal: pendingAmount, 
                 items, type: "شراء", paymentType: finalPaymentType, date: invoiceDate, timestamp: editId ? oldInvoiceData.timestamp : serverTimestamp()
@@ -673,7 +709,7 @@
                 currentDocId = newDocRef.id;
             }
 
-            if (supplierId && pendingAmount !== 0 && suppliersBase[supplierId]) {
+            if (supplierId && pendingAmount !== 0) {
                 await updateDoc(doc(db, "suppliers", supplierId), { currentBalance: increment(pendingAmount) });
             }
 
@@ -681,7 +717,7 @@
                 await addDoc(collection(db, "transactions"), {
                     amount: cashPaid, type: "صرف", actionType: "سداد مورد",
                     details: `سداد نقدي (كاش) مقابل فاتورة شراء رقم (${currentDocId.substring(0,6)})`,
-                    date: invoiceDate, supplierId: supplierId || "", invoiceId: currentDocId,
+                    date: invoiceDate, supplierId: supplierId, invoiceId: currentDocId,
                     paymentMethod: "cash", timestamp: serverTimestamp()
                 });
             }
@@ -690,7 +726,7 @@
                 await addDoc(collection(db, "transactions"), {
                     amount: walletPaid, type: "صرف", actionType: "سداد مورد",
                     details: `سداد محفظة إلكترونية مقابل فاتورة شراء رقم (${currentDocId.substring(0,6)})`,
-                    date: invoiceDate, supplierId: supplierId || "", invoiceId: currentDocId,
+                    date: invoiceDate, supplierId: supplierId, invoiceId: currentDocId,
                     paymentMethod: "wallet", timestamp: serverTimestamp()
                 });
             }
