@@ -580,7 +580,17 @@
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000;
 
-    async function getRealBalance(customerId, initialBalance = 0) {
+    // مصدر الرصيد الموحّد: نفس المصدر المستخدم في صفحة "قائمة العملاء" (currentBalance)
+    // مع رجوع احتياطي لـ initialBalance لو currentBalance غير موجودة
+    function getCustomerBaseBalance(cust) {
+        if (!cust) return 0;
+        if (cust.currentBalance !== undefined && cust.currentBalance !== null) {
+            return Number(cust.currentBalance) || 0;
+        }
+        return Number(cust.initialBalance) || 0;
+    }
+
+    async function getRealBalance(customerId, baseBalance = 0) {
         try {
             const qInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
             const snapInvoices = await getDocs(qInvoices);
@@ -598,8 +608,8 @@
                 if (tr.type === 'قبض') transEffect -= (Number(tr.amount) || 0);
                 else if (tr.type === 'صرف') transEffect += (Number(tr.amount) || 0);
             });
-            return Number(initialBalance) + invoiceDebt + transEffect;
-        } catch (e) { return Number(initialBalance); }
+            return Number(baseBalance) + invoiceDebt + transEffect;
+        } catch (e) { return Number(baseBalance); }
     }
 
     async function fetchSmartPrice(stockId, customerId, selectedUnit) {
@@ -692,8 +702,9 @@
             btnSaveCustomer.classList.add('d-none');
             balanceDiv.style.display = 'block';
             balanceDiv.querySelector('#curBalanceVal').innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
-            
-            const realDebt = await getRealBalance(exactMatch.id, exactMatch.initialBalance || 0);
+
+            const startBalance = getCustomerBaseBalance(exactMatch);
+            const realDebt = await getRealBalance(exactMatch.id, startBalance);
             currentFetchedOldBalance = realDebt;
             showBalance(realDebt);
             calc();
@@ -704,7 +715,7 @@
 
         if (filtered.length > 0) {
             resultsDiv.innerHTML = filtered.map(c => `
-                <div class="search-item" onclick="selectCustomer('${c.id}', '${c.name}', ${c.initialBalance || 0})">
+                <div class="search-item" onclick="selectCustomer('${c.id}', '${c.name}', ${getCustomerBaseBalance(c)})">
                     <b>${c.name}</b>
                 </div>
             `).join('');
@@ -723,7 +734,7 @@
         }
     };
 
-    window.selectCustomer = async (id, name, initialBalance) => {
+    window.selectCustomer = async (id, name, baseBalance) => {
         document.getElementById('customerSearch').value = name;
         document.getElementById('customerSelect').value = id;
         document.getElementById('customerResults').style.display = 'none';
@@ -735,7 +746,7 @@
         balanceDiv.style.display = 'block';
         balanceSpan.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
 
-        const realDebt = await getRealBalance(id, initialBalance);
+        const realDebt = await getRealBalance(id, baseBalance);
         currentFetchedOldBalance = realDebt;
         showBalance(realDebt);
 
@@ -799,7 +810,9 @@
                 await updateDoc(customerRef, { initialBalance: newInitialBalance });
                 const custIndex = customers.findIndex(c => c.id === customerId);
                 if (custIndex !== -1) customers[custIndex].initialBalance = newInitialBalance;
-                const updatedRealBalance = await getRealBalance(customerId, newInitialBalance);
+                const cust = customers[custIndex];
+                const startBalance = getCustomerBaseBalance(cust);
+                const updatedRealBalance = await getRealBalance(customerId, startBalance);
                 currentFetchedOldBalance = updatedRealBalance;
                 showBalance(updatedRealBalance);
                 alert(`تم تحديث الرصيد الافتتاحي للعميل "${customerName}" بنجاح.`);
@@ -1268,12 +1281,13 @@
         try {
             await fetchFreshLists();
             setDataStatus(`تم التحديث — ${customers.length} عميل، ${inventory.length} صنف`, "fa-check-circle");
-            
+
             const currentCustId = document.getElementById('customerSelect').value;
             if (currentCustId) {
                 const cust = customers.find(c => c.id === currentCustId);
                 if (cust) {
-                    const realDebt = await getRealBalance(currentCustId, cust.initialBalance || 0);
+                    const startBalance = getCustomerBaseBalance(cust);
+                    const realDebt = await getRealBalance(currentCustId, startBalance);
                     currentFetchedOldBalance = realDebt;
                     showBalance(realDebt);
                 }
@@ -1295,10 +1309,10 @@
             await loadCustomersAndInventory();
 
             const urlParams = new URLSearchParams(window.location.search);
-            
+
             if (fromOrderId) {
                 document.getElementById('modeText').innerText = "من طلبية";
-                
+
                 const paramCustomerId = urlParams.get('customerId');
                 const paramCustomerName = urlParams.get('customerName');
                 const paramItems = JSON.parse(urlParams.get('items') || '[]');
@@ -1313,7 +1327,8 @@
                 if (paramCustomerId) {
                     const cust = customers.find(c => c.id === paramCustomerId);
                     if (cust) {
-                        const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
+                        const startBalance = getCustomerBaseBalance(cust);
+                        const realB = await getRealBalance(cust.id, startBalance);
                         currentFetchedOldBalance = realB;
                         showBalance(realB);
                     } else {
@@ -1331,7 +1346,7 @@
             } else if (editId) {
                 document.getElementById('modeText').innerText = "تعديل";
                 const invDoc = await getDoc(doc(db, "invoices", editId));
-                
+
                 if (invDoc.exists()) {
                     const data = invDoc.data();
                     document.getElementById('customerSelect').value = data.customerId || "";
@@ -1349,9 +1364,9 @@
                     if (data.customerId) {
                         const cust = customers.find(c => c.id === data.customerId);
                         document.getElementById('customerBalanceInfo').style.display = 'block';
-                        
-                        const initialB = cust ? (cust.initialBalance || 0) : 0;
-                        const realB = await getRealBalance(data.customerId, initialB);
+
+                        const startBalance = getCustomerBaseBalance(cust);
+                        const realB = await getRealBalance(data.customerId, startBalance);
                         currentFetchedOldBalance = realB;
                         showBalance(realB);
                     } else {
