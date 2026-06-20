@@ -1246,6 +1246,17 @@
         try {
             await fetchFreshLists();
             setDataStatus(`تم التحديث — ${customers.length} عميل، ${inventory.length} صنف`, "fa-check-circle");
+            
+            // إعادة حساب الرصيد عند التحديث اليدوي لضمان استقرار العرض
+            const currentCustId = document.getElementById('customerSelect').value;
+            if (currentCustId) {
+                const cust = customers.find(c => c.id === currentCustId);
+                if (cust) {
+                    const realDebt = await getRealBalance(currentCustId, cust.initialBalance || 0);
+                    currentFetchedOldBalance = realDebt;
+                    showBalance(realDebt);
+                }
+            }
             calc();
         } catch (err) {
             setDataStatus("تعذر التحديث، حاول مرة أخرى", "fa-exclamation-triangle");
@@ -1254,14 +1265,14 @@
         }
     };
 
-    // ===== Main init (تم الإصلاح هنا) =====
+    // ===== دالة التجهيز المهيأة بالكامل والمصلحة لضمان تحميل الحساب السابق بقوة =====
     async function init() {
         try {
             if (!editId) {
                 document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
             }
 
-            // ضمان تحميل القوائم أولاً بشكل متزامن كامل 
+            // ضمان تحميل مصفوفة العملاء بالكامل أولاً من السيرفر أو الكاش قبل الدخول في العمليات التالية
             await loadCustomersAndInventory();
 
             const urlParams = new URLSearchParams(window.location.search);
@@ -1277,7 +1288,6 @@
                 banner.style.display = 'flex';
                 document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
 
-                // تعبئة البيانات بالكامل وضمان قفل الـ Inputs لعدم ضياعها
                 document.getElementById('customerSearch').value = paramCustomerName || '';
                 document.getElementById('customerSelect').value = paramCustomerId || '';
 
@@ -1288,11 +1298,9 @@
                         currentFetchedOldBalance = realB;
                         showBalance(realB);
                     } else {
-                        // كحماية إضافية لو العميل غير كاش وموجود بطلبية خارجية
                         currentFetchedOldBalance = 0;
                         showBalance(0);
                     }
-                    // إظهار مربع الرصيد
                     document.getElementById('customerBalanceInfo').style.display = 'block';
                 }
 
@@ -1319,12 +1327,19 @@
                     document.getElementById('paidAmount').value = data.paid || 0;
                     document.getElementById('discountAmount').value = data.discount || 0;
 
-                    const cust = customers.find(c => c.id === data.customerId);
-                    if (cust) {
+                    if (data.customerId) {
+                        // البحث عن العميل أصبح آمنًا ومضمونًا لأننا قمنا بعمل await لتحميل الكاش والقوائم في بداية الدالة
+                        const cust = customers.find(c => c.id === data.customerId);
                         document.getElementById('customerBalanceInfo').style.display = 'block';
-                        const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
+                        
+                        // تمرير الرصيد الافتتاحي الفعلي إن وُجد لحساب المجموع التراكمي بدقة
+                        const initialB = cust ? (cust.initialBalance || 0) : 0;
+                        const realB = await getRealBalance(data.customerId, initialB);
                         currentFetchedOldBalance = realB;
                         showBalance(realB);
+                    } else {
+                        currentFetchedOldBalance = 0;
+                        showBalance(0);
                     }
 
                     document.getElementById("itemsContainer").innerHTML = "";
