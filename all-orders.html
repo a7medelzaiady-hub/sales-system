@@ -616,7 +616,17 @@ ${!isDone ? `
 <div class="items-dropdown-table" id="dropdown-${order.id}" onclick="event.stopPropagation();">
 <table>
 <tbody>
-${order.items?.map(i => `<tr><td>${i.name}</td><td class="text-center">${i.quantity}</td><td class="text-start">${Number(i.price*i.quantity).toFixed(2)} ج.م</td></tr>`).join('') || ''}
+${order.items?.map(i => {
+    // جلب وحساب القيم بشكل آمن لمنع تكرار مشكلة الـ undefined والـ NaN
+    const qty = Number(i.quantity || i.qty || 0);
+    const price = Number(i.price || 0);
+    const itemTotal = qty * price;
+    return `<tr>
+        <td>${i.name || '—'}</td>
+        <td class="text-center">${qty}</td>
+        <td class="text-start">${itemTotal.toFixed(2)} ج.م</td>
+    </tr>`;
+}).join('') || ''}
 </tbody>
 </table>
 </div>
@@ -667,7 +677,18 @@ document.getElementById('thOrderId').innerText = order.id.substring(0, 6).toUppe
 document.getElementById('thOrderDate').innerText = order.date ? order.date.split(' ')[0] : '—';
 document.getElementById('thCustomerName').innerText = order.customerName || 'عميل';
 document.getElementById('thFinalTotal').innerText = `${Number(order.total || 0).toFixed(2)} ج.م`;
-document.getElementById('thReceiptItems').innerHTML = order.items?.map(i => `<tr><td>${i.name}</td><td style="text-align:center;">${i.quantity}</td><td style="text-align:left;">${Number(i.price*i.quantity).toFixed(2)} ج.م</td></tr>`).join('') || '';
+
+// معالجة وحساب الأصناف بشكل آمن أيضاً أثناء تصدير الصورة للمشاركة الحرارية
+document.getElementById('thReceiptItems').innerHTML = order.items?.map(i => {
+    const qty = Number(i.quantity || i.qty || 0);
+    const price = Number(i.price || 0);
+    const itemTotal = qty * price;
+    return `<tr>
+        <td>${i.name || '—'}</td>
+        <td style="text-align:center;">${qty}</td>
+        <td style="text-align:left;">${itemTotal.toFixed(2)} ج.م</td>
+    </tr>`;
+}).join('') || '';
 
 setTimeout(() => {
 html2canvas(document.getElementById('thermalReceiptArea'), { scale: 2 }).then(canvas => {
