@@ -85,6 +85,34 @@ body{
   font-size:.82rem;color:var(--g8);outline:none;cursor:pointer;
 }
 
+/* ══ SEARCH BAR ══ */
+.searchbar{
+  background:var(--wh);
+  border-bottom:1px solid #d0ddd6;
+  padding:10px 14px;
+}
+.search-box{
+  display:flex;align-items:center;gap:8px;
+  background:var(--s1);border:1.5px solid #d7e2dc;
+  border-radius:10px;padding:8px 12px;
+  transition:border-color .15s;
+}
+.search-box:focus-within{border-color:var(--g6);background:var(--wh)}
+.search-box i{color:var(--s5);font-size:.85rem;flex-shrink:0}
+.search-box input{
+  border:none;background:transparent;outline:none;
+  font-family:'Cairo',sans-serif;font-weight:700;
+  font-size:.82rem;color:var(--s9);width:100%;
+}
+.search-box input::placeholder{color:var(--s5);font-weight:600}
+.search-clear{
+  border:none;background:var(--s3);color:#fff;
+  width:20px;height:20px;border-radius:50%;
+  display:none;align-items:center;justify-content:center;
+  font-size:.6rem;cursor:pointer;flex-shrink:0;
+}
+.search-clear.show{display:flex}
+
 /* ══ KPI CARDS ══ */
 .kpi-row{
   display:grid;
@@ -327,6 +355,15 @@ table.inv tfoot td.cr{color:var(--r7)}
   </div>
 </div>
 
+<!-- SEARCH BAR -->
+<div class="searchbar">
+  <div class="search-box">
+    <i class="fas fa-magnifying-glass"></i>
+    <input type="text" id="searchIn" placeholder="ابحث عن صنف..." oninput="filterTable()">
+    <button class="search-clear" id="searchClear" onclick="clearSearch()"><i class="fas fa-xmark"></i></button>
+  </div>
+</div>
+
 <!-- KPI -->
 <div class="kpi-row">
   <div class="kpi kpi-s">
@@ -461,6 +498,69 @@ function kpiHtml(j,c,cls){
   return h;
 }
 
+/* ─── global state للبحث ─── */
+let rowsData=[]; // [{name, d}]
+let totals={sJ:0,sC:0,pJ:0,pC:0,rJ:0,rC:0};
+
+/* ─── بناء صفوف الجدول مع دعم الفلترة ─── */
+function renderRows(filter){
+  const tbody=document.getElementById("tbody");
+  const tfoot=document.getElementById("tfoot");
+  const badge=document.getElementById("cntBadge");
+  const f=(filter||"").trim().toLowerCase();
+
+  const list = f
+    ? rowsData.filter(r=>r.name.toLowerCase().includes(f))
+    : rowsData;
+
+  if(!list.length){
+    tbody.innerHTML=`<tr><td colspan="4"><div class="state-box">
+      <div class="state-ico ico-def"><i class="fas fa-box-open"></i></div>
+      <div class="state-p">${f ? "لا توجد أصناف مطابقة للبحث" : "لا توجد حركة بضاعة في هذا اليوم"}</div>
+      <div class="state-s">${f ? "جرّب كلمة بحث أخرى" : "جرّب تاريخاً آخر أو تحقق من الفواتير"}</div>
+    </div></td></tr>`;
+    tfoot.style.display="none";
+    badge.style.display = rowsData.length ? "inline-block" : "none";
+    if(rowsData.length){ badge.textContent = `0 من ${rowsData.length} صنف`; }
+    return;
+  }
+
+  let html="";let n=0;
+  list.forEach(r=>{
+    const d=r.d;
+    n++;
+    const retH=(d.rJ>0||d.rC>0)?brb(d.rJ,d.rC):`<span class="dash">—</span>`;
+    html+=`<tr>
+      <td><div class="nm-cell"><span class="rn">${n}</span>${r.name}</div></td>
+      <td class="cs">${cell(d.sJ,d.sC)}</td>
+      <td class="cp">${cell(d.pJ,d.pC)}</td>
+      <td class="cr">${retH}</td>
+    </tr>`;
+  });
+  tbody.innerHTML=html;
+
+  document.getElementById("fSales").innerHTML=cell(totals.sJ,totals.sC);
+  document.getElementById("fPurch").innerHTML=cell(totals.pJ,totals.pC);
+  document.getElementById("fRet").innerHTML=(totals.rJ>0||totals.rC>0)?brb(totals.rJ,totals.rC):`<span class="dash">—</span>`;
+  tfoot.style.display="table-footer-group";
+
+  badge.style.display="inline-block";
+  badge.textContent = f ? `${n} من ${rowsData.length} صنف` : `${n} صنف`;
+}
+
+window.filterTable=function(){
+  const val=document.getElementById("searchIn").value;
+  document.getElementById("searchClear").classList.toggle("show", !!val);
+  renderRows(val);
+};
+window.clearSearch=function(){
+  const input=document.getElementById("searchIn");
+  input.value="";
+  document.getElementById("searchClear").classList.remove("show");
+  renderRows("");
+  input.focus();
+};
+
 /* ─── main ─── */
 async function load(){
   const date=document.getElementById("dateIn").value;
@@ -480,6 +580,14 @@ async function load(){
     <div class="spin"></div><div class="spin-lbl">جار تجميع البيانات…</div>
   </div></td></tr>`;
 
+  // إعادة تصفير البحث عند تغيير التاريخ
+  const searchInput=document.getElementById("searchIn");
+  if(searchInput){
+    searchInput.value="";
+    document.getElementById("searchClear").classList.remove("show");
+  }
+  rowsData=[];
+
   if(!date)return;
 
   const D={};
@@ -494,6 +602,8 @@ async function load(){
 
   try{
     /* ══ المبيعات: invoices ══ */
+    /* مراجعة: المرتجعات داخل الفواتير (isReturn) تُحتسب في عمود "مرتجع"
+       ولا تُحتسب ضمن "مبيعات" — وهذا صحيح منطقياً لأنها ترجع للمخزون. */
     const sSnap=await getDocs(collection(db,"invoices"));
     sSnap.forEach(doc=>{
       const inv=doc.data();
@@ -502,12 +612,15 @@ async function load(){
       inv.items.forEach(item=>{
         const name=(item.name||"").trim();
         const qty=Number(item.qty)||0;
-        if(!name||qty<=0)return;
+        if(!name||qty<=0)return; // تجاهل أي كمية سالبة أو صفرية أو بدون اسم صنف
         add(name,isCarton(item),qty,!!item.isReturn?"r":"s");
       });
     });
 
     /* ══ المشتريات: supplier_transactions ══ */
+    /* مراجعة: تم التأكد من معالجة qty و returnQty بشكل منفصل لكل صنف،
+       مع تجاهل القيم السالبة أو غير الرقمية باستخدام Number(...)||0،
+       وفصل المرتجع (r) عن المشتريات (p) لكل وحدة (جركن/كرتونة) بشكل صحيح. */
     const pSnap=await getDocs(collection(db,"supplier_transactions"));
     pSnap.forEach(doc=>{
       const pur=doc.data();
@@ -529,37 +642,17 @@ async function load(){
     document.getElementById("kPurch").innerHTML=kpiHtml(G.pJ,G.pC,"kpi-p .kpi-val .kv-line");
     document.getElementById("kRet").innerHTML  =kpiHtml(G.rJ,G.rC,"kpi-r .kpi-val .kv-line");
 
-    /* ══ TABLE ══ */
+    /* ══ تجهيز بيانات الجدول للعرض والبحث ══ */
     const sorted=Object.keys(D).sort((a,b)=>a.localeCompare(b,"ar"));
-    let html="";let n=0;
+    rowsData=[];
     sorted.forEach(name=>{
       const d=D[name];
       if(!d.sJ&&!d.sC&&!d.pJ&&!d.pC&&!d.rJ&&!d.rC)return;
-      n++;
-      const retH=(d.rJ>0||d.rC>0)?brb(d.rJ,d.rC):`<span class="dash">—</span>`;
-      html+=`<tr>
-        <td><div class="nm-cell"><span class="rn">${n}</span>${name}</div></td>
-        <td class="cs">${cell(d.sJ,d.sC)}</td>
-        <td class="cp">${cell(d.pJ,d.pC)}</td>
-        <td class="cr">${retH}</td>
-      </tr>`;
+      rowsData.push({name,d});
     });
+    totals=G;
 
-    if(!html){
-      tbody.innerHTML=`<tr><td colspan="4"><div class="state-box">
-        <div class="state-ico ico-def"><i class="fas fa-box-open"></i></div>
-        <div class="state-p">لا توجد حركة بضاعة في هذا اليوم</div>
-        <div class="state-s">جرّب تاريخاً آخر أو تحقق من الفواتير</div>
-      </div></td></tr>`;
-    }else{
-      tbody.innerHTML=html;
-      document.getElementById("fSales").innerHTML=cell(G.sJ,G.sC);
-      document.getElementById("fPurch").innerHTML=cell(G.pJ,G.pC);
-      document.getElementById("fRet").innerHTML=(G.rJ>0||G.rC>0)?brb(G.rJ,G.rC):`<span class="dash">—</span>`;
-      tfoot.style.display="table-footer-group";
-      badge.textContent=`${n} صنف`;
-      badge.style.display="inline-block";
-    }
+    renderRows("");
 
   }catch(e){
     console.error(e);
