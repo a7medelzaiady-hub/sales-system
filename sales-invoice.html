@@ -484,7 +484,7 @@
             <i class="fab fa-whatsapp" style="color: #25D366; font-size: 2.2rem;"></i>
         </div>
         <h5 style="font-weight: 700; color: var(--text-primary); margin-bottom: 6px;">تم الحفظ بنجاح! 🎉</h5>
-        <p style="color: #555; font-size: 0.85rem; margin-bottom: 18px; line-height: 1.4;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل؟</p>
+        <p style="color: #555; font-size: 0.85rem; margin-bottom: 18px; line-height: 1.4;">تم تسجيل بيانات الفاتورة، هل تود مشاركة الفاتورة الحرارية للعميل?</p>
         <div style="display: flex; flex-direction: column; gap: 8px;">
             <button id="confirmShareBtn" style="background: #25D366; color: white; border: none; padding: 10px; border-radius: 10px; font-weight: 700; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;">
                 <i class="fab fa-whatsapp"></i> مشاركة الفاتورة كصورة
@@ -606,18 +606,9 @@
     let currentFetchedOldBalance = 0;
     let originalInvoiceTime = "";
 
-    // ===== OPTIMIZATION =====
-    // customers/inventory used to be re-fetched from Firestore (2 full-collection reads)
-    // on EVERY page load, even though they rarely change minute to minute. Now we cache
-    // them in localStorage with a timestamp and only hit Firestore again if the cache is
-    // missing or older than CACHE_TTL_MS, or if the user explicitly presses "تحديث القوائم".
-    // This is the single biggest read-reduction on this page since it's opened very often.
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
-    const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+    const CACHE_TTL_MS = 10 * 60 * 1000; 
 
-    // يحسب أثر الفواتير والحركات (بدون الرصيد الافتتاحي) على حساب العميل.
-    // يُستخدم في حساب الرصيد الحالي، وأيضًا في حساب الرصيد الافتتاحي الجديد
-    // المطلوب عند "تصحيح" الرصيد الحالي يدويًا.
     async function getBalanceComponents(customerId) {
         let invoiceDebt = 0;
         let transEffect = 0;
@@ -636,7 +627,7 @@
                 if (tr.type === 'قبض') transEffect -= (Number(tr.amount) || 0);
                 else if (tr.type === 'صرف') transEffect += (Number(tr.amount) || 0);
             });
-        } catch (e) { /* ignore, fall back to zeros */ }
+        } catch (e) { }
         return { invoiceDebt, transEffect };
     }
 
@@ -710,7 +701,6 @@
         const initialBalanceInput = document.getElementById('newCustomerInitialBalance');
         const btnSaveCustomer = document.getElementById('btnAddNewCustomer');
 
-        // أي بحث جديد عن عميل يلغي وضع تصحيح الرصيد المفتوح (لو موجود)
         window.cancelBalanceEditing();
 
         if (term.length < 1) {
@@ -780,8 +770,6 @@
         if (balanceSpan) { balanceSpan.innerText = Number(val).toFixed(2); }
     }
 
-    // فتح صندوق "تصحيح الرصيد لو فيه لغبطة": بيتعبى تلقائيًا بالرصيد الحالي المعروض
-    // عشان المستخدم يقدر يصححه لو غلط، مش يدخل رقم افتتاحي بمعزل عن الواقع.
     window.enableBalanceEditing = () => {
         const customerId = document.getElementById('customerSelect').value;
         if (!customerId) return;
@@ -798,11 +786,6 @@
         if (box) box.style.display = 'none';
     };
 
-    // الحفظ يغطي حالتين:
-    // 1) عميل جديد بالكامل: القيمة المدخلة تُحفظ كما هي كـ "رصيد افتتاحي".
-    // 2) عميل موجود وبيتم تصحيح رصيده: القيمة المدخلة تُعامل كـ "الرصيد الصحيح الحالي"،
-    //    ويُحسب رصيد افتتاحي جديد بحيث: الافتتاحي الجديد + فواتير + حركات = الرصيد الصحيح المدخل.
-    //    وبكده الفاتورة الحالية وكل حسابات العميل تتظبط فورًا ومن غير ما نلمس الفواتير القديمة.
     window.saveOrUpdateCustomerDirectly = async () => {
         const idInput = document.getElementById('customerSelect');
         const nameInput = document.getElementById('customerSearch');
@@ -824,8 +807,6 @@
                 btnCorrection.disabled = true;
                 btnCorrection.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
-                // نحسب أثر الفواتير والحركات (بدون الافتتاحي) عشان نطلع رصيد افتتاحي
-                // يخلي المعادلة تساوي بالظبط الرصيد الصحيح اللي كتبه المستخدم.
                 const { invoiceDebt, transEffect } = await getBalanceComponents(customerId);
                 const newInitialBalance = correctedCurrentBalance - invoiceDebt - transEffect;
 
@@ -852,7 +833,6 @@
             return;
         }
 
-        // وضع عميل جديد (مفيش customerId)
         const balanceInput = document.getElementById('newCustomerInitialBalance');
         const btnSaveCustomer = document.getElementById('btnAddNewCustomer');
         const newInitialBalance = parseFloat(balanceInput.value) || 0;
@@ -1192,6 +1172,9 @@
         } catch (e) {
             console.error("Firebase Error: ", e);
             alert("فشل حفظ التعديل\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
+        } catch (e) {
+            console.error("Firebase Error: ", e);
+            alert("فشل حفظ التعديل\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
         } finally {
             saveBtn.disabled = false;
             saveBtn.innerText = "حفظ وتحديث البيانات";
@@ -1256,10 +1239,6 @@
         html2canvas(receipt, { scale: 2, useCORS: true }).then(canvas => {
             canvas.toBlob(blob => {
                 const file = new File([blob], `invoice_${editId}.png`, { type: 'image/png' });
-
-                // Web Share API with file support is NOT available on Firefox (desktop or
-                // mobile), and on other browsers navigator.share existing doesn't guarantee
-                // file sharing works — must check navigator.canShare({ files }) explicitly.
                 const canShareFiles = !!(navigator.canShare && navigator.share && navigator.canShare({ files: [file] }));
 
                 if (canShareFiles) {
@@ -1271,10 +1250,8 @@
                             shareBtn.innerHTML = originalBtnHtml;
                         });
                 } else {
-                    // Fallback for Firefox and any browser without file-share support:
-                    // download the receipt image so the user can attach it manually on WhatsApp.
                     downloadReceiptImage(blob);
-                    alert("متصفحك (مثل Firefox) لا يدعم المشاركة المباشرة للصور.\nتم تنزيل صورة الفاتورة على جهازك، يمكنك إرسالها يدويًا عبر واتساب.");
+                    alert("متصفحك لا يدعم المشاركة المباشرة للصور.\nتم تنزيل صورة الفاتورة على جهازك، يمكنك إرسالها يدويًا عبر واتساب.");
                     shareBtn.disabled = false;
                     shareBtn.innerHTML = originalBtnHtml;
                     window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html";
@@ -1293,7 +1270,7 @@
             localStorage.setItem(CACHE_KEYS.customers, JSON.stringify(customers));
             localStorage.setItem(CACHE_KEYS.inventory, JSON.stringify(inventory));
             localStorage.setItem(CACHE_KEYS.ts, String(Date.now()));
-        } catch (e) { /* storage full or unavailable - ignore */ }
+        } catch (e) { }
     }
 
     function setDataStatus(text, icon = "fa-database") {
@@ -1320,12 +1297,11 @@
         if (cachedCustomers && cachedInventory && cachedTs && age < CACHE_TTL_MS) {
             customers = JSON.parse(cachedCustomers);
             inventory = JSON.parse(cachedInventory);
-            setDataStatus(`بيانات محفوظة محليًا (عمرها ${Math.round(age / 60000)} دقيقة) — ${customers.length} عميل، ${inventory.length} صنف`, "fa-check-circle");
+            setDataStatus(`بيانات محفوظة محليًا — ${customers.length} عميل، ${inventory.length} صنف`, "fa-check-circle");
             return;
         }
 
         if (cachedCustomers && cachedInventory) {
-            // show stale cache instantly while refreshing in background
             customers = JSON.parse(cachedCustomers);
             inventory = JSON.parse(cachedInventory);
         }
@@ -1369,16 +1345,18 @@
                 banner.style.display = 'flex';
                 document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
 
+                // تأكيد الحقن الفوري للبيانات لعدم فقدانها في مرحلة التحقق من الـ DOM
                 document.getElementById('customerSearch').value = paramCustomerName || '';
                 document.getElementById('customerSelect').value = paramCustomerId || '';
 
                 if (paramCustomerId) {
+                    // التحقق من وجود العميل في المصفوفة المحلية للتأكيد، وإذا لم يوجد نعتمد على المعطيات القادمة مباشرة
                     const cust = customers.find(c => c.id === paramCustomerId);
-                    if (cust) {
-                        const realB = await getRealBalance(cust.id, cust.initialBalance || 0);
-                        currentFetchedOldBalance = realB;
-                        showBalance(realB);
-                    }
+                    const initialB = cust ? (cust.initialBalance || 0) : 0;
+                    
+                    const realB = await getRealBalance(paramCustomerId, initialB);
+                    currentFetchedOldBalance = realB;
+                    showBalance(realB);
                 }
 
                 paramItems.forEach(item => window.addNewRow(item));
