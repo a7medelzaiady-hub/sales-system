@@ -590,9 +590,9 @@
     let inventory = [];
     let customers = [];
     
-    // الحل الجذري: استقبال المعرف بـ 'edit' أو 'id' لضمان قراءته من أي شاشة مبيعات تفادياً للصفحة الفارغة
     const urlParams = new URLSearchParams(window.location.search);
     let editId = urlParams.get('edit') || urlParams.get('id'); 
+    if (editId) editId = editId.trim();
     
     let fromOrderId = urlParams.get('fromOrder');
     let deleteOrderAfterSave = urlParams.get('deleteOrderAfterSave') === "true";
@@ -606,27 +606,35 @@
     async function getBalanceComponents(customerId) {
         let invoiceDebt = 0;
         let transEffect = 0;
+        if (!customerId) return { invoiceDebt, transEffect };
+        
+        const cleanCustomerId = customerId.trim();
+        const cleanEditId = editId ? editId.trim() : null;
+
         try {
-            const qInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
+            const qInvoices = query(collection(db, "invoices"), where("customerId", "==", cleanCustomerId));
             const snapInvoices = await getDocs(qInvoices);
-            snapInvoices.forEach(doc => {
-                if (editId && doc.id === editId) return;
-                invoiceDebt += (Number(doc.data().remaining) || 0);
+            snapInvoices.forEach(docSnap => {
+                if (cleanEditId && docSnap.id === cleanEditId) return;
+                invoiceDebt += (Number(docSnap.data().remaining) || 0);
             });
 
-            const qTrans = query(collection(db, "transactions"), where("partyId", "==", customerId));
+            const qTrans = query(collection(db, "transactions"), where("partyId", "==", cleanCustomerId));
             const snapTrans = await getDocs(qTrans);
-            snapTrans.forEach(doc => {
-                const tr = doc.data();
+            snapTrans.forEach(docSnap => {
+                const tr = docSnap.data();
                 if (tr.type === 'قبض') transEffect -= (Number(tr.amount) || 0);
                 else if (tr.type === 'صرف') transEffect += (Number(tr.amount) || 0);
             });
-        } catch (e) { }
+        } catch (e) { 
+            console.error("Error calculating balance components:", e);
+        }
         return { invoiceDebt, transEffect };
     }
 
     async function getRealBalance(customerId, initialBalance = 0) {
-        const { invoiceDebt, transEffect } = await getBalanceComponents(customerId);
+        if (!customerId) return 0;
+        const { invoiceDebt, transEffect } = await getBalanceComponents(customerId.trim());
         return Number(initialBalance) + invoiceDebt + transEffect;
     }
 
@@ -635,7 +643,7 @@
             if (customerId) {
                 const qCustInvoices = query(
                     collection(db, "invoices"),
-                    where("customerId", "==", customerId),
+                    where("customerId", "==", customerId.trim()),
                     orderBy("timestamp", "desc"),
                     limit(5)
                 );
@@ -729,8 +737,10 @@
     };
 
     window.selectCustomer = async (id, name, initialBalance) => {
+        if (!id) return;
+        const cleanId = id.trim();
         document.getElementById('customerSearch').value = name;
-        document.getElementById('customerSelect').value = id.trim();
+        document.getElementById('customerSelect').value = cleanId;
         document.getElementById('customerResults').style.display = 'none';
         document.getElementById('newCustomerInitialBalance').classList.add('d-none');
         document.getElementById('btnAddNewCustomer').classList.add('d-none');
@@ -741,7 +751,7 @@
         balanceDiv.style.display = 'block';
         balanceSpan.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
 
-        const realDebt = await getRealBalance(id.trim(), initialBalance);
+        const realDebt = await getRealBalance(cleanId, initialBalance);
         currentFetchedOldBalance = realDebt;
         showBalance(realDebt);
 
@@ -779,7 +789,7 @@
     window.saveOrUpdateCustomerDirectly = async () => {
         const idInput = document.getElementById('customerSelect');
         const nameInput = document.getElementById('customerSearch');
-        const customerId = idInput.value;
+        const customerId = idInput.value ? idInput.value.trim() : "";
         const customerName = nameInput.value.trim();
 
         if (!customerName) { alert("برجاء تحديد أو كتابة اسم العميل أولاً"); return; }
@@ -1069,7 +1079,7 @@
             const currentInvoiceTime = document.getElementById('invTime').value || originalInvoiceTime || new Date().toLocaleString('ar-EG');
 
             const baseInvoiceData = {
-                customerId, customerName,
+                customerId: customerId, customerName,
                 itemsTotal: Number(itemsTotal) || 0,
                 discount: Number(discount) || 0,
                 total: Number(total) || 0,
@@ -1113,7 +1123,7 @@
 
                 prepareThermalReceipt(newInvoiceData, currentFetchedOldBalance);
             } else {
-                const oldRef = doc(db, "invoices", editId);
+                const oldRef = doc(db, "invoices", editId.trim());
                 const oldSnap = await getDoc(oldRef);
                 if (oldSnap.exists()) {
                     const oldData = oldSnap.data();
@@ -1307,7 +1317,6 @@
         }
     };
 
-    // التهيئة والمزامنة المحسنة والآمنة 100%
     async function init() {
         try {
             if (!editId) {
@@ -1323,8 +1332,10 @@
 
                 document.getElementById('modeText').innerText = "من طلبية";
                 const banner = document.getElementById('orderSourceBanner');
-                banner.style.display = 'flex';
-                document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName}`;
+                if (banner) banner.style.display = 'flex';
+                
+                const srcText = document.getElementById('orderSourceText');
+                if (srcText) srcText.innerText = `طلبية ${paramCustomerName || ''}`;
 
                 document.getElementById('customerSearch').value = paramCustomerName || '';
                 document.getElementById('customerSelect').value = paramCustomerId;
@@ -1335,7 +1346,8 @@
                     const realB = await getRealBalance(paramCustomerId, initialB);
                     currentFetchedOldBalance = realB;
                     showBalance(realB);
-                    document.getElementById('customerBalanceInfo').style.display = 'block';
+                    const bInfo = document.getElementById('customerBalanceInfo');
+                    if (bInfo) bInfo.style.display = 'block';
                 }
 
                 paramItems.forEach(item => window.addNewRow(item));
@@ -1343,15 +1355,13 @@
                 isChanged = true; 
 
             } else if (editId) {
-                // تعديل فاتورة قديمة: الحقل يعمل الآن بشكل آمن تماماً
                 document.getElementById('modeText').innerText = "تعديل";
                 setDataStatus("جاري جلب بيانات الفاتورة المراد تعديلها...", "fa-spinner fa-spin");
                 
-                const invDoc = await getDoc(doc(db, "invoices", editId.trim()));
+                const invDoc = await getDoc(doc(db, "invoices", editId));
                 if (invDoc.exists()) {
                     const data = invDoc.data();
                     
-                    // تعبئة حقول العميل والمعرفات الأساسية
                     const cleanCustomerId = data.customerId ? data.customerId.trim() : "";
                     document.getElementById('customerSelect').value = cleanCustomerId;
                     document.getElementById('customerSearch').value = data.customerName || 'عميل نقدي';
@@ -1376,7 +1386,6 @@
                         showBalance(realB);
                     }
 
-                    // تنظيف الجدول القديم وإعادة بناء الأسطر وتعبئتها بالكامل
                     document.getElementById("itemsContainer").innerHTML = "";
                     if (data.items && data.items.length > 0) {
                         data.items.forEach(item => window.addNewRow(item));
