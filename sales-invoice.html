@@ -653,6 +653,10 @@
 
     window.handleInput = () => { isChanged = true; calc(); };
 
+    window.handleSpreadsheetUnitText = (unitValue) => {
+        return unitValue === 'pcs' ? 'جركن' : 'كرتونة';
+    };
+
     window.handleSplitInput = () => {
         let cash = parseFloat(document.getElementById('cashAmount').value) || 0;
         let wallet = parseFloat(document.getElementById('walletAmount').value) || 0;
@@ -660,8 +664,9 @@
         window.handleInput();
     };
 
-    window.searchCustomer = (input) => {
-        const term = input.value.toLowerCase().trim();
+    // تم تحديث الدالة لتبحث تلقائياً بالاسم الكامل في الخلفية في حال لم يضغط المستخدم على القائمة المنسدلة
+    window.searchCustomer = async (input) => {
+        const term = input.value.trim();
         const resultsDiv = document.getElementById('customerResults');
         const balanceDiv = document.getElementById('customerBalanceInfo');
         const initialBalanceInput = document.getElementById('newCustomerInitialBalance');
@@ -678,7 +683,24 @@
             return;
         }
 
-        const filtered = customers.filter(c => c.name.toLowerCase().includes(term));
+        // البحث التلقائي عن العميل المطابق للاسم المكتوب تماماً لتشغيل حسابه فوراً دون الحاجة للنقر
+        const exactMatch = customers.find(c => c.name === term);
+        if (exactMatch) {
+            document.getElementById('customerSelect').value = exactMatch.id;
+            resultsDiv.style.display = 'none';
+            initialBalanceInput.classList.add('d-none');
+            btnSaveCustomer.classList.add('d-none');
+            balanceDiv.style.display = 'block';
+            balanceDiv.querySelector('#curBalanceVal').innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
+            
+            const realDebt = await getRealBalance(exactMatch.id, exactMatch.initialBalance || 0);
+            currentFetchedOldBalance = realDebt;
+            showBalance(realDebt);
+            calc();
+            return;
+        }
+
+        const filtered = customers.filter(c => c.name.toLowerCase().includes(term.toLowerCase()));
 
         if (filtered.length > 0) {
             resultsDiv.innerHTML = filtered.map(c => `
@@ -847,7 +869,7 @@
                         <span class="sub-lbl">الوحدة البيعية</span>
                         <select class="form-select p-unit" onchange="updateRowPrice(this); handleInput();">
                             <option value="box" ${oldData?.unit === 'box' ? 'selected' : ''}>كرتونة</option>
-                            <option value="pcs" ${oldData?.unit === 'pcs' ? 'selected' : ''}>قطعة</option>
+                            <option value="pcs" ${oldData?.unit === 'pcs' ? 'selected' : ''}>جركن</option>
                         </select>
                     </div>
                 </div>
@@ -949,7 +971,7 @@
             const isReturn = r.querySelector('.p-return-checkbox').checked;
             if (!pid || qty <= 0) return;
             validItemsCount++;
-            const unitText = unit === 'box' ? 'كرتونة' : 'قطعة';
+            const unitText = window.handleSpreadsheetUnitText(unit);
             const returnStyle = isReturn ? 'color: red; font-weight: bold; background-color: #fff0f1;' : '';
             htmlList += `
                 <tr style="${returnStyle}">
@@ -1247,7 +1269,6 @@
             await fetchFreshLists();
             setDataStatus(`تم التحديث — ${customers.length} عميل، ${inventory.length} صنف`, "fa-check-circle");
             
-            // إعادة حساب الرصيد عند التحديث اليدوي لضمان استقرار العرض
             const currentCustId = document.getElementById('customerSelect').value;
             if (currentCustId) {
                 const cust = customers.find(c => c.id === currentCustId);
@@ -1265,14 +1286,12 @@
         }
     };
 
-    // ===== دالة التجهيز المهيأة بالكامل والمصلحة لضمان تحميل الحساب السابق بقوة =====
     async function init() {
         try {
             if (!editId) {
                 document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
             }
 
-            // ضمان تحميل مصفوفة العملاء بالكامل أولاً من السيرفر أو الكاش قبل الدخول في العمليات التالية
             await loadCustomersAndInventory();
 
             const urlParams = new URLSearchParams(window.location.search);
@@ -1328,11 +1347,9 @@
                     document.getElementById('discountAmount').value = data.discount || 0;
 
                     if (data.customerId) {
-                        // البحث عن العميل أصبح آمنًا ومضمونًا لأننا قمنا بعمل await لتحميل الكاش والقوائم في بداية الدالة
                         const cust = customers.find(c => c.id === data.customerId);
                         document.getElementById('customerBalanceInfo').style.display = 'block';
                         
-                        // تمرير الرصيد الافتتاحي الفعلي إن وُجد لحساب المجموع التراكمي بدقة
                         const initialB = cust ? (cust.initialBalance || 0) : 0;
                         const realB = await getRealBalance(data.customerId, initialB);
                         currentFetchedOldBalance = realB;
