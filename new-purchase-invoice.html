@@ -191,6 +191,7 @@
 </head>
 <body>
 
+<!-- الـ datalist لعرض الاقتراحات أسفل الخانة -->
 <datalist id="productsData"></datalist>
 
 <div class="header">
@@ -212,7 +213,7 @@
             <div class="col-6 col-md-3">
                 <label><i class="fas fa-truck-field"></i> اسم المورد المستحق</label>
                 <select id="supplierSelect" class="form-select">
-                    <option value="">جاري تحميل الموردين...</option>
+                    <option value="">جاري تحميل الموردين من السيرفر...</option>
                 </select>
             </div>
             <div class="col-6 col-md-3">
@@ -318,14 +319,14 @@
     cashInput.addEventListener('input', () => { window.calculateTotal(); });
     walletInput.addEventListener('input', () => { window.calculateTotal(); });
 
-    // مراجعة وإعادة تفعيل جلب الموردين من الـ Firebase بنجاح
+    // تعديل وإصلاح دالة جلب البيانات لتعمل بشكل منفصل ومضمون 100%
     async function loadData() {
         const supSelect = document.getElementById('supplierSelect');
         
-        // 1. جلب الموردين وأرصدتهم الافتتاحية الأساسية وعرضهم بالقائمة
+        // 1. جلب الموردين بشكل منفصل تماماً ومقاوم للأخطاء
         try {
             const supSnap = await getDocs(collection(db, "suppliers"));
-            supSelect.innerHTML = '<option value="">اختر المورد من القائمة...</option>'; 
+            supSelect.innerHTML = '<option value="">-- اختر اسم المورد المستحق --</option>'; 
             suppliersBase = {}; 
             supSnap.forEach(d => { 
                 const data = d.data();
@@ -333,59 +334,64 @@
                 supSelect.innerHTML += `<option value="${d.id}">${data.name}</option>`; 
             });
         } catch (err) {
-            console.error("Error loading suppliers: ", err);
-            supSelect.innerHTML = '<option value="">خطأ في جلب الموردين</option>';
+            console.error("خطأ جلب الموردين: ", err);
+            supSelect.innerHTML = '<option value="">❌ فشل تحميل الموردين</option>';
         }
 
-        // 2. جلب جميع الحركات السابقة والحالية لبناء الرصيد التراكمي
-        const [transSnap, voucherSnap, invSnap] = await Promise.all([
-            getDocs(query(collection(db, "supplier_transactions"), orderBy("timestamp", "asc"))), 
-            getDocs(collection(db, "transactions")),
-            getDocs(collection(db, "inventory"))
-        ]);
+        // 2. جلب باقي الحركات والبيانات التاريخية والمخزن
+        try {
+            const [transSnap, voucherSnap, invSnap] = await Promise.all([
+                getDocs(query(collection(db, "supplier_transactions"), orderBy("timestamp", "asc"))), 
+                getDocs(collection(db, "transactions")),
+                getDocs(collection(db, "inventory"))
+            ]);
 
-        globalVouchersHistory = [];
-        voucherSnap.forEach(v => {
-            globalVouchersHistory.push({ id: v.id, ...v.data() });
-        });
-
-        allInvoicesHistory = [];
-        transSnap.forEach(doc => {
-            const data = doc.data();
-            const amt = Number(data.grossTotal) || Number(data.total) || 0;
-            const cashP = Number(data.cashPaid || 0);
-            const walletP = Number(data.walletPaid || 0);
-            const directPaid = data.totalPaid ? Number(data.totalPaid) : (cashP + walletP || Number(data.paidAmount) || 0);
-
-            allInvoicesHistory.push({
-                id: doc.id,
-                ...data,
-                displayGross: amt,
-                displayNetPending: amt - directPaid
+            globalVouchersHistory = [];
+            voucherSnap.forEach(v => {
+                globalVouchersHistory.push({ id: v.id, ...v.data() });
             });
-        });
 
-        // 3. تعبئة قائمة الأصناف الذكية للبحث الذاتي المنسدل
-        allInventory = [];
-        const prodDataList = document.getElementById('productsData');
-        prodDataList.innerHTML = "";
-        invSnap.forEach(d => {
-            const data = d.data();
-            allInventory.push({ id: d.id, ...data });
-            prodDataList.innerHTML += `<option value="${data.name}">`;
-        });
+            allInvoicesHistory = [];
+            transSnap.forEach(doc => {
+                const data = doc.data();
+                const amt = Number(data.grossTotal) || Number(data.total) || 0;
+                const cashP = Number(data.cashPaid || 0);
+                const walletP = Number(data.walletPaid || 0);
+                const directPaid = data.totalPaid ? Number(data.totalPaid) : (cashP + walletP || Number(data.paidAmount) || 0);
+
+                allInvoicesHistory.push({
+                    id: doc.id,
+                    ...data,
+                    displayGross: amt,
+                    displayNetPending: amt - directPaid
+                });
+            });
+
+            // تعبئة المخزن وقائمة الأصناف
+            allInventory = [];
+            const prodDataList = document.getElementById('productsData');
+            prodDataList.innerHTML = "";
+            invSnap.forEach(d => {
+                const data = d.data();
+                allInventory.push({ id: d.id, ...data });
+                prodDataList.innerHTML += `<option value="${data.name}">`;
+            });
+
+        } catch (err) {
+            console.error("خطأ جلب المخزن أو الحركات: ", err);
+        }
 
         supSelect.addEventListener('change', () => { window.calculateTotal(); });
         
         if (editId) { 
             await loadInvoiceForEdit(); 
-            window.calculateTotal();
         } else if (orderId) {
             await loadOrderData(orderId);
-            window.calculateTotal();
         } else { 
             addNewItemRow(); 
         }
+
+        window.calculateTotal();
 
         setTimeout(() => {
             document.querySelectorAll('input, select').forEach(el => {
@@ -480,7 +486,7 @@
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
                         <label><i class="fas fa-tag"></i> اسم الصنف</label>
-                        <input type="text" list="productsData" class="form-control item-name" value="${itemData ? itemData.name : ''}" placeholder="ابدأ بكتابة أول حرف من الصنف...">
+                        <input type="text" list="productsData" class="form-control item-name" value="${itemData ? itemData.name : ''}" placeholder="اكتب أول حرف وسيتم الإكمال فوراً...">
                     </div>
                     <div class="col-6 col-md-3">
                         <label><i class="fas fa-boxes-stacked"></i> نوع الوحدة</label>
@@ -539,27 +545,27 @@
             window.calculateTotal();
         });
 
-        // ميزة الإكمال التلقائي الذكي بمجرد كتابة أول حرف
+        // آلية الإكمال التلقائي الفوري والذكي الفعال والخالي من المشاكل
         nameInput.addEventListener('input', (e) => {
-            const currentText = e.target.value.trim();
-            if(currentText.length >= 1) {
-                // البحث عن أول صنف يبدأ أو يحتوي على النص المكتوب
-                const matchedProduct = allInventory.find(p => p.name.toLowerCase().startsWith(currentText.toLowerCase()) || p.name.toLowerCase().includes(currentText.toLowerCase()));
+            const inputVal = e.target.value;
+            if (!inputVal) return;
+
+            // البحث عن صنف يبدأ بنفس الحروف المكتوبة
+            const match = allInventory.find(p => p.name.toLowerCase().startsWith(inputVal.toLowerCase()));
+            
+            if (match && match.name !== inputVal) {
+                const currentLength = inputVal.length;
+                e.target.value = match.name;
                 
-                if(matchedProduct && matchedProduct.name !== currentText) {
-                    const oldLen = currentText.length;
-                    e.target.value = matchedProduct.name;
-                    
-                    // عمل تحديد (Selection) للحروف المكملة بحيث إذا استمر بالتدوين يمسحها تلقائياً
-                    e.target.setSelectionRange(oldLen, matchedProduct.name.length);
-                    
-                    // تعبئة البيانات التابعة فوراً
-                    row.querySelector('.item-buy').value = matchedProduct.buy || 0;
-                    unitSelect.value = "كرتونة";
-                    document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (كرتونة)`;
-                    document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (كرتونة)`;
-                    window.calculateTotal();
-                }
+                // عمل اختيار مسبق للحروف المكملة لسهولة الكتابة أو المسح
+                e.target.setSelectionRange(currentLength, match.name.length);
+                
+                // تعبئة بقية حقول السطر تلقائياً فوراً
+                row.querySelector('.item-buy').value = match.buy || 0;
+                unitSelect.value = "كرتونة";
+                document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (كرتونة)`;
+                document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (كرتونة)`;
+                window.calculateTotal();
             }
         });
 
@@ -570,7 +576,7 @@
                 unitSelect.value = "كرتونة";
                 unitSelect.dispatchEvent(new Event('change'));
             } else if (e.target.value !== "") {
-                alert("عذرًا، هذا الصنف غير مسجل بالنظام. يرجى اختيار صنف صحيح.");
+                alert("عذرًا، هذا الصنف غير مسجل بالنظام. يرجى اختيار صنف صحيح من الاقتراحات.");
                 e.target.value = "";
             }
             window.calculateTotal();
@@ -636,7 +642,7 @@
         
         const rows = document.querySelectorAll('.item-row');
         
-        if(!supplierId) return alert("برجاء اختيار المورد أولاً");
+        if(!supplierId) return alert("برجاء اختيار اسم المورد أولاً");
         if(rows.length === 0) return alert("برجاء إضافة الأصناف أولاً");
 
         for (const row of rows) {
