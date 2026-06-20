@@ -4,11 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>فاتورة شراء احترافية - شركة الزيادى</title>
-    <!-- Bootstrap 5 RTL -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <!-- Google Fonts - Cairo & Montserrat -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;500;600;700;800&family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet">
-    <!-- FontAwesome 6 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
@@ -18,7 +15,7 @@
             --bg-light: #f4f7f5;
             --text-dark: #111d17;
             --text-muted: #6c7a73;
-            --border-color: #e2ebd9;
+            --border-color: #cbdcd0;
             --white: #ffffff;
             --danger: #d90429;
             --danger-light: #ffe5ea;
@@ -100,14 +97,15 @@
             left: 0;
             right: 0;
             background: var(--white);
-            border: 1px solid var(--border-color);
-            border-radius: 14px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-            max-height: 250px;
+            border: 2px solid var(--primary);
+            border-top: none;
+            border-radius: 0 0 14px 14px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.15);
+            max-height: 260px;
             overflow-y: auto;
             z-index: 1050;
             display: none;
-            margin-top: 5px;
+            margin-top: -2px;
             padding: 5px 0;
         }
         .autocomplete-item {
@@ -115,18 +113,20 @@
             cursor: pointer;
             font-weight: 600;
             font-size: 0.95rem;
-            transition: background 0.2s;
+            transition: all 0.2s;
             text-align: right;
+            border-bottom: 1px solid #f0f4f1;
         }
-        .autocomplete-item:hover {
-            background-color: #f0f7f3;
-            color: var(--primary);
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-item:hover, .autocomplete-item.active {
+            background-color: #0b5e3d;
+            color: var(--white);
         }
 
         /* أسطر بنود الفواتير المبتكرة */
         .item-row { 
             background: var(--white); 
-            border: 1px solid var(--border-color); 
+            border: 1px solid rgba(11, 94, 61, 0.1); 
             border-radius: 24px; 
             padding: 24px; 
             margin-bottom: 20px; 
@@ -185,7 +185,7 @@
         .invoice-footer { 
             background: var(--white); 
             padding: 28px; 
-            border: 1px solid var(--border-color); 
+            border: 1px solid rgba(11, 94, 61, 0.1); 
             display: flex; 
             flex-direction: column; 
             align-items: center; 
@@ -207,7 +207,7 @@
             border: 1px solid transparent;
         }
         .total-container-border {
-            border: 2px dashed #e2e8f0;
+            border: 2px dashed #cbd5e1;
             background: #f8fafc;
         }
 
@@ -258,7 +258,6 @@
 
 <datalist id="productsData"></datalist>
 
-<!-- الهيدر المطور والمبسط للاستخدام بيد واحدة -->
 <div class="header">
     <div class="d-flex align-items-center gap-3">
         <i class="fas fa-arrow-right clickable-icon text-white fs-5" id="btnBack" title="رجوع"></i>
@@ -269,7 +268,6 @@
 </div>
 
 <div class="container-fluid px-3 mt-2">
-    <!-- بيانات الفاتورة وعناصر السداد كاش / محفظة -->
     <div class="data-card">
         <div class="row g-3">
             <div class="col-12 col-sm-6 col-md-3">
@@ -277,11 +275,10 @@
                 <input type="date" id="invDate" class="form-control">
             </div>
             
-            <!-- حقل المورد المطور بنظام Autocomplete الاحترافي -->
             <div class="col-12 col-sm-6 col-md-3 autocomplete-wrapper">
                 <label><i class="fas fa-truck-field"></i> اسم المورد المستحق</label>
                 <input type="text" id="supplierSearch" class="form-control"
-                       placeholder="ابدأ بكتابة اسم المورد للبحث..." autocomplete="off">
+                       placeholder="اكتب الحرف الأول للمورد..." autocomplete="off">
                 <div id="supplierDropdown" class="autocomplete-dropdown"></div>
                 <input type="hidden" id="supplierSelect">
             </div>
@@ -297,7 +294,6 @@
         </div>
     </div>
 
-    <!-- حاوية عرض بنود وأصناف المشتريات المضافة -->
     <div id="itemsList" class="mt-3"></div>
 
     <button type="button" class="add-item-btn" id="addItemBtn">
@@ -305,7 +301,6 @@
     </button>
 </div>
 
-<!-- الحاوية السفلية الذكية لملخص الفاتورة والحساب التراكمي المحدث -->
 <div class="invoice-footer" id="invoiceSummaryCard">
     <div class="total-container">
         <span class="small text-muted fw-bold"><i class="fas fa-boxes"></i> عدد البنود الحالية:</span>
@@ -366,6 +361,7 @@
     let isDataChanged = false; 
     let isSubmitting = false; 
     let oldInvoiceData = null;
+    let currentFocusIndex = -1; // لتتبع التنقل بالأسهم داخل قائمة الموردين
 
     window.addEventListener('beforeunload', (e) => {
         if (isDataChanged && !isSubmitting) {
@@ -394,10 +390,11 @@
     cashInput.addEventListener('input', () => { window.calculateTotal(); });
     walletInput.addEventListener('input', () => { window.calculateTotal(); });
 
-    // بناء محرك وقائمة الـ Autocomplete المخصصة للموردين
+    // ميكانيكية البحث والتوقع الذكي المتقدم (Predictive Search) للموردين
     supplierSearchInput.addEventListener('input', (e) => {
         const typedName = e.target.value.trim();
         isDataChanged = true;
+        currentFocusIndex = -1; 
         
         if (!typedName) {
             supplierDropdown.style.display = 'none';
@@ -406,23 +403,26 @@
             return;
         }
 
-        // تصفية الموردين المتطابقين مع النص المكتوب
+        // تصفية الموردين بناءً على احتواء أو بدء الاسم بالمدخلات
         const filtered = Object.entries(suppliersBase).filter(([id, s]) => 
             s.name.toLowerCase().includes(typedName.toLowerCase())
         );
 
         if (filtered.length > 0) {
             supplierDropdown.innerHTML = "";
-            filtered.forEach(([id, s]) => {
+            filtered.forEach(([id, s], index) => {
                 const item = document.createElement('div');
                 item.className = 'autocomplete-item';
                 item.innerText = s.name;
-                item.addEventListener('click', () => {
-                    supplierSearchInput.value = s.name;
-                    supplierHiddenInput.value = id;
-                    supplierDropdown.style.display = 'none';
-                    window.calculateTotal();
-                });
+                item.setAttribute('data-id', id);
+                
+                // تحديد العنصر الأول تلقائياً كخيار نشط افتراضي للإكمال الفوري
+                if(index === 0) {
+                    item.classList.add('active');
+                    currentFocusIndex = 0;
+                }
+
+                item.addEventListener('click', () => selectSupplier(s.name, id));
                 supplierDropdown.appendChild(item);
             });
             supplierDropdown.style.display = 'block';
@@ -433,16 +433,47 @@
         }
     });
 
-    // إغلاق قائمة البحث المنسدلة عند الضغط في أي مكان خارجها
+    // التعامل مع أزرار الكيبورد (أسهم، Enter، Tab) للتنقل والإكمال التلقائي فورا
+    supplierSearchInput.addEventListener('keydown', (e) => {
+        const items = supplierDropdown.querySelectorAll('.autocomplete-item');
+        if (!items.length) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            items[currentFocusIndex]?.classList.remove('active');
+            currentFocusIndex = (currentFocusIndex + 1) % items.length;
+            items[currentFocusIndex].classList.add('active');
+            items[currentFocusIndex].scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            items[currentFocusIndex]?.classList.remove('active');
+            currentFocusIndex = (currentFocusIndex - 1 + items.length) % items.length;
+            items[currentFocusIndex].classList.add('active');
+            items[currentFocusIndex].scrollIntoView({ block: 'nearest' });
+        } else if (e.key === 'Enter' || e.key === 'Tab') {
+            if (supplierDropdown.style.display === 'block' && currentFocusIndex > -1) {
+                e.preventDefault();
+                const activeItem = items[currentFocusIndex];
+                selectSupplier(activeItem.innerText, activeItem.getAttribute('data-id'));
+            }
+        }
+    });
+
+    function selectSupplier(name, id) {
+        supplierSearchInput.value = name;
+        supplierHiddenInput.value = id;
+        supplierDropdown.style.display = 'none';
+        window.calculateTotal();
+    }
+
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.autocomplete-wrapper')) {
             supplierDropdown.style.display = 'none';
         }
     });
 
-    // تجميع الحسابات من قاعدة البيانات بالكامل لبناء الرصيد التراكمي
+    // جلب البيانات بالكامل من السيرفر
     async function loadData() {
-        // 1. جلب الموردين وأرصدتهم الافتتاحية الأساسية
         const supSnap = await getDocs(collection(db, "suppliers"));
         suppliersBase = {}; 
         supSnap.forEach(d => { 
@@ -450,7 +481,6 @@
             suppliersBase[d.id] = { name: data.name, openingBalance: Number(data.openingBalance) || 0 };
         });
 
-        // 2. جلب جميع الحركات السابقة والحالية لبناء الرصيد التراكمي
         const [transSnap, voucherSnap, invSnap] = await Promise.all([
             getDocs(query(collection(db, "supplier_transactions"), orderBy("timestamp", "asc"))), 
             getDocs(collection(db, "transactions")),
@@ -478,7 +508,6 @@
             });
         });
 
-        // 3. تعبئة قائمة الأصناف الذكية للبحث الذاتي المنسدل
         allInventory = [];
         const prodDataList = document.getElementById('productsData');
         prodDataList.innerHTML = "";
@@ -504,7 +533,6 @@
         }, 800);
     }
 
-    // دالة محاكاة وحساب الحساب السابق في الذاكرة (In-Memory) مطابقة لصفحة السجل تماماً
     function calculateHistoricalPreviousBalance(supId, invoiceTimestamp) {
         const supplier = suppliersBase[supId];
         if (!supplier) return 0;
@@ -718,19 +746,19 @@
         const pendingAmount = grossTotal - totalPaid;
         
         const rows = document.querySelectorAll('.item-row');
-        if(!supplierId || rows.length === 0) return alert("برجاء إكمال البيانات وإضافة الأصناف أولاً (تأكد من اختيار اسم المورد من قائمة البحث المنسدلة الذكية)");
+        if(!supplierId || rows.length === 0) return alert("برجاء إكمال البيانات واختيار المورد من القائمة المقترحة أولاً.");
 
         for (const row of rows) {
             const name = row.querySelector('.item-name').value.trim();
             const isExist = allInventory.some(p => p.name === name);
             if (!isExist || name === "") {
-                alert(`خطأ: الصنف "${name}" غير مسجل بقاعدة البيانات! يرجى إزالته أو اختيار صنف صحيح من القائمة المنسدلة للتمكن من الحفظ.`);
+                alert(`خطأ: الصنف "${name}" غير مسجل بقاعدة البيانات!`);
                 return;
             }
         }
 
         btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل والموازنة الحالية...';
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل...';
 
         try {
             if (editId && oldInvoiceData) {
