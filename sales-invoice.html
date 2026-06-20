@@ -186,6 +186,22 @@
             font-weight: 700;
         }
 
+        #balanceCorrectionBox {
+            display: none;
+            background: #fff8e6;
+            border: 1px solid #ffe1a3;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-top: 8px;
+        }
+        #balanceCorrectionBox .hint {
+            font-size: 0.7rem;
+            color: #8a6d00;
+            font-weight: 600;
+            margin-bottom: 6px;
+            display: block;
+        }
+
         .total-box {
             background: linear-gradient(135deg, var(--header-bg), #08432b);
             color: white;
@@ -318,7 +334,20 @@
                 <div id="customerBalanceInfo">
                     <div class="d-flex justify-content-between align-items-center">
                         <span><i class="fas fa-wallet me-1"></i> الرصيد الحالي: <span id="curBalanceVal">0.00</span> ج.م</span>
-                        <button type="button" id="btnTriggerEditBalance" class="btn btn-sm p-0 text-primary fw-bold" style="font-size: 0.75rem; text-decoration: underline;" onclick="enableBalanceEditing()">تعديل الرصيد الافتتاحي</button>
+                        <button type="button" id="btnTriggerEditBalance" class="btn btn-sm p-0 text-primary fw-bold" style="font-size: 0.75rem; text-decoration: underline;" onclick="enableBalanceEditing()">تصحيح الرصيد لو فيه لغبطة</button>
+                    </div>
+                </div>
+
+                <div id="balanceCorrectionBox">
+                    <span class="hint"><i class="fas fa-info-circle me-1"></i> اكتب الرصيد الصحيح الفعلي للعميل دلوقتي، والنظام هيظبط الحساب تلقائيًا ويحدّث الفاتورة فورًا.</span>
+                    <div class="d-flex gap-1">
+                        <input type="number" id="balanceCorrectionInput" class="form-control" placeholder="الرصيد الصحيح الحالي">
+                        <button type="button" id="btnSaveBalanceCorrection" class="btn btn-warning fw-bold" style="white-space:nowrap;" onclick="saveOrUpdateCustomerDirectly()">
+                            <i class="fas fa-check me-1"></i> حفظ
+                        </button>
+                        <button type="button" class="btn btn-light text-danger fw-bold" onclick="cancelBalanceEditing()">
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -586,11 +615,15 @@
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
-    async function getRealBalance(customerId, initialBalance = 0) {
+    // يحسب أثر الفواتير والحركات (بدون الرصيد الافتتاحي) على حساب العميل.
+    // يُستخدم في حساب الرصيد الحالي، وأيضًا في حساب الرصيد الافتتاحي الجديد
+    // المطلوب عند "تصحيح" الرصيد الحالي يدويًا.
+    async function getBalanceComponents(customerId) {
+        let invoiceDebt = 0;
+        let transEffect = 0;
         try {
             const qInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
             const snapInvoices = await getDocs(qInvoices);
-            let invoiceDebt = 0;
             snapInvoices.forEach(doc => {
                 if (editId && doc.id === editId) return;
                 invoiceDebt += (Number(doc.data().remaining) || 0);
@@ -598,14 +631,18 @@
 
             const qTrans = query(collection(db, "transactions"), where("partyId", "==", customerId));
             const snapTrans = await getDocs(qTrans);
-            let transEffect = 0;
             snapTrans.forEach(doc => {
                 const tr = doc.data();
                 if (tr.type === 'قبض') transEffect -= (Number(tr.amount) || 0);
                 else if (tr.type === 'صرف') transEffect += (Number(tr.amount) || 0);
             });
-            return Number(initialBalance) + invoiceDebt + transEffect;
-        } catch (e) { return Number(initialBalance); }
+        } catch (e) { /* ignore, fall back to zeros */ }
+        return { invoiceDebt, transEffect };
+    }
+
+    async function getRealBalance(customerId, initialBalance = 0) {
+        const { invoiceDebt, transEffect } = await getBalanceComponents(customerId);
+        return Number(initialBalance) + invoiceDebt + transEffect;
     }
 
     async function fetchSmartPrice(stockId, customerId, selectedUnit) {
@@ -673,6 +710,9 @@
         const initialBalanceInput = document.getElementById('newCustomerInitialBalance');
         const btnSaveCustomer = document.getElementById('btnAddNewCustomer');
 
+        // أي بحث جديد عن عميل يلغي وضع تصحيح الرصيد المفتوح (لو موجود)
+        window.cancelBalanceEditing();
+
         if (term.length < 1) {
             resultsDiv.style.display = 'none';
             balanceDiv.style.display = 'none';
@@ -699,6 +739,7 @@
             resultsDiv.style.display = 'none';
             initialBalanceInput.classList.remove('d-none');
             btnSaveCustomer.classList.remove('d-none');
+            initialBalanceInput.placeholder = "رصيد افتتاحي";
             btnSaveCustomer.innerHTML = '<i class="fas fa-user-plus me-1"></i> حفظ كعميل جديد بالرصيد الافتتاحي';
             document.getElementById('customerSelect').value = "";
             balanceDiv.style.display = 'none';
@@ -713,6 +754,7 @@
         document.getElementById('customerResults').style.display = 'none';
         document.getElementById('newCustomerInitialBalance').classList.add('d-none');
         document.getElementById('btnAddNewCustomer').classList.add('d-none');
+        window.cancelBalanceEditing();
 
         const balanceDiv = document.getElementById('customerBalanceInfo');
         const balanceSpan = document.getElementById('curBalanceVal');
@@ -738,56 +780,96 @@
         if (balanceSpan) { balanceSpan.innerText = Number(val).toFixed(2); }
     }
 
+    // فتح صندوق "تصحيح الرصيد لو فيه لغبطة": بيتعبى تلقائيًا بالرصيد الحالي المعروض
+    // عشان المستخدم يقدر يصححه لو غلط، مش يدخل رقم افتتاحي بمعزل عن الواقع.
     window.enableBalanceEditing = () => {
         const customerId = document.getElementById('customerSelect').value;
         if (!customerId) return;
-        const cust = customers.find(c => c.id === customerId);
-        if (cust) {
-            const balanceInput = document.getElementById('newCustomerInitialBalance');
-            const btnSaveCustomer = document.getElementById('btnAddNewCustomer');
-            balanceInput.value = cust.initialBalance || 0;
-            balanceInput.classList.remove('d-none');
-            btnSaveCustomer.classList.remove('d-none');
-            btnSaveCustomer.innerHTML = '<i class="fas fa-user-edit me-1"></i> تحديث الرصيد الافتتاحي للعميل الحالي';
-        }
+        const box = document.getElementById('balanceCorrectionBox');
+        const input = document.getElementById('balanceCorrectionInput');
+        input.value = Number(currentFetchedOldBalance).toFixed(2);
+        box.style.display = 'block';
+        input.focus();
+        input.select();
     };
 
+    window.cancelBalanceEditing = () => {
+        const box = document.getElementById('balanceCorrectionBox');
+        if (box) box.style.display = 'none';
+    };
+
+    // الحفظ يغطي حالتين:
+    // 1) عميل جديد بالكامل: القيمة المدخلة تُحفظ كما هي كـ "رصيد افتتاحي".
+    // 2) عميل موجود وبيتم تصحيح رصيده: القيمة المدخلة تُعامل كـ "الرصيد الصحيح الحالي"،
+    //    ويُحسب رصيد افتتاحي جديد بحيث: الافتتاحي الجديد + فواتير + حركات = الرصيد الصحيح المدخل.
+    //    وبكده الفاتورة الحالية وكل حسابات العميل تتظبط فورًا ومن غير ما نلمس الفواتير القديمة.
     window.saveOrUpdateCustomerDirectly = async () => {
         const idInput = document.getElementById('customerSelect');
         const nameInput = document.getElementById('customerSearch');
-        const balanceInput = document.getElementById('newCustomerInitialBalance');
-        const btnSaveCustomer = document.getElementById('btnAddNewCustomer');
-
         const customerId = idInput.value;
         const customerName = nameInput.value.trim();
-        const newInitialBalance = parseFloat(balanceInput.value) || 0;
 
         if (!customerName) { alert("برجاء تحديد أو كتابة اسم العميل أولاً"); return; }
+
+        const isCorrectionMode = !!customerId && document.getElementById('balanceCorrectionBox').style.display !== 'none';
+
+        if (isCorrectionMode) {
+            const correctionInput = document.getElementById('balanceCorrectionInput');
+            const btnCorrection = document.getElementById('btnSaveBalanceCorrection');
+            const correctedCurrentBalance = parseFloat(correctionInput.value);
+
+            if (isNaN(correctedCurrentBalance)) { alert("برجاء كتابة الرصيد الصحيح الحالي"); return; }
+
+            try {
+                btnCorrection.disabled = true;
+                btnCorrection.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+                // نحسب أثر الفواتير والحركات (بدون الافتتاحي) عشان نطلع رصيد افتتاحي
+                // يخلي المعادلة تساوي بالظبط الرصيد الصحيح اللي كتبه المستخدم.
+                const { invoiceDebt, transEffect } = await getBalanceComponents(customerId);
+                const newInitialBalance = correctedCurrentBalance - invoiceDebt - transEffect;
+
+                await updateDoc(doc(db, "customers", customerId), { initialBalance: newInitialBalance });
+
+                const custIndex = customers.findIndex(c => c.id === customerId);
+                if (custIndex !== -1) customers[custIndex].initialBalance = newInitialBalance;
+
+                currentFetchedOldBalance = correctedCurrentBalance;
+                showBalance(correctedCurrentBalance);
+                persistCache();
+                window.cancelBalanceEditing();
+                isChanged = true;
+                calc();
+
+                alert(`تم تصحيح رصيد العميل "${customerName}" إلى ${correctedCurrentBalance.toFixed(2)} ج.م بنجاح، وتم تحديث الفاتورة الحالية.`);
+            } catch (error) {
+                console.error(error);
+                alert("حدث خطأ أثناء تصحيح الرصيد، برجاء المحاولة مرة أخرى");
+            } finally {
+                btnCorrection.disabled = false;
+                btnCorrection.innerHTML = '<i class="fas fa-check me-1"></i> حفظ';
+            }
+            return;
+        }
+
+        // وضع عميل جديد (مفيش customerId)
+        const balanceInput = document.getElementById('newCustomerInitialBalance');
+        const btnSaveCustomer = document.getElementById('btnAddNewCustomer');
+        const newInitialBalance = parseFloat(balanceInput.value) || 0;
 
         try {
             btnSaveCustomer.disabled = true;
             btnSaveCustomer.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ والتحديث...';
 
-            if (!customerId) {
-                const docRef = await addDoc(collection(db, "customers"), {
-                    name: customerName, initialBalance: newInitialBalance, createdAt: serverTimestamp()
-                });
-                const newCustomerObj = { id: docRef.id, name: customerName, initialBalance: newInitialBalance };
-                customers.push(newCustomerObj);
-                idInput.value = docRef.id;
-                currentFetchedOldBalance = newInitialBalance;
-                showBalance(newInitialBalance);
-                alert(`تم حفظ العميل الجديد "${customerName}" بنجاح.`);
-            } else {
-                const customerRef = doc(db, "customers", customerId);
-                await updateDoc(customerRef, { initialBalance: newInitialBalance });
-                const custIndex = customers.findIndex(c => c.id === customerId);
-                if (custIndex !== -1) customers[custIndex].initialBalance = newInitialBalance;
-                const updatedRealBalance = await getRealBalance(customerId, newInitialBalance);
-                currentFetchedOldBalance = updatedRealBalance;
-                showBalance(updatedRealBalance);
-                alert(`تم تحديث الرصيد الافتتاحي للعميل "${customerName}" بنجاح.`);
-            }
+            const docRef = await addDoc(collection(db, "customers"), {
+                name: customerName, initialBalance: newInitialBalance, createdAt: serverTimestamp()
+            });
+            const newCustomerObj = { id: docRef.id, name: customerName, initialBalance: newInitialBalance };
+            customers.push(newCustomerObj);
+            idInput.value = docRef.id;
+            currentFetchedOldBalance = newInitialBalance;
+            showBalance(newInitialBalance);
+            alert(`تم حفظ العميل الجديد "${customerName}" بنجاح.`);
 
             persistCache();
             balanceInput.classList.add('d-none');
