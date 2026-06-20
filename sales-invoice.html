@@ -740,7 +740,7 @@
 
     window.selectCustomer = async (id, name, initialBalance) => {
         document.getElementById('customerSearch').value = name;
-        document.getElementById('customerSelect').value = id;
+        document.getElementById('customerSelect').value = id.trim();
         document.getElementById('customerResults').style.display = 'none';
         document.getElementById('newCustomerInitialBalance').classList.add('d-none');
         document.getElementById('btnAddNewCustomer').classList.add('d-none');
@@ -751,7 +751,7 @@
         balanceDiv.style.display = 'block';
         balanceSpan.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
 
-        const realDebt = await getRealBalance(id, initialBalance);
+        const realDebt = await getRealBalance(id.trim(), initialBalance);
         currentFetchedOldBalance = realDebt;
         showBalance(realDebt);
 
@@ -1316,12 +1316,12 @@
             setDataStatus(`تم التحديث — ${customers.length} عميل، ${inventory.length} صنف`, "fa-check-circle");
         } catch (err) {
             setDataStatus("تعذر التحديث، حاول مرة أخرى", "fa-exclamation-triangle");
-        } finally {
+        } fill {
             btn.disabled = false;
         }
     };
 
-    // ===== Main init =====
+    // ===== دالة التحميل والتهيئة المحسنة للطلبيات =====
     async function init() {
         try {
             if (!editId) {
@@ -1331,8 +1331,9 @@
             await loadCustomersAndInventory();
 
             const urlParams = new URLSearchParams(window.location.search);
+            
             if (fromOrderId) {
-                const paramCustomerId = urlParams.get('customerId');
+                const paramCustomerId = urlParams.get('customerId') ? urlParams.get('customerId').trim() : '';
                 const paramCustomerName = urlParams.get('customerName');
                 const paramItems = JSON.parse(urlParams.get('items') || '[]');
 
@@ -1342,10 +1343,11 @@
                 banner.style.display = 'flex';
                 document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
 
-                // حفظ القيم في الحقول وضمان التعرف عليها رسمياً
+                // 1. ملء الحقول أولاً وقبل أي عملية حسابية
                 document.getElementById('customerSearch').value = paramCustomerName || '';
-                document.getElementById('customerSelect').value = paramCustomerId || '';
+                document.getElementById('customerSelect').value = paramCustomerId;
 
+                // 2. حساب الرصيد الحقيقي وجلبه فوراً
                 if (paramCustomerId) {
                     const cust = customers.find(c => c.id === paramCustomerId);
                     const initialB = cust ? (cust.initialBalance || 0) : 0;
@@ -1354,19 +1356,22 @@
                     currentFetchedOldBalance = realB;
                     showBalance(realB);
                     
-                    // إظهار مربع الرصيد فوراً للعميل القادم من الطلبية
                     document.getElementById('customerBalanceInfo').style.display = 'block';
                 }
 
+                // 3. بناء الأسطر بعد استقرار بيانات العميل
                 paramItems.forEach(item => window.addNewRow(item));
+                
+                // 4. تشغيل الحسبة النهائية وتثبيتها
                 calc();
+                isChanged = true; 
 
             } else if (editId) {
                 document.getElementById('modeText').innerText = "تعديل";
                 const invDoc = await getDoc(doc(db, "invoices", editId));
                 if (invDoc.exists()) {
                     const data = invDoc.data();
-                    document.getElementById('customerSelect').value = data.customerId || "";
+                    document.getElementById('customerSelect').value = data.customerId ? data.customerId.trim() : "";
                     document.getElementById('customerSearch').value = data.customerName || 'عميل نقدي';
 
                     originalInvoiceTime = data.time || "";
@@ -1378,7 +1383,7 @@
                     document.getElementById('paidAmount').value = data.paid || 0;
                     document.getElementById('discountAmount').value = data.discount || 0;
 
-                    const cust = customers.find(c => c.id === data.customerId);
+                    const cust = customers.find(c => c.id === data.customerId?.trim());
                     if (cust) {
                         const balanceDiv = document.getElementById('customerBalanceInfo');
                         if (balanceDiv) balanceDiv.style.display = 'block';
@@ -1397,7 +1402,7 @@
                 calc();
             }
 
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Initialization Error: ", e); }
     }
 
     init();
