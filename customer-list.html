@@ -98,7 +98,7 @@
             100% { transform: rotate(-360deg); }
         }
         
-        summary-box {
+        .summary-box {
             background: var(--white);
             border: 1px solid var(--border);
             border-radius: 18px;
@@ -244,7 +244,7 @@
 
     <div class="container py-3" id="printableArea">
         <!-- قسم الإجماليات -->
-        <div class="summary-box row mx-1 text-center g-2" style="background: var(--white); border: 1px solid var(--border); border-radius: 18px; padding: 15px; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.03);">
+        <div class="summary-box row mx-1 text-center g-2">
             <div class="col-4 border-end">
                 <div class="summary-title">مطلوب (عليهم)</div>
                 <div class="summary-amount text-debt" id="totalDebts">0.00 ج.م</div>
@@ -307,7 +307,7 @@
             });
         }
 
-        // دالة المزامنة المتقدمة وحفظ طبيعة الإشارة الرياضية القادمة من الإكسيل
+        // دالة المزامنة وتصحيح الأرصدة والتحقق من الحساب الدائن
         window.syncAndRecalculateBalances = async () => {
             const icon = document.getElementById('refreshIcon');
             if (icon.classList.contains('spin')) return; 
@@ -323,26 +323,36 @@
                     const customerData = customerDoc.data();
                     if (customerData.isDeleted === true) continue;
 
-                    // قراءة الرصيد الافتتاحي مع الإبقاء التام على إشارته السالبة لو وجد
+                    // قراءة الرصيد الافتتاحي بشكل سليم ومباشر
                     let initialBalance = Number(customerData.initialBalance || customerData.openingBalance || 0);
                     
-                    // تحديد نوع الحساب الافتراضي بناءً على إشارة الرصيد الافتتاحي المرفوع من الإكسيل
-                    let balanceType = customerData.balanceType || (initialBalance < 0 ? 'credit' : 'debit');
+                    // إذا كان الرصيد الافتتاحي المرفوع من الإكسيل سالباً، إذن العميل دائن حتماً
+                    let balanceType = customerData.balanceType;
+                    if (initialBalance < 0) {
+                        balanceType = 'credit';
+                    } else if (initialBalance > 0 && !balanceType) {
+                        balanceType = 'debit';
+                    } else if (!balanceType) {
+                        balanceType = 'debit';
+                    }
 
                     let computedBalance = initialBalance;
-                    let hasNewSubTransactions = false;
                     
                     const targetSubCollections = ['invoices', 'transactions', 'sales', 'payments', 'orders'];
                     
-                    for (const subName of targetSubCollections) {
-                        const subSnapshot = await getDocs(collection(db, `customers/${customerId}/${subName}`));
+                    // جلب كل الحركات الفرعية بالتوازي لضمان دقة العمليات الحسابية المتراكمة
+                    const promises = targetSubCollections.map(subName => 
+                        getDocs(collection(db, `customers/${customerId}/${subName}`))
+                    );
+                    
+                    const subSnapshots = await Promise.all(promises);
+                    
+                    subSnapshots.forEach(subSnapshot => {
                         if (!subSnapshot.empty) {
                             subSnapshot.forEach(docItem => {
                                 const tData = docItem.data();
                                 const val = Math.abs(Number(tData.amount || tData.value || tData.total || tData.price || tData.net || 0));
                                 const type = String(tData.type || tData.status || tData.category || '').toLowerCase();
-                                
-                                hasNewSubTransactions = true;
 
                                 if (type.includes('invoice') || type.includes('بيع') || type.includes('مدين') || type.includes('فاتورة')) {
                                     computedBalance += val; 
@@ -351,14 +361,9 @@
                                 }
                             });
                         }
-                    }
+                    });
 
-                    // في حال عدم وجود عمليات فرعية جديدة، نعتمد الرصيد الحالي أو الافتتاحي الأصلي المسجل مباشرة
-                    if (!hasNewSubTransactions) {
-                        computedBalance = initialBalance;
-                    }
-                    
-                    // تحديث الحقلين للتأكد من المزامنة الصحيحة وحفظ نوع الإشارة
+                    // التحقق مما إذا كان هناك تغيير فعلي يستدعي التحديث في السيرفر لتفادي الاستهلاك غير المبرر
                     if (Number(customerData.currentBalance || 0) !== computedBalance || customerData.balanceType !== balanceType) {
                         batch.update(doc(db, "customers", customerId), { 
                             currentBalance: computedBalance,
@@ -371,24 +376,24 @@
                 if (needsUpdate) {
                     await batch.commit();
                 }
-                alert("تمت المزامنة بنجاح وحماية أرصدة الإكسيل المرفوعة وتأكيد الدائنية.");
+                alert("تم تحديث ومزامنة أرصدة العملاء بنجاح، وتأكيد الحسابات الدائنة.");
             } catch (error) { 
                 console.error(error); 
-                alert("حدث خطأ أثناء المزامنة.");
+                alert("حدث خطأ أثناء المزامنة: " + error.message);
             } finally { 
                 icon.classList.remove('spin'); 
             }
         };
 
-        // حساب الإجماليات بدقة بناءً على الإشارات الرياضية الصريحة
+        // حساب الإجماليات بناءً على الإشارات الرياضية
         function updateSummaryCounters(list) {
             let totalDebts = 0, totalCredits = 0;
             list.forEach(cust => {
                 const balance = Number(cust.currentBalance || 0);
                 if (balance > 0) {
-                    totalDebts += balance; // الأرقام الموجبة تذهب لخانة (عليهم)
+                    totalDebts += balance; 
                 } else if (balance < 0) {
-                    totalCredits += Math.abs(balance); // الأرقام السالبة تذهب لخانة (لهم)
+                    totalCredits += Math.abs(balance); 
                 }
             });
             const netBalance = totalDebts - totalCredits;
@@ -399,7 +404,7 @@
             document.getElementById('netGeneralBalance').innerText = Math.abs(netBalance).toLocaleString('ar-EG', {minimumFractionDigits: 2}) + ' ج.م' + netText;
         }
 
-        // بناء الكروت وعرض الحالة الصحيحة للعميل (عليه / له / خالص)
+        // بناء وعرض كروت العملاء ديناميكياً
         window.renderCustomers = (list) => {
             updateSummaryCounters(list);
             const container = document.getElementById('customersContainer');
@@ -415,7 +420,6 @@
                 let textClass = '';
                 let displayBalance = '';
 
-                // فحص الإشارة الحقيقية للرصيد المستدعى (السالب يعني دائن تلقائياً)
                 if (balance > 0) {
                     statusText = 'عليه';
                     cardClass = 'has-debt';
@@ -481,7 +485,7 @@
             }
         };
 
-        // دالة الفلترة والبحث اللحظي السريع دون تكرار جلب البيانات
+        // دالة الفلترة والبحث اللحظي السريع
         window.filterCustomers = () => {
             const term = document.getElementById('searchInput').value.toLowerCase().trim();
             const filtered = allCustomers.filter(c => 
