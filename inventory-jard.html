@@ -106,14 +106,19 @@
                 snap.forEach(doc => {
                     const item = doc.data();
                     const itemId = doc.id;
-                    const bookQty = parseFloat(item.quantity || 0);
-                    itemsData.push({ id: itemId, name: item.name, bookQty: bookQty, costPrice: parseFloat(item.costPrice || 0) });
+                    
+                    // التعديل الجوهري هنا لمطابقة حقول قاعدة بياناتك (totalPcs و buy)
+                    const bookQty = parseFloat(item.totalPcs || 0);
+                    const costPrice = parseFloat(item.buy || 0);
+                    const unitName = item.unitName || 'جركن';
+
+                    itemsData.push({ id: itemId, name: item.name, bookQty: bookQty, costPrice: costPrice });
 
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td><code>${itemId}</code></td>
-                        <td style="text-align:right; font-weight:600;">${item.name}</td>
-                        <td><b id="book-${itemId}">${bookQty}</b> جركن</td>
+                        <td><code>${itemId.slice(-6)}</code></td>
+                        <td style="text-align:right; font-weight:600;">${item.name || 'صنف غير مسمى'}</td>
+                        <td><b id="book-${itemId}">${bookQty}</b> ${unitName}</td>
                         <td><input type="number" class="input-jard" id="actual-${itemId}" value="${bookQty}" oninput="calculateRowDiff('${itemId}')"></td>
                         <td><span class="badge-diff" id="diff-${itemId}" style="background:#eef5f1; color:#61736b;">0</span></td>
                     `;
@@ -156,8 +161,9 @@
                     hasChanges = true;
                     totalLossesOrGains += (diff * item.costPrice);
                     
+                    // تحديث حقل totalPcs ليطابق تعديلات نظامك الفعلي
                     const itemRef = db.collection("inventory").doc(item.id);
-                    batch.update(itemRef, { quantity: actual });
+                    batch.update(itemRef, { totalPcs: actual });
                 }
             });
 
