@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>إدارة المصاريف | شركة الزيادي</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-deep: #f0f5f2;
+            --bg-card: #ffffff;
+            --accent: #0b5e3d;
+            --accent-light: #128256;
+            --text-primary: #1b2e26;
+            --text-secondary: #61736b;
+            --border: #dde8e2;
+            --shadow: 0 4px 20px rgba(11, 94, 61, 0.06);
+            --radius-lg: 22px;
+            --radius-md: 14px;
+            --danger: #e41e3f;
+            --success: #2dbe57;
+        }
+        body { font-family: 'Cairo', sans-serif; background-color: var(--bg-deep); margin: 0; color: var(--text-primary); padding-bottom: 30px; }
+        header.top-nav { display: flex; justify-content: center; align-items: center; padding: 16px; background: var(--accent); color: white; box-shadow: 0 3px 18px rgba(0,0,0,0.12); }
+        header.top-nav h1 { font-size: 17px; margin: 0; font-weight: 800; }
+        .container { max-width: 600px; margin: 20px auto; padding: 0 15px; }
+        .card { background: var(--bg-card); border-radius: var(--radius-lg); padding: 22px; border: 1.5px solid var(--border); box-shadow: var(--shadow); margin-bottom: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; color: var(--text-secondary); }
+        .form-control { width: 100%; padding: 11px; border: 1.5px solid var(--border); border-radius: var(--radius-md); font-family: 'Cairo'; font-size: 14px; box-sizing: border-box; }
+        .btn-submit { background: var(--accent); color: white; border: none; padding: 13px; width: 100%; border-radius: var(--radius-md); font-family: 'Cairo'; font-weight: 700; font-size: 15px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .btn-submit:hover { background: var(--accent-light); }
+        .btn-back { display: block; text-align: center; padding: 12px; background: #61736b; color: white; text-decoration: none; border-radius: var(--radius-md); font-weight: 700; margin-top: 15px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <header class="top-nav">
+        <h1><i class="fas fa-wallet me-2"></i> قيد وتسجيل مصروفات التشغيل اليومية</h1>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <form id="expenseForm" onsubmit="saveExpense(event)">
+                <div class="form-group">
+                    <label>المبلغ المدفوع (جنيه)</label>
+                    <input type="number" id="expenseAmount" class="form-control" placeholder="0.00" required step="0.01">
+                </div>
+                
+                <div class="form-group">
+                    <label>نوع المصروف المحاسبي</label>
+                    <select id="expenseAccount" class="form-control" required>
+                        <option value="501">مصاريف نقل وشحن زيوت</option>
+                        <option value="502">إيجار المحل والمخازن</option>
+                        <option value="503">كهرباء ومياه ومرافق</option>
+                        <option value="504">إكراميات وبونات عمال</option>
+                        <option value="505">مصاريف إدارية وعمومية أخرى</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>طريقة الدفع (حساب السداد)</label>
+                    <select id="paymentSource" class="form-control" required>
+                        <option value="10101">الخزينة الرئيسية (كاش)</option>
+                        <option value="10102">محفظة فودافون كاش / دبي</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>تفاصيل البيان / الشرح</label>
+                    <textarea id="expenseNotes" class="form-control" rows="3" placeholder="اكتب تفاصيل وبند الصرف هنا..." required></textarea>
+                </div>
+
+                <button type="submit" class="btn-submit">
+                    <i class="fas fa-check-circle"></i> ترحيل المصروف وإصدار القيد
+                </button>
+            </form>
+        </div>
+
+        <a href="index1.html" class="btn-back"><i class="fas fa-arrow-right"></i> إلغاء والعودة للرئيسية</a>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+          authDomain: "ahmedelzaiady.firebaseapp.com",
+          projectId: "ahmedelzaiady",
+          storageBucket: "ahmedelzaiady.firebasestorage.app",
+          messagingSenderId: "300306825071",
+          appId: "1:300306825071:web:0426ddde56280fa090329a"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        async function saveExpense(e) {
+            e.preventDefault();
+            
+            const amt = parseFloat(document.getElementById('expenseAmount').value);
+            const accId = document.getElementById('expenseAccount').value;
+            const accName = document.getElementById('expenseAccount').options[document.getElementById('expenseAccount').selectedIndex].text;
+            const sourceId = document.getElementById('paymentSource').value;
+            const sourceName = document.getElementById('paymentSource').options[document.getElementById('paymentSource').selectedIndex].text;
+            const notes = document.getElementById('expenseNotes').value;
+            
+            const entryId = "JV-" + Date.now().toString().slice(-6);
+            const isoDate = new Date().toISOString();
+
+            const journalEntry = {
+                entryId: entryId,
+                date: isoDate,
+                description: `إثبات قيد مصروف: ${notes}`,
+                lines: [
+                    { accountId: accId, accountName: accName, debit: amt, credit: 0 },
+                    { accountId: sourceId, accountName: sourceName, debit: 0, credit: amt }
+                ]
+            };
+
+            try {
+                await db.collection("journalEntries").doc(entryId).set(journalEntry);
+                
+                const batch = db.batch();
+                const accRef = db.collection("accounts").doc(accId);
+                const sourceRef = db.collection("accounts").doc(sourceId);
+                
+                batch.set(accRef, { currentBalance: firebase.firestore.FieldValue.increment(amt) }, { merge: true });
+                batch.set(sourceRef, { currentBalance: firebase.firestore.FieldValue.increment(-amt) }, { merge: true });
+                
+                await batch.commit();
+                
+                alert(`🎯 تم ترحيل قيد المصروف بنجاح برقم: ${entryId}`);
+                document.getElementById('expenseForm').reset();
+            } catch(err) {
+                console.error(err);
+                alert("فشل ترحيل المصروف، يرجى التحقق من اتصال قاعدة البيانات.");
+            }
+        }
+    </script>
+</body>
+</html>
