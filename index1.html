@@ -451,19 +451,11 @@
             </div>
         </a>
 
-        <!-- كارت المخزن للمدير (الإدارة الكاملة) -->
+        <!-- كارت المخزن للمدير فقط (الإدارة الكاملة) -->
         <a href="inventory-menu.html" class="card-link" id="cardInventory">
             <div class="card">
                 <div class="icon-box"><i class="fas fa-boxes-stacked"></i></div>
                 <p>المخزن</p>
-            </div>
-        </a>
-
-        <!-- كارت الأصناف للموظف (يظهر للموظف ويختفي عند الأدمن بدلاً من شريط التنقل السفلي) -->
-        <a href="inventory.html" class="card-link" id="cardEmployeeInventory">
-            <div class="card">
-                <div class="icon-box"><i class="fas fa-boxes-stacked"></i></div>
-                <p>الأصناف</p>
             </div>
         </a>
 
@@ -480,7 +472,7 @@
             </div>
         </a>
 
-        <!-- كارت التقارير للمدير -->
+        <!-- كارت التقارير الشامل للمدير فقط -->
         <a href="reports.html" class="card-link" id="cardreports">
             <div class="card report-card">
                 <div class="icon-box"><i class="fas fa-chart-bar"></i></div>
@@ -488,7 +480,7 @@
             </div>
         </a>
 
-        <!-- كارت ملخص المبيعات للموظف -->
+        <!-- كارت ملخص المبيعات للموظف فقط -->
         <a href="reports2.html" class="card-link" id="cardreports2">
             <div class="card report2-card">
                 <div class="icon-box"><i class="fas fa-chart-pie"></i></div>
@@ -528,7 +520,7 @@
         </div>
     </aside>
 
-    <!-- BOTTOM BAR (تم إزالة زر الأصناف وتنظيف الشريط السفلي) -->
+    <!-- BOTTOM BAR -->
     <div class="bottom-bar-wrapper">
         <nav class="bottom-bar">
             <a href="sales-invoice.html" class="nav-action">
@@ -621,8 +613,8 @@
             const role              = sessionStorage.getItem('role') || 'employee';
             const savedPermissions  = sessionStorage.getItem('permissions');
             
-            // مصفوفة الصلاحيات الافتراضية للموظف (تحتوي على مبيعات، عملاء، سندات، ملخص المبيعات، والأصناف البسيطة)
-            const userPermissions   = savedPermissions ? JSON.parse(savedPermissions) : ['sales','clients','vouchers','reports2','emp_inventory'];
+            // مصفوفة الصلاحيات الافتراضية للموظف 
+            const userPermissions   = savedPermissions ? JSON.parse(savedPermissions) : ['sales','clients','vouchers','reports2'];
 
             const roleBadge = document.getElementById('userRoleBadge');
             if (roleBadge) {
@@ -631,21 +623,20 @@
                                     : 'موظف';
             }
 
-            // خريطة الصلاحيات البرمجية لكافة عناصر الصفحة
+            // خريطة الصلاحيات البرمجية للعناصر
             const permMap = {
-                cardSales:             'sales',
-                cardPurchases:         'purchases',
-                cardClients:           'clients',
-                cardSuppliers:         'suppliers',
-                cardInventory:         'inventory_admin',  // مخزن المدير الرئيسي
-                cardEmployeeInventory: 'emp_inventory',     // كارت الأصناف المخصص للموظف
-                cardVouchers:          'vouchers',
-                cardBanknote:          'banknote',
-                cardreports:           'reports',          // تقارير المدير
-                cardreports2:          'reports2',         // ملخص مبيعات الموظف
-                cardPriceSearch:       'sales',
-                cardAccountingSetup:   'settings', 
-                cardExpensesDirect:    'banknote',
+                cardSales:           'sales',
+                cardPurchases:       'purchases',
+                cardClients:         'clients',
+                cardSuppliers:       'suppliers',
+                cardInventory:       'inventory_admin',  // مخزن المدير الرئيسي
+                cardVouchers:        'vouchers',
+                cardBanknote:        'banknote',
+                cardreports:         'reports',          // تقارير المدير الشاملة
+                cardreports2:        'reports2',         // ملخص المبيعات للموظف
+                cardPriceSearch:     'sales',
+                cardAccountingSetup: 'settings', 
+                cardExpensesDirect:  'banknote',
 
                 sideTransactions:   'banknote',
                 sidePurchaseOrders: 'purchases',
@@ -671,12 +662,12 @@
             let visibleCards = 0;
 
             if (role === 'admin') {
-                // التحكم الخاص بالمدير: يرى كل شيء ما عدا كروت الموظف الخاصة (ملخص المبيعات وكارت الأصناف الموظف)
+                // الأدمن: يرى كل شيء ما عدا كارت ملخص المبيعات (cardreports2) الخاص بالموظف
                 Object.keys(permMap).forEach(id => {
                     const el = document.getElementById(id);
                     if (!el) return;
                     
-                    if (id === 'cardreports2' || id === 'cardEmployeeInventory') {
+                    if (id === 'cardreports2') {
                         el.style.display = 'none'; 
                     } else {
                         el.style.display = '';
@@ -684,7 +675,7 @@
                     }
                 });
             } else {
-                // التحكم الخاص بالموظف: يرى الكروت المسموحة له فقط (يختفي كارت المخزن الرئيسي وكارت تقارير المدير تلقائياً)
+                // الموظف: يرى العناصر المصرحة له فقط (المخزن والتقارير العامة تختفي تماماً)
                 Object.keys(permMap).forEach(id => {
                     const el = document.getElementById(id);
                     if (!el) return;
