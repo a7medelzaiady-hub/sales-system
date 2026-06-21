@@ -488,6 +488,7 @@
         }
     }
 
+    /* ===== دالة جلب البيانات الثابتة والكاملة من الفايربيس دون تعليق ===== */
     async function loadData(showSpinner = true) {
         const container = document.getElementById('invoicesList');
         if (showSpinner) {
@@ -751,7 +752,7 @@
     };
 
     /* ===================================================================
-       الدالة الأساسية للتصدير: التوزيع الدقيق (كرتونة/قطعة) مقابل (جركن)
+       معادلة التصدير الدقيقة: التوزيع حسب مسمى الصنف (كرتونة/قطعة) أو (جركن)
        =================================================================== */
     document.getElementById('exportExcelBtn').onclick = () => {
         if (!allInvoices.length) {
@@ -765,7 +766,6 @@
             const invoiceDate = parseInvoiceDate(inv);
             const customerName = inv.customerName || 'عميل نقدى';
 
-            // 1. معالجة الأصناف والكميات
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(itm => {
                     let qtyJerkin = 0;
@@ -778,4 +778,79 @@
                     const price = Number(itm.price) || 0;
 
                     let movementType = "بيع";
-                    if (itemName
+                    if (itemName.includes("مرتجع")) {
+                        movementType = "مرتجع";
+                    }
+
+                    // التوزيع التلقائي الذكي بناءً على المسمى المطلق للصنف
+                    if (
+                        itemName.includes("كرتونه") || 
+                        itemName.includes("كرتونة") || 
+                        itemName.includes("قطعه") || 
+                        itemName.includes("قطعة")
+                    ) {
+                        qtyCarton = qty;
+                        priceCarton = price;
+                        qtyJerkin = 0;
+                        priceJerkin = 0;
+                    } else {
+                        qtyJerkin = qty;
+                        priceJerkin = price;
+                        qtyCarton = 0;
+                        priceCarton = 0;
+                    }
+
+                    excelRows.push({
+                        "التاريخ": invoiceDate,
+                        "الحركة": movementType,
+                        "اسم العميل": customerName,
+                        "الصنف": itemName,
+                        "عدد جركن": qtyJerkin,
+                        "عدد كرتونة": qtyCarton,
+                        "سعر جركن": priceJerkin,
+                        "سعر كرتونة": priceCarton
+                    });
+                });
+            }
+
+            if (inv.calculatedCash && inv.calculatedCash > 0) {
+                excelRows.push({
+                    "التاريخ": invoiceDate,
+                    "الحركة": "سداد منه نقدي",
+                    "اسم العميل": customerName,
+                    "الصنف": "سداد نقدي",
+                    "عدد جركن": 0,
+                    "عدد كرتونة": 1,
+                    "سعر جركن": 0,
+                    "سعر كرتونة": inv.calculatedCash
+                });
+            }
+
+            if (inv.calculatedWallet && inv.calculatedWallet > 0) {
+                excelRows.push({
+                    "التاريخ": invoiceDate,
+                    "الحركة": "سداد منه محفظه",
+                    "اسم العميل": customerName,
+                    "الصنف": "سداد محفظه فون",
+                    "عدد جركن": 0,
+                    "عدد كرتونة": 1,
+                    "سعر جركن": 0,
+                    "سعر كرتونة": inv.calculatedWallet
+                });
+            }
+        });
+
+        const ws = XLSX.utils.json_to_sheet(excelRows, {
+            header: ["التاريخ", "الحركة", "اسم العميل", "الصنف", "عدد جركن", "عدد كرتونة", "سعر جركن", "سعر كرتونة"]
+        });
+        
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "المبيعات والأرشيف");
+        XLSX.writeFile(wb, "سجل_مبيعات_الزيادي.xlsx");
+    };
+
+    // استدعاء جلب البيانات فور تحميل الصفحة
+    loadData(true);
+</script>
+</body>
+</html>
