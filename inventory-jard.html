@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>محضر جرد وتسوية المخزن | شركة الزيادي</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --bg-deep: #f0f5f2;
+            --bg-card: #ffffff;
+            --accent: #0b5e3d;
+            --text-primary: #1b2e26;
+            --border: #dde8e2;
+            --radius-lg: 22px;
+            --radius-md: 14px;
+            --danger: #e41e3f;
+            --success: #2dbe57;
+        }
+        body { font-family: 'Cairo', sans-serif; background-color: var(--bg-deep); margin: 0; color: var(--text-primary); padding-bottom: 40px; }
+        header.top-nav { display: flex; justify-content: center; align-items: center; padding: 16px; background: var(--accent); color: white; }
+        header.top-nav h1 { font-size: 17px; margin: 0; font-weight: 800; }
+        .container { max-width: 900px; margin: 20px auto; padding: 0 15px; }
+        .card { background: white; border-radius: var(--radius-lg); padding: 20px; border: 1.5px solid var(--border); box-shadow: 0 4px 20px rgba(11,94,61,0.06); margin-bottom: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13.5px; }
+        th, td { padding: 12px; border-bottom: 1px solid var(--border); text-align: center; }
+        th { background: rgba(11, 94, 61, 0.05); color: var(--accent); font-weight: 800; }
+        .input-jard { width: 80px; padding: 6px; border: 1px solid var(--border); text-align: center; border-radius: 6px; font-family: 'Cairo'; }
+        .badge-diff { padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 12px; }
+        .bg-danger-light { background: #fce8eb; color: var(--danger); }
+        .bg-success-light { background: #eafaee; color: var(--success); }
+        .btn-save { background: var(--accent); color: white; border: none; padding: 12px 24px; border-radius: var(--radius-md); font-family: 'Cairo'; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+    </style>
+</head>
+<body>
+
+    <header class="top-nav">
+        <h1><i class="fas fa-clipboard-check me-2"></i> الجرد الدوري وتسوية كميات الزيوت</h1>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <p style="font-size:13px; color: #61736b; margin-top:0;">يقوم هذا المحضر بمقارنة الكمية الفعلية المقاسة بالمخزن مع رصيد الدفاتر الحالي لتسجيل العجز أو الزيادة آلياً.</p>
+            
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>كود الصنف</th>
+                            <th>اسم الزيت / المنتج</th>
+                            <th>الرصيد الدفتري</th>
+                            <th>الكمية الفعلية (جركن)</th>
+                            <th>الفارق المحتسب</th>
+                        </tr>
+                    </thead>
+                    <tbody id="jardTableRows">
+                        <tr><td colspan="5"><i class="fas fa-spinner fa-spin"></i> جاري استدعاء قائمة الزيوت الحالية...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="text-align: left; margin-top: 20px;">
+                <button class="btn-save" onclick="submitJardSettlement()">
+                    <i class="fas fa-file-shield"></i> اعتماد وثيقة الجرد وترحيل التسوية
+                </button>
+            </div>
+        </div>
+        
+        <a href="index1.html" style="display:block; text-align:center; padding:12px; background:#61736b; color:white; text-decoration:none; border-radius:var(--radius-md); font-weight:700;">العودة للقائمة الرئيسية</a>
+    </div>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+          authDomain: "ahmedelzaiady.firebaseapp.com",
+          projectId: "ahmedelzaiady",
+          storageBucket: "ahmedelzaiady.firebasestorage.app",
+          messagingSenderId: "300306825071",
+          appId: "1:300306825071:web:0426ddde56280fa090329a"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        let itemsData = [];
+
+        window.onload = () => { loadInventoryForJard(); };
+
+        async function loadInventoryForJard() {
+            const tbody = document.getElementById('jardTableRows');
+            try {
+                const snap = await db.collection("inventory").get();
+                tbody.innerHTML = '';
+                itemsData = [];
+
+                if(snap.empty) {
+                    tbody.innerHTML = '<tr><td colspan="5">لا توجد أصناف مخزنة حالياً في النظام.</td></tr>';
+                    return;
+                }
+
+                snap.forEach(doc => {
+                    const item = doc.data();
+                    const itemId = doc.id;
+                    const bookQty = parseFloat(item.quantity || 0);
+                    itemsData.push({ id: itemId, name: item.name, bookQty: bookQty, costPrice: parseFloat(item.costPrice || 0) });
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td><code>${itemId}</code></td>
+                        <td style="text-align:right; font-weight:600;">${item.name}</td>
+                        <td><b id="book-${itemId}">${bookQty}</b> جركن</td>
+                        <td><input type="number" class="input-jard" id="actual-${itemId}" value="${bookQty}" oninput="calculateRowDiff('${itemId}')"></td>
+                        <td><span class="badge-diff" id="diff-${itemId}" style="background:#eef5f1; color:#61736b;">0</span></td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch(err) {
+                console.error(err);
+                tbody.innerHTML = '<tr><td colspan="5" style="color:var(--danger)">خطأ أثناء تحميل كشوفات المخزن.</td></tr>';
+            }
+        }
+
+        function calculateRowDiff(id) {
+            const book = parseFloat(document.getElementById(`book-${id}`).innerText) || 0;
+            const actual = parseFloat(document.getElementById(`actual-${id}`).value) || 0;
+            const diff = actual - book;
+            const badge = document.getElementById(`diff-${id}`);
+            
+            badge.innerText = diff > 0 ? `+${diff}` : diff;
+            if(diff === 0) {
+                badge.className = "badge-diff"; badge.style.background = "#eef5f1"; badge.style.color = "#61736b";
+            } else if(diff > 0) {
+                badge.className = "badge-diff bg-success-light";
+            } else {
+                badge.className = "badge-diff bg-danger-light";
+            }
+        }
+
+        async function submitJardSettlement() {
+            if(!confirm("هل أنت متأكد من اعتماد كشف الجرد الحالي؟")) return;
+            
+            const batch = db.batch();
+            let hasChanges = false;
+            let totalLossesOrGains = 0;
+
+            itemsData.forEach(item => {
+                const actual = parseFloat(document.getElementById(`actual-${item.id}`).value) || 0;
+                const diff = actual - item.bookQty;
+
+                if (diff !== 0) {
+                    hasChanges = true;
+                    totalLossesOrGains += (diff * item.costPrice);
+                    
+                    const itemRef = db.collection("inventory").doc(item.id);
+                    batch.update(itemRef, { quantity: actual });
+                }
+            });
+
+            if(!hasChanges) { alert("لم يتم رصد أي تفاوت أو فروقات بين الجرد الفعلي والدفتري."); return; }
+
+            try {
+                const entryId = "ST-" + Date.now().toString().slice(-6);
+                const isLoss = totalLossesOrGains < 0;
+                const amt = Math.abs(totalLossesOrGains);
+
+                const journalEntry = {
+                    entryId: entryId,
+                    date: new Date().toISOString(),
+                    description: `قيد تسوية جرد المخزن الدوري - إصدار فروقات عجز/زيادة كميات الزيوت والجرادن`,
+                    lines: [
+                        { 
+                            accountId: isLoss ? "506" : "10301", 
+                            accountName: isLoss ? "خسائر عجز جرد المخازن" : "مخزون بضاعة المستودع الرئيسية", 
+                            debit: isLoss ? amt : 0, 
+                            credit: isLoss ? 0 : amt 
+                        },
+                        { 
+                            accountId: isLoss ? "10301" : "402", 
+                            accountName: isLoss ? "مخزون بضاعة المستودع الرئيسية" : "أرباح وفورات تسوية الجرد", 
+                            debit: isLoss ? 0 : amt, 
+                            credit: isLoss ? amt : 0 
+                        }
+                    ]
+                };
+
+                await db.collection("journalEntries").doc(entryId).set(journalEntry);
+                await batch.commit();
+
+                alert("🎉 تم اعتماد محضر الجرد وتحديث الأرصدة وإصدار قيد تسوية بنجاح.");
+                loadInventoryForJard();
+            } catch(err) {
+                console.error(err);
+                alert("حدث خطأ ما أثناء حفظ التسوية السحابية.");
+            }
+        }
+    </script>
+</body>
+</html>
