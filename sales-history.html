@@ -917,40 +917,44 @@
             // 1. تسجيل حركات البيع والمرتجع (الأصناف تفصيلياً)
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(itm => {
-                    let qtyJerkin = "";
-                    let priceJerkin = "";
-                    let qtyCarton = "";
-                    let priceCarton = "";
+                    let qtyJerkin = 0;
+                    let priceJerkin = 0;
+                    let qtyCarton = 0;
+                    let priceCarton = 0;
 
                     const itemName = itm.name || "";
                     const qty = Number(itm.qty) || 0;
                     const price = Number(itm.price) || 0;
 
-                    // تحديد نوع الحركة بناءً على وجود كلمة مرتجع في اسم الصنف
+                    // تحديد نوع الحركة (بيع أم مرتجع)
                     let movementType = "بيع";
                     if (itemName.includes("مرتجع")) {
                         movementType = "مرتجع";
                     }
 
-                    // التوزيع الصحيح على الأعمدة حسب نوع الصنف (سواء كان بيع أو مرتجع)
+                    // التوزيع الصحيح بناءً على مسمى الصنف الفعلي وليس نوع الحركة
                     if (itemName.includes("كرتونه") || itemName.includes("كرتونة")) {
                         qtyCarton = qty;
                         priceCarton = price;
+                        qtyJerkin = 0;
+                        priceJerkin = 0;
                     } else {
-                        // الافتراضي جراكن وجوالين وقطع
+                        // جراكن وأي شيء آخر
                         qtyJerkin = qty;
                         priceJerkin = price;
+                        qtyCarton = 0;
+                        priceCarton = 0;
                     }
 
                     excelRows.push({
                         "التاريخ": invoiceDate,
-                        "الحركه": movementType,
+                        "الحركة": movementType,
                         "اسم العميل": customerName,
-                        "البيان": itemName, // كتابة اسم المنتج مباشرة دون عبارات إضافية
+                        "الصنف": itemName,
                         "عدد جركن": qtyJerkin,
-                        "عدد كرتونه": qtyCarton,
+                        "عدد كرتونة": qtyCarton,
                         "سعر جركن": priceJerkin,
-                        "سعر كرتونه": priceCarton
+                        "سعر كرتونة": priceCarton
                     });
                 });
             }
@@ -959,13 +963,13 @@
             if (inv.calculatedCash && inv.calculatedCash > 0) {
                 excelRows.push({
                     "التاريخ": invoiceDate,
-                    "الحركه": "سداد منه نقدى",
+                    "الحركة": "سداد منه نقدي",
                     "اسم العميل": customerName,
-                    "البيان": "سداد نقدى",
-                    "عدد جركن": "",
-                    "عدد كرتونه": 1,
-                    "سعر جركن": "",
-                    "سعر كرتونه": inv.calculatedCash
+                    "الصنف": "سداد نقدي",
+                    "عدد جركن": 0,
+                    "عدد كرتونة": 1,
+                    "سعر جركن": 0,
+                    "سعر كرتونة": inv.calculatedCash
                 });
             }
 
@@ -973,24 +977,24 @@
             if (inv.calculatedWallet && inv.calculatedWallet > 0) {
                 excelRows.push({
                     "التاريخ": invoiceDate,
-                    "الحركه": "سداد منه محفظه",
+                    "الحركة": "سداد منه محفظه",
                     "اسم العميل": customerName,
-                    "البيان": "سداد محفظه فون",
-                    "عدد جركن": "",
-                    "عدد كرتونه": 1,
-                    "سعر جركن": "",
-                    "سعر كرتونه": inv.calculatedWallet
+                    "الصنف": "سداد محفظه فون",
+                    "عدد جركن": 0,
+                    "عدد كرتونة": 1,
+                    "سعر جركن": 0,
+                    "سعر كرتونة": inv.calculatedWallet
                 });
             }
         });
 
         const ws = XLSX.utils.json_to_sheet(excelRows, {
-            header: ["التاريخ", "الحركه", "اسم العميل", "البيان", "عدد جركن", "عدد كرتونه", "سعر جركن", "سعر كرتونه"]
+            header: ["التاريخ", "الحركة", "اسم العميل", "الصنف", "عدد جركن", "عدد كرتونة", "سعر جركن", "سعر كرتونة"]
         });
         
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "حركات المبيعات");
-        XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "المبيعات والأرشيف");
+        XLSX.writeFile(wb, "سجل_مبيعات_الزيادي.xlsx");
     };
 
     loadData(true);
