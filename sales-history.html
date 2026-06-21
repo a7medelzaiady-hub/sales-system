@@ -285,16 +285,6 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // ===== NOTE ON OPTIMIZATION =====
-    // The previous version used onSnapshot() on the full "invoices" collection,
-    // which re-reads every document any time ANY invoice anywhere changes (1 read
-    // per document per snapshot event). That is what drove the Firestore "Reads"
-    // counter so high. This version fetches data ONCE on page load with getDocs()
-    // (a single batch of reads), and only re-fetches when the user explicitly
-    // presses "تحديث" (refresh) or after an action that changes the data
-    // (delete / reset). This cuts read volume drastically for a page that's
-    // mostly being viewed, not edited.
-
     let allInvoices = [];
     let customersData = {};
     let currentFilterType = null;
@@ -528,7 +518,6 @@
                 </div>`;
         }
         try {
-            // Single batched read per collection instead of a live listener.
             const [custSnap, transSnap, invSnap] = await Promise.all([
                 getDocs(collection(db, "customers")),
                 getDocs(collection(db, "transactions")),
@@ -904,7 +893,6 @@
             onConfirm: async () => {
                 try {
                     await updateDoc(doc(db, "invoices", id), { isDeleted: true, deletedAt: serverTimestamp() });
-                    // Refresh once after the write, instead of relying on a live listener.
                     await loadData(false);
                     window.showCustomUi({ title: "تم النقل", message: "تم نقل الفاتورة إلى سلة المحذوفات بنجاح.", icon: "success" });
                 } catch (err) {
@@ -919,22 +907,87 @@
             window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات لتصديرها بعد.", icon: "info" });
             return;
         }
-        const rows = allInvoices.map(inv => ({
-            "العميل": inv.customerName || 'عميل نقدى',
-            "التاريخ": parseInvoiceDate(inv),
-            "طريقة السداد": inv.paymentMethod || '',
-            "الإجمالي": Number(inv.total) || 0,
-            "نقدى": inv.calculatedCash,
-            "محفظه": inv.calculatedWallet,
-            "المتبقي": Number(inv.remaining) || 0
-        }));
-        const ws = XLSX.utils.json_to_sheet(rows);
+
+        let excelRows = [];
+
+        allInvoices.forEach(inv => {
+            const invoiceDate = parseInvoiceDate(inv);
+            const customerName = inv.customerName || 'عميل نقدى';
+
+            // 1. تسجيل حركات البيع (الأصناف داخل الفاتورة)
+            if (inv.items && inv.items.length > 0) {
+                inv.items.forEach(itm => {
+                    let qtyJerkin = "";
+                    let priceJerkin = "";
+                    let qtyCarton = "";
+                    let priceCarton = "";
+
+                    const itemName = itm.name || "";
+                    const qty = Number(itm.qty) || 0;
+                    const price = Number(itm.price) || 0;
+
+                    if (itemName.includes("جركن") || itemName.includes("جالون") || itemName.includes("قطعة") || itemName.includes("قطعه")) {
+                        qtyJerkin = qty;
+                        priceJerkin = price;
+                    } else if (itemName.includes("كرتونه") || itemName.includes("كرتونة")) {
+                        qtyCarton = qty;
+                        priceCarton = price;
+                    } else {
+                        qtyJerkin = qty;
+                        priceJerkin = price;
+                    }
+
+                    excelRows.push({
+                        "التاريخ": invoiceDate,
+                        "الحركه": "بيع",
+                        "اسم العميل": customerName,
+                        "البيان": `بيع صنف: ${itemName}`,
+                        "عدد جركن": qtyJerkin,
+                        "سعر جركن": priceJerkin,
+                        "عدد كرتونه": qtyCarton,
+                        "سعر كرتونه": priceCarton
+                    });
+                });
+            }
+
+            // 2. تسجيل حركة السداد النقدي (إن وجد)
+            if (inv.calculatedCash && inv.calculatedCash > 0) {
+                excelRows.push({
+                    "التاريخ": invoiceDate,
+                    "الحركه": "سداد منه نقدى",
+                    "اسم العميل": customerName,
+                    "البيان": "سداد نقدى",
+                    "عدد جركن": "",
+                    "سعر جركن": "",
+                    "عدد كرتونه": 1,
+                    "سعر كرتونه": inv.calculatedCash
+                });
+            }
+
+            // 3. تسجيل حركة سداد المحفظة (إن وجد)
+            if (inv.calculatedWallet && inv.calculatedWallet > 0) {
+                excelRows.push({
+                    "التاريخ": invoiceDate,
+                    "الحركه": "سداد منه محفظه",
+                    "اسم العميل": customerName,
+                    "البيان": "سداد محفظه فون",
+                    "عدد جركن": "",
+                    "سعر جركن": "",
+                    "عدد كرتونه": 1,
+                    "سعر كرتونه": inv.calculatedWallet
+                });
+            }
+        });
+
+        const ws = XLSX.utils.json_to_sheet(excelRows, {
+            header: ["التاريخ", "الحركه", "اسم العميل", "البيان", "عدد جركن", "عدد كرتونه", "سعر جركن", "سعر كرتونه"]
+        });
+        
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "المبيعات");
-        XLSX.writeFile(wb, "سجل_المبيعات.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "حركات المبيعات");
+        XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
     };
 
-    // Initial single load
     loadData(true);
 </script>
 </body>
