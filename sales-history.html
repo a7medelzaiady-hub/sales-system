@@ -285,16 +285,6 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // ===== NOTE ON OPTIMIZATION =====
-    // The previous version used onSnapshot() on the full "invoices" collection,
-    // which re-reads every document any time ANY invoice anywhere changes (1 read
-    // per document per snapshot event). That is what drove the Firestore "Reads"
-    // counter so high. This version fetches data ONCE on page load with getDocs()
-    // (a single batch of reads), and only re-fetches when the user explicitly
-    // presses "تحديث" (refresh) or after an action that changes the data
-    // (delete / reset). This cuts read volume drastically for a page that's
-    // mostly being viewed, not edited.
-
     let allInvoices = [];
     let customersData = {};
     let currentFilterType = null;
@@ -528,7 +518,6 @@
                 </div>`;
         }
         try {
-            // Single batched read per collection instead of a live listener.
             const [custSnap, transSnap, invSnap] = await Promise.all([
                 getDocs(collection(db, "customers")),
                 getDocs(collection(db, "transactions")),
@@ -780,7 +769,7 @@
     document.getElementById('deleteAllCustomersBtn').onclick = () => {
         window.showCustomUi({
             title: "🔒 تصفير الحسابات ونقلها للسلة",
-            message: "الرجاء إدخال كلمة التأكيد (الزيادي) للمتابعة في تصفير النظام ونقله للسلة:",
+            message: "الرجاء إدخل كلمة التأكيد (الزيادي) للمتابعة في تصفير النظام ونقله للسلة:",
             type: "prompt",
             icon: "danger",
             confirmText: "تأكيد التصفير المؤقت",
@@ -904,7 +893,6 @@
             onConfirm: async () => {
                 try {
                     await updateDoc(doc(db, "invoices", id), { isDeleted: true, deletedAt: serverTimestamp() });
-                    // Refresh once after the write, instead of relying on a live listener.
                     await loadData(false);
                     window.showCustomUi({ title: "تم النقل", message: "تم نقل الفاتورة إلى سلة المحذوفات بنجاح.", icon: "success" });
                 } catch (err) {
@@ -919,19 +907,69 @@
             window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات لتصديرها بعد.", icon: "info" });
             return;
         }
-        const rows = allInvoices.map(inv => ({
-            "العميل": inv.customerName || 'عميل نقدى',
-            "التاريخ": parseInvoiceDate(inv),
-            "طريقة السداد": inv.paymentMethod || '',
-            "الإجمالي": Number(inv.total) || 0,
-            "نقدى": inv.calculatedCash,
-            "محفظه": inv.calculatedWallet,
-            "المتبقي": Number(inv.remaining) || 0
-        }));
-        const ws = XLSX.utils.json_to_sheet(rows);
+
+        let excelRows = [];
+
+        allInvoices.forEach(inv => {
+            const invDate = parseInvoiceDate(inv);
+            const customerName = inv.customerName || 'النقدي';
+            
+            // 1. إضافة الأصناف المبيعة في الفاتورة كسطور مستقلة (حركات بيع)
+            if (inv.items && inv.items.length > 0) {
+                inv.items.forEach(itm => {
+                    let qtyCarton = 0;
+                    let qtyJarkan = 0;
+                    let priceCarton = 0;
+                    let priceJarkan = 0;
+
+                    const itemName = itm.name || "";
+                    const rawQty = Number(itm.qty) || 0;
+                    const rawPrice = Number(itm.price) || 0;
+
+                    // الفرز بناءً على الكلمات الدلالية لتحديد الجركن مقابل الكرتونة الأساسية
+                    if (itemName.includes("جركن") || itemName.includes("جركان") || itemName.includes("جركن واحد")) {
+                        qtyJarkan = rawQty;
+                        priceJarkan = rawPrice;
+                    } else {
+                        qtyCarton = rawQty;
+                        priceCarton = rawPrice;
+                    }
+
+                    excelRows.push({
+                        "التاريخ": invDate,
+                        "الحركة": "بيع",
+                        "اسم العميل": customerName,
+                        "الصنف": itemName,
+                        "عدد جركن": qtyJarkan,
+                        "عدد كرتونة": qtyCarton,
+                        "سعر جركن": priceJarkan,
+                        "سعر كرتونة": priceCarton
+                    });
+                });
+            }
+
+            // 2. إضافة حركة السداد النقدي كسطر مستقل تماماً مطابقاً لدفتر القيود في صورة 24295.jpg
+            const totalPaid = (inv.calculatedCash || 0) + (inv.calculatedWallet || 0);
+            if (totalPaid > 0) {
+                excelRows.push({
+                    "التاريخ": invDate,
+                    "الحركة": "سداد منه نقدي",
+                    "اسم العميل": customerName,
+                    "الصنف": "سداد نقدي",
+                    "عدد جركن": 0,
+                    "عدد كرتونة": 1, 
+                    "سعر جركن": 0,
+                    "سعر كرتونة": totalPaid
+                });
+            }
+        });
+
+        const ws = XLSX.utils.json_to_sheet(excelRows);
+        ws['!dir'] = "rtl";
+
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "المبيعات");
-        XLSX.writeFile(wb, "سجل_المبيعات.xlsx");
+        XLSX.utils.book_append_sheet(wb, ws, "المبيعات والأرشيف");
+        XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
     };
 
     // Initial single load
