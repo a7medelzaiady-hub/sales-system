@@ -133,6 +133,9 @@
         .badge-type { padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.7rem; }
         .badge-receipt { background-color: #e8f5e9; color: var(--success); }
         .badge-payment { background-color: #ffebee; color: var(--danger); }
+        .badge-method { padding: 2px 7px; border-radius: 6px; font-weight: 700; font-size: 0.62rem; display: inline-block; margin-top: 3px; }
+        .badge-cash { background-color: #fff6e6; color: #b6892f; }
+        .badge-wallet { background-color: #e7f0ff; color: #2456c7; }
 
         .btn-submit { background: var(--accent); color: white; font-weight: 700; border-radius: 8px; padding: 8px 15px; border: none; font-size: 0.85rem; }
         .btn-submit:hover { background: #08472e; color: white; }
@@ -151,6 +154,19 @@
         }
         .receipt-table-layout { width: 100%; border: none; margin-bottom: 5px; }
         .receipt-table-layout td { padding: 4px 2px; font-size: 0.8rem; vertical-align: middle; border: none !important; }
+
+        /* خانتا إجمالي النقدي وإجمالي المحفظة */
+        .method-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+        .method-stat-card {
+            background: var(--white); border: 1px solid var(--border); border-radius: 12px;
+            padding: 10px 12px; text-align: center; border-top: 3px solid var(--border);
+        }
+        .method-stat-card.cash { border-top-color: var(--warning); }
+        .method-stat-card.wallet { border-top-color: #2456c7; }
+        .method-stat-card .lbl { font-size: 0.68rem; font-weight: 700; color: #707b7c; }
+        .method-stat-card .val { font-size: 1rem; font-weight: 800; margin-top: 4px; }
+        .method-stat-card.cash .val { color: var(--warning); }
+        .method-stat-card.wallet .val { color: #2456c7; }
     </style>
 </head>
 <body>
@@ -221,7 +237,14 @@
                     <label class="form-label small fw-bold">المبلغ (ج.م)</label>
                     <input type="number" step="0.01" class="form-control form-control-sm" id="vAmount" placeholder="0.00" required>
                 </div>
-                <div class="col-md-8">
+                <div class="col-md-3">
+                    <label class="form-label small fw-bold">طريقة السداد</label>
+                    <select class="form-select form-select-sm" id="vMethod" required>
+                        <option value="نقدى">نقدى</option>
+                        <option value="محفظة">محفظة</option>
+                    </select>
+                </div>
+                <div class="col-md-9">
                     <label class="form-label small fw-bold">البيان / التفاصيل</label>
                     <input type="text" class="form-control form-control-sm" id="vNote" placeholder="اكتب التفاصيل هنا...">
                 </div>
@@ -230,6 +253,18 @@
                     <button type="button" id="btnCancelEdit" class="btn btn-secondary btn-sm d-none" onclick="resetVoucherForm()">إلغاء</button>
                 </div>
             </form>
+        </div>
+
+        <!-- خانتا إجمالي النقدي وإجمالي المحفظة -->
+        <div class="method-stats">
+            <div class="method-stat-card cash">
+                <div class="lbl">إجمالي النقدى</div>
+                <div class="val" id="totalCash">0.00 ج.م</div>
+            </div>
+            <div class="method-stat-card wallet">
+                <div class="lbl">إجمالي المحفظة</div>
+                <div class="val" id="totalWallet">0.00 ج.م</div>
+            </div>
         </div>
 
         <!-- فلترة وبحث السجلات الجارية مع الإجمالي المعروض -->
@@ -246,6 +281,11 @@
                     <option value="عميل">العملاء فقط</option>
                     <option value="مورد">الموردين فقط</option>
                 </select>
+                <select class="form-select form-select-sm w-auto" id="filterMethod" onchange="filterData()">
+                    <option value="الكل">كل طرق السداد</option>
+                    <option value="نقدى">نقدى فقط</option>
+                    <option value="محفظة">محفظة فقط</option>
+                </select>
             </div>
             <div class="text-end">
                 <span class="small fw-bold opacity-75" style="font-size: 0.75rem;">إجمالي العمليات المعروضة: </span>
@@ -258,18 +298,19 @@
             <table class="statement-table" id="vouchersTable">
                 <thead>
                     <tr>
-                        <th style="width: 13%;">التاريخ</th>
-                        <th style="width: 10%;">النوع</th>
-                        <th style="width: 22%;">الاسم</th>
-                        <th style="width: 25%;">البيان والتفاصيل</th>
-                        <th style="width: 12%;">المبلغ</th>
+                        <th style="width: 12%;">التاريخ</th>
+                        <th style="width: 9%;">النوع</th>
+                        <th style="width: 20%;">الاسم</th>
+                        <th style="width: 22%;">البيان والتفاصيل</th>
+                        <th style="width: 11%;">المبلغ</th>
+                        <th style="width: 8%;">طريقة السداد</th>
                         <th style="width: 6%;">تعديل</th>
                         <th style="width: 6%;">مشاركة</th>
                         <th style="width: 6%;">حذف</th>
                     </tr>
                 </thead>
                 <tbody id="vouchersBody">
-                    <tr><td colspan="8" class="text-center py-4">
+                    <tr><td colspan="9" class="text-center py-4">
                         <div class="spinner-border spinner-border-sm text-success"></div> جاري مراجعة البيانات...
                     </td></tr>
                 </tbody>
@@ -384,13 +425,19 @@
     });
 
     function loadCache() {
-        const cachedParties = localStorage.getItem('cache_partiesMap');
-        const cachedVouchers = localStorage.getItem('cache_allVouchers');
-        
-        if (cachedParties) { partiesMap = JSON.parse(cachedParties); }
-        if (cachedVouchers) {
-            allVouchers = JSON.parse(cachedVouchers);
-            renderTable(allVouchers);
+        try {
+            const cachedParties = localStorage.getItem('cache_partiesMap');
+            const cachedVouchers = localStorage.getItem('cache_allVouchers');
+
+            if (cachedParties) { partiesMap = JSON.parse(cachedParties); }
+            if (cachedVouchers) {
+                allVouchers = JSON.parse(cachedVouchers);
+                renderTable(allVouchers);
+                updateMethodTotals(allVouchers);
+            }
+        } catch (e) {
+            // تجاهل أي خطأ في قراءة الكاش المحلي بدون كسر تحميل الصفحة
+            console.warn("تعذر قراءة الكاش المحلي:", e);
         }
     }
 
@@ -430,28 +477,33 @@
         const pType = document.getElementById('partyType').value;
         const term = input.value.toLowerCase().trim();
 
+        // إصلاح خطأ: تفريغ معرف الطرف المختار إذا قام المستخدم بالكتابة يدوياً بعد الاختيار،
+        // لمنع حفظ سند مرتبط باسم غير مطابق للمعرف الفعلي
+        document.getElementById('partyId').value = '';
+
         if (term.length < 1) {
             resultsDiv.style.display = 'none';
             return;
         }
 
-        let filteredHtml = '';
-        for (let id in partiesMap) {
-            if (partiesMap[id].type === pType && partiesMap[id].name.toLowerCase().includes(term)) {
-                filteredHtml += `
-                    <div class="search-item" onclick="selectParty('${id}', '${partiesMap[id].name}')">
-                        <b>${partiesMap[id].name}</b>
-                    </div>`;
-            }
-        }
+        const matches = Object.entries(partiesMap).filter(([id, p]) =>
+            p.type === pType && p.name.toLowerCase().includes(term)
+        );
 
-        if (filteredHtml !== '') {
-            resultsDiv.innerHTML = filteredHtml;
-            resultsDiv.style.display = 'block';
-        } else {
+        resultsDiv.innerHTML = '';
+        if (matches.length === 0) {
             resultsDiv.innerHTML = `<div class="search-item text-muted text-center">لا توجد نتائج مطابقة</div>`;
-            resultsDiv.style.display = 'block';
+        } else {
+            matches.forEach(([id, p]) => {
+                const item = document.createElement('div');
+                item.className = 'search-item';
+                item.innerHTML = `<b></b>`;
+                item.querySelector('b').textContent = p.name; // إصلاح ثغرة XSS: استخدام textContent بدل دمج الاسم داخل HTML مباشرة
+                item.addEventListener('click', () => window.selectParty(id, p.name));
+                resultsDiv.appendChild(item);
+            });
         }
+        resultsDiv.style.display = 'block';
     };
 
     window.selectParty = (id, name) => {
@@ -490,19 +542,29 @@
                         partyId: d.partyId,
                         partyType: d.partyType || (partiesMap[d.partyId] ? partiesMap[d.partyId].type : 'مورد'),
                         amount: Number(d.amount || 0),
+                        method: d.method || 'نقدى', // إصلاح: قيمة افتراضية للسندات القديمة قبل إضافة طريقة السداد
                         note: d.note || d.notes || ''
                     });
                 }
             });
 
-            localStorage.setItem('cache_allVouchers', JSON.stringify(allVouchers));
-            renderTable(allVouchers);
+            try {
+                localStorage.setItem('cache_allVouchers', JSON.stringify(allVouchers));
+            } catch (e) { /* تجاهل فشل الكاش، لا يوقف عرض البيانات */ }
+
+            filterData();
         } catch (err) {
             console.error(err);
             if(allVouchers.length === 0) {
-                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="8" class="text-danger py-4">حدث خطأ أثناء تحميل البيانات</td></tr>';
+                document.getElementById('vouchersBody').innerHTML = '<tr><td colspan="9" class="text-danger py-4">حدث خطأ أثناء تحميل البيانات</td></tr>';
             }
         }
+    }
+
+    function escapeHtml(str) {
+        return String(str ?? '').replace(/[&<>"']/g, c => ({
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
     }
 
     function renderTable(data) {
@@ -511,7 +573,7 @@
         let total = 0;
 
         if(data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-3 text-muted">لا توجد حركات مطابقة لخيارات الفرز الحالية</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center py-3 text-muted">لا توجد حركات مطابقة لخيارات الفرز الحالية</td></tr>';
             document.getElementById('vouchersTotal').innerText = "0.00 ج.م";
             return;
         }
@@ -520,27 +582,51 @@
             total += v.amount;
             const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
             const badgeClass = v.type === 'قبض' ? 'badge-receipt' : 'badge-payment';
+            const methodClass = v.method === 'محفظة' ? 'badge-wallet' : 'badge-cash';
 
-            tbody.innerHTML += `
-                <tr>
-                    <td><span class="text-secondary fw-bold">${v.date}</span></td>
-                    <td><span class="badge-type ${badgeClass}">${v.type}</span></td>
-                    <td class="text-end fw-bold text-dark">${pName}</td>
-                    <td class="text-end text-muted small">${v.note}</td>
-                    <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م</td>
-                    <td>
-                        <button class="btn-edit-row" onclick="startEditVoucher('${v.id}')" title="تعديل الحركة"><i class="fas fa-edit"></i></button>
-                    </td>
-                    <td>
-                        <button class="btn-share-row" onclick="openReceiptModal('${v.type}', '${v.date}', ${v.amount}, '${v.partyId}')" title="مشاركة"><i class="fas fa-share-alt"></i></button>
-                    </td>
-                    <td>
-                        <button class="btn-delete-row" onclick="deleteVoucher('${v.id}')" title="حذف"><i class="fas fa-trash-alt"></i></button>
-                    </td>
-                </tr>`;
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><span class="text-secondary fw-bold">${escapeHtml(v.date)}</span></td>
+                <td><span class="badge-type ${badgeClass}">${escapeHtml(v.type)}</span></td>
+                <td class="text-end fw-bold text-dark">${escapeHtml(pName)}</td>
+                <td class="text-end text-muted small">${escapeHtml(v.note)}</td>
+                <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م</td>
+                <td><span class="badge-method ${methodClass}">${escapeHtml(v.method)}</span></td>
+                <td><button class="btn-edit-row" data-action="edit" title="تعديل الحركة"><i class="fas fa-edit"></i></button></td>
+                <td><button class="btn-share-row" data-action="share" title="مشاركة"><i class="fas fa-share-alt"></i></button></td>
+                <td><button class="btn-delete-row" data-action="delete" title="حذف"><i class="fas fa-trash-alt"></i></button></td>
+            `;
+            tr.dataset.id = v.id;
+            tbody.appendChild(tr);
         });
 
         document.getElementById('vouchersTotal').innerText = `${total.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+    }
+
+    // تفويض النقر لأزرار الجدول بدل onclick المدمج بالنص؛ يمنع كسر الصفحة عند وجود علامات اقتباس بأسماء العملاء أو البيان
+    document.getElementById('vouchersBody').addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-action]');
+        if (!btn) return;
+        const row = btn.closest('tr');
+        const id = row?.dataset?.id;
+        if (!id) return;
+        const voucher = allVouchers.find(v => v.id === id);
+        if (!voucher) return;
+
+        if (btn.dataset.action === 'edit') window.startEditVoucher(id);
+        if (btn.dataset.action === 'delete') window.deleteVoucher(id);
+        if (btn.dataset.action === 'share') window.openReceiptModal(voucher.type, voucher.date, voucher.amount, voucher.partyId);
+    });
+
+    function updateMethodTotals(data) {
+        let cash = 0, wallet = 0;
+        data.forEach(v => {
+            if (v.type !== 'قبض') return; // الإجمالي يعكس المبالغ المحصّلة فعلياً
+            if (v.method === 'محفظة') wallet += v.amount;
+            else cash += v.amount;
+        });
+        document.getElementById('totalCash').innerText = `${cash.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        document.getElementById('totalWallet').innerText = `${wallet.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
     }
 
     window.startEditVoucher = (id) => {
@@ -555,6 +641,7 @@
         document.getElementById('partySearch').value = partiesMap[voucher.partyId] ? partiesMap[voucher.partyId].name : '';
         document.getElementById('vDate').value = voucher.date;
         document.getElementById('vAmount').value = voucher.amount;
+        document.getElementById('vMethod').value = voucher.method || 'نقدى';
         document.getElementById('vNote').value = voucher.note;
 
         document.getElementById('formTitle').innerHTML = '<i class="fas fa-edit me-1"></i> تعديل وتحديث الحركة المحددة';
@@ -570,6 +657,7 @@
         document.getElementById('editVoucherId').value = '';
         document.getElementById('voucherForm').reset();
         document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('vMethod').value = 'نقدى';
         document.getElementById('partyId').value = '';
         
         document.getElementById('formTitle').innerHTML = '<i class="fas fa-plus-circle me-1"></i> تسجيل عملية جديدة';
@@ -582,14 +670,17 @@
     window.filterData = () => {
         const fType = document.getElementById('filterType').value;
         const fParty = document.getElementById('filterParty').value;
+        const fMethod = document.getElementById('filterMethod').value;
 
         const filtered = allVouchers.filter(v => {
             const matchType = (fType === 'الكل' || v.type === fType);
             const matchParty = (fParty === 'الكل' || v.partyType === fParty);
-            return matchType && matchParty;
+            const matchMethod = (fMethod === 'الكل' || v.method === fMethod);
+            return matchType && matchParty && matchMethod;
         });
 
         renderTable(filtered);
+        updateMethodTotals(filtered);
     };
 
     async function calculateCustomerBalance(partyId) {
@@ -700,14 +791,20 @@
         const partyId = document.getElementById('partyId').value;
         const date = document.getElementById('vDate').value;
         const amount = Number(document.getElementById('vAmount').value);
+        const method = document.getElementById('vMethod').value;
         const note = document.getElementById('vNote').value;
 
         if (!partyId) {
             alert("خطأ: يرجى كتابة الاسم واختياره من قائمة البحث الذكي المنبثقة.");
             return;
         }
+        // إصلاح: التأكد أن المبلغ رقم صحيح وأكبر من صفر قبل الحفظ
+        if (!amount || amount <= 0 || isNaN(amount)) {
+            alert("خطأ: يرجى إدخال مبلغ صحيح أكبر من صفر.");
+            return;
+        }
 
-        const docData = { date, type, partyId, partyType, amount, note };
+        const docData = { date, type, partyId, partyType, amount, method, note };
 
         try {
             if (editId) {
@@ -753,18 +850,27 @@
         }
     };
 
+    // تصدير إكسل بصيغة فاتورة: التاريخ - الحركة - اسم العميل - البيان - عدد جركن - عدد كرتونة - سعر جركن - سعر كرتونة
+    // كل سند يُسجَّل كـ "كرتونة واحدة" بسعر يساوي مبلغ السند، وعمود الجركن يبقى فارغاً (صفر)،
+    // وعمود "الحركة" يكتب فيه "سداد منه نقدى" أو "سداد منه محفظة" حسب طريقة السداد الفعلية.
     window.exportToExcel = () => {
-        if (allVouchers.length === 0) return;
+        if (allVouchers.length === 0) {
+            alert("لا توجد بيانات لتصديرها.");
+            return;
+        }
 
         const excelRows = allVouchers.map(v => {
             const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
+            const movementLabel = v.method === 'محفظة' ? 'سداد منه محفظة' : 'سداد منه نقدى';
             return {
                 'التاريخ': v.date,
-                'نوع الحركة': v.type,
-                'تصنيف الحساب': v.partyType,
-                'اسم العميل / المورد': pName,
-                'البيان والتفاصيل': v.note,
-                'المبلغ المالي (ج.م)': v.amount
+                'الحركة': movementLabel,
+                'اسم العميل': pName,
+                'البيان': v.note,
+                'عدد جركن': 0,
+                'عدد كرتونة': 1,
+                'سعر جركن': 0,
+                'سعر كرتونة': v.amount
             };
         });
 
