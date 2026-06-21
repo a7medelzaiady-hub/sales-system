@@ -914,7 +914,7 @@
             const invoiceDate = parseInvoiceDate(inv);
             const customerName = inv.customerName || 'عميل نقدى';
 
-            // 1. تسجيل حركات البيع (الأصناف داخل الفاتورة)
+            // 1. تسجيل حركات البيع والمرتجع (الأصناف تفصيلياً)
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(itm => {
                     let qtyJerkin = "";
@@ -926,25 +926,30 @@
                     const qty = Number(itm.qty) || 0;
                     const price = Number(itm.price) || 0;
 
-                    if (itemName.includes("جركن") || itemName.includes("جالون") || itemName.includes("قطعة") || itemName.includes("قطعه")) {
-                        qtyJerkin = qty;
-                        priceJerkin = price;
-                    } else if (itemName.includes("كرتونه") || itemName.includes("كرتونة")) {
+                    // تحديد نوع الحركة بناءً على وجود كلمة مرتجع في اسم الصنف
+                    let movementType = "بيع";
+                    if (itemName.includes("مرتجع")) {
+                        movementType = "مرتجع";
+                    }
+
+                    // التوزيع الصحيح على الأعمدة حسب نوع الصنف (سواء كان بيع أو مرتجع)
+                    if (itemName.includes("كرتونه") || itemName.includes("كرتونة")) {
                         qtyCarton = qty;
                         priceCarton = price;
                     } else {
+                        // الافتراضي جراكن وجوالين وقطع
                         qtyJerkin = qty;
                         priceJerkin = price;
                     }
 
                     excelRows.push({
                         "التاريخ": invoiceDate,
-                        "الحركه": "بيع",
+                        "الحركه": movementType,
                         "اسم العميل": customerName,
-                        "البيان": `بيع صنف: ${itemName}`,
+                        "البيان": itemName, // كتابة اسم المنتج مباشرة دون عبارات إضافية
                         "عدد جركن": qtyJerkin,
-                        "سعر جركن": priceJerkin,
                         "عدد كرتونه": qtyCarton,
+                        "سعر جركن": priceJerkin,
                         "سعر كرتونه": priceCarton
                     });
                 });
@@ -958,8 +963,8 @@
                     "اسم العميل": customerName,
                     "البيان": "سداد نقدى",
                     "عدد جركن": "",
-                    "سعر جركن": "",
                     "عدد كرتونه": 1,
+                    "سعر جركن": "",
                     "سعر كرتونه": inv.calculatedCash
                 });
             }
@@ -972,8 +977,8 @@
                     "اسم العميل": customerName,
                     "البيان": "سداد محفظه فون",
                     "عدد جركن": "",
-                    "سعر جركن": "",
                     "عدد كرتونه": 1,
+                    "سعر جركن": "",
                     "سعر كرتونه": inv.calculatedWallet
                 });
             }
