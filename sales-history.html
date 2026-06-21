@@ -58,9 +58,8 @@
         .fin-box span { display: block; font-size: 0.85rem; margin-top: 1px; font-weight: 800; }  
         .search-box { border: 1px solid var(--border); border-radius: var(--input-radius); padding: 8px 12px; font-weight: 600; font-size: 0.85rem; font-family: 'Cairo', sans-serif; }  
         
-        /* تحسين استعراض الجداول على الموبايل */
         .table-responsive-container { overflow-x: auto; -webkit-overflow-scrolling: touch; margin-top: 8px; }
-        .items-preview-table { width: 100%; font-size: 0.78rem; border-collapse: collapse; min-width: 280px; }  
+        .items-preview-table { width: 100%; font-size: 0.78rem; border-collapse: collapse; min-width: 320px; }  
         .items-preview-table th { background: #ebf9eb; padding: 4px; border: 1px solid var(--border); font-weight: 700; text-align: center; }  
         .items-preview-table td { padding: 4px; border: 1px solid var(--border); text-align: center; font-weight: 600; }  
         
@@ -162,7 +161,7 @@
 
     <div class="row g-2 mb-2 align-items-end">  
         <div class="col-6">  
-            <input type="text" id="searchInput" class="form-control search-box h-100" placeholder="البحث باسم العميل أو السداد..." oninput="window.filterInvoices()">  
+            <input type="text" id="searchInput" class="form-control search-box h-100" placeholder="البحث باسم العميل أو الصنف..." oninput="window.filterInvoices()">  
         </div>  
         <div class="col-6">  
             <input type="date" id="dateFilterInput" class="form-control h-100" style="font-size: 0.85rem; font-weight: 600; border-radius: var(--input-radius); padding: 7px 12px; font-family: 'Cairo';" onchange="window.handleDateFilterChange()">  
@@ -178,7 +177,6 @@
 
 </div>  
 
-<!-- مودال الشير عبر الواتساب -->
 <div id="shareModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(3px);">  
     <div style="background: white; width: 88%; max-width: 360px; padding: 20px; border-radius: 14px; text-align: center; font-family: 'Cairo';">  
         <div style="width: 50px; height: 50px; background: #ebf9eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">  
@@ -193,7 +191,6 @@
     </div>  
 </div>  
 
-<!-- الحاوية الوهمية لطباعة ريسيت الواتساب كصورة فقط عند الحاجة للشير -->
 <div id="thermalReceiptContainer" style="position: absolute; left: -9999px; top: -9999px;">  
     <div id="thermalReceipt" style="width: 380px; background: #fff; padding: 25px 20px; font-family: 'Cairo'; direction: rtl; color: #000;">  
         <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 10px;">  
@@ -203,14 +200,14 @@
         </div>  
         <div style="border-bottom: 1px dashed #000; margin-bottom: 12px; padding-bottom: 8px; font-size: 13px; line-height: 1.6;">  
             <div style="display: flex; justify-content: space-between;"><span><b>التاريخ والوقت:</b></span><span id="recDate" style="direction: ltr;"></span></div>  
-            <div style="display: flex; justify-content: space-between;"><span><b>طريقة السداد:</b></span><span id="recPaymentMethod" style="font-weight:700;"></span></div>  
+            <div style="display: flex; justify-content: space-between;"><span><b>نوع الحركة:</b></span><span id="recMovementType" style="font-weight:700;"></span></div>  
         </div>  
         <table style="width: 100%; font-size: 13px; text-align: right; margin-bottom: 15px; border-collapse: collapse;">  
             <thead>  
                 <tr style="border-bottom: 1.5px solid #000; font-weight: 800; background: #f5f5f5;">  
                     <th style="padding: 4px;">الصنف</th>  
-                    <th style="text-align:center; padding: 4px;">الكمية</th>  
-                    <th style="text-align:left; padding: 4px;">السعر</th>  
+                    <th style="text-align:center; padding: 4px;">جركان</th>  
+                    <th style="text-align:center; padding: 4px;">كرتونة</th>  
                     <th style="text-align:left; padding: 4px;">الإجمالي</th>  
                 </tr>  
             </thead>  
@@ -264,7 +261,7 @@
   
     function parseInvoiceDate(inv) {  
         let dateStr = "";  
-        if (inv.date) { dateStr = cleanDateString(inv.date); }  
+        if (inv.date || inv["التاريخ"]) { dateStr = cleanDateString(inv.date || inv["التاريخ"]); }  
         else if (inv.timestamp?.seconds) {  
             const d = new Date(inv.timestamp.seconds * 1000);  
             return d.toISOString().split('T')[0];  
@@ -289,41 +286,45 @@
         return "00:00 م";  
     }  
 
-    // التابع المعدل لعرض الفواتير مع الالتزام بالمصطلحات والتفاصيل المطلوبة
+    // معالجة البيانات القادمة من الفايربيس وتوفيقها مع هيكلية كود الإكسل المعتمد لديك
     window.renderInvoices = (invoices) => {  
         const container = document.getElementById('invoicesList');  
         if (invoices.length === 0) {  
-            container.innerHTML = `<div class="text-center py-4 text-muted fw-bold">لا توجد فواتير مطابقة للبحث أو الفلتر المختار.</div>`;  
+            container.innerHTML = `<div class="text-center py-4 text-muted fw-bold">لا توجد حركات مطابقة للبحث أو الفلتر المختار.</div>`;  
             return;  
         }  
   
         container.innerHTML = invoices.map(inv => {  
-            let methodBadgeColor = "bg-secondary";  
-            if(inv.paymentMethod === "سداد نقدي" || inv.paymentMethod === "كاش" || inv.paymentMethod === "نقدي") methodBadgeColor = "bg-success";  
-            else if(inv.paymentMethod === "سداد محفظه" || inv.paymentMethod === "محفظه") methodBadgeColor = "bg-primary";  
-            else if(inv.paymentMethod === "آجل") methodBadgeColor = "bg-warning text-dark";  
+            const movementType = inv["الحركة"] || inv.movementType || "بيع";
+            const clientName = inv["اسم العميل"] || inv.customerName || "النقدى";
+            const productName = inv["الصنف"] || inv.productName || "";
+            
+            const jarkanQty = parseFloat(inv["عدد جركن"] || inv.jarkanQuantity) || 0;
+            const cartonQty = parseFloat(inv["عدد كرتونة"] || inv.cartonQuantity) || 0;
+            const jarkanPrice = parseFloat(inv["سعر جركن"] || inv.jarkanPrice) || 0;
+            const cartonPrice = parseFloat(inv["سعر كرتونة"] || inv.cartonPrice) || 0;
+
+            // حساب المبالغ الفرعية طبقاً لنظام التخزين
+            const totalInvoiceAmount = (jarkanQty * jarkanPrice) + (cartonQty * cartonPrice);
+            
+            let paidAmount = 0;
+            let remainingAmount = 0;
+
+            if (movementType.includes("سداد") || movementType.includes("نقدي")) {
+                paidAmount = totalInvoiceAmount > 0 ? totalInvoiceAmount : (parseFloat(inv.paid) || 0);
+                remainingAmount = 0;
+            } else {
+                remainingAmount = totalInvoiceAmount;
+                paidAmount = 0;
+            }
+
+            let badgeColor = "bg-success";  
+            if(movementType.includes("سداد")) badgeColor = "bg-primary";  
+            else if(movementType.includes("آجل")) badgeColor = "bg-warning text-dark";  
   
-            // السداد الشامل = كاش + محفظة
-            const totalPaid = (inv.calculatedCash || 0) + (inv.calculatedWallet || 0);  
-            const displayTime = formatInvoiceTime(inv.time, inv.date);  
+            const displayTime = formatInvoiceTime(inv["الوقت"] || inv.time, inv["التاريخ"] || inv.date);  
             const originalDate = parseInvoiceDate(inv);  
   
-            // تجهيز عناصر الفاتورة الداخلية مع مراعاة تسمية الوحدات (جركان / كرتونة)
-            const itemsRows = (inv.items || []).map(item => {
-                let unitName = "كرتونة";
-                if (item.unit === "Jarkan" || item.unit === "جركان" || (item.quantity && item.quantity < 1)) {
-                    unitName = "جركان";
-                }
-                return `
-                    <tr>
-                        <td>${item.name || 'صنف غير معرف'}</td>
-                        <td>${item.quantity || 0} ${unitName}</td>
-                        <td>${(item.price || 0).toFixed(2)}</td>
-                        <td>${((item.quantity || 0) * (item.price || 0)).toFixed(2)}</td>
-                    </tr>
-                `;
-            }).join('');
-
             return `  
                 <div class="invoice-item">  
                     <div class="d-flex justify-content-between align-items-center mb-2">  
@@ -331,32 +332,43 @@
                             <span class="detail-badge me-1"><i class="fas fa-calendar-alt"></i> ${originalDate}</span>  
                             <span class="detail-badge"><i class="fas fa-clock"></i> ${displayTime}</span>  
                         </div>  
-                        <span class="badge ${methodBadgeColor} fw-bold" style="font-size:0.75rem; padding: 5px 10px; border-radius:6px;">${inv.paymentMethod || 'غير محدد'}</span>  
+                        <span class="badge ${badgeColor} fw-bold" style="font-size:0.75rem; padding: 5px 10px; border-radius:6px;">${movementType}</span>  
                     </div>  
-  
+                    
+                    <div style="font-size: 0.9rem; margin-bottom:6px;">
+                        <b>العميل:</b> <span class="text-dark fw-bold">${clientName}</span>
+                    </div>
+
                     <div class="table-responsive-container">
                         <table class="items-preview-table">  
                             <thead>  
                                 <tr>  
                                     <th>الصنف</th>  
-                                    <th>الكمية</th>  
-                                    <th>السعر</th>  
-                                    <th>الإجمالي</th>  
+                                    <th>جركان</th>  
+                                    <th>سعر جركان</th>  
+                                    <th>كرتونة</th>  
+                                    <th>سعر كرتونة</th>  
                                 </tr>  
                             </thead>  
                             <tbody>  
-                                ${itemsRows || '<tr><td colspan="4">لا توجد أصناف</td></tr>'}  
+                                <tr>
+                                    <td>${productName || 'ـ'}</td>
+                                    <td>${jarkanQty > 0 ? jarkanQty + ' جركان' : '0'}</td>
+                                    <td>${jarkanPrice.toFixed(2)}</td>
+                                    <td>${cartonQty > 0 ? cartonQty + ' كرتونة' : '0'}</td>
+                                    <td>${cartonPrice.toFixed(2)}</td>
+                                </tr>
                             </tbody>  
                         </table>  
-                    </div>
-  
-                    <div class="financial-grid">  
-                        <div class="fin-box text-secondary">إجمالي الفاتورة: <span class="text-dark">${(inv.finalTotal || 0).toFixed(2)}</span></div>  
-                        <div class="fin-box text-success">المدفوع: <span class="text-success">${totalPaid.toFixed(2)}</span></div>  
-                        <div class="fin-box text-warning" style="grid-column: span 2;">المتبقي الآجل: <span class="text-warning">${(inv.calculatedRemaining || 0).toFixed(2)}</span></div>  
                     </div>  
   
-                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2 style="border-top: 1px solid var(--border);">  
+                    <div class="financial-grid">  
+                        <div class="fin-box text-secondary">إجمالي الحركة: <span class="text-dark">${totalInvoiceAmount.toFixed(2)}</span></div>  
+                        <div class="fin-box text-success">المدفوع: <span class="text-success">${paidAmount.toFixed(2)}</span></div>  
+                        <div class="fin-box text-warning" style="grid-column: span 2;">المتبقي الآجل: <span class="text-warning">${remainingAmount.toFixed(2)}</span></div>  
+                    </div>  
+  
+                    <div class="d-flex justify-content-between align-items-center mt-3 pt-2" style="border-top: 1px solid var(--border);">  
                         <span class="text-muted fw-bold" style="font-size: 0.72rem;">تم الاستلام</span>  
                         <div class="d-flex gap-1">  
                             <button class="btn btn-sm btn-outline-success px-2 py-1" onclick="window.openShareModal('${inv.id}')" style="font-size:0.72rem; border-radius:6px;"><i class="fab fa-whatsapp me-1"></i> مشاركة</button>  
@@ -368,7 +380,7 @@
         }).join('');  
     };  
 
-    // حساب الإحصائيات الشاملة واليومية بناءً على طريقة التصدير والقيم المسجلة
+    // معالجة وحساب الإحصائيات الشاملة واليومية بناءً على أعمدة كود الإكسل المعتمد لديك
     function calculateStats() {  
         const todayStr = new Date().toISOString().split('T')[0];  
   
@@ -379,28 +391,39 @@
   
         allInvoices.forEach(inv => {  
             const invDate = parseInvoiceDate(inv);  
-            const cash = parseFloat(inv.calculatedCash) || 0;  
-            const wallet = parseFloat(inv.calculatedWallet) || 0;  
-            const remaining = parseFloat(inv.calculatedRemaining) || 0;  
-            const total = parseFloat(inv.finalTotal) || 0;  
+            const movementType = inv["الحركة"] || inv.movementType || "بيع";
+            
+            const jarkanQty = parseFloat(inv["عدد جركن"] || inv.jarkanQuantity) || 0;
+            const cartonQty = parseFloat(inv["عدد كرتونة"] || inv.cartonQuantity) || 0;
+            const jarkanPrice = parseFloat(inv["سعر جركن"] || inv.jarkanPrice) || 0;
+            const cartonPrice = parseFloat(inv["سعر كرتونة"] || inv.cartonPrice) || 0;
+
+            const total = (jarkanQty * jarkanPrice) + (cartonQty * cartonPrice);
+            
+            let cash = 0;
+            let remaining = 0;
+
+            if (movementType.includes("سداد") || movementType.includes("نقدي")) {
+                cash = total;
+            } else {
+                remaining = total;
+            }
   
             // إحصائيات الكل  
             stats.allCash += cash;  
-            stats.allWallet += wallet;  
             stats.allRemaining += remaining;  
             stats.allTotal += total;  
   
             // إحصائيات اليوم  
             if (invDate === todayStr) {  
                 stats.todayCash += cash;  
-                stats.todayWallet += wallet;  
                 stats.todayRemaining += remaining;  
                 stats.todayTotal += total;  
             }  
         });  
   
         document.getElementById('todayCash').innerText = stats.todayCash.toFixed(2);  
-        document.getElementById('todayWallet').innerText = stats.todayWallet.toFixed(2);  
+        document.getElementById('todayWallet').innerText = stats.todayWallet.toFixed(2); // يظل 0 أو يتم ربطه لاحقاً بالمحفظة  
         document.getElementById('todayRemaining').innerText = stats.todayRemaining.toFixed(2);  
         document.getElementById('todayTotalSales').innerText = stats.todayTotal.toFixed(2);  
   
@@ -410,7 +433,7 @@
         document.getElementById('statTotalSales').innerText = stats.allTotal.toFixed(2);  
     }  
   
-    // جلب البيانات الأساسية من هاتف الفايربيس
+    // جلب العمليات من الفايرستور  
     async function fetchInvoices() {  
         try {  
             const q = query(collection(db, "salesInvoices"), orderBy("timestamp", "desc"));  
@@ -427,7 +450,7 @@
         }  
     }  
   
-    // تصفية الفواتير بناءً على المدخلات، التاريخ، والفلتر النشط  
+    // معالجة البحث والفلترة  
     window.filterInvoices = () => {  
         const searchTxt = document.getElementById('searchInput').value.toLowerCase();  
         const dateFilter = document.getElementById('dateFilterInput').value;  
@@ -435,23 +458,24 @@
   
         let filtered = allInvoices.filter(inv => {  
             const invDate = parseInvoiceDate(inv);  
-            const paymentMethod = (inv.paymentMethod || "").toLowerCase();  
+            const clientName = (inv["اسم العميل"] || inv.customerName || "").toLowerCase();  
+            const productName = (inv["الصنف"] || inv.productName || "").toLowerCase();  
             
-            // فلتر البحث  
-            const matchesSearch = paymentMethod.includes(searchTxt);  
-            // فلتر التاريخ  
+            const matchesSearch = clientName.includes(searchTxt) || productName.includes(searchTxt);  
             const matchesDate = dateFilter ? (invDate === dateFilter) : true;  
   
-            // الفلاتر المتقدمة من كروت الإحصائيات  
+            // فلاتر أزرار الإحصائيات
             let matchesStat = true;  
-            if (currentFilterType === 'today-cash') matchesStat = (invDate === todayStr && (inv.calculatedCash > 0));  
-            else if (currentFilterType === 'today-wallet') matchesStat = (invDate === todayStr && (inv.calculatedWallet > 0));  
-            else if (currentFilterType === 'today-remaining') matchesStat = (invDate === todayStr && (inv.calculatedRemaining > 0));  
+            const movementType = inv["الحركة"] || inv.movementType || "بيع";
+            const jarkanQty = parseFloat(inv["عدد جركن"] || inv.jarkanQuantity) || 0;
+            const cartonQty = parseFloat(inv["عدد كرتونة"] || inv.cartonQuantity) || 0;
+            const hasQty = (jarkanQty > 0 || cartonQty > 0);
+
+            if (currentFilterType === 'today-cash') matchesStat = (invDate === todayStr && movementType.includes("سداد"));  
+            else if (currentFilterType === 'today-remaining') matchesStat = (invDate === todayStr && !movementType.includes("سداد"));  
             else if (currentFilterType === 'today-total') matchesStat = (invDate === todayStr);  
-            else if (currentFilterType === 'all-cash') matchesStat = (inv.calculatedCash > 0);  
-            else if (currentFilterType === 'all-wallet') matchesStat = (inv.calculatedWallet > 0);  
-            else if (currentFilterType === 'all-remaining') matchesStat = (inv.calculatedRemaining > 0);  
-            else if (currentFilterType === 'all-total') matchesStat = true;  
+            else if (currentFilterType === 'all-cash') matchesStat = movementType.includes("سداد");  
+            else if (currentFilterType === 'all-remaining') matchesStat = !movementType.includes("سداد");  
   
             return matchesSearch && matchesDate && matchesStat;  
         });  
@@ -484,12 +508,11 @@
         window.filterInvoices();  
     };  
   
-    // حذف فاتورة منفردة  
     window.deleteInvoice = async (id) => {  
-        if (confirm("هل أنت متأكد من حذف هذه الفاتورة نهائياً؟")) {  
+        if (confirm("هل أنت متأكد من حذف هذه الحركة نهائياً؟")) {  
             try {  
                 await deleteDoc(doc(db, "salesInvoices", id));  
-                alert("تم حذف الفاتورة بنجاح");  
+                alert("تم الحذف بنجاح");  
                 fetchInvoices();  
             } catch (error) {  
                 alert("حدث خطأ أثناء الحذف");  
@@ -497,88 +520,90 @@
         }  
     };  
   
-    // فتح واجهة تشكيل صورة الفاتورة للمشاركة عبر واتساب  
+    // فتح واجهة المشاركة الحرارية المتوافقة مع أسلوب الملف الأخير
     window.openShareModal = (id) => {  
         const inv = allInvoices.find(i => i.id === id);  
         if (!inv) return;  
   
-        document.getElementById('recDate').innerText = `${parseInvoiceDate(inv)} ${formatInvoiceTime(inv.time, inv.date)}`;  
-        document.getElementById('recPaymentMethod').innerText = inv.paymentMethod || 'غير محدد';  
+        const movementType = inv["الحركة"] || inv.movementType || "بيع";
+        const productName = inv["الصنف"] || inv.productName || "";
+        const jarkanQty = parseFloat(inv["عدد جركن"] || inv.jarkanQuantity) || 0;
+        const cartonQty = parseFloat(inv["عدد كرتونة"] || inv.cartonQuantity) || 0;
+        const jarkanPrice = parseFloat(inv["سعر جركن"] || inv.jarkanPrice) || 0;
+        const cartonPrice = parseFloat(inv["سعر كرتونة"] || inv.cartonPrice) || 0;
+
+        const totalAmount = (jarkanQty * jarkanPrice) + (cartonQty * cartonPrice);
+        let paid = 0; let remaining = 0;
+
+        if(movementType.includes("سداد")) { paid = totalAmount; remaining = 0; }
+        else { remaining = totalAmount; paid = 0; }
+
+        document.getElementById('recDate').innerText = `${parseInvoiceDate(inv)} ${formatInvoiceTime(inv["الوقت"] || inv.time, inv["التاريخ"] || inv.date)}`;  
+        document.getElementById('recMovementType').innerText = movementType;  
   
-        const totalPaid = (inv.calculatedCash || 0) + (inv.calculatedWallet || 0);  
-        document.getElementById('recTotal').innerText = (inv.finalTotal || 0).toFixed(2);  
-        document.getElementById('recPaid').innerText = totalPaid.toFixed(2);  
-        document.getElementById('recRemaining').innerText = (inv.calculatedRemaining || 0).toFixed(2);  
+        document.getElementById('recTotal').innerText = totalAmount.toFixed(2);  
+        document.getElementById('recPaid').innerText = paid.toFixed(2);  
+        document.getElementById('recRemaining').innerText = remaining.toFixed(2);  
   
         const tbody = document.getElementById('recItems');  
-        tbody.innerHTML = (inv.items || []).map(item => {
-            let unitName = "كرتونة";
-            if (item.unit === "Jarkan" || item.unit === "جركان" || (item.quantity && item.quantity < 1)) {
-                unitName = "جركان";
-            }
-            return `
-                <tr>
-                    <td style="padding:4px;">${item.name || 'صنف'}</td>
-                    <td style="text-align:center; padding:4px;">${item.quantity || 0} ${unitName}</td>
-                    <td style="text-align:left; padding:4px;">${(item.price || 0).toFixed(2)}</td>
-                    <td style="text-align:left; padding:4px;">${((item.quantity || 0) * (item.price || 0)).toFixed(2)}</td>
-                </tr>
-            `;
-        }).join('');  
+        tbody.innerHTML = `
+            <tr>
+                <td style="padding:4px;">${productName || 'ـ'}</td>
+                <td style="text-align:center; padding:4px;">${jarkanQty}</td>
+                <td style="text-align:center; padding:4px;">${cartonQty}</td>
+                <td style="text-align:left; padding:4px;">${totalAmount.toFixed(2)}</td>
+            </tr>
+        `;  
   
         document.getElementById('shareModal').style.display = 'flex';  
     };  
   
-    // تصدير البيانات إلى ملف إكسل يعتمد على صيغة تجميع دقيقة  
+    // تصدير كشف الحركة مطابقة لترتيب وأعمدة كود ملفك الأخير 100%
     document.getElementById('exportExcelBtn').addEventListener('click', () => {  
         if (allInvoices.length === 0) {  
             alert("لا توجد بيانات لتصديرها");  
             return;  
         }  
   
-        const rows = allInvoices.map((inv, idx) => ({  
-            "م": idx + 1,  
+        const rows = allInvoices.map((inv) => ({  
             "التاريخ": parseInvoiceDate(inv),  
-            "الوقت": formatInvoiceTime(inv.time, inv.date),  
-            "طريقة السداد": inv.paymentMethod || "",  
-            "إجمالي الفاتورة": inv.finalTotal || 0,  
-            "المدفوع نقدي": inv.calculatedCash || 0,  
-            "المدفوع محفظة": inv.calculatedWallet || 0,  
-            "المتبقي الآجل": inv.calculatedRemaining || 0  
+            "الحركة": inv["الحركة"] || inv.movementType || "بيع",  
+            "اسم العميل": inv["اسم العميل"] || inv.customerName || "",  
+            "الصنف": inv["الصنف"] || inv.productName || "",  
+            "عدد جركن": parseFloat(inv["عدد جركن"] || inv.jarkanQuantity) || 0,  
+            "عدد كرتونة": parseFloat(inv["عدد كرتونة"] || inv.cartonQuantity) || 0,  
+            "سعر جركن": parseFloat(inv["سعر جركن"] || inv.jarkanPrice) || 0,  
+            "سعر كرتونة": parseFloat(inv["سعر كرتونة"] || inv.cartonPrice) || 0  
         }));  
   
         const worksheet = XLSX.utils.json_to_sheet(rows);  
         const workbook = XLSX.utils.book_new();  
-        XLSX.utils.book_append_sheet(workbook, worksheet, "سجل المبيعات");  
-        XLSX.writeFile(workbook, `سجل_مبيعات_شركة_الزيادي_${new Date().toISOString().split('T')[0]}.xlsx`);  
+        XLSX.utils.book_append_sheet(workbook, worksheet, "المبيعات والأرشيف");  
+        XLSX.writeFile(workbook, `سجل_مبيعات_الزيادي_${new Date().toISOString().split('T')[0]}.xlsx`);  
     });  
   
-    // تفعيل التقاط صورة الريسيت الحراري وإرسالها عند تأكيد المشاركة  
+    // معالجة مشاركة الصورة للواتساب
     document.getElementById('confirmShareBtn').addEventListener('click', () => {  
         const target = document.getElementById('thermalReceipt');  
         html2canvas(target, { useCORS: true, scale: 2 }).then(canvas => {  
             canvas.toBlob(blob => {  
-                if (!blob) {  
-                    alert("تعذر إنشاء ملف الصورة.");  
-                    return;  
-                }  
+                if (!blob) return;  
                 const file = new File([blob], "invoice.png", { type: "image/png" });  
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {  
                     navigator.share({  
                         files: [file],  
                         title: 'فاتورة مبيعات',  
-                        text: 'فاتورة صادرة من شركة الزيادي لزيوت السيارات'  
+                        text: 'شركة الزيادي لزيوت السيارات'  
                     }).then(() => {  
                         document.getElementById('shareModal').style.display = 'none';  
-                    }).catch(err => console.error("Share failed:", err));  
+                    }).catch(err => console.error(err));  
                 } else {  
-                    alert("المشاركة عبر الملفات غير مدعومة على هذا المتصفح، يمكنك تصوير الشاشة يدوياً.");  
+                    alert("المشاركة غير مدعومة بالمتصفح، يمكنك تصوير الشاشة يدوياً.");  
                 }  
             }, "image/png");  
         });  
     });  
   
-    // البدء بالتحميل  
     fetchInvoices();  
 </script>  
 </body>  
