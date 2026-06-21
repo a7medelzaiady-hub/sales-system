@@ -287,6 +287,11 @@
         .report-card:hover .icon-box { background: #007bff; color: #fff; }
         .report-card::after { background: #007bff; }
 
+        /* ستايل إضافي لكارت الموظفين التميزي */
+        .report2-card .icon-box { color: var(--purple); background: rgba(108,63,200,0.09); }
+        .report2-card:hover .icon-box { background: var(--purple); color: #fff; }
+        .report2-card::after { background: var(--purple); }
+
         .price-card .icon-box { color: var(--purple); background: rgba(108,63,200,0.09); }
         .price-card:hover .icon-box { background: var(--purple); color: #fff; }
         .price-card::after { background: var(--purple); }
@@ -464,14 +469,19 @@
                 <p>النقديه</p>
             </div>
         </a>
-
-<a href="reports.html" class="card-link" id="cardReports">
-            <div class="card">
+        <a href="reports.html" class="card-link" id="cardreports">
+            <div class="card report-card">
                 <div class="icon-box"><i class="fas fa-chart-bar"></i></div>
                 <p>التقارير</p>
             </div>
-</a>
-        
+        </a>
+        <!-- الكارت الجديد: يظهر فقط للمستخدم / الموظف ويختفي تماماً عند الأدمن -->
+        <a href="reports2.html" class="card-link" id="cardreports2">
+            <div class="card report2-card">
+                <div class="icon-box"><i class="fas fa-chart-pie"></i></div>
+                <p>تقارير الموظفين</p>
+            </div>
+        </a>
     </div>
 
     <!-- SIDEBAR (القائمة الجانبية الكاملة) -->
@@ -524,15 +534,10 @@
                 <i class="fas fa-money-bill-transfer"></i>
                 <span>قيد مصروف</span>
             </a>
-            
-            <a href="inventory.html" class="nav-action" id="bottomExpenses">
+            <a href="inventory.html" class="nav-action">
                 <i class="fas fa-money-bill-transfer"></i>
                 <span>الاصناف </span>
-
-        
-
-    
-        </a>
+            </a>
         </nav>
     </div>
 
@@ -606,7 +611,8 @@
 
             const role              = sessionStorage.getItem('role') || 'employee';
             const savedPermissions  = sessionStorage.getItem('permissions');
-            const userPermissions   = savedPermissions ? JSON.parse(savedPermissions) : ['sales','clients','vouchers','inventory'];
+            // تم إضافة 'reports2' لمصفوفة الموظف الافتراضية للتأكد من ظهوره له تلقائياً إن لم تحدد الصلاحيات يدوياً بعد
+            const userPermissions   = savedPermissions ? JSON.parse(savedPermissions) : ['sales','clients','vouchers','inventory','reports2'];
 
             const roleBadge = document.getElementById('userRoleBadge');
             if (roleBadge) {
@@ -615,7 +621,7 @@
                                     : 'موظف';
             }
 
-            // خريطة الصلاحيات الموسعة بالكامل لحماية كافة الأزرار الجديدة برمجياً
+            // خريطة الصلاحيات الموسعة برمجياً
             const permMap = {
                 cardSales:           'sales',
                 cardPurchases:       'purchases',
@@ -626,6 +632,7 @@
                 cardVouchers:        'vouchers',
                 cardBanknote:        'banknote',
                 cardReports:         'reports',
+                cardreports2:        'reports2', // ربط الكارت الجديد بصلاحية مستقلة للموظف
                 cardPriceSearch:     'sales',
                 cardAccountingSetup: 'settings', 
                 cardExpensesDirect:  'banknote',
@@ -654,10 +661,26 @@
             if (vouchersCard) vouchersCard.href = role === 'admin' ? 'vouchers-hub.html?tab=all' : 'vouchers-hub.html?tab=customers';
 
             let visibleCards = 0;
-            if (role !== 'admin') {
+
+            if (role === 'admin') {
+                // التحكم الخاص بالمدير: إظهار كل شيء ما عدا كارت الموظف الحصري cardreports2
                 Object.keys(permMap).forEach(id => {
                     const el = document.getElementById(id);
                     if (!el) return;
+                    
+                    if (id === 'cardreports2') {
+                        el.style.display = 'none'; // حظر الكارت عن المدير نهائياً
+                    } else {
+                        el.style.display = '';
+                        if (id.startsWith('card')) visibleCards++;
+                    }
+                });
+            } else {
+                // التحكم الخاص بالموظف: بناءً على مصفوفة الصلاحيات الممنوحة له
+                Object.keys(permMap).forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    
                     if (userPermissions.includes(permMap[id])) {
                         el.style.display = '';
                         if (id.startsWith('card')) visibleCards++;
@@ -665,8 +688,6 @@
                         el.style.display = 'none';
                     }
                 });
-            } else {
-                visibleCards = 13; // إجمالي الكروت النشطة للمدير
             }
 
             const dash = document.getElementById('mainDashboard');
