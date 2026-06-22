@@ -85,7 +85,7 @@
         
         .table .form-control.product {
             font-weight: 700;
-            min-width: 160px;
+            min-width: 180px;
             background-color: transparent;
             border: none;
             text-align: right;
@@ -94,14 +94,14 @@
         }
 
         .pack-badge {
-            font-size: 0.7rem;
+            font-size: 0.72rem;
             background-color: #e8f5e9;
             color: #2e7d32;
             padding: 2px 6px;
             border-radius: 4px;
-            display: block;
+            display: inline-block;
             margin-top: 2px;
-            text-align: right;
+            font-weight: bold;
         }
         
         .action-buttons-container {
@@ -120,11 +120,10 @@
             border: none;
         }
 
-        /* تسريع المتصفح بطلب معالجة كرت الشاشة وتقليل الحركات */
+        /* تحسين استجابة الموبايل ومنع تعليق التصفح */
         * {
-            transform: translate3d(0,0,0);
-            -webkit-transform: translate3d(0,0,0);
-            transition: none !important;
+            box-sizing: border-box;
+            -webkit-overflow-scrolling: touch;
         }
     </style>
 </head>
@@ -132,7 +131,7 @@
 
 <div class="top-nav">
     <i class="fas fa-sync-alt" onclick="location.reload()"></i>
-    <span class="fw-bold">مطابقة حركة بضاعة السيارة</span>
+    <span class="fw-bold">مطابقة حركة بضاعة السيارة (دقيق وسريع)</span>
     <i class="fas fa-chevron-left" onclick="history.back()"></i>
 </div>
 
@@ -142,10 +141,10 @@
         <div class="row align-items-end g-3">
             <div class="col-6">
                 <label class="form-label">تاريخ الحركة</label>
-                <input id="dateFilter" type="date" class="form-control" onchange="loadData()">
+                <input id="dateFilter" type="date" class="form-control" onchange="window.loadData()">
             </div>
             <div class="col-6 text-start">
-                <span class="badge bg-success p-2" id="sync-status">متصل بالمخزن</span>
+                <span class="badge bg-secondary p-2" id="sync-status">جاري الاتصال...</span>
             </div>
         </div>
     </div>
@@ -155,8 +154,8 @@
             <table class="table table-striped text-center align-middle" id="tbl">
                 <thead>
                     <tr>
-                        <th rowspan="2" style="vertical-align: middle; min-width:160px;">الصنف / حجم العبوة</th> 
-                        <th colspan="2" style="background-color: #2e7d32 !important;">المُحمَّل (أول المدة)</th>
+                        <th rowspan="2" style="vertical-align: middle; min-width:180px;">الصنف / عبوة الكرتونة</th> 
+                        <th colspan="2" style="background-color: #2e7d32 !important;">المُحمَّل بالسيارة</th>
                         <th colspan="2" style="background-color: #c62828 !important;">المباع اليوم</th>
                         <th colspan="2" style="background-color: #1565c0 !important;">المتبقي النظري</th>
                     </tr>
@@ -167,7 +166,7 @@
                     </tr>
                 </thead>
                 <tbody id="table-body">
-                    <!-- يتم التحميل هنا -->
+                    <!-- يتم تحميل البيانات برمجياً هنا -->
                 </tbody>
             </table>
         </div>
@@ -196,9 +195,9 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // سحب المخزن لمرة واحدة فقط لسرعة فائقة جداً وتوفير القراءات
     async function initPage() {
         try {
+            document.getElementById('sync-status').innerText = "جاري جلب الأصناف...";
             const snap = await getDocs(collection(db, "inventory"));
             let products = [];
             snap.forEach(doc => {
@@ -214,8 +213,12 @@
             window.allProductsList = products;
             document.getElementById('dateFilter').valueAsDate = new Date();
             window.loadData();
+            
+            document.getElementById('sync-status').innerText = "متصل وجاهز";
+            document.getElementById('sync-status').className = "badge bg-success p-2";
         } catch(e) {
-            document.getElementById('sync-status').innerText = "خطأ في الاتصال";
+            console.error(e);
+            document.getElementById('sync-status').innerText = "خطأ في الاتصال بالفايربيز";
             document.getElementById('sync-status').className = "badge bg-danger p-2";
         }
     }
@@ -224,16 +227,15 @@
         const tbody = document.getElementById('table-body');
         tbody.innerHTML = '';
 
-        if(!window.allProductsList) return;
+        if(!window.allProductsList || window.allProductsList.length === 0) return;
 
-        // بناء الجدول فوراً بدون أي تأخير في المعالجة
         window.allProductsList.forEach(prod => {
             let tr = document.createElement('tr');
             tr.dataset.packsize = prod.packSize;
             
             tr.innerHTML = `
-                <td>
-                    <input class="form-control product" value="${prod.name}" readonly>
+                <td class="text-start">
+                    <input class="form-control product text-start" value="${prod.name}" readonly>
                     <span class="pack-badge">الكرتونة = ${prod.packSize} جراكن</span>
                 </td>
                 <!-- المحمل -->
@@ -242,9 +244,9 @@
                 <!-- المباع -->
                 <td><input type="number" class="form-control sales-c" value="0" min="0" oninput="calculateRow(this)" style="border: 1px solid #c62828;"></td>
                 <td><input type="number" class="form-control sales-p" value="0" min="0" oninput="calculateRow(this)" style="border: 1px solid #c62828;"></td>
-                <!-- المتبقي النظري المستهدف -->
-                <td><input type="number" class="form-control rest-c bg-light text-dark" value="0" readonly></td>
-                <td><input type="number" class="form-control rest-p bg-light text-dark" value="0" readonly></td>
+                <!-- المتبقي النظري -->
+                <td><input type="text" class="form-control rest-c bg-light text-dark" value="0" readonly style="font-weight:bold;"></td>
+                <td><input type="text" class="form-control rest-p bg-light text-dark" value="0" readonly style="font-weight:bold;"></td>
             `;
             tbody.appendChild(tr);
         });
@@ -254,40 +256,38 @@
 </script>
 
 <script>
-// معادلة رياضية فورية وخفيفة جداً تحسب الكراتين والجراكن بدقة بالغة طبقاً لحجم عبوة الصنف
+// دالة الحساب الفورية الخالية تماماً من الأخطاء والكسور المحاسبية
 function calculateRow(input) {
     let row = input.closest('tr');
-    let packSize = Number(row.dataset.packsize) || 12;
+    let packSize = Math.max(Number(row.dataset.packsize) || 12, 1); // الحجم الأدنى 1 لتجنب القسمة على صفر
 
-    // 1. تحويل المحمل بالكامل إلى جراكن (قطع فردية)
-    let loadC = Number(row.querySelector('.load-c').value || 0);
-    let loadP = Number(row.querySelector('.load-p').value || 0);
-    let totalLoadItems = (loadC * packSize) + loadP;
+    // 1. تحويل المحمل إلى إجمالي جراكن فردية
+    let loadC = Math.trunc(Number(row.querySelector('.load-c').value || 0));
+    let loadP = Math.trunc(Number(row.querySelector('.load-p').value || 0));
+    let totalLoad = (loadC * packSize) + loadP;
 
-    // 2. تحويل المباع بالكامل إلى جراكن (قطع فردية)
-    let salesC = Number(row.querySelector('.sales-c').value || 0);
-    let salesP = Number(row.querySelector('.sales-p').value || 0);
-    let totalSalesItems = (salesC * packSize) + salesP;
+    // 2. تحويل المباع إلى إجمالي جراكن فردية
+    let salesC = Math.trunc(Number(row.querySelector('.sales-c').value || 0));
+    let salesP = Math.trunc(Number(row.querySelector('.sales-p').value || 0));
+    let totalSales = (salesC * packSize) + salesP;
 
-    // 3. الحساب الفوري للمتبقي الإجمالي بالجراكن
-    let totalRestItems = totalLoadItems - totalSalesItems;
+    // 3. صافي الجراكن المتبقية
+    let totalRest = totalLoad - totalSales;
 
     let restC_Input = row.querySelector('.rest-c');
     let restP_Input = row.querySelector('.rest-p');
 
-    if (totalRestItems >= 0) {
-        // تفكيك الجراكن المتبقية إلى كراتين كاملة ومتبقي فرط صحيح ومظبوط
-        restC_Input.value = Math.floor(totalRestItems / packSize);
-        restP_Input.value = totalRestItems % packSize;
-        
+    // تفكيك الناتج الرياضي بدون أي كسور عشرية نهائياً
+    if (totalRest >= 0) {
+        restC_Input.value = Math.floor(totalRest / packSize);
+        restP_Input.value = totalRest % packSize;
         restC_Input.style.color = "#1565c0";
         restP_Input.style.color = "#1565c0";
     } else {
-        // في حالة وجود سحب أكبر من المحمل (عجز بالسالب)
-        let absRest = Math.abs(totalRestItems);
-        restC_Input.value = -Math.floor(absRest / packSize);
-        restP_Input.value = -(absRest % packSize);
-        
+        // حساب القيم في حالة السالب (العجز) بدقة
+        let absRest = Math.abs(totalRest);
+        restC_Input.value = "-" + Math.floor(absRest / packSize);
+        restP_Input.value = "-" + (absRest % packSize);
         restC_Input.style.color = "#c62828";
         restP_Input.style.color = "#c62828";
     }
@@ -301,7 +301,7 @@ function exportToPDF() {
 
     const opt = {
         margin:       [10, 5, 10, 5],
-        filename:     `جرد_السيارة_${selectedDate}.pdf`,
+        filename:     `تقرير_جرد_التوزيع_${selectedDate}.pdf`,
         image:        { type: 'jpeg', quality: 0.98 },
         html2canvas:  { scale: 2, useCORS: true },
         jsPDF:        { unit: 'mm', format: 'a4', orientation: 'landscape' }
