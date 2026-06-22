@@ -459,11 +459,11 @@
     </header>
 
     <!-- HERO -->
-    <div class="hero">
+    <div class="hero" id="heroSection">
         <div class="hero-content">
             <div class="hero-greeting">
                 <div class="salute">مرحباً بك</div>
-                <h2>صباح الفل<br><span>يا رياسه ☀️</span></h2>
+                <h2><span id="greetingText">صباح الفل يا رياسه ☀️</span></h2>
             </div>
             <div class="hero-clock">
                 <span class="time" id="liveClock">--:--:--</span>
@@ -473,7 +473,7 @@
     </div>
 
     <!-- QUICK STATS -->
-    <div class="stats-row">
+    <div class="stats-row" id="statsSection">
         <div class="stat-chip">
             <div class="chip-icon green"><i class="fas fa-chart-line"></i></div>
             <div class="chip-data">
@@ -506,63 +506,63 @@
     <!-- MAIN CARDS GRID -->
     <div class="main-grid">
 
-        <a href="mabiat-menu.html" class="grid-card">
+        <a href="mabiat-menu.html" class="grid-card" id="cardSales">
             <div class="card-icon-wrap icon-green">
                 <i class="fa-solid fa-wallet"></i>
             </div>
             <span class="card-label">المبيعات</span>
         </a>
 
-        <a href="purchase-mgmt.html" class="grid-card">
+        <a href="purchase-mgmt.html" class="grid-card" id="cardPurchases">
             <div class="card-icon-wrap icon-blue">
                 <i class="fa-solid fa-cart-arrow-down"></i>
             </div>
             <span class="card-label">المشتريات</span>
         </a>
 
-        <a href="client_menu.html" class="grid-card">
+        <a href="client_menu.html" class="grid-card" id="cardClients">
             <div class="card-icon-wrap icon-teal">
                 <i class="fa-solid fa-id-card-clip"></i>
             </div>
             <span class="card-label">العملاء</span>
         </a>
 
-        <a href="supplier-management.html" class="grid-card">
+        <a href="supplier-management.html" class="grid-card" id="cardSuppliers">
             <div class="card-icon-wrap icon-rose">
                 <i class="fa-solid fa-truck-ramp-box"></i>
             </div>
             <span class="card-label">الموردين</span>
         </a>
 
-        <a href="inventory-menu.html" class="grid-card">
+        <a href="inventory-menu.html" class="grid-card" id="cardInventory">
             <div class="card-icon-wrap icon-gold">
                 <i class="fa-solid fa-warehouse"></i>
             </div>
             <span class="card-label">المخزن</span>
         </a>
 
-        <a href="vouchers-hub.html" class="grid-card">
+        <a href="vouchers-hub.html" class="grid-card" id="cardVouchers">
             <div class="card-icon-wrap icon-gold">
                 <i class="fa-solid fa-money-check-dollar"></i>
             </div>
             <span class="card-label">السندات</span>
         </a>
 
-        <a href="banknote.html" class="grid-card">
+        <a href="banknote.html" class="grid-card" id="cardBanknote">
             <div class="card-icon-wrap icon-green">
                 <i class="fa-solid fa-file-invoice-dollar"></i>
             </div>
             <span class="card-label">النقدية</span>
         </a>
 
-        <a href="reports.html" class="grid-card">
+        <a href="reports.html" class="grid-card" id="cardReports">
             <div class="card-icon-wrap icon-blue">
                 <i class="fa-solid fa-chart-line"></i>
             </div>
             <span class="card-label">التقارير</span>
         </a>
 
-        <a href="reports2.html" class="grid-card">
+        <a href="reports2.html" class="grid-card" id="cardReports2">
             <div class="card-icon-wrap icon-purple">
                 <i class="fa-solid fa-chart-pie"></i>
             </div>
@@ -624,7 +624,7 @@
     </div>
 
     <script>
-        // Live clock
+        // ── Live clock ──
         function tick() {
             const now = new Date();
             const timeEl = document.getElementById('liveClock');
@@ -635,10 +635,9 @@
         tick();
         setInterval(tick, 1000);
 
-        // FAB toggle
+        // ── FAB toggle ──
         function toggleFab(id) {
-            const all = ['fabTop', 'fabBottom'];
-            all.forEach(f => {
+            ['fabTop', 'fabBottom'].forEach(f => {
                 if (f !== id) document.getElementById(f).classList.remove('open');
             });
             document.getElementById(id).classList.toggle('open');
@@ -646,6 +645,63 @@
         document.addEventListener('click', function(e) {
             if (!e.target.closest('.fab-group')) {
                 document.querySelectorAll('.fab-group').forEach(el => el.classList.remove('open'));
+            }
+        });
+
+        // ── Welcome greeting ──
+        function updateGreeting() {
+            const el = document.getElementById('greetingText');
+            if (!el) return;
+            const h = new Date().getHours();
+            el.textContent = (h >= 5 && h < 12) ? 'صباح الفل يا رياسه ☀️' : 'مساء الفل يا رياسه 🌙';
+        }
+        updateGreeting();
+
+        // ── Permissions system ──
+        window.addEventListener('load', function () {
+            const role = sessionStorage.getItem('role') || 'employee';
+            const savedPermissions = sessionStorage.getItem('permissions');
+            const userPermissions = savedPermissions
+                ? JSON.parse(savedPermissions)
+                : ['sales', 'clients', 'vouchers', 'reports2'];
+
+            // map card element id → permission key
+            const permMap = {
+                cardSales:      'sales',
+                cardPurchases:  'purchases',
+                cardClients:    'clients',
+                cardSuppliers:  'suppliers',
+                cardInventory:  'inventory_admin',
+                cardVouchers:   'vouchers',
+                cardBanknote:   'banknote',
+                cardReports:    'reports',
+                cardReports2:   'reports2'
+            };
+
+            const heroSection   = document.getElementById('heroSection');
+            const statsSection  = document.getElementById('statsSection');
+
+            if (role === 'admin') {
+                // Admin: hide hero/clock, hide reports2 summary card, show everything else
+                if (heroSection)  heroSection.style.display  = 'none';
+                if (statsSection) statsSection.style.display = 'none';
+
+                Object.keys(permMap).forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.style.display = (id === 'cardReports2') ? 'none' : '';
+                });
+
+            } else {
+                // Employee: show hero/clock, show only permitted cards
+                if (heroSection)  heroSection.style.display  = '';
+                if (statsSection) statsSection.style.display = '';
+
+                Object.keys(permMap).forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.style.display = userPermissions.includes(permMap[id]) ? '' : 'none';
+                });
             }
         });
     </script>
