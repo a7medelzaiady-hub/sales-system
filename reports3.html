@@ -187,7 +187,7 @@
                     </tr>
                 </thead>
                 <tbody id="table-body">
-                    <!-- الأسطر يتم إنشاؤها ديناميكياً بناءً على الأصناف الجاهزة -->
+                    <!-- الأسطر يتم إنشاؤها ديناميكياً بناءً على الأصناف الجاهزة والترتيب -->
                 </tbody>
             </table>
         </div>
@@ -233,22 +233,17 @@
             const datalist = document.getElementById('products-list');
             let optionsHtml = '';
             
-            // تفريغ الجدول أولاً للتجهيز لبناء الأصناف الجاهزة تلقائياً
-            document.getElementById('table-body').innerHTML = '';
-
+            allProducts = []; // تصفية المصفوفة
             snap.forEach(doc => {
                 const data = doc.data();
                 if (!data.isDeleted) {
                     allProducts.push(data.name);
                     optionsHtml += `<option value="${data.name}"></option>`;
-                    
-                    // إنشاء سطر فوراً لكل صنف مسجل في قاعدة البيانات
-                    addRow(data.name);
                 }
             });
             
             datalist.innerHTML = optionsHtml;
-            document.getElementById('sync-status').innerText = "تم جلب الأصناف جاهزة؛ جاري جلب مبيعات التاريخ المحدد";
+            document.getElementById('sync-status').innerText = "تم جلب الأصناف جاهزة؛ جاري فحص وترتيب مبيعات اليوم";
             document.getElementById('sync-status').className = "badge bg-success p-2";
         } catch (e) {
             console.error(e);
@@ -275,7 +270,7 @@
         const selectedDate = document.getElementById('dateFilter').value;
         if (!selectedDate) return;
 
-        document.getElementById('sync-status').innerText = "جاري تجميع مبيعات الفواتير...";
+        document.getElementById('sync-status').innerText = "جاري تجميع مبيعات الفواتير والترتيب...";
         document.getElementById('sync-status').className = "badge bg-warning text-dark p-2";
         
         salesByProductForSelectedDate = {};
@@ -298,7 +293,22 @@
                 }
             });
 
-            document.getElementById('sync-status').innerText = `تم تحديث المبيعات لتاريخ ${selectedDate}`;
+            // خطوة الترتيب: الأصناف اللي ليها بيع أولاً، واللي بيعها صفر أو مش موجودة في الآخر
+            allProducts.sort((a, b) => {
+                let salesA = salesByProductForSelectedDate[a] || 0;
+                let salesB = salesByProductForSelectedDate[b] || 0;
+                return salesB - salesA; // ترتيب تنازلي بناءً على كمية المبيعات
+            });
+
+            // بناء الجدول من جديد بناءً على الترتيب الفعلي للمبيعات
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = ''; 
+            
+            allProducts.forEach(prodName => {
+                addRow(prodName);
+            });
+
+            document.getElementById('sync-status').innerText = `تم تحديث وترتيب الجدول لتاريخ ${selectedDate}`;
             document.getElementById('sync-status').className = "badge bg-success p-2";
             
             updateSalesInTable();
@@ -384,7 +394,6 @@ function addRow(savedName = ""){
     `;
     tbody.appendChild(tr);
     
-    // حساب فوري للقيم الافتراضية للسطر المضاف
     let lastInput = tr.querySelector('.load-qty');
     window.quickCalc(lastInput);
 }
