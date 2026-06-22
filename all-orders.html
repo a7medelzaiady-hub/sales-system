@@ -151,7 +151,6 @@ border-color: #c3e6cb;
 opacity: 0.85;
 }
 
-/* تنسيق الهيدر لمنع تداخل النصوص كما بالصورة */
 .card-header-row {
 display: flex;
 align-items: flex-start;
@@ -301,7 +300,6 @@ box-shadow: 0 2px 6px rgba(37, 211, 102, 0.15);
 .action-btn.btn-delete { background: #ffebee; color: #c62828; }
 .action-btn.btn-view-items { background: #f7fafc; color: #4a5568; border: 1px solid var(--border); }
 
-/* تنسيق منسق ومحسن لجدول عرض الأصناف لمنع الـ عشوائية */
 .items-dropdown-table {
 background: #f8fafc;
 border: 1px solid var(--border);
@@ -393,7 +391,6 @@ text-align: center;
 .receipt-total-row { border-top: 2px dashed #000000; padding-top: 10px; font-size: 16px; font-weight: 800; display: flex; justify-content: space-between; }
 .receipt-footer { text-align: center; margin-top: 20px; font-size: 12px; font-weight: 700; border-top: 1px dashed #000000; padding-top: 10px; }
 
-/* توست منبثق ومعدل */
 .toast-notification {
 position: fixed;
 bottom: 25px;
@@ -524,7 +521,10 @@ const db = getFirestore(app);
 let allOrders = [];
 let currentFilter = 'all';
 let pendingOrderForConvert = null;
-const TODAY_DATE = new Date("2026-06-20");
+
+// استخدام التاريخ الفعلي المباشر للجهاز وتصفير الساعات لمقارنة الأيام بدقة
+const TODAY_DATE = new Date();
+TODAY_DATE.setHours(0, 0, 0, 0);
 
 async function init() {
 try {
@@ -554,7 +554,6 @@ document.getElementById('toastMessageText').innerHTML = `لديك <span class="f
 const toast = document.getElementById('orderToastNotification');
 toast.classList.add('show');
 
-// إخفاء التنبيه تلقائياً بعد 4 ثوانٍ
 setTimeout(() => {
 dismissToast();
 }, 4000);
@@ -576,10 +575,13 @@ function calculateRemainingDays(dateStr) {
 if (!dateStr) return 9999;
 try {
 const cleanDate = dateStr.split(' ')[0];
-const targetDate = new Date(cleanDate);
+const [day, month, year] = cleanDate.split('-');
+const targetDate = new Date(year, month - 1, day);
+targetDate.setHours(0, 0, 0, 0);
+
 if (isNaN(targetDate.getTime())) return 9999;
 const timeDiff = targetDate.getTime() - TODAY_DATE.getTime();
-return Math.ceil(timeDiff / (1000 * 3600 * 24));
+return Math.round(timeDiff / (1000 * 3600 * 24));
 } catch (e) { return 9999; }
 }
 
