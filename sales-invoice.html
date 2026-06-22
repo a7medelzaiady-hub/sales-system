@@ -580,8 +580,6 @@
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000;
 
-    // مصدر الرصيد الموحّد: نفس المصدر المستخدم في صفحة "قائمة العملاء" (currentBalance)
-    // مع رجوع احتياطي لـ initialBalance لو currentBalance غير موجودة
     function getCustomerBaseBalance(cust) {
         if (!cust) return 0;
         if (cust.currentBalance !== undefined && cust.currentBalance !== null) {
@@ -590,26 +588,33 @@
         return Number(cust.initialBalance) || 0;
     }
 
+    // تم تعديل هذه الدالة بالكامل لتطابق منطق كشف الحساب السريع الدقيق 100%
     async function getRealBalance(customerId, baseBalance = 0) {
         try {
-            const qInvoices = query(collection(db, "invoices"), where("customerId", "==", customerId));
-            const snapInvoices = await getDocs(qInvoices);
+            const [snapInvoices, snapTrans] = await Promise.all([
+                getDocs(query(collection(db, "invoices"), where("customerId", "==", customerId))),
+                getDocs(query(collection(db, "transactions"), where("partyId", "==", customerId)))
+            ]);
+
             let invoiceDebt = 0;
             snapInvoices.forEach(doc => {
+                // إذا كنا في وضع التعديل، نستثني الفاتورة الحالية لكي يظهر حسابها القديم في "الحساب السابق" بشكل صحيح
                 if (editId && doc.id === editId) return;
                 invoiceDebt += (Number(doc.data().remaining) || 0);
             });
 
-            const qTrans = query(collection(db, "transactions"), where("partyId", "==", customerId));
-            const snapTrans = await getDocs(qTrans);
             let transEffect = 0;
             snapTrans.forEach(doc => {
                 const tr = doc.data();
-                if (tr.type === 'قبض') transEffect -= (Number(tr.amount) || 0);
-                else if (tr.type === 'صرف') transEffect += (Number(tr.amount) || 0);
+                const amt = Number(tr.amount) || 0;
+                if (tr.type === 'قبض') transEffect -= amt;
+                else if (tr.type === 'صرف') transEffect += amt;
             });
+
             return Number(baseBalance) + invoiceDebt + transEffect;
-        } catch (e) { return Number(baseBalance); }
+        } catch (e) { 
+            return Number(baseBalance); 
+        }
     }
 
     async function fetchSmartPrice(stockId, customerId, selectedUnit) {
@@ -674,7 +679,6 @@
         window.handleInput();
     };
 
-    // تم تحديث الدالة لتبحث تلقائياً بالاسم الكامل في الخلفية في حال لم يضغط المستخدم على القائمة المنسدلة
     window.searchCustomer = async (input) => {
         const term = input.value.trim();
         const resultsDiv = document.getElementById('customerResults');
@@ -693,7 +697,6 @@
             return;
         }
 
-        // البحث التلقائي عن العميل المطابق للاسم المكتوب تماماً لتشغيل حسابه فوراً دون الحاجة للنقر
         const exactMatch = customers.find(c => c.name === term);
         if (exactMatch) {
             document.getElementById('customerSelect').value = exactMatch.id;
@@ -715,7 +718,7 @@
 
         if (filtered.length > 0) {
             resultsDiv.innerHTML = filtered.map(c => `
-                <div class="search-item" onclick="selectCustomer('${c.id}', '${c.name}', ${getCustomerBaseBalance(c)})">
+                <div class="search-item" onclick="selectCustomer('${c.id}', '${c.name.replace(/'/g, "\\'")}', ${getCustomerBaseBalance(c)})">
                     <b>${c.name}</b>
                 </div>
             `).join('');
@@ -837,7 +840,7 @@
         if (term.length < 1) { resultadosDiv.style.display = 'none'; return; }
         const filtered = inventory.filter(i => i.name.toLowerCase().includes(term)).slice(0, 15);
         resultadosDiv.innerHTML = filtered.map(p => `
-            <div class="search-item" onclick="selectProduct('${input.closest('.product-row').id}', '${p.id}', '${p.name}')">
+            <div class="search-item" onclick="selectProduct('${input.closest('.product-row').id}', '${p.id}', '${p.name.replace(/'/g, "\\'")}')">
                 <b>${p.name}</b> <span style="font-size:0.7rem; color:#6c757d; display:block; margin-top:2px;">المخزن: ${p.totalPcs} قطعة</span>
             </div>`).join('');
         resultadosDiv.style.display = filtered.length > 0 ? 'block' : 'none';
