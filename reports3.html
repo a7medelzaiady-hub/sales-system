@@ -48,7 +48,7 @@
             border: none;
             border-radius: 20px;
             box-shadow: var(--card-shadow);
-            padding: 15px; /* تقليل البادينج قليلاً لتوفير مساحة للموبايل */
+            padding: 15px; 
             margin-bottom: 22px;
         }
 
@@ -56,7 +56,6 @@
         .form-control { border-radius: 12px; padding: 10px 15px; border: 1px solid #dce3de; }
         .form-control:focus { border-color: var(--primary-color); box-shadow: 0 0 0 0.25rem rgba(11, 102, 65, 0.15); }
 
-        /* حاوية الجدول المدعمة بشريط التمرير المخصص */
         .table-responsive { 
             border-radius: 15px; 
             overflow-x: auto; 
@@ -64,7 +63,6 @@
             -webkit-overflow-scrolling: touch;
         }
 
-        /* تخصيص شكل شريط التمرير (البار) */
         .table-responsive::-webkit-scrollbar {
             height: 6px;
         }
@@ -96,14 +94,12 @@
             padding: 5px 2px;
         }
         
-        /* ضبط خط خانات الأعداد لتكون ملائمة جداً وعملية داخل الحجم المصغر */
         .table .form-control {
             font-size: 0.74rem;
             padding: 5px 2px;
             border-radius: 6px;
         }
         
-        /* خط اسم الصنف الموائم للعرض الجديد */
         .table .form-control.product {
             font-size: 0.72rem; 
             padding: 5px 4px;
@@ -182,17 +178,16 @@
             <table class="table table-hover text-center align-middle" id="tbl">
                 <thead>
                     <tr>
-                        <!-- الأبعاد الجديدة المحددة بدقة ليظهر كل شيء وتختفي خانة الحذف يميناً/يساراً -->
                         <th style="width: 100px; min-width: 100px;">الصنف</th> 
                         <th style="width: 50px; min-width: 50px;">المُحمَّل</th>
                         <th style="width: 50px; min-width: 50px;">المبيعات</th>
                         <th style="width: 50px; min-width: 50px;">المتبقي</th>
                         <th style="width: 60px; min-width: 60px;">الفعلي</th>
-                        <th style="width: 45px; min-width: 45px;">حذف</th>
+                        <th style="width: 45px; min-width: 45px;" class="data-ignore">حذف</th>
                     </tr>
                 </thead>
                 <tbody id="table-body">
-                    <!-- الأسطر يتم إنشاؤها ديناميكياً -->
+                    <!-- الأسطر يتم إنشاؤها ديناميكياً بناءً على الأصناف الجاهزة -->
                 </tbody>
             </table>
         </div>
@@ -200,7 +195,7 @@
         <!-- الأزرار السفلية المتبقية منسقة بجانب بعضها -->
         <div class="action-buttons-container data-ignore">
             <button class="btn btn-custom btn-add" onclick="addRow()">
-                <i class="fas fa-plus"></i> صنف جديد
+                <i class="fas fa-plus"></i> صنف يدوي
             </button>
             <button class="btn btn-custom btn-pdf" onclick="exportToPDF()">
                 <i class="fas fa-file-pdf"></i> تحميل PDF
@@ -238,15 +233,22 @@
             const datalist = document.getElementById('products-list');
             let optionsHtml = '';
             
+            // تفريغ الجدول أولاً للتجهيز لبناء الأصناف الجاهزة تلقائياً
+            document.getElementById('table-body').innerHTML = '';
+
             snap.forEach(doc => {
                 const data = doc.data();
                 if (!data.isDeleted) {
                     allProducts.push(data.name);
                     optionsHtml += `<option value="${data.name}"></option>`;
+                    
+                    // إنشاء سطر فوراً لكل صنف مسجل في قاعدة البيانات
+                    addRow(data.name);
                 }
             });
+            
             datalist.innerHTML = optionsHtml;
-            document.getElementById('sync-status').innerText = "تم جلب الأصناف؛ اختر التاريخ لجلب المبيعات";
+            document.getElementById('sync-status').innerText = "تم جلب الأصناف جاهزة؛ جاري جلب مبيعات التاريخ المحدد";
             document.getElementById('sync-status').className = "badge bg-success p-2";
         } catch (e) {
             console.error(e);
@@ -332,7 +334,6 @@
             salesInput.value = 0;
         }
         window.quickCalc(inputElement);
-        saveCurrentRows(); 
     }
 
     document.getElementById('dateFilter').valueAsDate = new Date();
@@ -382,38 +383,14 @@ function addRow(savedName = ""){
         </td>
     `;
     tbody.appendChild(tr);
+    
+    // حساب فوري للقيم الافتراضية للسطر المضاف
+    let lastInput = tr.querySelector('.load-qty');
+    window.quickCalc(lastInput);
 }
 
 function removeRow(btn) {
     btn.closest('tr').remove();
-    saveCurrentRows();
-}
-
-function saveCurrentRows() {
-    let savedProducts = [];
-    document.querySelectorAll('#tbl tbody tr').forEach(row => {
-        let name = row.querySelector('.product').value.trim();
-        if(name) {
-            savedProducts.push(name);
-        }
-    });
-    localStorage.setItem('ziady_audit_products', JSON.stringify(savedProducts));
-}
-
-function loadSavedRows() {
-    let rawData = localStorage.getItem('ziady_audit_products');
-    if (rawData) {
-        let products = JSON.parse(rawData);
-        if(products.length > 0) {
-            products.forEach(prodName => {
-                addRow(prodName);
-            });
-            return;
-        }
-    }
-    for(let i=0; i<5; i++) {
-        addRow();
-    }
 }
 
 window.quickCalc = function(inputElement) {
@@ -476,8 +453,6 @@ function exportToPDF() {
         ignores.forEach(el => el.style.visibility = 'visible');
     });
 }
-
-loadSavedRows();
 </script>
 
 </body>
