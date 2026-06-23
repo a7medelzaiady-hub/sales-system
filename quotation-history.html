@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title> حمولة  العربيه - الزيادي</title>
+<title>تتبع حمولة وعجز العربة - الزيادي</title>
 <style>
 :root {
   --brand:    #0b5e3d;
@@ -232,10 +232,12 @@ function getUnitName(name) {
   return 'جركن'; 
 }
 
+// دالة التنظيف المطورة: تعالج الأحرف الصغيرة، المسافات، والهمزات لتفادي مشاكل الحروف
 function cleanItemName(str) {
   if (!str) return "";
   return str.trim()
-            .replace(/\s+/g, ' ')
+            .toLowerCase() // تحويل الأحرف الإنجليزية لـ Small
+            .replace(/\s+/g, ' ') // إزالة المسافات المكررة
             .replace(/[أإآ]/g, 'ا')
             .replace(/ة/g, 'ه')
             .replace(/ى/g, 'ي');
@@ -451,7 +453,7 @@ window.editReceivedStep = function(itemId) {
   initReceivedFlow();
 };
 
-// ── الدالة السحرية المحدثة: قراءة ذكية للفواتير والمطابقة بالتاريخ والوحدة ──
+// ── الدالة السحرية: سحب المبيعات ومطابقتها بالتنظيف المطور ──
 window.renderSummary = async function() {
   const loaded = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
   const tb = document.getElementById('summaryTable');
@@ -469,31 +471,27 @@ window.renderSummary = async function() {
   try {
     const querySnapshot = await getDocs(collection(db, "invoices"));
     
+    // طباعة قائمة الأصناف النظيفة المتواجدة بالمخزن في الـ Console للمقارنة
+    console.log("=== أصناف المخزن المتوفرة الحالية ===");
+    console.log(firebaseItems.map(f => cleanItemName(f.name)));
+
     querySnapshot.forEach(doc => {
       const inv = doc.data();
       if (inv.isDeleted) return;
 
       let invDate = "";
       if (inv.time) {
-        // تنظيف النص وتحويل الأرقام العربية/الهندية إلى إنجليزية
         let cleanTime = inv.time.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
-        
-        // 1. محاولة استخراج التاريخ بالصيغة القياسية العادية YYYY-MM-DD
         const matchIso = cleanTime.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
         if (matchIso) {
           invDate = `${matchIso[1]}-${matchIso[2].padStart(2, '0')}-${matchIso[3].padStart(2, '0')}`;
         } else {
-          // 2. معالجة التواريخ المرفوعة من الأندرويد بصيغة الفواصل والسلاش DD/MM/YYYY
           const parts = cleanTime.split(',')[0].match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
           if (parts) {
             let p1 = parts[1];
             let p2 = parts[2];
             let year = parts[3];
-            
-            // احتمالية أولى (سنة-شهر-يوم)
             invDate = `${year}-${p1.padStart(2, '0')}-${p2.padStart(2, '0')}`;
-            
-            // احتمالية ثانية لو لم يطابق الاختيار (سنة-يوم-شهر) لضمان دقة القراءة العكسية للهواتف
             if (invDate !== selectedDate) {
               invDate = `${year}-${p2.padStart(2, '0')}-${p1.padStart(2, '0')}`;
             }
@@ -501,10 +499,13 @@ window.renderSummary = async function() {
         }
       }
 
-      // مطابقة الفاتورة بالتاريخ المختار
       if (invDate === selectedDate && inv.items) {
         inv.items.forEach(itm => {
           const cleanedKey = cleanItemName(itm.name);
+          
+          // طباعة اسم الصنف القادم من الفاتورة لمراقبته في الـ Console
+          console.log("صنف من فاتورة اليوم المختار:", cleanedKey);
+
           if (cleanedKey) {
             if (!liveSales[cleanedKey]) liveSales[cleanedKey] = 0;
             
@@ -512,12 +513,10 @@ window.renderSummary = async function() {
             const factor = pInfo ? pInfo.capacity : 1;
             
             const itemQty = Number(itm.qty) || 0;
-            
-            // حساب ذكي لنوع الوحدة المكتوبة بالفاتورة (تدعم box أو كرتونة)
             const totalPcsSold = (itm.unit === 'box' || itm.unit === 'كرتونة') ? (itemQty * factor) : itemQty;
 
             if (itm.isReturn) {
-              liveSales[cleanedKey] -= totalPcsSold; // المرتجع ينقص من المباع
+              liveSales[cleanedKey] -= totalPcsSold; 
             } else {
               liveSales[cleanedKey] += totalPcsSold;
             }
@@ -531,7 +530,6 @@ window.renderSummary = async function() {
     syncStatus.innerHTML = '❌ خطأ في السيرفر';
   }
 
-  // طباعة الجدول النهائي
   tb.innerHTML = loaded.map(([id, it]) => {
     const unit = getUnitName(it.name);
     const cap = it.capacity || 1;
@@ -575,21 +573,4 @@ window.renderSummary = async function() {
       <tr>
         <td style="text-align: right; padding-right:15px; font-weight:700; color:var(--text);">${it.name}</td>
         <td>${it.loadedCartons > 0 ? it.loadedCartons + ' ك':''} ${it.loadedLoose > 0 ? it.loadedLoose + ' ' + unit : ''}${it.loadedCartons===0 && it.loadedLoose===0?'0':''}</td>
-        <td style="color:var(--red); font-weight:700;">${soldCartons > 0 ? soldCartons + ' ك':''} ${soldLoose > 0 ? soldLoose + ' ' + unit : ''}${totalSoldPcs===0?'0':''}</td>
-        <td style="color:var(--brand); font-weight:700; background: var(--brand-lt); border-radius: 6px;">${remCartons > 0 ? remCartons + ' ك':''} ${remLoose > 0 ? remLoose + ' ' + unit : ''}${totalRemPcs===0?'0':''}</td>
-        <td style="color:var(--blue); font-weight:700; background: var(--blue-lt); border-radius: 6px;">
-          ${receivedInSession[id] !== undefined ? `${recCartons > 0 ? recCartons + ' ك' : ''} ${recLoose > 0 ? recLoose + ' ' + unit : ''}${recCartons===0 && recLoose===0?'0':''}` : '<span style="color:var(--gray); font-size:11px; font-weight:normal;">انتظار الجرد</span>'}
-        </td>
-        <td><span style="${diffStyle}">${diffText}</span></td>
-      </tr>`;
-  }).join('');
-};
-
-let toastTimer;
-window.toast = function(msg) {
-  const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
-};
-</script>
-</body>
-</html>
+        <td style="color:var(--red); font-weight:700;">${soldCartons > 0 ? soldCartons + ' ك':''} ${soldLoose > 0 ? soldLoose + ' ' +
