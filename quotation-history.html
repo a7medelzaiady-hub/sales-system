@@ -316,33 +316,39 @@ function renderLoadFlow() {
       div.innerHTML = `
         <div class="stitle">
           <span class="snum">${idx+1}</span>
-          <span>${it.name} &nbsp;<small style="color:var(--gray);font-weight:400">(الكرتونة = ${it.capacity} جركن)</small></span>
+          <span>${it.name}</span>
         </div>
-        <div style="font-size:12px;color:var(--gray);margin-bottom:12px">
-          📦 المخزن: ${it.totalPcs} جركن
-          (${Math.floor(it.totalPcs/it.capacity)} كرتونة${it.totalPcs%it.capacity>0?' + '+(it.totalPcs%it.capacity)+' جركن':''})
+        <div style="font-size:12px;color:var(--gray);margin-bottom:14px;background:var(--brand-lt);padding:8px 10px;border-radius:8px;">
+          📦 سعة الكرتونة: <strong style="color:var(--brand)">${it.capacity} جركن</strong>
+          &nbsp;|&nbsp;
+          المخزن: <strong>${it.totalPcs} جركن</strong>
+          = ${Math.floor(it.totalPcs/it.capacity)} كرتونة${it.totalPcs%it.capacity>0?' + '+(it.totalPcs%it.capacity)+' جركن':''}
         </div>
-        <div class="frow">
-          <div class="field" style="max-width:150px">
+        <div class="frow" style="align-items:flex-end">
+          <div class="field" style="max-width:140px">
             <label>عدد الكراتين</label>
             <input type="number" id="lc-${it.id}" placeholder="0" min="0"
               oninput="window.calcTotal('${it.id}',${it.capacity})"
               onkeydown="if(event.key==='Enter') document.getElementById('ll-${it.id}').focus()">
           </div>
-          <div class="field" style="max-width:150px">
+          <div style="padding-bottom:10px;font-size:13px;color:var(--gray);font-weight:700">×&nbsp;${it.capacity}&nbsp;جركن</div>
+          <div class="field" style="max-width:130px">
             <label>جراكن منفردة</label>
             <input type="number" id="ll-${it.id}" placeholder="0" min="0"
               oninput="window.calcTotal('${it.id}',${it.capacity})"
               onkeydown="if(event.key==='Enter') window.confirmStep('${it.id}')">
           </div>
-          <div class="field" style="max-width:130px">
-            <label>الإجمالي (جركن)</label>
-            <input type="text" id="lt-${it.id}" value="0" readonly
-              style="background:#e6f4ee;color:var(--brand);font-weight:800;text-align:center;cursor:default">
+        </div>
+        <div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div style="font-size:13px;color:var(--text-sm)">
+            الإجمالي المحمل:
+            <strong style="color:var(--brand)" id="lt-cart-${it.id}">0 كرتونة</strong>
+            +
+            <strong style="color:var(--green)" id="lt-loose-${it.id}">0 جركن</strong>
+            =
+            <strong style="color:var(--text);font-size:15px" id="lt-total-${it.id}">0 جركن</strong>
           </div>
-          <div style="padding-top:20px">
-            <button class="btn btn-success" onclick="window.confirmStep('${it.id}')">تم ✔</button>
-          </div>
+          <button class="btn btn-success" onclick="window.confirmStep('${it.id}')">تم ✔</button>
         </div>`;
       setTimeout(() => { const inp=document.getElementById(`lc-${it.id}`); if(inp) inp.focus(); }, 80);
     } else {
@@ -360,8 +366,12 @@ function renderLoadFlow() {
 window.calcTotal = function(itemId, capacity) {
   const c = parseInt(document.getElementById(`lc-${itemId}`).value) || 0;
   const l = parseInt(document.getElementById(`ll-${itemId}`).value) || 0;
-  const t = document.getElementById(`lt-${itemId}`);
-  if (t) t.value = (c * capacity) + l;
+  const tc = document.getElementById(`lt-cart-${itemId}`);
+  const tl = document.getElementById(`lt-loose-${itemId}`);
+  const tt = document.getElementById(`lt-total-${itemId}`);
+  if (tc) tc.textContent = c + ' كرتونة';
+  if (tl) tl.textContent = l + ' جركن';
+  if (tt) tt.textContent = (c * capacity + l) + ' جركن';
 };
 
 window.confirmStep = function(itemId) {
@@ -431,8 +441,11 @@ function renderSummary() {
       <tr>
         <td><strong>${it.name}</strong></td>
         <td><span class="tag tag-blue">${it.capacity}</span></td>
-        <td>${it.loadedCartons} كرتونة${(it.loadedLoose||0)>0?' + '+(it.loadedLoose||0)+' جركن':''}</td>
-        <td>${lJ}</td>
+        <td style="font-size:12px">
+          <span style="color:var(--brand);font-weight:700">${it.loadedCartons} كرتونة</span>
+          ${(it.loadedLoose||0)>0?'<br><span style="color:var(--green);font-weight:700">+ '+(it.loadedLoose||0)+' جركن</span>':''}
+        </td>
+        <td style="font-weight:800;color:var(--brand)">${lJ}</td>
         <td>
           <input type="number" id="rc-${id}" value="${it.remainingCartons}" min="0"
             style="width:48px;text-align:center;font-size:12px"> ك +
