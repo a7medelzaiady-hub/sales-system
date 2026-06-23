@@ -143,7 +143,7 @@ tr:hover td{background:var(--brand-lt);}
           <tr>
             <th>الصنف</th>
             <th>تفصيل المحمل</th>
-            <th>إجمالي المحمل (جركن)</th>
+            <th>إجمالي المحمل (المنفرد)</th>
             <th>المتبقي الحالي</th>
           </tr>
         </thead>
@@ -182,6 +182,14 @@ let loadedInSession = JSON.parse(localStorage.getItem('loadedInSession') || '{}'
 function saveSession() {
   localStorage.setItem('cartItems', JSON.stringify(cartItems));
   localStorage.setItem('loadedInSession', JSON.stringify(loadedInSession));
+}
+
+// دالة ذكية لتحديد نوع وحدة الصنف المنفردة بناءً على الاسم المجلوب
+function getUnitName(name) {
+  const n = name.toLowerCase();
+  if (n.includes('قطعة') || n.includes('قطعه')) return 'قطعة';
+  if (n.includes('كرتونة') || n.includes('كرتونه')) return 'كرتونة';
+  return 'جركن'; // الافتراضي إذا لم يحدد
 }
 
 // ── FIREBASE LISTENER ──
@@ -226,17 +234,19 @@ function renderItemsPage() {
     <div class="tbl-wrap">
       <table>
         <thead>
-          <tr><th>#</th><th>اسم الصنف</th><th>سعة الكرتونة</th><th>الكمية بالمخزن (جركن)</th><th>الكمية بالمخزن (كرتونة)</th></tr>
+          <tr><th>#</th><th>اسم الصنف</th><th>سعة الكرتونة</th><th>الكمية بالمخزن (منفرد)</th><th>الكمية بالمخزن (بالكرتونة)</th></tr>
         </thead>
         <tbody>
-          ${firebaseItems.map((it, i) => `
+          ${firebaseItems.map((it, i) => {
+            const unit = getUnitName(it.name);
+            return `
             <tr>
               <td>${i+1}</td>
               <td><strong>${it.name}</strong></td>
-              <td><span class="tag tag-blue">${it.capacity} جركن/كرتونة</span></td>
-              <td>${it.totalPcs}</td>
-              <td>${Math.floor(it.totalPcs / it.capacity)} كرتونة ${it.totalPcs % it.capacity > 0 ? '+ ' + (it.totalPcs % it.capacity) + ' جركن' : ''}</td>
-            </tr>`).join('')}
+              <td><span class="tag tag-blue">${it.capacity} ${unit}/كرتونة</span></td>
+              <td>${it.totalPcs} ${unit}</td>
+              <td>${Math.floor(it.totalPcs / it.capacity)} كرتونة ${it.totalPcs % it.capacity > 0 ? '+ ' + (it.totalPcs % it.capacity) + ' ' + unit : ''}</td>
+            </tr>`}).join('')}
         </tbody>
       </table>
     </div>`;
@@ -270,6 +280,7 @@ function renderLoadFlow() {
   firebaseItems.forEach((it, idx) => {
     const isDone    = loadedInSession[it.id] !== undefined;
     const isCurrent = !isDone && firebaseItems.slice(0, idx).every(prev => loadedInSession[prev.id] !== undefined);
+    const unit      = getUnitName(it.name);
 
     const div = document.createElement('div');
     div.className = 'lstep' + (isDone ? ' done' : isCurrent ? ' active' : '');
@@ -278,9 +289,9 @@ function renderLoadFlow() {
     if (isDone) {
       const sess = loadedInSession[it.id];
       let doneText = '';
-      if (sess.cartons > 0 && sess.loose > 0) doneText = sess.cartons + ' كرتونة و ' + sess.loose + ' جركن';
+      if (sess.cartons > 0 && sess.loose > 0) doneText = sess.cartons + ' كرتونة و ' + sess.loose + ' ' + unit;
       else if (sess.cartons > 0) doneText = sess.cartons + ' كرتونة';
-      else doneText = sess.loose + ' جركن';
+      else doneText = sess.loose + ' ' + unit;
       div.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div>
@@ -299,23 +310,23 @@ function renderLoadFlow() {
           <span>${it.name}</span>
         </div>
         <div style="font-size:12px;color:var(--gray);margin-bottom:14px;background:var(--brand-lt);padding:8px 10px;border-radius:8px;">
-          📦 سعة الكرتونة: <strong style="color:var(--brand)">${it.capacity} جركن</strong>
+          📦 سعة الكرتونة: <strong style="color:var(--brand)">${it.capacity} ${unit}</strong>
           &nbsp;|&nbsp;
-          المخزن: <strong>${it.totalPcs} جركن</strong>
-          = ${Math.floor(it.totalPcs/it.capacity)} كرتونة${it.totalPcs%it.capacity>0?' + '+(it.totalPcs%it.capacity)+' جركن':''}
+          المخزن: <strong>${it.totalPcs} ${unit}</strong>
+          = ${Math.floor(it.totalPcs/it.capacity)} كرتونة${it.totalPcs%it.capacity>0?' + '+(it.totalPcs%it.capacity)+' ' + unit :''}
         </div>
         <div class="frow" style="align-items:flex-end">
           <div class="field" style="max-width:140px">
             <label>عدد الكراتين</label>
             <input type="number" id="lc-${it.id}" placeholder="0" min="0"
-              oninput="window.calcTotal('${it.id}',${it.capacity})"
+              oninput="window.calcTotal('${it.id}',${it.capacity},'${unit}')"
               onkeydown="if(event.key==='Enter') document.getElementById('ll-${it.id}').focus()">
           </div>
-          <div style="padding-bottom:10px;font-size:13px;color:var(--gray);font-weight:700">×&nbsp;${it.capacity}&nbsp;جركن</div>
+          <div style="padding-bottom:10px;font-size:13px;color:var(--gray);font-weight:700">×&nbsp;${it.capacity}&nbsp;${unit}</div>
           <div class="field" style="max-width:130px">
-            <label>جراكن منفردة</label>
+            <label>${unit} منفرد</label>
             <input type="number" id="ll-${it.id}" placeholder="0" min="0"
-              oninput="window.calcTotal('${it.id}',${it.capacity})"
+              oninput="window.calcTotal('${it.id}',${it.capacity},'${unit}')"
               onkeydown="if(event.key==='Enter') window.confirmStep('${it.id}')">
           </div>
         </div>
@@ -338,14 +349,14 @@ function renderLoadFlow() {
   });
 }
 
-window.calcTotal = function(itemId, capacity) {
+window.calcTotal = function(itemId, capacity, unit) {
   const c = parseInt(document.getElementById(`lc-${itemId}`).value) || 0;
   const l = parseInt(document.getElementById(`ll-${itemId}`).value) || 0;
   const tt = document.getElementById(`lt-total-${itemId}`);
   if (!tt) return;
-  if (c > 0 && l > 0) tt.textContent = c + ' كرتونة و ' + l + ' جركن';
+  if (c > 0 && l > 0) tt.textContent = c + ' كرتونة و ' + l + ' ' + unit;
   else if (c > 0)     tt.textContent = c + ' كرتونة';
-  else if (l > 0)     tt.textContent = l + ' جركن';
+  else if (l > 0)     tt.textContent = l + ' ' + unit;
   else                tt.textContent = '—';
 };
 
@@ -406,6 +417,7 @@ function renderSummary() {
   }
 
   tb.innerHTML = loaded.map(([id, it]) => {
+    const unit = getUnitName(it.name);
     const lJ = (it.loadedCartons * it.capacity) + (it.loadedLoose || 0);
     return `
       <tr>
@@ -413,14 +425,14 @@ function renderSummary() {
         <td style="font-size:13px;font-weight:700">
           ${it.loadedCartons>0?'<span style="color:var(--brand)">'+it.loadedCartons+' كرتونة</span>':''}
           ${(it.loadedCartons>0&&(it.loadedLoose||0)>0)?' و ':''}
-          ${(it.loadedLoose||0)>0?'<span style="color:var(--green)">'+(it.loadedLoose||0)+' جركن</span>':''}
+          ${(it.loadedLoose||0)>0?'<span style="color:var(--green)">'+(it.loadedLoose||0)+' ' + unit + '</span>':''}
           ${it.loadedCartons===0&&(it.loadedLoose||0)===0?'—':''}
         </td>
-        <td style="font-weight:800;color:var(--brand)">${lJ} جركن</td>
+        <td style="font-weight:800;color:var(--brand)">${lJ} ${unit}</td>
         <td style="font-size:13px;font-weight:700">
           ${it.remainingCartons>0?'<span style="color:var(--brand)">'+it.remainingCartons+' كرتونة</span>':''}
           ${(it.remainingCartons>0&&it.remainingLoose>0)?' و ':''}
-          ${it.remainingLoose>0?'<span style="color:var(--green)">'+it.remainingLoose+' جركن</span>':''}
+          ${it.remainingLoose>0?'<span style="color:var(--green)">'+it.remainingLoose+' ' + unit + '</span>':''}
           ${it.remainingCartons===0&&it.remainingLoose===0?'—':''}
         </td>
       </tr>`;
