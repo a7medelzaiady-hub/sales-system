@@ -22,7 +22,7 @@
             background: #f0f2f5;
             padding-bottom: 20px;
             margin: 0;
-            overflow-x: hidden; /* منع السكرول الأفقي نهائياً */
+            overflow-x: hidden;
         }
 
         .top-nav {
@@ -42,24 +42,23 @@
         .custom-card {
             background: white;
             border-radius: 12px;
-            padding: 8px;
+            padding: 10px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             margin: 0 auto;
             max-width: 100%;
         }
 
-        /* إعدادات الجدول لمنع السكرول وتنظيم المساحات */
         .table-wrap {
             width: 100%;
             overflow-x: hidden;
         }
 
         .table {
-            font-size: 0.75rem; /* تصغير الخط ليتسع */
+            font-size: 0.85rem;
             text-align: center;
-            white-space: normal; /* السماح بلف النص */
+            white-space: normal;
             margin-bottom: 0;
-            table-layout: fixed; /* تثبيت عرض الأعمدة */
+            table-layout: fixed; 
             width: 100%;
         }
 
@@ -68,33 +67,31 @@
             color: white;
             font-weight: 700;
             border: 1px solid #094d31;
-            padding: 6px 2px;
-            font-size: 0.7rem;
+            padding: 8px 2px;
+            font-size: 0.8rem;
             vertical-align: middle;
         }
 
         .table td {
             border: 1px solid #eef0f3;
-            padding: 4px 2px;
+            padding: 6px 4px;
             vertical-align: middle;
             text-align: center;
         }
 
-        /* توزيع عرض الأعمدة */
-        .col-product { width: 28%; }
-        .col-input { width: 12%; }
+        .col-product { width: 36%; }
+        .col-input { width: 16%; }
 
         .table .form-control {
             width: 100%;
             text-align: center;
             font-weight: 700;
-            padding: 4px 2px;
-            border-radius: 4px;
+            padding: 8px 2px;
+            border-radius: 6px;
             border: 1px solid #ced4da;
-            font-size: 0.8rem;
+            font-size: 0.9rem;
         }
 
-        /* إخفاء أسهم الأرقام في المتصفح لتوفير مساحة */
         .table input[type=number]::-webkit-inner-spin-button,
         .table input[type=number]::-webkit-outer-spin-button {
             -webkit-appearance: none;
@@ -104,14 +101,14 @@
 
         .product-name {
             font-weight: 800;
-            font-size: 0.8rem;
+            font-size: 0.9rem;
             text-align: right;
-            padding: 0 4px;
+            padding: 0 8px;
             line-height: 1.2;
         }
 
         .pack-size {
-            font-size: 0.6rem;
+            font-size: 0.7rem;
             color: #666;
             font-weight: 600;
             display: block;
@@ -119,7 +116,6 @@
         }
 
         .header-green { background-color: #2e7d32 !important; }
-        .header-red { background-color: var(--danger) !important; }
         .header-blue { background-color: var(--info) !important; }
 
         .rest-input {
@@ -136,6 +132,11 @@
         }
         .loader-box i { font-size: 1.5rem; animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* فئة لإبراز الصفوف التي بها أرقام */
+        .row-active {
+            background-color: #e8f5e9;
+        }
     </style>
 </head>
 <body>
@@ -151,13 +152,11 @@
                 <thead>
                     <tr>
                         <th rowspan="2" class="col-product">الصنف</th>
-                        <th colspan="2" class="header-green">المحمول</th>
-                        <th colspan="2" class="header-red">المبيعات</th>
-                        <th colspan="2" class="header-blue">المتبقي</th>
+                        <th colspan="2" class="header-green">المحمول بالسيارة</th>
+                        <th colspan="2" class="header-blue">المتبقي (نظري)</th>
+                        <!-- عمود المبيعات مخفي تماماً -->
                     </tr>
                     <tr>
-                        <th class="col-input">كرتون</th>
-                        <th class="col-input">جركن</th>
                         <th class="col-input">كرتون</th>
                         <th class="col-input">جركن</th>
                         <th class="col-input">كرتون</th>
@@ -166,9 +165,9 @@
                 </thead>
                 <tbody id="tableBody">
                     <tr>
-                        <td colspan="7" class="loader-box">
+                        <td colspan="5" class="loader-box">
                             <i class="fas fa-spinner"></i>
-                            <p>جاري جلب الأصناف من قاعدة البيانات...</p>
+                            <p>جاري جلب الأصناف والمبيعات...</p>
                         </td>
                     </tr>
                 </tbody>
@@ -193,65 +192,93 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // 1. محاولة قراءة الأصناف من الذاكرة المحلية أولاً (لتوفير قراءات Firebase)
+    // 1. جلب الأصناف من الكاش أو فايربيس
     const cachedProducts = localStorage.getItem('zayady_products_cache');
-
     if (cachedProducts) {
-        // إذا كانت موجودة، اعرضها فوراً
         window.allProductsList = JSON.parse(cachedProducts);
-        renderTable();
-        // تحديث البيانات في الخلفية بصمت
-        fetchProductsFromFirebase(true); 
+        fetchSalesData(); // ابدأ بجلب المبيعات
     } else {
-        // إذا لم تكن موجودة، اسحبها من Firebase للمرة الأولى
-        fetchProductsFromFirebase(false);
+        fetchProductsThenSales();
     }
 
-    // دالة جلب البيانات من فايربيس
-    async function fetchProductsFromFirebase(isBackgroundUpdate) {
+    // دالة جلب الأصناف ثم المبيعات
+    async function fetchProductsThenSales() {
         try {
-            if(!isBackgroundUpdate) {
-                document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="loader-box"><i class="fas fa-spinner"></i><p>جاري الاتصال بقاعدة البيانات...</p></td></tr>';
-            }
-            
             const snap = await getDocs(collection(db, "inventory"));
             let products = [];
             snap.forEach(doc => {
                 const data = doc.data();
-                if (!data.isDeleted) { // جلب الأصناف غير المحذوفة فقط
-                    products.push({
-                        id: doc.id,
-                        name: data.name,
-                        packSize: Number(data.packSize) || 12
-                    });
+                if (!data.isDeleted) {
+                    products.push({ id: doc.id, name: data.name, packSize: Number(data.packSize) || 12 });
                 }
             });
-
-            // حفظ في الذاكرة المحلية
             localStorage.setItem('zayady_products_cache', JSON.stringify(products));
             window.allProductsList = products;
-            renderTable();
-            
+            fetchSalesData();
         } catch(e) {
-            console.error("Firebase Error:", e);
-            document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" class="loader-box"><p class="text-danger">خطأ في الاتصال. تأكد من الإنترنت.</p></td></tr>';
+            console.error(e);
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="5" class="loader-box"><p class="text-danger">خطأ في جلب الأصناف</p></td></tr>';
         }
     }
 
-    // دالة بناء الجدول
+    // 2. دالة جلب المبيعات من قاعدة البيانات (مخفية عن المستخدم)
+    async function fetchSalesData() {
+        window.todaysSales = {};
+        try {
+            // ملاحظة: تأكد أن اسم مجموعة المبيعات في قاعدة بياناتك هو "sales"
+            const salesSnap = await getDocs(collection(db, "sales"));
+            salesSnap.forEach(doc => {
+                const sale = doc.data();
+                // نفترض أن كل مستند مبيعات يحتوي على مصفوفة منتجات (items) أو حقول مباشرة
+                // قمت بتجميع المبيعات بناءً على ID الصنف
+                if(sale.items && Array.isArray(sale.items)) {
+                    sale.items.forEach(item => {
+                        if(!window.todaysSales[item.id]) window.todaysSales[item.id] = { c: 0, p: 0 };
+                        window.todaysSales[item.id].c += Number(item.cartons) || 0;
+                        window.todaysSales[item.id].p += Number(item.jerkans) || 0;
+                    });
+                }
+            });
+        } catch(e) {
+            console.error("Error fetching sales, assuming 0 sales:", e);
+            // في حال عدم وجود جدول مبيعات، ستعتمد الحسابات على 0 مبيعات
+        }
+        
+        renderTable();
+    }
+
+    // 3. بناء الجدول وترتيبه (الأولوية لمن لديهم مبيعات أو أرقام)
     window.renderTable = function() {
         const tbody = document.getElementById('tableBody');
         tbody.innerHTML = '';
 
         if(!window.allProductsList || window.allProductsList.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="loader-box"><i class="fas fa-box-open" style="font-size:2rem; color:#ccc;"></i><p>لا توجد أصناف مضافة في قاعدة البيانات</p></td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="loader-box"><p>لا توجد أصناف</p></td></tr>';
             return;
         }
 
-        window.allProductsList.forEach((prod, index) => {
+        // ترتيب الأصناف: التي لها مبيعات اليوم تظهر أولاً
+        let sortedProducts = [...window.allProductsList].sort((a, b) => {
+            let aHasSales = window.todaysSales[a.id] ? 1 : 0;
+            let bHasSales = window.todaysSales[b.id] ? 1 : 0;
+            return bHasSales - aHasSales;
+        });
+
+        sortedProducts.forEach((prod, index) => {
             const tr = document.createElement('tr');
             tr.id = `row-${index}`;
             tr.dataset.packsize = prod.packSize;
+            tr.dataset.id = prod.id;
+            
+            // جلب المبيعات المخفية لهذا الصنف
+            const sales = window.todaysSales[prod.id] || { c: 0, p: 0 };
+            tr.dataset.salesC = sales.c;
+            tr.dataset.salesP = sales.p;
+
+            // إذا كان الصنف لديه مبيعات، نظليل خلفيته
+            if(sales.c > 0 || sales.p > 0) {
+                tr.classList.add('row-active');
+            }
             
             tr.innerHTML = `
                 <td class="product-name">
@@ -259,54 +286,62 @@
                     <span class="pack-size">(الكرتونة = ${prod.packSize} ج)</span>
                 </td>
                 <!-- تحميل السيارة -->
-                <td><input type="number" class="form-control" value="0" min="0" inputmode="numeric" oninput="calculate(${index})"></td>
-                <td><input type="number" class="form-control" value="0" min="0" inputmode="numeric" oninput="calculate(${index})"></td>
-                <!-- المبيعات -->
-                <td><input type="number" class="form-control" value="0" min="0" inputmode="numeric" oninput="calculate(${index})"></td>
-                <td><input type="number" class="form-control" value="0" min="0" inputmode="numeric" oninput="calculate(${index})"></td>
+                <td><input type="number" class="form-control load-c" value="0" min="0" inputmode="numeric" oninput="calculate(${index})"></td>
+                <td><input type="number" class="form-control load-p" value="0" min="0" inputmode="numeric" oninput="calculate(${index})"></td>
                 <!-- المتبقي -->
-                <td><input type="text" class="form-control rest-input" value="0" readonly></td>
-                <td><input type="text" class="form-control rest-input" value="0" readonly></td>
+                <td><input type="text" class="form-control rest-c rest-input" value="0" readonly></td>
+                <td><input type="text" class="form-control rest-p rest-input" value="0" readonly></td>
             `;
             
             tbody.appendChild(tr);
         });
     }
 
-    // دالة الحساب التلقائي
+    // 4. دالة الحساب وإعادة الترتيب الديناميكي
     window.calculate = function(rowIndex) {
         const row = document.getElementById(`row-${rowIndex}`);
-        const inputs = row.querySelectorAll('input[type="number"]');
-        const restInputs = row.querySelectorAll('.rest-input');
-        
         const packSize = Number(row.dataset.packsize) || 12;
 
-        // تحميل السيارة
-        const loadCarton = Math.trunc(Number(inputs[0].value) || 0);
-        const loadJerkan = Math.trunc(Number(inputs[1].value) || 0);
-        const totalLoad = (loadCarton * packSize) + loadJerkan;
+        // قراءة المحمول
+        const loadC = Math.trunc(Number(row.querySelector('.load-c').value) || 0);
+        const loadP = Math.trunc(Number(row.querySelector('.load-p').value) || 0);
+        const totalLoad = (loadC * packSize) + loadP;
 
-        // المبيعات
-        const salesCarton = Math.trunc(Number(inputs[2].value) || 0);
-        const salesJerkan = Math.trunc(Number(inputs[3].value) || 0);
-        const totalSales = (salesCarton * packSize) + salesJerkan;
+        // قراءة المبيعات المخفية من البيانات
+        const salesC = Number(row.dataset.salesC) || 0;
+        const salesP = Number(row.dataset.salesP) || 0;
+        const totalSales = (salesC * packSize) + salesP;
 
-        // المتبقي (بالجراكن الفردية)
+        // حساب المتبقي
         const totalRest = totalLoad - totalSales;
 
-        // تحويل المتبقي مرة أخرى إلى كراتين وجراكن
+        const restCInput = row.querySelector('.rest-c');
+        const restPInput = row.querySelector('.rest-p');
+
         if (totalRest >= 0) {
-            restInputs[0].value = Math.floor(totalRest / packSize);
-            restInputs[1].value = totalRest % packSize;
-            restInputs[0].style.color = "#1565c0"; // أزرق في حالة الزيادة/التطابق
-            restInputs[1].style.color = "#1565c0";
+            restCInput.value = Math.floor(totalRest / packSize);
+            restPInput.value = totalRest % packSize;
+            restCInput.style.color = "#1565c0";
+            restPInput.style.color = "#1565c0";
         } else {
-            // في حالة العجز (المبيعات أكبر من المحمل)
             const absRest = Math.abs(totalRest);
-            restInputs[0].value = `-${Math.floor(absRest / packSize)}`;
-            restInputs[1].value = `-${absRest % packSize}`;
-            restInputs[0].style.color = "#c62828"; // أحمر في حالة العجز
-            restInputs[1].style.color = "#c62828";
+            restCInput.value = `-${Math.floor(absRest / packSize)}`;
+            restPInput.value = `-${absRest % packSize}`;
+            restCInput.style.color = "#c62828"; // أحمر في حالة العجز
+            restPInput.style.color = "#c62828";
+        }
+
+        // إعطاء أولوية العرض للصفوف التي يكتب فيها المستخدم أرقاماً
+        if(loadC > 0 || loadP > 0) {
+            row.classList.add('row-active');
+            // نقل الصف لأعلى الجدول مباشرة
+            const tbody = row.parentNode;
+            tbody.insertBefore(row, tbody.firstChild);
+        } else {
+            // إذا مسح الأرقام نزّلنا الصف لآخر الصفوف التي لا تحتوي على أرقام
+            if(!row.dataset.salesC || Number(row.dataset.salesC) === 0) {
+                row.classList.remove('row-active');
+            }
         }
     }
 </script>
