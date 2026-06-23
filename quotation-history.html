@@ -300,12 +300,15 @@ function renderLoadFlow() {
 
     if (isDone) {
       const sess = loadedInSession[it.id];
-      const totalJ = (sess.cartons * it.capacity) + sess.loose;
+      let doneText = '';
+      if (sess.cartons > 0 && sess.loose > 0) doneText = sess.cartons + ' كرتونة و ' + sess.loose + ' جركن';
+      else if (sess.cartons > 0) doneText = sess.cartons + ' كرتونة';
+      else doneText = sess.loose + ' جركن';
       div.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div>
             <div class="stitle" style="margin-bottom:4px"><span class="snum dn">✓</span><span>${it.name}</span></div>
-            <div class="dsummary">✅ ${sess.cartons} كرتونة + ${sess.loose} جركن = <span style="color:var(--brand)">${totalJ} جركن</span></div>
+            <div class="dsummary">✅ ${doneText}</div>
           </div>
           <div style="display:flex;gap:8px">
             <button class="btn btn-sm" style="background:var(--amber-lt);color:var(--amber);font-weight:700" onclick="window.editStep('${it.id}')">✏️ تعديل</button>
@@ -341,12 +344,7 @@ function renderLoadFlow() {
         </div>
         <div style="margin-top:12px;padding:10px 14px;background:var(--surface);border-radius:8px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div style="font-size:13px;color:var(--text-sm)">
-            الإجمالي المحمل:
-            <strong style="color:var(--brand)" id="lt-cart-${it.id}">0 كرتونة</strong>
-            +
-            <strong style="color:var(--green)" id="lt-loose-${it.id}">0 جركن</strong>
-            =
-            <strong style="color:var(--text);font-size:15px" id="lt-total-${it.id}">0 جركن</strong>
+            الإجمالي: <strong style="color:var(--brand);font-size:16px" id="lt-total-${it.id}">—</strong>
           </div>
           <button class="btn btn-success" onclick="window.confirmStep('${it.id}')">تم ✔</button>
         </div>`;
@@ -366,12 +364,12 @@ function renderLoadFlow() {
 window.calcTotal = function(itemId, capacity) {
   const c = parseInt(document.getElementById(`lc-${itemId}`).value) || 0;
   const l = parseInt(document.getElementById(`ll-${itemId}`).value) || 0;
-  const tc = document.getElementById(`lt-cart-${itemId}`);
-  const tl = document.getElementById(`lt-loose-${itemId}`);
   const tt = document.getElementById(`lt-total-${itemId}`);
-  if (tc) tc.textContent = c + ' كرتونة';
-  if (tl) tl.textContent = l + ' جركن';
-  if (tt) tt.textContent = (c * capacity + l) + ' جركن';
+  if (!tt) return;
+  if (c > 0 && l > 0) tt.textContent = c + ' كرتونة و ' + l + ' جركن';
+  else if (c > 0)     tt.textContent = c + ' كرتونة';
+  else if (l > 0)     tt.textContent = l + ' جركن';
+  else                tt.textContent = '—';
 };
 
 window.confirmStep = function(itemId) {
@@ -441,16 +439,19 @@ function renderSummary() {
       <tr>
         <td><strong>${it.name}</strong></td>
         <td><span class="tag tag-blue">${it.capacity}</span></td>
-        <td style="font-size:12px">
-          <span style="color:var(--brand);font-weight:700">${it.loadedCartons} كرتونة</span>
-          ${(it.loadedLoose||0)>0?'<br><span style="color:var(--green);font-weight:700">+ '+(it.loadedLoose||0)+' جركن</span>':''}
+        <td style="font-size:13px;font-weight:700">
+          ${it.loadedCartons>0?'<span style="color:var(--brand)">'+it.loadedCartons+' كرتونة</span>':''}
+          ${(it.loadedCartons>0&&(it.loadedLoose||0)>0)?' و ':''}
+          ${(it.loadedLoose||0)>0?'<span style="color:var(--green)">'+(it.loadedLoose||0)+' جركن</span>':''}
+          ${it.loadedCartons===0&&(it.loadedLoose||0)===0?'—':''}
         </td>
         <td style="font-weight:800;color:var(--brand)">${lJ}</td>
         <td>
           <input type="number" id="rc-${id}" value="${it.remainingCartons}" min="0"
-            style="width:48px;text-align:center;font-size:12px"> ك +
+            style="width:48px;text-align:center;font-size:12px"> كرتونة
+          <br>
           <input type="number" id="rl-${id}" value="${it.remainingLoose}" min="0"
-            style="width:44px;text-align:center;font-size:12px"> ج
+            style="width:44px;text-align:center;font-size:12px;margin-top:4px"> جركن
         </td>
         <td><button class="btn btn-success btn-sm" onclick="window.updateRemaining('${id}')">تحديث</button></td>
       </tr>`;
