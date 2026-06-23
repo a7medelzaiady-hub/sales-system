@@ -64,24 +64,13 @@ input:focus,select:focus{border-color:var(--brand);background:#fff;}
 .btn-sm{padding:6px 12px;font-size:12px;}
 
 /* TABLE */
-.tbl-wrap{overflow-x:visible;}
-table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed;}
-th{background:var(--brand);color:#fff;padding:9px 8px;text-align:center;font-weight:700;font-size:12px;}
-td{padding:8px 6px;text-align:center;border-bottom:1px solid var(--border);font-size:12px;}
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+th{background:var(--brand);color:#fff;padding:12px 10px;text-align:center;font-weight:700;font-size:13px;}
+td{padding:10px 8px;text-align:center;border-bottom:1px solid var(--border);font-size:13px;}
 tr:hover td{background:var(--brand-lt);}
 .tag{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
 .tag-blue{background:var(--brand-lt);color:var(--brand);}
-.tag-green{background:var(--green-lt);color:var(--green);}
-
-/* STATS */
-.stats{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:0;}
-.stat{flex:1;min-width:140px;border-radius:var(--radius);padding:16px;text-align:center;}
-.stat h4{font-size:12px;font-weight:700;margin-bottom:7px;}
-.stat .val{font-size:30px;font-weight:800;line-height:1;}
-.stat .lbl{font-size:11px;margin-top:4px;opacity:.8;}
-.stat-blue{background:var(--brand-lt);color:var(--brand);}
-.stat-red{background:var(--red-lt);color:var(--red);}
-.stat-green{background:var(--green-lt);color:var(--green);}
 
 /* LOAD FLOW */
 #loadFlow{display:flex;flex-direction:column;gap:14px;}
@@ -104,7 +93,7 @@ tr:hover td{background:var(--brand-lt);}
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:#1e293b;color:#fff;padding:11px 22px;border-radius:30px;font-size:13px;font-weight:700;font-family:inherit;box-shadow:0 4px 20px rgba(0,0,0,.25);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none;z-index:999;}
 #toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
 
-@media(max-width:480px){.frow{flex-direction:column;}.stats{flex-direction:column;}}
+@media(max-width:480px){.frow{flex-direction:column;}}
 </style>
 </head>
 <body>
@@ -144,30 +133,22 @@ tr:hover td{background:var(--brand-lt);}
 
 <!-- ══ صفحة ٣ — الملخص ══ -->
 <div class="page" id="pg-summary">
-  <div class="ph"><h2>ملخص العربة</h2><p>المحمل · المباع · المتبقي</p></div>
+  <div class="ph"><h2>ملخص العربة</h2><p>بيانات الحمولة الحالية للعربة</p></div>
+
   <div class="card">
-    <div class="stats">
-      <div class="stat stat-blue"><h4>إجمالي المحمل</h4><div class="val" id="s-loaded">0</div><div class="lbl">جركن</div></div>
-      <div class="stat stat-red"><h4>إجمالي المباع</h4><div class="val" id="s-sold">0</div><div class="lbl">جركن</div></div>
-      <div class="stat stat-green"><h4>إجمالي المتبقي</h4><div class="val" id="s-remaining">0</div><div class="lbl">جركن</div></div>
-    </div>
-  </div>
-  <div class="card">
-    <h3><span class="ic">📄</span> تفاصيل كل صنف</h3>
+    <h3><span class="ic">📄</span> تفاصيل الحمولات</h3>
     <div class="tbl-wrap">
       <table>
         <thead>
           <tr>
             <th>الصنف</th>
-            <th>سعة الكرتونة</th>
-            <th>المحمل (كرتونة)</th>
-            <th>المحمل (جركن)</th>
-            <th>المتبقي الآن</th>
-            <th>تحديث</th>
+            <th>تفصيل المحمل</th>
+            <th>إجمالي المحمل (جركن)</th>
+            <th>المتبقي الحالي</th>
           </tr>
         </thead>
         <tbody id="summaryTable">
-          <tr><td colspan="6"><div class="empty"><span class="em">📭</span>لا توجد بيانات</div></td></tr>
+          <tr><td colspan="4"><div class="empty"><span class="em">📭</span>لا توجد بيانات</div></td></tr>
         </tbody>
       </table>
     </div>
@@ -194,16 +175,13 @@ const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
 // ── STATE ──
-// items from Firebase that have qty > 0
-// cartItems = { [firebaseId]: { name, capacity, loadedCartons, remainingCartons, remainingLoose } }
-let firebaseItems = [];   // raw from Firebase (has qty)
-let cartItems     = JSON.parse(sessionStorage.getItem('cartItems') || '{}');
-// loadedInSession tracks which items confirmed in current load session
-let loadedInSession = JSON.parse(sessionStorage.getItem('loadedInSession') || '{}');
+let firebaseItems = [];   
+let cartItems     = JSON.parse(localStorage.getItem('cartItems') || '{}');
+let loadedInSession = JSON.parse(localStorage.getItem('loadedInSession') || '{}');
 
 function saveSession() {
-  sessionStorage.setItem('cartItems', JSON.stringify(cartItems));
-  sessionStorage.setItem('loadedInSession', JSON.stringify(loadedInSession));
+  localStorage.setItem('cartItems', JSON.stringify(cartItems));
+  localStorage.setItem('loadedInSession', JSON.stringify(loadedInSession));
 }
 
 // ── FIREBASE LISTENER ──
@@ -213,12 +191,11 @@ onSnapshot(collection(db, "inventory"), snap => {
     const d = doc.data();
     if (d.isDeleted) return;
     const qty = Number(d.totalPcs) || 0;
-    if (qty <= 0) return;                       // فقط الأصناف بها كمية
-    const cap = Number(d.unitFactor) || 1;      // سعة الكرتونة
+    if (qty <= 0) return;                       
+    const cap = Number(d.unitFactor) || 1;      
     firebaseItems.push({ id: doc.id, name: d.name, capacity: cap, totalPcs: qty });
   });
   renderItemsPage();
-  // sync cartItems names/capacities if already loaded
   firebaseItems.forEach(fi => {
     if (cartItems[fi.id]) {
       cartItems[fi.id].name     = fi.name;
@@ -420,58 +397,35 @@ window.resetLoad = function() {
 
 // ── PAGE 3 — SUMMARY ──
 function renderSummary() {
-  const loaded = Object.entries(cartItems).filter(([,v]) => v.loadedCartons > 0);
+  const loaded = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
   const tb     = document.getElementById('summaryTable');
 
   if (!loaded.length) {
-    tb.innerHTML = '<tr><td colspan="6"><div class="empty"><span class="em">📭</span>لم يتم تسجيل أي تحميل بعد</div></td></tr>';
-    ['s-loaded','s-sold','s-remaining'].forEach(id => document.getElementById(id).textContent = 0);
+    tb.innerHTML = '<tr><td colspan="4"><div class="empty"><span class="em">📭</span>لم يتم تسجيل أي تحميل بعد</div></td></tr>';
     return;
   }
 
-  let totalLoaded = 0, totalRemaining = 0;
   tb.innerHTML = loaded.map(([id, it]) => {
     const lJ = (it.loadedCartons * it.capacity) + (it.loadedLoose || 0);
-    const rJ = (it.remainingCartons * it.capacity) + it.remainingLoose;
-    totalLoaded    += lJ;
-    totalRemaining += rJ;
     return `
       <tr>
         <td><strong>${it.name}</strong></td>
-        <td><span class="tag tag-blue">${it.capacity}</span></td>
         <td style="font-size:13px;font-weight:700">
           ${it.loadedCartons>0?'<span style="color:var(--brand)">'+it.loadedCartons+' كرتونة</span>':''}
           ${(it.loadedCartons>0&&(it.loadedLoose||0)>0)?' و ':''}
           ${(it.loadedLoose||0)>0?'<span style="color:var(--green)">'+(it.loadedLoose||0)+' جركن</span>':''}
           ${it.loadedCartons===0&&(it.loadedLoose||0)===0?'—':''}
         </td>
-        <td style="font-weight:800;color:var(--brand)">${lJ}</td>
-        <td>
-          <input type="number" id="rc-${id}" value="${it.remainingCartons}" min="0"
-            style="width:48px;text-align:center;font-size:12px"> كرتونة
-          <br>
-          <input type="number" id="rl-${id}" value="${it.remainingLoose}" min="0"
-            style="width:44px;text-align:center;font-size:12px;margin-top:4px"> جركن
+        <td style="font-weight:800;color:var(--brand)">${lJ} جركن</td>
+        <td style="font-size:13px;font-weight:700">
+          ${it.remainingCartons>0?'<span style="color:var(--brand)">'+it.remainingCartons+' كرتونة</span>':''}
+          ${(it.remainingCartons>0&&it.remainingLoose>0)?' و ':''}
+          ${it.remainingLoose>0?'<span style="color:var(--green)">'+it.remainingLoose+' جركن</span>':''}
+          ${it.remainingCartons===0&&it.remainingLoose===0?'—':''}
         </td>
-        <td><button class="btn btn-success btn-sm" onclick="window.updateRemaining('${id}')">تحديث</button></td>
       </tr>`;
   }).join('');
-
-  document.getElementById('s-loaded').textContent    = totalLoaded;
-  document.getElementById('s-sold').textContent      = totalLoaded - totalRemaining;
-  document.getElementById('s-remaining').textContent = totalRemaining;
 }
-
-window.updateRemaining = function(id) {
-  const it  = cartItems[id];
-  const rc  = parseInt(document.getElementById(`rc-${id}`).value) || 0;
-  const rl  = parseInt(document.getElementById(`rl-${id}`).value) || 0;
-  it.remainingCartons = rc;
-  it.remainingLoose   = rl;
-  saveSession();
-  renderSummary();
-  toast(`✅ تم تحديث "${it.name}"`);
-};
 
 // ── TOAST ──
 let toastTimer;
