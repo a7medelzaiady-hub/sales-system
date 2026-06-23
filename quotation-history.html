@@ -451,7 +451,7 @@ window.editReceivedStep = function(itemId) {
   initReceivedFlow();
 };
 
-// ── الدالة السحرية: سحب المبيعات من السيرفر وعرض الجرد ──
+// ── الدالة السحرية المحدثة: قراءة ذكية للفواتير والمطابقة بالتاريخ والوحدة ──
 window.renderSummary = async function() {
   const loaded = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
   const tb = document.getElementById('summaryTable');
@@ -467,47 +467,57 @@ window.renderSummary = async function() {
   let liveSales = {};
 
   try {
-    // سحب الفواتير من السيرفر مباشرة
     const querySnapshot = await getDocs(collection(db, "invoices"));
     
     querySnapshot.forEach(doc => {
       const inv = doc.data();
       if (inv.isDeleted) return;
 
-      // استخراج تاريخ الفاتورة لمطابقته
       let invDate = "";
       if (inv.time) {
-        const match = inv.time.match(/\d{4}-\d{2}-\d{2}/); // تبحث عن تنسيق YYYY-MM-DD
-        if (match) invDate = match[0];
-        else {
-          // محاولة لتنظيف التواريخ بصيغ أخرى مثل هاتف الأندرويد
-          const parts = inv.time.split(',')[0].split('/');
-          if(parts.length === 3) {
-             // لو الصيغة د/ش/س تحول لـ YYYY-MM-DD
-             const day = parts[1]?.padStart(2, '0');
-             const month = parts[0]?.padStart(2, '0');
-             const year = parts[2];
-             if(year && year.length === 4) invDate = `${year}-${month}-${day}`;
+        // تنظيف النص وتحويل الأرقام العربية/الهندية إلى إنجليزية
+        let cleanTime = inv.time.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+        
+        // 1. محاولة استخراج التاريخ بالصيغة القياسية العادية YYYY-MM-DD
+        const matchIso = cleanTime.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+        if (matchIso) {
+          invDate = `${matchIso[1]}-${matchIso[2].padStart(2, '0')}-${matchIso[3].padStart(2, '0')}`;
+        } else {
+          // 2. معالجة التواريخ المرفوعة من الأندرويد بصيغة الفواصل والسلاش DD/MM/YYYY
+          const parts = cleanTime.split(',')[0].match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+          if (parts) {
+            let p1 = parts[1];
+            let p2 = parts[2];
+            let year = parts[3];
+            
+            // احتمالية أولى (سنة-شهر-يوم)
+            invDate = `${year}-${p1.padStart(2, '0')}-${p2.padStart(2, '0')}`;
+            
+            // احتمالية ثانية لو لم يطابق الاختيار (سنة-يوم-شهر) لضمان دقة القراءة العكسية للهواتف
+            if (invDate !== selectedDate) {
+              invDate = `${year}-${p2.padStart(2, '0')}-${p1.padStart(2, '0')}`;
+            }
           }
         }
       }
 
-      // إذا تساوى التاريخ مع المختار، نجمع بنود المنتجات
+      // مطابقة الفاتورة بالتاريخ المختار
       if (invDate === selectedDate && inv.items) {
         inv.items.forEach(itm => {
           const cleanedKey = cleanItemName(itm.name);
           if (cleanedKey) {
             if (!liveSales[cleanedKey]) liveSales[cleanedKey] = 0;
             
-            // حساب الكمية بالقطعة/الجركن بناء على نوع الوحدة المسجلة بالفاتورة
             const pInfo = firebaseItems.find(fi => cleanItemName(fi.name) === cleanedKey);
             const factor = pInfo ? pInfo.capacity : 1;
             
             const itemQty = Number(itm.qty) || 0;
-            const totalPcsSold = (itm.unit === 'box') ? (itemQty * factor) : itemQty;
+            
+            // حساب ذكي لنوع الوحدة المكتوبة بالفاتورة (تدعم box أو كرتونة)
+            const totalPcsSold = (itm.unit === 'box' || itm.unit === 'كرتونة') ? (itemQty * factor) : itemQty;
 
             if (itm.isReturn) {
-              liveSales[cleanedKey] -= totalPcsSold; // المرتجع ينقص من المبيعات
+              liveSales[cleanedKey] -= totalPcsSold; // المرتجع ينقص من المباع
             } else {
               liveSales[cleanedKey] += totalPcsSold;
             }
@@ -521,6 +531,7 @@ window.renderSummary = async function() {
     syncStatus.innerHTML = '❌ خطأ في السيرفر';
   }
 
+  // طباعة الجدول النهائي
   tb.innerHTML = loaded.map(([id, it]) => {
     const unit = getUnitName(it.name);
     const cap = it.capacity || 1;
@@ -556,7 +567,7 @@ window.renderSummary = async function() {
       diffText = `➕ زيادة: ${dc > 0 ? dc + ' ك ' : ''}${dl > 0 ? dl + ' ' + unit : ''}`;
       diffStyle = 'color:var(--green); background:var(--green-lt); padding:4px 8px; border-radius:6px; font-weight:800; display:inline-block;';
     } else if (receivedInSession[id] !== undefined) {
-      diffText = '✅ مظبوط شَعرة';
+      diffText = '✅ مظبوط ';
       diffStyle = 'color:var(--green); font-weight:800;';
     }
 
@@ -582,4 +593,3 @@ window.toast = function(msg) {
 </script>
 </body>
 </html>
- 
