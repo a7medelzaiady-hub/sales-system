@@ -42,11 +42,11 @@ nav {
   border-radius: 0 0 20px 20px;
   overflow-x: auto;
   white-space: nowrap;
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 nav::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
+  display: none;
 }
 nav .logo {
   color: #fff;
@@ -81,7 +81,7 @@ nav .btn-back {
   color: #fff;
   font-size: 11px;
   border-bottom: none;
-  margin-right: auto; /* يدفعه لأقصى اليمين/اليسار حسب الاتجاه */
+  margin-right: auto;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -172,10 +172,10 @@ nav .btn-back:hover {
 .btn-danger{background:var(--red);color:#fff;}
 .btn-sm{padding:8px 12px;font-size:12px;}
 
-/* LUXURIOUS SUMMARY TABLE */
+/* TABLE STYLE */
 .tbl-wrap{overflow-x:auto; border-radius: 10px; border: 1px solid var(--border);}
 table{width:100%;border-collapse:collapse;font-size:13px; background: #fff;}
-th{background:var(--brand);color:#fff;padding:14px 10px;text-align:center;font-weight:700;font-size:13px; letter-spacing: 0.3px;}
+th{background:var(--brand);color:#fff;padding:14px 10px;text-align:center;font-weight:700;font-size:13px;}
 td{padding:14px 10px;text-align:center;border-bottom:1px solid var(--border);font-size:13px; color: var(--text); font-weight: 600;}
 tr:last-child td { border-bottom: none; }
 tr:hover td{background:var(--brand-lt);}
@@ -210,8 +210,6 @@ tr:hover td{background:var(--brand-lt);}
   <button onclick="showPage('pg-load',this)">⬆️ تسجيل التحميل</button>
   <button onclick="showPage('pg-received',this)">👇 تسجيل المستلم</button>
   <button onclick="showPage('pg-summary',this)">📊 جرد وحركة العربة</button>
-  
-  <!-- زر العودة للصفحة الرئيسية للسيستم -->
   <button class="btn-back" onclick="goToMainMenu()">🏠 القائمة الرئيسية</button>
 </nav>
 
@@ -239,7 +237,7 @@ tr:hover td{background:var(--brand-lt);}
   </div>
 </div>
 
-<!-- ══ صفحة ٣ — المستلم (الراجع الفعلي بآخر اليوم) ══ -->
+<!-- ══ صفحة ٣ — المستلم ══ -->
 <div class="page" id="pg-received">
   <div class="ph"><h2>تسجيل جرد المستلم (الراجع الفعلي)</h2><p>سجل الكمية الفعلية الموجودة في السيارة الآن لمقارنتها بالمتبقي الحسابي والوقوف على العجز</p></div>
   <div id="receivedFlow"></div>
@@ -301,7 +299,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
-// ── STATE ──
 let firebaseItems = [];   
 let cartItems     = JSON.parse(localStorage.getItem('cartItems') || '{}');
 let loadedInSession = JSON.parse(localStorage.getItem('loadedInSession') || '{}');
@@ -309,9 +306,7 @@ let receivedInSession = JSON.parse(localStorage.getItem('receivedInSession') || 
 
 document.getElementById('summaryDate').valueAsDate = new Date();
 
-// دالة العودة للصفحة الرئيسية للمشروع
 window.goToMainMenu = function() {
-  // يرجّع المستخدم لصفحة الـ index أو لوحة التحكم الرئيسية الخاصة بك
   window.location.href = 'index.html'; 
 };
 
@@ -328,7 +323,16 @@ function getUnitName(name) {
   return 'جركن'; 
 }
 
-// ── FIREBASE LISTENER ──
+// 🔹 دالة ذكية لتنظيف الأسماء وتوحيدها لمنع مشاكل عدم التطابق بسبب مسافة أو تاء مربوطة
+function cleanItemName(str) {
+  if (!str) return "";
+  return str.trim()
+            .replace(/\s+/g, ' ')                  // تحويل المسافات المتعددة لمسافة واحدة
+            .replace(/[أإآ]/g, 'ا')                 // توحيد الألفات
+            .replace(/ة/g, 'ه')                     // توحيد التاء المربوطة والهاء
+            .replace(/ى/g, 'ي');                    // توحيد الألف اللينة والياء
+}
+
 onSnapshot(collection(db, "inventory"), snap => {
   firebaseItems = [];
   snap.forEach(doc => {
@@ -348,7 +352,6 @@ onSnapshot(collection(db, "inventory"), snap => {
   });
 });
 
-// ── NAV ──
 window.showPage = function(id, btn) {
   if (id === 'back') return;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -360,7 +363,6 @@ window.showPage = function(id, btn) {
   if (id === 'pg-summary')  renderSummary();
 };
 
-// ── PAGE 1 — ITEMS ──
 function renderItemsPage() {
   const card = document.getElementById('itemsCard');
   if (!firebaseItems.length) {
@@ -390,7 +392,6 @@ function renderItemsPage() {
     </div>`;
 }
 
-// ── PAGE 2 — LOAD FLOW ──
 function initLoadFlow() {
   const flow   = document.getElementById('loadFlow');
   const noMsg  = document.getElementById('noItemsMsg');
@@ -472,7 +473,6 @@ window.resetLoad = function() {
   loadedInSession = {}; cartItems = {}; saveSession(); renderLoadFlow();
 };
 
-// ── PAGE 3 — RECEIVED FLOW ──
 function initReceivedFlow() {
   const loadedList = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
   const flow = document.getElementById('receivedFlow');
@@ -572,12 +572,15 @@ window.renderSummary = function() {
         const match = inv.date.match(/\d{4}-\d{2}-\d{2}/);
         invDate = match ? match[0] : inv.date;
       }
+      
+      // مطابقة الفاتورة بالتاريخ المختار وغير محذوفة
       if (invDate === selectedDate && inv.items && !inv.isDeleted) {
         inv.items.forEach(itm => {
-          const cleanName = itm.name ? itm.name.trim() : "";
-          if (cleanName) {
-            if (!extractedInvoiceSales[cleanName]) extractedInvoiceSales[cleanName] = 0;
-            extractedInvoiceSales[cleanName] += Number(itm.qty) || 0;
+          // استخدام المقارنة النظيفة والذكية للأسماء تفادياً للمسافات والتاء المربوطة
+          const cleanedKey = cleanItemName(itm.name);
+          if (cleanedKey) {
+            if (!extractedInvoiceSales[cleanedKey]) extractedInvoiceSales[cleanedKey] = 0;
+            extractedInvoiceSales[cleanedKey] += Number(itm.qty) || 0;
           }
         });
       }
@@ -588,7 +591,10 @@ window.renderSummary = function() {
     const unit = getUnitName(it.name);
     const cap  = it.capacity || 1;
     
-    const totalSoldPcs = extractedInvoiceSales[it.name.trim()] || 0;
+    // جلب كمية المبيعات بالاسم النظيف
+    const cleanKeyName = cleanItemName(it.name);
+    const totalSoldPcs = extractedInvoiceSales[cleanKeyName] || 0;
+    
     const soldCartons  = Math.floor(totalSoldPcs / cap);
     const soldLoose    = totalSoldPcs % cap;
 
@@ -624,7 +630,7 @@ window.renderSummary = function() {
 
     return `
       <tr>
-        <td style="text-align: right; padding-right:15px; font-weight:700; color:var(--text);">[ ${it.name} ]</td>
+        <td style="text-align: right; padding-right:15px; font-weight:700; color:var(--text);">${it.name}</td>
         <td>${it.loadedCartons > 0 ? it.loadedCartons + ' ك':''} ${it.loadedLoose > 0 ? it.loadedLoose + ' ' + unit : ''}${it.loadedCartons===0 && it.loadedLoose===0?'0':''}</td>
         <td style="color:var(--red); font-weight:700;">${soldCartons > 0 ? soldCartons + ' ك':''} ${soldLoose > 0 ? soldLoose + ' ' + unit : ''}${totalSoldPcs===0?'0':''}</td>
         <td style="color:var(--brand); font-weight:700; background: var(--brand-lt); border-radius: 6px;">${remCartons > 0 ? remCartons + ' ك':''} ${remLoose > 0 ? remLoose + ' ' + unit : ''}${totalRemPcs===0?'0':''}</td>
