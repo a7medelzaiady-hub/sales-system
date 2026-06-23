@@ -47,6 +47,26 @@ nav button.active,nav button:hover{color:#fff;border-bottom-color:#6ee7b7;}
 .card h3{font-size:14px;color:var(--gray);margin-bottom:14px;display:flex;align-items:center;gap:7px;}
 .card h3 .ic{font-size:18px;}
 
+/* DATE FILTER UPPER SUMMARY */
+.date-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--brand-lt);
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.date-filter-wrap label { font-size: 13px; font-weight: 700; color: var(--brand); }
+.date-filter-wrap input[type=date] {
+  padding: 6px 10px;
+  border: 1.5px solid var(--brand);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
 /* FORM */
 .frow{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
 .field{display:flex;flex-direction:column;gap:4px;flex:1;min-width:120px;}
@@ -133,17 +153,22 @@ tr:hover td{background:var(--brand-lt);}
 
 <!-- ══ صفحة ٣ — الملخص ══ -->
 <div class="page" id="pg-summary">
-  <div class="ph"><h2>ملخص العربة</h2><p>بيانات الحمولة الحالية للعربة</p></div>
+  <div class="ph"><h2>ملخص العربة</h2><p>بيانات الحمولة والمبيعات الحالية</p></div>
+
+  <div class="date-filter-wrap">
+    <label for="summaryDate">تاريخ حركة البيع:</label>
+    <input type="date" id="summaryDate" onchange="window.renderSummary()">
+  </div>
 
   <div class="card">
-    <h3><span class="ic">📄</span> تفاصيل الحمولات</h3>
+    <h3><span class="ic">📄</span> تفاصيل الحركات</h3>
     <div class="tbl-wrap">
       <table>
         <thead>
           <tr>
             <th>الصنف</th>
-            <th>تفصيل المحمل</th>
-            <th>إجمالي المحمل (المنفرد)</th>
+            <th>المحمل</th>
+            <th>المباع</th>
             <th>المتبقي الحالي</th>
           </tr>
         </thead>
@@ -179,17 +204,19 @@ let firebaseItems = [];
 let cartItems     = JSON.parse(localStorage.getItem('cartItems') || '{}');
 let loadedInSession = JSON.parse(localStorage.getItem('loadedInSession') || '{}');
 
+// تعيين تاريخ اليوم تلقائياً عند فتح الصفحة
+document.getElementById('summaryDate').valueAsDate = new Date();
+
 function saveSession() {
   localStorage.setItem('cartItems', JSON.stringify(cartItems));
   localStorage.setItem('loadedInSession', JSON.stringify(loadedInSession));
 }
 
-// دالة ذكية لتحديد نوع وحدة الصنف المنفردة بناءً على الاسم المجلوب
 function getUnitName(name) {
   const n = name.toLowerCase();
   if (n.includes('قطعة') || n.includes('قطعه')) return 'قطعة';
-  if (n.includes('كرتونة') || n.includes('كرتونه')) return 'كرتونة';
-  return 'جركن'; // الافتراضي إذا لم يحدد
+  if (n.includes('كرتونة') || n.includes('كرtونه')) return 'كرتونة';
+  return 'جركن'; 
 }
 
 // ── FIREBASE LISTENER ──
@@ -407,28 +434,45 @@ window.resetLoad = function() {
 };
 
 // ── PAGE 3 — SUMMARY ──
-function renderSummary() {
+window.renderSummary = function() {
   const loaded = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
   const tb     = document.getElementById('summaryTable');
+  const selectedDate = document.getElementById('summaryDate').value;
 
   if (!loaded.length) {
     tb.innerHTML = '<tr><td colspan="4"><div class="empty"><span class="em">📭</span>لم يتم تسجيل أي تحميل بعد</div></td></tr>';
     return;
   }
 
+  // جلب المبيعات المحلية المخزنة للتحقق تبعا للتاريخ (إن وجدت بالـ LocalStorage)
+  const salesKey = `sales_${selectedDate}`;
+  const daySales = JSON.parse(localStorage.getItem(salesKey) || '{}');
+
   tb.innerHTML = loaded.map(([id, it]) => {
     const unit = getUnitName(it.name);
-    const lJ = (it.loadedCartons * it.capacity) + (it.loadedLoose || 0);
+    
+    // المبيعات المسجلة لهذا اليوم (افتراضياً 0 إن لم تكن مسجلة)
+    const soldCartons = daySales[id]?.cartons || 0;
+    const soldLoose   = daySales[id]?.loose || 0;
+
     return `
       <tr>
         <td><strong>${it.name}</strong></td>
+        <!-- المحمل -->
         <td style="font-size:13px;font-weight:700">
           ${it.loadedCartons>0?'<span style="color:var(--brand)">'+it.loadedCartons+' كرتونة</span>':''}
           ${(it.loadedCartons>0&&(it.loadedLoose||0)>0)?' و ':''}
           ${(it.loadedLoose||0)>0?'<span style="color:var(--green)">'+(it.loadedLoose||0)+' ' + unit + '</span>':''}
           ${it.loadedCartons===0&&(it.loadedLoose||0)===0?'—':''}
         </td>
-        <td style="font-weight:800;color:var(--brand)">${lJ} ${unit}</td>
+        <!-- المباع تبعاً للتاريخ المختار -->
+        <td style="font-size:13px;font-weight:700;color:var(--red);">
+          ${soldCartons>0? soldCartons + ' كرتونة':''}
+          ${(soldCartons>0 && soldLoose>0)?' و ':''}
+          ${soldLoose>0? soldLoose + ' ' + unit :''}
+          ${soldCartons===0 && soldLoose===0?'—':''}
+        </td>
+        <!-- المتبقي الحالي -->
         <td style="font-size:13px;font-weight:700">
           ${it.remainingCartons>0?'<span style="color:var(--brand)">'+it.remainingCartons+' كرتونة</span>':''}
           ${(it.remainingCartons>0&&it.remainingLoose>0)?' و ':''}
@@ -437,7 +481,7 @@ function renderSummary() {
         </td>
       </tr>`;
   }).join('');
-}
+};
 
 // ── TOAST ──
 let toastTimer;
