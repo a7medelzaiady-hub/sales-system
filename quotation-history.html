@@ -302,8 +302,16 @@ function renderLoadFlow() {
       const sess = loadedInSession[it.id];
       const totalJ = (sess.cartons * it.capacity) + sess.loose;
       div.innerHTML = `
-        <div class="stitle"><span class="snum dn">✓</span><span>${it.name}</span></div>
-        <div class="dsummary">✅ ${sess.cartons} كرتونة + ${sess.loose} جركن = <span style="color:var(--brand)">${totalJ} جركن</span></div>`;
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <div class="stitle" style="margin-bottom:4px"><span class="snum dn">✓</span><span>${it.name}</span></div>
+            <div class="dsummary">✅ ${sess.cartons} كرتونة + ${sess.loose} جركن = <span style="color:var(--brand)">${totalJ} جركن</span></div>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm" style="background:var(--amber-lt);color:var(--amber);font-weight:700" onclick="window.editStep('${it.id}')">✏️ تعديل</button>
+            <button class="btn btn-sm" style="background:var(--red-lt);color:var(--red);font-weight:700" onclick="window.cancelStep('${it.id}')">✕ إلغاء</button>
+          </div>
+        </div>`;
     } else if (isCurrent) {
       div.innerHTML = `
         <div class="stitle">
@@ -375,6 +383,25 @@ window.confirmStep = function(itemId) {
   saveSession();
   toast(`✅ تم تسجيل "${it.name}"`);
   renderLoadFlow();
+};
+
+window.editStep = function(itemId) {
+  delete loadedInSession[itemId];
+  delete cartItems[itemId];
+  saveSession();
+  document.getElementById('loadDoneMsg').style.display = 'none';
+  renderLoadFlow();
+  toast('✏️ يمكنك تعديل الكمية الآن');
+};
+
+window.cancelStep = function(itemId) {
+  const it = firebaseItems.find(i => i.id === itemId);
+  delete loadedInSession[itemId];
+  delete cartItems[itemId];
+  saveSession();
+  document.getElementById('loadDoneMsg').style.display = 'none';
+  renderLoadFlow();
+  toast(`🗑️ تم إلغاء "${it ? it.name : ''}"`);
 };
 
 window.resetLoad = function() {
