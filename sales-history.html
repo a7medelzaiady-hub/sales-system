@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>تتبع حمولة العربة والمخزون</title>
+<title>تتبع حمولة وعجز العربة - الزيادي</title>
 <style>
 :root {
   --brand:    #0b5e3d;
@@ -27,10 +27,11 @@
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Cairo','Segoe UI',Tahoma,sans-serif;background:var(--surface);color:var(--text);min-height:100vh;padding-bottom:30px;}
 
-/* NAV */
-nav{background:linear-gradient(135deg, #0b5e3d 0%, #0a4a31 100%);display:flex;align-items:center;padding:0 16px;position:sticky;top:0;z-index:50;box-shadow:0 3px 10px rgba(0,0,0,.15);border-radius:0 0 20px 20px;}
-nav .logo{color:#fff;font-size:16px;font-weight:700;padding:14px 0;margin-left:20px;white-space:nowrap;}
-nav button{background:none;border:none;color:rgba(255,255,255,.7);font-size:13px;font-family:inherit;padding:15px 14px;cursor:pointer;border-bottom:3px solid transparent;transition:.2s;font-weight:600;}
+/* NAV - RESPONSIVE SCROLL ON MOBILE */
+nav{background:linear-gradient(135deg, #0b5e3d 0%, #0a4a31 100%);display:flex;align-items:center;padding:0 8px;position:sticky;top:0;z-index:50;box-shadow:0 3px 10px rgba(0,0,0,.15);border-radius:0 0 20px 20px;overflow-x: auto;white-space: nowrap;}
+nav::-webkit-scrollbar {height: 0px;}
+nav .logo{color:#fff;font-size:14px;font-weight:700;padding:14px 8px;margin-left:10px;white-space:nowrap;display: inline-block;}
+nav button{background:none;border:none;color:rgba(255,255,255,.7);font-size:12px;font-family:inherit;padding:15px 10px;cursor:pointer;border-bottom:3px solid transparent;transition:.2s;font-weight:600;display: inline-block;}
 nav button.active,nav button:hover{color:#fff;border-bottom-color:#6ee7b7;}
 
 /* PAGES */
@@ -123,9 +124,8 @@ tr:hover td{background:var(--brand-lt);}
 .tag{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
 .tag-blue{background:var(--brand-lt);color:var(--brand);}
 
-/* LOAD FLOW */
-#loadFlow{display:flex;flex-direction:column;gap:10px;}
-.lstep{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;animation:fi .3s ease;}
+/* FLOW CARDS */
+.lstep{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;animation:fi .3s ease;margin-bottom: 10px;}
 .lstep.done{border-color:var(--green);background:var(--green-lt);opacity:.9;}
 .lstep.active{border-color:var(--brand);box-shadow:0 0 0 3px rgba(11,94,61,.12); border-width: 1.5px;}
 .lstep .stitle{font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
@@ -134,13 +134,11 @@ tr:hover td{background:var(--brand-lt);}
 .dsummary{font-size:13px;color:var(--green);font-weight:700;}
 @keyframes fi{from{opacity:0;transform:translateY(7px);}to{opacity:1;transform:translateY(0);}}
 
-/* EMPTY / LOADING */
 .empty{text-align:center;padding:36px 20px;color:var(--gray);font-size:13px;}
 .empty .em{font-size:36px;display:block;margin-bottom:10px;}
 .spin{display:inline-block;width:32px;height:32px;border:4px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;margin:20px auto;display:block;}
 @keyframes spin{to{transform:rotate(360deg);}}
 
-/* TOAST */
 #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:#1b2e26;color:#fff;padding:11px 22px;border-radius:30px;font-size:12px;font-weight:700;font-family:inherit;box-shadow:0 4px 20px rgba(0,0,0,.25);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none;z-index:999;}
 #toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
 </style>
@@ -148,18 +146,17 @@ tr:hover td{background:var(--brand-lt);}
 <body>
 
 <nav>
-  <span class="logo">🚛 تتبع حركة العربة</span>
+  <span class="logo">🛢️ الزيادي للزيوت</span>
   <button class="active" onclick="showPage('pg-items',this)">📦 أصناف المخزن</button>
   <button onclick="showPage('pg-load',this)">⬆️ تسجيل التحميل</button>
+  <button onclick="showPage('pg-received',this)">👇 تسجيل المستلم</button>
   <button onclick="showPage('pg-summary',this)">📊 جرد وحركة العربة</button>
 </nav>
 
 <!-- ══ صفحة ١ — الأصناف ══ -->
 <div class="page active" id="pg-items">
   <div class="ph"><h2>أصناف المخزن الحالية</h2><p>الأصناف المتاحة للتحميل في السيرفر (Firebase)</p></div>
-  <div class="card" id="itemsCard">
-    <div class="spin"></div>
-  </div>
+  <div class="card" id="itemsCard"><div class="spin"></div></div>
 </div>
 
 <!-- ══ صفحة ٢ — التحميل ══ -->
@@ -172,17 +169,29 @@ tr:hover td{background:var(--brand-lt);}
   <div id="loadDoneMsg" class="card" style="display:none;text-align:center;padding:28px">
     <div style="font-size:36px;margin-bottom:10px">✅</div>
     <div style="font-size:16px;font-weight:800;color:var(--green)">تم تسجيل كميات التحميل بنجاح!</div>
-    <div style="color:var(--gray);margin:8px 0 18px;font-size:12px">يمكنك الآن التوجه لجدول الجرد لمتابعة حركات المبيعات الفعلي للسيارة</div>
+    <div style="color:var(--gray);margin:8px 0 18px;font-size:12px">يمكنك الآن التوجه لتسجيل الراجع أو رؤية تقرير الجرد المالي.</div>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-      <button class="btn btn-primary" onclick="showPage('pg-summary',document.querySelectorAll('nav button')[2])">عرض ملخص العربة</button>
+      <button class="btn btn-primary" onclick="showPage('pg-summary',document.querySelectorAll('nav button')[3])">عرض ملخص العربة</button>
       <button class="btn btn-success" onclick="resetLoad()">تصفير وتحميل جديد</button>
     </div>
   </div>
 </div>
 
-<!-- ══ صفحة ٣ — الملخص ══ -->
+<!-- ══ صفحة ٣ — المستلم (الراجع الفعلي بآخر اليوم) ══ -->
+<div class="page" id="pg-received">
+  <div class="ph"><h2>تسجيل جرد المستلم (الراجع الفعلي)</h2><p>سجل الكمية الفعلية الموجودة في السيارة الآن لمقارنتها بالمتبقي الحسابي والوقوف على العجز</p></div>
+  <div id="receivedFlow"></div>
+  <div id="receivedDoneMsg" class="card" style="display:none;text-align:center;padding:28px">
+    <div style="font-size:36px;margin-bottom:10px">🚚</div>
+    <div style="font-size:16px;font-weight:800;color:var(--brand)">تم حفظ جرد الراجع والمستلم بنجاح</div>
+    <p style="color:var(--gray);font-size:12px;margin:5px 0 15px;">توجه الآن لصفحة الجرد النهائية لرؤية الفروقات إن وجدت.</p>
+    <button class="btn btn-primary" onclick="showPage('pg-summary',document.querySelectorAll('nav button')[3])">اذهب لجدول الفروقات والعجز</button>
+  </div>
+</div>
+
+<!-- ══ صفحة ٤ — الملخص والحركة والفرق ══ -->
 <div class="page" id="pg-summary">
-  <div class="ph"><h2>حركة وجرد العربة الكلي</h2><p>مقارنة المحمل الكلي بالمباع من الفواتير وحساب الجرد المتبقي بالسيارة</p></div>
+  <div class="ph"><h2>حركة وجرد العربة الكلي والفرق</h2><p>مقارنة المحمل الكلي بالمباع من الفواتير والراجع الفعلي لكشف أي عجز</p></div>
 
   <div class="date-filter-wrap">
     <label for="summaryDate">تاريخ حركة الفواتير:</label>
@@ -196,13 +205,15 @@ tr:hover td{background:var(--brand-lt);}
         <thead>
           <tr>
             <th>اسم الصنف</th>
-            <th>المحمل بالسيارة</th>
-            <th>المباع بالفواتير</th>
-            <th>المتبقي الفعلي بالسيارة</th>
+            <th>المحمل</th>
+            <th>المباع</th>
+            <th>المتبقي (حسابياً)</th>
+            <th>المستلم (الرجوع الفعلي)</th>
+            <th>الفرق (العجز)</th>
           </tr>
         </thead>
         <tbody id="summaryTable">
-          <tr><td colspan="4"><div class="empty"><span class="em">📭</span>لا توجد بيانات حمولة مسجلة</div></td></tr>
+          <tr><td colspan="6"><div class="empty"><span class="em">📭</span>لا توجد بيانات حمولة مسجلة</div></td></tr>
         </tbody>
       </table>
     </div>
@@ -232,12 +243,14 @@ const db  = getFirestore(app);
 let firebaseItems = [];   
 let cartItems     = JSON.parse(localStorage.getItem('cartItems') || '{}');
 let loadedInSession = JSON.parse(localStorage.getItem('loadedInSession') || '{}');
+let receivedInSession = JSON.parse(localStorage.getItem('receivedInSession') || '{}');
 
 document.getElementById('summaryDate').valueAsDate = new Date();
 
 function saveSession() {
   localStorage.setItem('cartItems', JSON.stringify(cartItems));
   localStorage.setItem('loadedInSession', JSON.stringify(loadedInSession));
+  localStorage.setItem('receivedInSession', JSON.stringify(receivedInSession));
 }
 
 function getUnitName(name) {
@@ -273,8 +286,9 @@ window.showPage = function(id, btn) {
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if (btn) btn.classList.add('active');
-  if (id === 'pg-load')    initLoadFlow();
-  if (id === 'pg-summary') renderSummary();
+  if (id === 'pg-load')     initLoadFlow();
+  if (id === 'pg-received') initReceivedFlow();
+  if (id === 'pg-summary')  renderSummary();
 };
 
 // ── PAGE 1 — ITEMS ──
@@ -312,13 +326,7 @@ function initLoadFlow() {
   const flow   = document.getElementById('loadFlow');
   const noMsg  = document.getElementById('noItemsMsg');
   const doneMsg= document.getElementById('loadDoneMsg');
-
-  if (!firebaseItems.length) {
-    flow.innerHTML = '';
-    noMsg.style.display = 'block';
-    doneMsg.style.display = 'none';
-    return;
-  }
+  if (!firebaseItems.length) { flow.innerHTML = ''; noMsg.style.display = 'block'; doneMsg.style.display = 'none'; return; }
   noMsg.style.display = 'none';
   renderLoadFlow();
 }
@@ -339,14 +347,11 @@ function renderLoadFlow() {
 
     const div = document.createElement('div');
     div.className = 'lstep' + (isDone ? ' done' : isCurrent ? ' active' : '');
-    div.id = `step-${it.id}`;
 
     if (isDone) {
       const sess = loadedInSession[it.id];
-      let doneText = '';
-      if (sess.cartons > 0 && sess.loose > 0) doneText = sess.cartons + ' كرتونة و ' + sess.loose + ' ' + unit;
-      else if (sess.cartons > 0) doneText = sess.cartons + ' كرتونة';
-      else doneText = sess.loose + ' ' + unit;
+      let doneText = (sess.cartons > 0 ? sess.cartons + ' كرتونة ' : '') + (sess.loose > 0 ? sess.loose + ' ' + unit : '');
+      if(!sess.cartons && !sess.loose) doneText = '0';
       div.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div>
@@ -355,36 +360,20 @@ function renderLoadFlow() {
           </div>
           <div style="display:flex;gap:6px">
             <button class="btn btn-sm" style="background:var(--amber-lt);color:var(--amber);font-weight:700" onclick="window.editStep('${it.id}')">✏️ تعديل</button>
-            <button class="btn btn-sm" style="background:var(--red-lt);color:var(--red);font-weight:700" onclick="window.cancelStep('${it.id}')">✕ إلغاء</button>
           </div>
         </div>`;
     } else if (isCurrent) {
       div.innerHTML = `
-        <div class="stitle">
-          <span class="snum">${idx+1}</span>
-          <span>${it.name} <small style="color:var(--gray);font-weight:normal">(المخزن حالياً: ${Math.floor(it.totalPcs/it.capacity)} كرتونة)</small></span>
-        </div>
-        <!-- تم تعديل الخانات هنا لتصبح أفقية تماماً وبدون أي نصوص حسابية فرعية بالأسفل -->
+        <div class="stitle"><span class="snum">${idx+1}</span><span>${it.name}</span></div>
         <div class="frow-inline">
-          <div class="field-inline">
-            <label>عدد الكراتين</label>
-            <input type="number" id="lc-${it.id}" placeholder="0" min="0" step="any"
-              onkeydown="if(event.key==='Enter') document.getElementById('ll-${it.id}').focus()">
-          </div>
-          <div class="field-inline">
-            <label>${unit} منفرد</label>
-            <input type="number" id="ll-${it.id}" placeholder="0" min="0"
-              onkeydown="if(event.key==='Enter') window.confirmStep('${it.id}')">
-          </div>
-          <button class="btn btn-success btn-sm" style="height:38px; display:flex; align-items:center;" onclick="window.confirmStep('${it.id}')">تم ✔</button>
+          <div class="field-inline"><label>عدد الكراتين</label><input type="number" id="lc-${it.id}" placeholder="0" min="0" step="any"></div>
+          <div class="field-inline"><label>${unit} منفرد</label><input type="number" id="ll-${it.id}" placeholder="0" min="0"></div>
+          <button class="btn btn-success btn-sm" style="height:38px;" onclick="window.confirmStep('${it.id}')">تم ✔</button>
         </div>`;
       setTimeout(() => { const inp=document.getElementById(`lc-${it.id}`); if(inp) inp.focus(); }, 80);
     } else {
       div.innerHTML = `
-        <div class="stitle" style="opacity:.4; margin-bottom:0;">
-          <span class="snum" style="background:var(--gray)">${idx+1}</span>
-          <span>${it.name}</span>
-        </div>`;
+        <div class="stitle" style="opacity:.4; margin-bottom:0;"><span class="snum" style="background:var(--gray)">${idx+1}</span><span>${it.name}</span></div>`;
     }
     flow.appendChild(div);
   });
@@ -394,145 +383,200 @@ window.confirmStep = function(itemId) {
   const it      = firebaseItems.find(i => i.id === itemId);
   const cartons = parseFloat(document.getElementById(`lc-${itemId}`).value) || 0;
   const loose   = parseInt(document.getElementById(`ll-${itemId}`).value) || 0;
-  if (cartons < 0 || loose < 0) { toast('❗ الرجاء إدخال أرقام صحيحة'); return; }
   
   loadedInSession[itemId] = { cartons, loose };
-  cartItems[itemId] = {
-    name: it.name,
-    capacity: it.capacity,
-    loadedCartons: cartons,
-    loadedLoose: loose
-  };
+  if (!cartItems[itemId]) cartItems[itemId] = { name: it.name, capacity: it.capacity };
+  cartItems[itemId].loadedCartons = cartons;
+  cartItems[itemId].loadedLoose = loose;
   saveSession();
-  toast(`✅ تم تسجيل حمولة "${it.name}"`);
   renderLoadFlow();
 };
 
 window.editStep = function(itemId) {
   delete loadedInSession[itemId];
-  delete cartItems[itemId];
+  if(cartItems[itemId]) { cartItems[itemId].loadedCartons = 0; cartItems[itemId].loadedLoose = 0; }
   saveSession();
-  document.getElementById('loadDoneMsg').style.display = 'none';
   renderLoadFlow();
-  toast('✏️ يمكنك تعديل كمية التحميل الآن');
-};
-
-window.cancelStep = function(itemId) {
-  const it = firebaseItems.find(i => i.id === itemId);
-  delete loadedInSession[itemId];
-  delete cartItems[itemId];
-  saveSession();
-  document.getElementById('loadDoneMsg').style.display = 'none';
-  renderLoadFlow();
-  toast(`🗑️ تم إلغاء تحميل "${it ? it.name : ''}"`);
 };
 
 window.resetLoad = function() {
-  loadedInSession = {};
-  cartItems = {};
-  saveSession();
-  document.getElementById('loadDoneMsg').style.display = 'none';
-  renderLoadFlow();
+  loadedInSession = {}; cartItems = {}; saveSession(); renderLoadFlow();
 };
 
-// ── PAGE 3 — SUMMARY (الربط وقراءة الفواتير) ──
+// ── PAGE 3 — RECEIVED FLOW (تسجيل المستلم الفعلي) ──
+function initReceivedFlow() {
+  const loadedList = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
+  const flow = document.getElementById('receivedFlow');
+  const doneMsg = document.getElementById('receivedDoneMsg');
+
+  if (!loadedList.length) {
+    flow.innerHTML = '<div class="card"><div class="empty"><span class="em">⚠️</span>يجب تسجيل كميات "التحميل" أولاً قبل استلام الراجع بآخر اليوم!</div></div>';
+    doneMsg.style.display = 'none';
+    return;
+  }
+  renderReceivedFlow(loadedList);
+}
+
+function renderReceivedFlow(loadedList) {
+  const flow = document.getElementById('receivedFlow');
+  const doneMsg = document.getElementById('receivedDoneMsg');
+  flow.innerHTML = '';
+
+  const allDone = loadedList.every(([id]) => receivedInSession[id] !== undefined);
+  if (allDone) { doneMsg.style.display = 'block'; return; }
+  doneMsg.style.display = 'none';
+
+  loadedList.forEach(([id, it], idx) => {
+    const isDone = receivedInSession[id] !== undefined;
+    const isCurrent = !isDone && loadedList.slice(0, idx).every(([prevId]) => receivedInSession[prevId] !== undefined);
+    const unit = getUnitName(it.name);
+
+    const div = document.createElement('div');
+    div.className = 'lstep' + (isDone ? ' done' : isCurrent ? ' active' : '');
+
+    if (isDone) {
+      const rec = receivedInSession[id];
+      let recText = (rec.cartons > 0 ? rec.cartons + ' كرتونة ' : '') + (rec.loose > 0 ? rec.loose + ' ' + unit : '');
+      if(!rec.cartons && !rec.loose) recText = '0';
+      div.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <div class="stitle" style="margin-bottom:4px"><span class="snum dn">✓</span><span>${it.name}</span></div>
+            <div class="dsummary" style="color:var(--brand)">👇 الراجع الفعلي المستلم: ${recText}</div>
+          </div>
+          <button class="btn btn-sm" style="background:var(--amber-lt);color:var(--amber);font-weight:700" onclick="window.editReceivedStep('${id}')">✏️ تعديل</button>
+        </div>`;
+    } else if (isCurrent) {
+      div.innerHTML = `
+        <div class="stitle"><span class="snum">${idx+1}</span><span>${it.name} (راجع السيارة الحقيقي)</span></div>
+        <div class="frow-inline">
+          <div class="field-inline"><label>كراتين راجعة</label><input type="number" id="rc-${id}" placeholder="0" min="0" step="any"></div>
+          <div class="field-inline"><label>${unit} راجع</label><input type="number" id="rl-${id}" placeholder="0" min="0"></div>
+          <button class="btn btn-primary btn-sm" style="height:38px;" onclick="window.confirmReceivedStep('${id}')">حفظ 👇</button>
+        </div>`;
+      setTimeout(() => { const inp=document.getElementById(`rc-${id}`); if(inp) inp.focus(); }, 80);
+    } else {
+      div.innerHTML = `
+        <div class="stitle" style="opacity:.4; margin-bottom:0;"><span class="snum" style="background:var(--gray)">${idx+1}</span><span>${it.name}</span></div>`;
+    }
+    flow.appendChild(div);
+  });
+}
+
+window.confirmReceivedStep = function(itemId) {
+  const cartons = parseFloat(document.getElementById(`rc-${itemId}`).value) || 0;
+  const loose   = parseInt(document.getElementById(`rl-${itemId}`).value) || 0;
+  
+  receivedInSession[itemId] = { cartons, loose };
+  if(cartItems[itemId]) {
+    cartItems[itemId].receivedCartons = cartons;
+    cartItems[itemId].receivedLoose = loose;
+  }
+  saveSession();
+  initReceivedFlow();
+};
+
+window.editReceivedStep = function(itemId) {
+  delete receivedInSession[itemId];
+  if(cartItems[itemId]) { cartItems[itemId].receivedCartons = 0; cartItems[itemId].receivedLoose = 0; }
+  saveSession();
+  initReceivedFlow();
+};
+
+// ── PAGE 4 — SUMMARY (الربط الدقيق والمباشر بالفواتير والفرق) ──
 window.renderSummary = function() {
   const loaded = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
   const tb     = document.getElementById('summaryTable');
   const selectedDate = document.getElementById('summaryDate').value;
 
   if (!loaded.length) {
-    tb.innerHTML = '<tr><td colspan="4"><div class="empty"><span class="em">📭</span>لم يتم تسجيل أي حمولة للسيارة بعد، اذهب لصفحة التحميل أولاً.</div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="6"><div class="empty"><span class="em">📭</span>لم يتم تسجيل أي حمولة للسيارة بعد.</div></td></tr>';
     return;
   }
 
-  // جلب الفواتير المخزنة من كود السجل المبيعات بناء على التاريخ
-  const salesKey = `sales_${selectedDate}`;
-  const alternateKey = `sales-${selectedDate}`;
-  const daySales = JSON.parse(localStorage.getItem(salesKey) || localStorage.getItem(alternateKey) || '{}');
-
-  // فحص إذا كان هناك فواتير شاملة في الأرشيف مخزنة في المبيعات الكلية لربطها ديناميكياً
-  let firebaseSalesExtracted = {};
+  // 🔹 فك تجميع وقراءة الفواتير الكلية من المبيعات (حسب تعديل نظام البيع الخاص بك)
+  let extractedInvoiceSales = {};
   try {
-    // محاولة جلب الفواتير المباشرة من النظام إذا تم حفظها ككائن أرشيف كامل
     const allInvoicesRaw = JSON.parse(localStorage.getItem('allInvoices') || '[]');
-    if (allInvoicesRaw.length > 0) {
-      allInvoicesRaw.forEach(inv => {
-        // التحقق من مطابقة التاريخ للفاتورة
-        let invDate = "";
-        if (inv.date) {
-          const match = inv.date.match(/\d{4}-\d{2}-\d{2}/);
-          invDate = match ? match[0] : inv.date;
-        }
-        if (invDate === selectedDate && inv.items && !inv.isDeleted) {
-          inv.items.forEach(itm => {
-            // تجميع المبيعات الكلية لكل صنف
-            if (!firebaseSalesExtracted[itm.name]) firebaseSalesExtracted[itm.name] = 0;
-            firebaseSalesExtracted[itm.name] += Number(itm.qty) || 0;
-          });
-        }
-      });
-    }
-  } catch(e) { console.log("No global archive invoice parser stream active."); }
+    allInvoicesRaw.forEach(inv => {
+      let invDate = "";
+      if (inv.date) {
+        const match = inv.date.match(/\d{4}-\d{2}-\d{2}/);
+        invDate = match ? match[0] : inv.date;
+      }
+      // الفاتورة مطابقة للتاريخ المختار وغير محذوفة
+      if (invDate === selectedDate && inv.items && !inv.isDeleted) {
+        inv.items.forEach(itm => {
+          // جلب اسم الصنف لتفادي اختلاف الـ ID وتطبيقه على الإجمالي
+          const cleanName = itm.name ? itm.name.trim() : "";
+          if (cleanName) {
+            if (!extractedInvoiceSales[cleanName]) extractedInvoiceSales[cleanName] = 0;
+            extractedInvoiceSales[cleanName] += Number(itm.qty) || 0;
+          }
+        });
+      }
+    });
+  } catch(e) { console.log("Error parsing global invoices:", e); }
 
   tb.innerHTML = loaded.map(([id, it]) => {
     const unit = getUnitName(it.name);
     const cap  = it.capacity || 1;
     
-    let soldCartons = 0;
-    let soldLoose   = 0;
+    // حساب المبيعات الكلية من الفواتير المجمعة باسم الصنف
+    const totalSoldPcs = extractedInvoiceSales[it.name.trim()] || 0;
+    const soldCartons  = Math.floor(totalSoldPcs / cap);
+    const soldLoose    = totalSoldPcs % cap;
 
-    // 1. فحص طريقة تخزين المبيعات من المفتاح اليومي المباشر للـ localStorage
-    if (daySales[id]) {
-      const rawSale = daySales[id];
-      if (rawSale.cartons !== undefined || rawSale.loose !== undefined) {
-        soldCartons = parseFloat(rawSale.cartons) || 0;
-        soldLoose   = parseInt(rawSale.loose) || 0;
-      } else if (typeof rawSale === 'number' || rawSale.totalPcs !== undefined) {
-        const totalPcs = rawSale.totalPcs !== undefined ? Number(rawSale.totalPcs) : Number(rawSale);
-        soldCartons = Math.floor(totalPcs / cap);
-        soldLoose   = totalPcs % cap;
-      }
-    } 
-    // 2. البحث عن المبيعات بمطابقة اسم الصنف مباشرة داخل الفواتير المجمعة كخط دفاعي ثانٍ
-    else if (firebaseSalesExtracted[it.name]) {
-      const totalPcs = firebaseSalesExtracted[it.name];
-      soldCartons = Math.floor(totalPcs / cap);
-      soldLoose   = totalPcs % cap;
-    }
-
-    // الحساب الدقيق للمتبقي الحالي بالسيارة (المحمل الكلي - المباع الكلي)
+    // اجمالي المحمل (قطع)
     const totalLoadedPcs = (it.loadedCartons * cap) + it.loadedLoose;
-    const totalSoldPcs   = (soldCartons * cap) + soldLoose;
-    const totalRemPcs    = Math.max(0, totalLoadedPcs - totalSoldPcs);
+    
+    // المتبقي الحسابي المفترض بالسيارة = المحمل - المباع بالفواتير
+    const totalRemPcs = Math.max(0, totalLoadedPcs - totalSoldPcs);
+    const remCartons  = Math.floor(totalRemPcs / cap);
+    const remLoose    = totalRemPcs % cap;
 
-    const remCartons = Math.floor(totalRemPcs / cap);
-    const remLoose   = totalRemPcs % cap;
+    // المستلم الفعلي (الراجع اللي تم جردة بآخر اليوم)
+    const recCartons = it.receivedCartons || 0;
+    const recLoose   = it.receivedLoose || 0;
+    const totalRecPcs = (recCartons * cap) + recLoose;
+
+    // حساب الفرق والعجز = الراجع الفعلي (المستلم) - المتبقي الحسابي المفروض يكون موجود
+    // لو بالسالب يبقى عجز ونقصه، لو 0 يبقى مضبوط تماماً
+    const diffPcs = totalRecPcs - totalRemPcs;
+    let diffText = '—';
+    let diffStyle = 'color:var(--text)';
+
+    if (diffPcs < 0) {
+      const absDiff = Math.abs(diffPcs);
+      const dc = Math.floor(absDiff / cap);
+      const dl = absDiff % cap;
+      diffText = `❌ عجز: ${dc > 0 ? dc + ' كرتونة ' : ''}${dl > 0 ? dl + ' ' + unit : ''}`;
+      diffStyle = 'color:var(--red); font-weight:800; background:var(--red-lt); padding:4px 8px; border-radius:6px;';
+    } else if (diffPcs > 0) {
+      const dc = Math.floor(diffPcs / cap);
+      const dl = diffPcs % cap;
+      diffText = `➕ زيادة: ${dc > 0 ? dc + ' كرتونة ' : ''}${dl > 0 ? dl + ' ' + unit : ''}`;
+      diffStyle = 'color:var(--green); font-weight:800; background:var(--green-lt); padding:4px 8px; border-radius:6px;';
+    } else if (receivedInSession[id] !== undefined) {
+      diffText = '✅ مظبوط شعرة';
+      diffStyle = 'color:var(--green); font-weight:800;';
+    }
 
     return `
       <tr>
         <td style="text-align: right;"><strong>${it.name}</strong></td>
-        <!-- المحمل بالسيارة -->
-        <td style="font-size:12px;font-weight:700">
-          ${it.loadedCartons>0?'<span style="color:var(--brand)">'+it.loadedCartons+' كرتونة</span>':''}
-          ${(it.loadedCartons>0&&(it.loadedLoose||0)>0)?' و ':''}
-          ${(it.loadedLoose||0)>0?'<span style="color:var(--green)">'+(it.loadedLoose||0)+' ' + unit + '</span>':''}
-          ${it.loadedCartons===0&&(it.loadedLoose||0)===0?'—':''}
+        <!-- المحمل -->
+        <td>${it.loadedCartons > 0 ? it.loadedCartons + ' ك':''} ${it.loadedLoose > 0 ? it.loadedLoose + ' ' + unit : ''}</td>
+        <!-- المباع من واقع الفواتير -->
+        <td style="color:var(--red); font-weight:700;">${soldCartons > 0 ? soldCartons + ' ك':''} ${soldLoose > 0 ? soldLoose + ' ' + unit : ''}${totalSoldPcs===0?'0':''}</td>
+        <!-- المتبقي المفترض حسابياً -->
+        <td style="color:var(--brand); font-weight:700;">${remCartons > 0 ? remCartons + ' ك':''} ${remLoose > 0 ? remLoose + ' ' + unit : ''}${totalRemPcs===0?'0':''}</td>
+        <!-- المستلم الفعلي المسجل -->
+        <td style="color:var(--blue); font-weight:700;">
+          ${receivedInSession[id] !== undefined ? `${recCartons > 0 ? recCartons + ' ك' : ''} ${recLoose > 0 ? recLoose + ' ' + unit : ''}${recCartons===0 && recLoose===0?'0':''}` : '<span style="color:var(--gray); font-size:11px;">لم يسجل</span>'}
         </td>
-        <!-- المباع من واقع فواتير سجل المبيعات -->
-        <td style="font-size:12px;font-weight:700;color:var(--red);">
-          ${soldCartons>0? soldCartons + ' كرتونة':''}
-          ${(soldCartons>0 && soldLoose>0)?' و ':''}
-          ${soldLoose>0? soldLoose + ' ' + unit :''}
-          ${soldCartons===0 && soldLoose===0?'—':''}
-        </td>
-        <!-- المتبقي الفعلي المتبقي في السيارة الحالية -->
-        <td style="font-size:12px;font-weight:700">
-          ${remCartons>0?'<span style="color:var(--brand)">'+remCartons+' كرتونة</span>':''}
-          ${(remCartons>0&&remLoose>0)?' و ':''}
-          ${remLoose>0?'<span style="color:var(--green)">'+remLoose+' ' + unit + '</span>':''}
-          ${remCartons===0&&remLoose===0?'<span style="color:var(--gray)">خلصت 🏁</span>':''}
-        </td>
+        <!-- الفرق والنتيجة النهائية -->
+        <td><span style="${diffStyle}">${diffText}</span></td>
       </tr>`;
   }).join('');
 };
@@ -540,11 +584,8 @@ window.renderSummary = function() {
 // ── TOAST ──
 let toastTimer;
 window.toast = function(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+  const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
 };
 </script>
 </body>
