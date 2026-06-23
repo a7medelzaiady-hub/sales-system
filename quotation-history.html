@@ -232,25 +232,6 @@ function getUnitName(name) {
   return 'جركن'; 
 }
 
-/* ─── دوال معالجة وفك طلاسم التواريخ الموحدة ─── */
-function toEn(s){
-  if(!s)return"";
-  const a=[/٠/g,/١/g,/٢/g,/٣/g,/٤/g,/٥/g,/٦/g,/٧/g,/٨/g,/٩/g];
-  let r=s.toString();a.forEach((p,i)=>r=r.replace(p,i));return r;
-}
-
-function parseDate(df,ts){
-  if(df){
-    const s=toEn(df);
-    let m=s.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
-    if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
-    m=s.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
-    if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-  }
-  if(ts?.seconds)return new Date(ts.seconds*1000).toISOString().slice(0,10);
-  return"";
-}
-
 function cleanItemName(str) {
   if (!str) return "";
   return str.trim()
@@ -470,7 +451,7 @@ window.editReceivedStep = function(itemId) {
   initReceivedFlow();
 };
 
-// ── الدالة السحرية المصححة لسحب المبيعات من السيرفر وعرض الجرد ──
+// ── الدالة السحرية: سحب المبيعات من السيرفر وعرض الجرد ──
 window.renderSummary = async function() {
   const loaded = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
   const tb = document.getElementById('summaryTable');
@@ -486,14 +467,30 @@ window.renderSummary = async function() {
   let liveSales = {};
 
   try {
+    // سحب الفواتير من السيرفر مباشرة
     const querySnapshot = await getDocs(collection(db, "invoices"));
     
     querySnapshot.forEach(doc => {
       const inv = doc.data();
-      if (inv.isDeleted || inv.isReturn === true) return; // تجاهل المحذوف والمرتجعات العامة
+      if (inv.isDeleted) return;
 
-      // استخراج ومطابقة التاريخ بالفحص الفولاذي الموحد (date أو timestamp أو time)
-      const invDate = parseDate(inv.date || inv.time, inv.timestamp);
+      // استخراج تاريخ الفاتورة لمطابقته
+      let invDate = "";
+      if (inv.time) {
+        const match = inv.time.match(/\d{4}-\d{2}-\d{2}/); // تبحث عن تنسيق YYYY-MM-DD
+        if (match) invDate = match[0];
+        else {
+          // محاولة لتنظيف التواريخ بصيغ أخرى مثل هاتف الأندرويد
+          const parts = inv.time.split(',')[0].split('/');
+          if(parts.length === 3) {
+             // لو الصيغة د/ش/س تحول لـ YYYY-MM-DD
+             const day = parts[1]?.padStart(2, '0');
+             const month = parts[0]?.padStart(2, '0');
+             const year = parts[2];
+             if(year && year.length === 4) invDate = `${year}-${month}-${day}`;
+          }
+        }
+      }
 
       // إذا تساوى التاريخ مع المختار، نجمع بنود المنتجات
       if (invDate === selectedDate && inv.items) {
@@ -502,16 +499,18 @@ window.renderSummary = async function() {
           if (cleanedKey) {
             if (!liveSales[cleanedKey]) liveSales[cleanedKey] = 0;
             
-            // تحديد سعة الكرتونة للصنف المقروء
+            // حساب الكمية بالقطعة/الجركن بناء على نوع الوحدة المسجلة بالفاتورة
             const pInfo = firebaseItems.find(fi => cleanItemName(fi.name) === cleanedKey);
             const factor = pInfo ? pInfo.capacity : 1;
             
             const itemQty = Number(itm.qty) || 0;
-            // فحص نوع وحدة المبيعات (box = كرتونة)
-            const isBox = itm.unit === 'box' || (itm.unitName === 'كرتونة' || itm.unitName === 'كرتونه');
-            const totalPcsSold = isBox ? (itemQty * factor) : itemQty;
+            const totalPcsSold = (itm.unit === 'box') ? (itemQty * factor) : itemQty;
 
-            liveSales[cleanedKey] += totalPcsSold;
+            if (itm.isReturn) {
+              liveSales[cleanedKey] -= totalPcsSold; // المرتجع ينقص من المبيعات
+            } else {
+              liveSales[cleanedKey] += totalPcsSold;
+            }
           }
         });
       }
@@ -583,3 +582,4 @@ window.toast = function(msg) {
 </script>
 </body>
 </html>
+ 
