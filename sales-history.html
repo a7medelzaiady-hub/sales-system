@@ -270,6 +270,7 @@
     // [باقي الدوال الأساسية من كودك الأصلي تبقى كما هي هنا...]
     
     // الدالة المعدلة بالكامل أدناه:
+
     document.getElementById('exportExcelBtn').onclick = () => {
         if (!allInvoices.length) {
             alert("لا توجد بيانات للتصدير");
@@ -280,38 +281,35 @@
 
         allInvoices.forEach(inv => {
             const invDate = parseInvoiceDate(inv);
-            const customerName = inv.customerName || 'النقدي';
+            const customerName = inv.customerName || 'عميل نقدي';
             
-            // 1. معالجة الأصناف (فصل الجركن عن الكرتونة)
+            // 1. إضافة الأصناف المبيعة (البيع)
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(itm => {
                     let qtyCarton = 0;
                     let qtyJarkan = 0;
                     const itemName = itm.name || "";
-                    const rawQty = Number(itm.qty) || 0;
-                    const rawPrice = Number(itm.price) || 0;
-
-                    // منطق الفصل بناءً على الاسم
-                    if (itemName.includes("جركن") || itemName.includes("جركان") || itemName.includes("جركن واحد")) {
-                        qtyJarkan = rawQty;
+                    
+                    // المنطق: إذا احتوى الاسم على "جركن" يذهب لعمود الجركن، وإلا كرتونة
+                    if (itemName.includes("جركن") || itemName.includes("جركان")) {
+                        qtyJarkan = Number(itm.qty) || 0;
                     } else {
-                        qtyCarton = rawQty;
+                        qtyCarton = Number(itm.qty) || 0;
                     }
 
                     excelRows.push({
                         "التاريخ": invDate,
-                        "الحركة": "بيع صنف",
+                        "الحركة": "بيع",
                         "اسم العميل": customerName,
                         "الصنف": itemName,
                         "عدد جركن": qtyJarkan,
                         "عدد كرتونة": qtyCarton,
-                        "السعر": rawPrice,
-                        "طريقة السداد": inv.paymentMethod || "-"
+                        "السعر": Number(itm.price) || 0
                     });
                 });
             }
 
-            // 2. معالجة السداد (سطر منفصل لكل نوع سداد)
+            // 2. إضافة حركات السداد (سداد منه نقدى / سداد منه محفظه)
             const cPaid = inv.calculatedCash || 0;
             const wPaid = inv.calculatedWallet || 0;
 
@@ -323,8 +321,7 @@
                     "الصنف": "-",
                     "عدد جركن": 0,
                     "عدد كرتونة": 0,
-                    "السعر": cPaid,
-                    "طريقة السداد": "نقدى"
+                    "السعر": cPaid
                 });
             }
             
@@ -336,8 +333,7 @@
                     "الصنف": "-",
                     "عدد جركن": 0,
                     "عدد كرتونة": 0,
-                    "السعر": wPaid,
-                    "طريقة السداد": "محفظه"
+                    "السعر": wPaid
                 });
             }
         });
