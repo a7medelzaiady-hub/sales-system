@@ -59,7 +59,7 @@ nav .btn-back {
 nav .btn-back:hover { background: rgba(255, 255, 255, 0.25); }
 
 /* PAGES */
-.page{display:none;padding:20px 14px;max-width:950px;margin:auto;}
+.page{display:none;padding:20px 14px;max-width:980px;margin:auto;}
 .page.active{display:block;}
 
 .ph {margin-bottom:18px;}
@@ -69,14 +69,21 @@ nav .btn-back:hover { background: rgba(255, 255, 255, 0.25); }
 .card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:18px;border: 1px solid var(--border);}
 .card h3{font-size:15px;color:var(--brand);margin-bottom:14px;display:flex;align-items:center;gap:7px;font-weight:800;}
 
+/* SEARCH INPUT STYLE */
+.search-input {
+  width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px;
+  font-family: inherit; font-size: 13px; outline: none; background: #fff; color: var(--text); transition: 0.2s;
+}
+.search-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(11,94,61,0.1); }
+
 /* FILTER & TOOLS AREA */
 .tools-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
 .date-filter-wrap {
   display: flex; align-items: center; gap: 10px; background: var(--brand-lt); padding: 10px 14px;
-  border-radius: 10px; border: 1px solid var(--border); width: fit-content;
+  border-radius: 10px; border: 1px solid var(--border); flex: 1; min-width: 240px;
 }
-.date-filter-wrap label { font-size: 13px; font-weight: 700; color: var(--brand); }
-.date-filter-wrap input[type=date] { padding: 6px 10px; border: 1.5px solid var(--brand); border-radius: 8px; font-family: inherit; font-size: 13px; outline: none; }
+.date-filter-wrap label { font-size: 12px; font-weight: 700; color: var(--brand); white-space: nowrap; }
+.date-filter-wrap input[type=date] { padding: 6px 10px; border: 1.5px solid var(--brand); border-radius: 8px; font-family: inherit; font-size: 13px; outline: none; background:#fff; }
 
 /* FORM INLINE */
 .frow-inline { display: flex; align-items: flex-end; gap: 8px; flex-wrap: nowrap; }
@@ -122,7 +129,7 @@ tr:hover td{background:var(--brand-lt);}
 #print-header, #print-footer { display: none; }
 @media print {
   body { background: #fff; color: #000; padding: 0; margin: 0; font-size: 13px; }
-  nav, .btn, .tools-row, #syncStatus, .ph, .snum { display: none !important; }
+  nav, .btn, .tools-row, #syncStatus, .ph, .snum, .no-print { display: none !important; }
   .card { border: none; box-shadow: none; padding: 0; margin: 0; }
   .card h3 { display: none !important; }
   #print-header { display: block !important; text-align: center; margin-bottom: 25px; font-family: inherit; }
@@ -146,6 +153,7 @@ tr:hover td{background:var(--brand-lt);}
   <button class="btn-back" onclick="goToMainMenu()">🏠 القائمة الرئيسية</button>
 </nav>
 
+<!-- طباعة رأس الصفحة للهوية الفاخرة -->
 <div id="print-header">
   <h1 style="font-size: 24px; color: #0a4a31; margin-bottom: 5px;">الزيادي لزيوت السيارات</h1>
   <h2 style="font-size: 16px; font-weight: 600; color: #475569;">تقرير جرد وتتبع حركة حمولة السيارة الفعلي</h2>
@@ -160,6 +168,12 @@ tr:hover td{background:var(--brand-lt);}
 
 <div class="page" id="pg-load">
   <div class="ph"><h2>تسجيل تحميل حمولة السيارة</h2><p>سجّل كمية التحميل الحالية لكل صنف لربطها بالمبيعات</p></div>
+  
+  <!-- خانة البحث أعلى جدول التحميل -->
+  <div class="card" style="padding: 10px 14px; margin-bottom: 12px;">
+    <input type="text" id="searchLoad" class="search-input" placeholder="🔍 ابحث عن صنف معين لسرعة تسجيل تحميله..." oninput="window.renderLoadFlow()">
+  </div>
+
   <div id="noItemsMsg" class="card" style="display:none"><div class="empty"><span class="em">⚠️</span>لا توجد أصناف بها كمية في المخزن الآن</div></div>
   <div id="loadFlow"></div>
   <div id="loadDoneMsg" class="card" style="text-align:center;padding:28px; display:none;">
@@ -168,7 +182,7 @@ tr:hover td{background:var(--brand-lt);}
     <div style="display:flex; gap:10px; justify-content:center; margin-top:15px; flex-wrap: wrap;">
       <button class="btn btn-primary" onclick="showPage('pg-summary',document.querySelectorAll('nav button')[2])">عرض ملخص وجرد العربة</button>
       <button class="btn btn-sm" style="background:var(--amber-lt); color:var(--amber); font-weight:700" onclick="window.allowLoadEditing()">✏️ تعديل الكميات الحالية</button>
-      <button class="btn var(--red-lt)" style="background:var(--red-lt); color:var(--red);" onclick="resetLoad()">تصفير وتحميل جديد</button>
+      <button class="btn" style="background:var(--red-lt); color:var(--red);" onclick="resetLoad()">تصفير وتحميل جديد</button>
     </div>
   </div>
 </div>
@@ -178,9 +192,16 @@ tr:hover td{background:var(--brand-lt);}
 
   <div class="tools-row">
     <div class="date-filter-wrap">
-      <label for="summaryDate">تاريخ حركة الفواتير:</label>
+      <label for="summaryDate">📅 تاريخ الحركة:</label>
       <input type="date" id="summaryDate" onchange="window.renderSummary()">
     </div>
+    
+    <!-- خانة البحث أعلى جدول الجرد -->
+    <div class="date-filter-wrap" style="background: #fff;">
+      <label for="searchSummary" style="color: var(--gray);">🔍 بحث في الجرد:</label>
+      <input type="text" id="searchSummary" class="search-input" placeholder="اكتب اسم الصنف للفلترة السريعة..." oninput="window.filterSummaryTable()" style="padding: 6px 10px; border-color: var(--border);">
+    </div>
+
     <button class="btn btn-success" onclick="window.printSummaryReport()" style="height: 41px; display: flex; align-items: center; gap: 6px;">📄 تحويل إلى PDF / طباعة</button>
   </div>
 
@@ -194,8 +215,8 @@ tr:hover td{background:var(--brand-lt);}
             <th>المحمل</th>
             <th>المباع لايف</th>
             <th>المتبقي (حسابياً)</th>
-            <th style="width: 22%;">الراجع الفعلي (كرتونة / جركن)</th>
-            <th style="width: 18%;">حالة الفرق</th>
+            <th style="width: 24%;">الراجع الفعلي (كرتونة / جركن)</th>
+            <th style="width: 20%;">حالة الفرق والعجز</th>
           </tr>
         </thead>
         <tbody id="summaryTable">
@@ -206,6 +227,7 @@ tr:hover td{background:var(--brand-lt);}
   </div>
 </div>
 
+<!-- تذييل الصفحة للهوية الفاخرة للطباعة -->
 <div id="print-footer">
   <div style="border-top: 2px dashed #000; margin-bottom: 15px;"></div>
   <div style="display: flex; justify-content: space-between; font-weight: bold; padding: 0 10px;">
@@ -358,24 +380,34 @@ function initLoadFlow() {
   renderLoadFlow();
 }
 
+// دالة عرض التحميل المحدثة لتدعم الفلترة بالبحث والتعديل الفوري الشامل
 function renderLoadFlow() {
   const flow = document.getElementById('loadFlow');
   const doneMsg = document.getElementById('loadDoneMsg');
   flow.innerHTML = '';
 
+  const searchVal = cleanItemName(document.getElementById('searchLoad').value || "");
+  const filteredItems = firebaseItems.filter(it => cleanItemName(it.name).includes(searchVal));
+
   const allDone = firebaseItems.every(it => loadedInSession[it.id] !== undefined);
   if (allDone && !forceShowLoadList) { doneMsg.style.display = 'block'; return; }
   doneMsg.style.display = 'none';
 
-  firebaseItems.forEach((it, idx) => {
+  if (filteredItems.length === 0) {
+    flow.innerHTML = '<div class="empty">❌ لا توجد أصناف مطابقة لاسم البحث</div>';
+    return;
+  }
+
+  filteredItems.forEach((it, idx) => {
     const isDone = loadedInSession[it.id] !== undefined;
-    const isCurrent = !isDone && firebaseItems.slice(0, idx).every(prev => loadedInSession[prev.id] !== undefined);
+    // في وضع التعديل العام جعل كل الأصناف المبحوثة تفتح كخانات إدخال فورا لضمان التحديث
+    const isCurrent = forceShowLoadList || (!isDone && firebaseItems.slice(0, idx).every(prev => loadedInSession[prev.id] !== undefined));
     const unit = getUnitName(it.name);
 
     const div = document.createElement('div');
-    div.className = 'lstep' + (isDone ? ' done' : isCurrent ? ' active' : '');
+    div.className = 'lstep' + ((isDone && !forceShowLoadList) ? ' done' : isCurrent ? ' active' : '');
 
-    if (isDone) {
+    if (isDone && !forceShowLoadList) {
       const sess = loadedInSession[it.id];
       let doneText = (sess.cartons > 0 ? sess.cartons + ' كرتونة ' : '') + (sess.loose > 0 ? sess.loose + ' ' + unit : '');
       if(!sess.cartons && !sess.loose) doneText = '0';
@@ -388,14 +420,16 @@ function renderLoadFlow() {
           <button class="btn btn-sm" style="background:var(--amber-lt);color:var(--amber);font-weight:700" onclick="window.editStep('${it.id}')">✏️ تعديل الصنف</button>
         </div>`;
     } else if (isCurrent) {
+      const currentCartons = loadedInSession[it.id]?.cartons !== undefined ? loadedInSession[it.id].cartons : '';
+      const currentLoose = loadedInSession[it.id]?.loose !== undefined ? loadedInSession[it.id].loose : '';
+
       div.innerHTML = `
         <div class="stitle"><span class="snum">${idx+1}</span><span>${it.name}</span></div>
         <div class="frow-inline">
-          <div class="field-inline"><label>عدد الكراتين</label><input type="number" id="lc-${it.id}" placeholder="0" min="0" step="any"></div>
-          <div class="field-inline"><label>${unit} منفرد</label><input type="number" id="ll-${it.id}" placeholder="0" min="0"></div>
-          <button class="btn btn-success btn-sm" style="height:38px;" onclick="window.confirmStep('${it.id}')">تم ✔</button>
+          <div class="field-inline"><label>عدد الكراتين</label><input type="number" id="lc-${it.id}" value="${currentCartons}" placeholder="0" min="0" step="any"></div>
+          <div class="field-inline"><label>${unit} منفرد</label><input type="number" id="ll-${it.id}" value="${currentLoose}" placeholder="0" min="0"></div>
+          <button class="btn btn-success btn-sm" style="height:38px;" onclick="window.confirmStep('${it.id}')">حفظ ✔</button>
         </div>`;
-      setTimeout(() => { const inp=document.getElementById(`lc-${it.id}`); if(inp) inp.focus(); }, 80);
     } else {
       div.innerHTML = `
         <div class="stitle" style="opacity:.4; margin-bottom:0;"><span class="snum" style="background:var(--gray)">${idx+1}</span><span>${it.name}</span></div>`;
@@ -423,6 +457,7 @@ window.confirmStep = function(itemId) {
   const allDone = firebaseItems.every(i => loadedInSession[i.id] !== undefined);
   if(allDone) forceShowLoadList = false;
   
+  window.toast("⚖️ تم تحديث كمية الصنف بنجاح!");
   renderLoadFlow();
 };
 
@@ -437,20 +472,86 @@ window.resetLoad = function() {
   loadedInSession = {}; 
   cartItems = {}; 
   forceShowLoadList = false;
+  document.getElementById('searchLoad').value = '';
   saveSession(); 
   renderLoadFlow(); 
 };
 
-// حفظ مدخلات الراجع والفرق مباشرة من الجدول لحمايتها عند التنقل
-window.updateManualSummaryField = function(itemId, field, val) {
+// الدالة اللحظية للتعديل الفوري المباشر داخل جدول الجرد بدون تحديث الصفحة
+window.updateManualSummaryField = function(itemId, field, val, capacity, totalRemPcs, unitName) {
   if (!cartItems[itemId]) cartItems[itemId] = {};
-  if (field === 'manualCartons') cartItems[itemId].manualCartons = parseFloat(val) || 0;
-  if (field === 'manualLoose') cartItems[itemId].manualLoose = parseInt(val) || 0;
-  if (field === 'diffStatus') cartItems[itemId].diffStatus = val;
+  
+  if (field === 'manualCartons') cartItems[itemId].manualCartons = val === '' ? '' : parseFloat(val);
+  if (field === 'manualLoose') cartItems[itemId].manualLoose = val === '' ? '' : parseInt(val);
+  
+  localStorage.setItem('cartItems', JSON.stringify(cartItems));
+
+  // الحساب اللحظي المباشر للصف المستهدف لتحديث البيانات فورا أمام عينك
+  const row = document.getElementById(`row-${itemId}`);
+  if (!row) return;
+
+  const inputCartons = parseFloat(row.querySelector('.inp-m-cartons').value) || 0;
+  const inputLoose = parseInt(row.querySelector('.inp-m-loose').value) || 0;
+  const cap = parseInt(capacity) || 1;
+
+  const totalManualPcs = (inputCartons * cap) + inputLoose;
+  const diffPcs = totalManualPcs - parseInt(totalRemPcs);
+
+  const selectEl = row.querySelector('.select-diff');
+  const badgeContainer = row.querySelector('.badge-container');
+
+  if (row.querySelector('.inp-m-cartons').value === '' && row.querySelector('.inp-m-loose').value === '') {
+    selectEl.value = '';
+    badgeContainer.innerHTML = '<span style="color:var(--gray)">—</span>';
+    cartItems[itemId].diffStatus = '';
+    localStorage.setItem('cartItems', JSON.stringify(cartItems));
+    return;
+  }
+
+  if (diffPcs < 0) {
+    selectEl.value = 'عجز';
+    cartItems[itemId].diffStatus = 'عجز';
+    const absDiff = Math.abs(diffPcs);
+    const dc = Math.floor(absDiff / cap);
+    const dl = absDiff % cap;
+    badgeContainer.innerHTML = `<span style="color:var(--red); background:var(--red-lt); padding:4px 8px; border-radius:6px; font-weight:800; font-size:11px;">❌ عجز: ${dc > 0 ? dc + ' ك ' : ''}${dl > 0 ? dl + ' ' + unitName : ''}</span>`;
+  } else if (diffPcs > 0) {
+    selectEl.value = 'زيادة';
+    cartItems[itemId].diffStatus = 'زيادة';
+    const dc = Math.floor(diffPcs / cap);
+    const dl = diffPcs % cap;
+    badgeContainer.innerHTML = `<span style="color:var(--green); background:var(--green-lt); padding:4px 8px; border-radius:6px; font-weight:800; font-size:11px;">➕ زيادة: ${dc > 0 ? dc + ' ك ' : ''}${dl > 0 ? dl + ' ' + unitName : ''}</span>`;
+  } else {
+    selectEl.value = '';
+    cartItems[itemId].diffStatus = '';
+    badgeContainer.innerHTML = `<span style="color:var(--green); font-weight:800; font-size:11px;">✅ مظبوط شَعرة</span>`;
+  }
   localStorage.setItem('cartItems', JSON.stringify(cartItems));
 };
 
-// دالة جرد وحركة العربة المحدثة لايف بـ getDocs الفورية والخانات الجديدة
+window.updateSelectField = function(itemId, val) {
+  if (!cartItems[itemId]) cartItems[itemId] = {};
+  cartItems[itemId].diffStatus = val;
+  localStorage.setItem('cartItems', JSON.stringify(cartItems));
+};
+
+// دالة فلترة جدول الجرد محلياً وسريعاً بناءً على خانة البحث دون الاتصال بالسيرفر مجدداً
+window.filterSummaryTable = function() {
+  const q = cleanItemName(document.getElementById('searchSummary').value || "");
+  const rows = document.querySelectorAll('#summaryTable tr');
+  rows.forEach(row => {
+    const nameTd = row.querySelector('.item-name-cell');
+    if (!nameTd) return;
+    const name = cleanItemName(nameTd.textContent || "");
+    if (name.includes(q)) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+};
+
+// دالة جرد وحركة العربة الشاملة
 window.renderSummary = async function() {
   const loaded = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
   const tb = document.getElementById('summaryTable');
@@ -521,47 +622,66 @@ window.renderSummary = async function() {
     const remCartons = Math.floor(Math.max(0, totalRemPcs) / cap);
     const remLoose = Math.max(0, totalRemPcs) % cap;
 
-    // قراءة البيانات المحفوظة للراجع الفعلي
     const currentManualCartons = it.manualCartons !== undefined ? it.manualCartons : '';
     const currentManualLoose = it.manualLoose !== undefined ? it.manualLoose : '';
     
-    // حساب ذكي افتراضي لتحديد حالة القائمة المنسدلة تلقائياً لتوفير الوقت
     const totalManualPcs = ((parseFloat(currentManualCartons)||0) * cap) + (parseInt(currentManualLoose)||0);
     let calculatedStatus = it.diffStatus || "";
     if(!it.diffStatus && (currentManualCartons !== '' || currentManualLoose !== '')) {
        calculatedStatus = (totalManualPcs < totalRemPcs) ? "عجز" : (totalManualPcs > totalRemPcs) ? "زيادة" : "";
     }
 
-    // تنسيق النصوص
+    const diffPcs = totalManualPcs - totalRemPcs;
+    let diffHtml = '';
+    if (currentManualCartons !== '' || currentManualLoose !== '') {
+      if (diffPcs < 0) {
+        const absDiff = Math.abs(diffPcs);
+        diffHtml = `<span style="color:var(--red); background:var(--red-lt); padding:4px 8px; border-radius:6px; font-weight:800; font-size:11px;">❌ عجز: ${Math.floor(absDiff/cap) > 0 ? Math.floor(absDiff/cap) + ' ك ' : ''}${absDiff%cap > 0 ? absDiff%cap + ' ' + unit : ''}</span>`;
+      } else if (diffPcs > 0) {
+        diffHtml = `<span style="color:var(--green); background:var(--green-lt); padding:4px 8px; border-radius:6px; font-weight:800; font-size:11px;">➕ زيادة: ${Math.floor(diffPcs/cap) > 0 ? Math.floor(diffPcs/cap) + ' ك ' : ''}${diffPcs%cap > 0 ? diffPcs%cap + ' ' + unit : ''}</span>`;
+      } else {
+        diffHtml = `<span style="color:var(--green); font-weight:800; font-size:11px;">✅ مظبوط شَعرة</span>`;
+      }
+    } else {
+      diffHtml = `<span style="color:var(--gray)">—</span>`;
+    }
+
     let soldText = totalSoldPcs === 0 ? '0' : totalSoldPcs < 0 ? `↺ مرتجع: ${Math.floor(Math.abs(totalSoldPcs)/cap)} ك و ${Math.abs(totalSoldPcs)%cap} ${unit}` : `${soldCartons > 0 ? soldCartons + ' ك' : ''} ${soldLoose > 0 ? soldLoose + ' ' + unit : ''}`;
     let remText = totalRemPcs <= 0 ? '0' : `${remCartons > 0 ? remCartons + ' ك' : ''} ${remLoose > 0 ? remLoose + ' ' + unit : ''}`;
 
     return `
-      <tr>
-        <td style="text-align: right; padding-right:15px; font-weight:700;">${it.name}</td>
+      <tr id="row-${id}">
+        <td class="item-name-cell" style="text-align: right; padding-right:15px; font-weight:700;">${it.name}</td>
         <td>${it.loadedCartons > 0 ? it.loadedCartons + ' ك':''} ${it.loadedLoose > 0 ? it.loadedLoose + ' ' + unit : ''}${it.loadedCartons===0 && it.loadedLoose===0?'0':''}</td>
         <td style="color:var(--red); font-weight:700;">${soldText}</td>
         <td style="color:var(--brand); font-weight:700; background: var(--brand-lt);">${remText}</td>
         
+        <!-- خانات مدمجة للإدخال الفوري للراجع الفعلي مع ربط مباشر ومؤمن -->
         <td>
           <div style="display:flex; gap:6px; justify-content:center; align-items:center;">
-            <input type="number" value="${currentManualCartons}" placeholder="كرتونة" style="width:58px; padding:5px; text-align:center; border:1px solid var(--border); border-radius:6px; font-family:inherit;" oninput="window.updateManualSummaryField('${id}', 'manualCartons', this.value)">
-            <input type="number" value="${currentManualLoose}" placeholder="${unit}" style="width:58px; padding:5px; text-align:center; border:1px solid var(--border); border-radius:6px; font-family:inherit;" oninput="window.updateManualSummaryField('${id}', 'manualLoose', this.value)">
+            <input type="number" value="${currentManualCartons}" placeholder="كرتونة" class="inp-m-cartons" style="width:58px; padding:5px; text-align:center; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-weight:bold;" oninput="window.updateManualSummaryField('${id}', 'manualCartons', this.value, ${cap}, ${totalRemPcs}, '${unit}')">
+            <input type="number" value="${currentManualLoose}" placeholder="${unit}" class="inp-m-loose" style="width:58px; padding:5px; text-align:center; border:1px solid var(--border); border-radius:6px; font-family:inherit; font-weight:bold;" oninput="window.updateManualSummaryField('${id}', 'manualLoose', this.value, ${cap}, ${totalRemPcs}, '${unit}')">
           </div>
         </td>
         
+        <!-- التعديل المباشر المربوط للفرق والقائمة المنسدلة -->
         <td>
-          <select style="padding:6px; border-radius:6px; border:1px solid var(--border); font-family:inherit; font-weight:700; font-size:12px; cursor:pointer;" onchange="window.updateManualSummaryField('${id}', 'diffStatus', this.value)">
-            <option value="" ${calculatedStatus===''?'selected':''}>— حدد —</option>
-            <option value="عجز" ${calculatedStatus==='عجز'?'selected':''} style="color:var(--red); font-weight:700;">❌ عجز</option>
-            <option value="زيادة" ${calculatedStatus==='زيادة'?'selected':''} style="color:var(--green); font-weight:700;">➕ زيادة</option>
-          </select>
+          <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+            <select class="select-diff" style="padding:6px; border-radius:6px; border:1px solid var(--border); font-family:inherit; font-weight:700; font-size:12px; cursor:pointer;" onchange="window.updateSelectField('${id}', this.value)">
+              <option value="" ${calculatedStatus===''?'selected':''}>— حدد —</option>
+              <option value="عجز" ${calculatedStatus==='عجز'?'selected':''}>❌ عجز</option>
+              <option value="زيادة" ${calculatedStatus==='زيادة'?'selected':''}>➕ زيادة</option>
+            </select>
+            <div class="badge-container" style="margin-top:2px;">${diffHtml}</div>
+          </div>
         </td>
       </tr>`;
   }).join('');
+
+  // تشغيل الفلترة بعد البناء للحفاظ على أي كلمة بحث مكتوبة أثناء التحديث لايف
+  window.filterSummaryTable();
 };
 
-// وظيفة تجهيز وطباعة تقرير الـ PDF الفاخر
 window.printSummaryReport = function() {
   const d = document.getElementById('summaryDate').value;
   document.getElementById('print-date-lbl').textContent = "تاريخ حركة الجرد: " + d;
