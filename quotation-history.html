@@ -192,7 +192,7 @@ tr:hover td{background:var(--brand-lt);}
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -207,6 +207,7 @@ const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
 let firebaseItems = [];   
+let firebaseInvoices = []; // مصفوفة لتخزين الفواتير المجلوبة لايف
 let cartItems     = JSON.parse(localStorage.getItem('cartItems') || '{}');
 let loadedInSession = JSON.parse(localStorage.getItem('loadedInSession') || '{}');
 let receivedInSession = JSON.parse(localStorage.getItem('receivedInSession') || '{}');
@@ -232,17 +233,17 @@ function getUnitName(name) {
   return 'جركن'; 
 }
 
-// دالة التنظيف المطورة: تعالج الأحرف الصغيرة، المسافات، والهمزات لتفادي مشاكل الحروف
 function cleanItemName(str) {
   if (!str) return "";
   return str.trim()
-            .toLowerCase() // تحويل الأحرف الإنجليزية لـ Small
-            .replace(/\s+/g, ' ') // إزالة المسافات المكررة
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
             .replace(/[أإآ]/g, 'ا')
             .replace(/ة/g, 'ه')
             .replace(/ى/g, 'ي');
 }
 
+// 1. الاستماع لايف للأصناف بالمخزن
 onSnapshot(collection(db, "inventory"), snap => {
   firebaseItems = [];
   snap.forEach(doc => {
@@ -260,6 +261,21 @@ onSnapshot(collection(db, "inventory"), snap => {
       cartItems[fi.id].capacity = fi.capacity;
     }
   });
+});
+
+// 2. الاستماع لايف للفواتير (التعديل السحري للتحديث التلقائي للمبيعات)
+onSnapshot(collection(db, "invoices"), snap => {
+  firebaseInvoices = [];
+  snap.forEach(doc => {
+    const inv = doc.data();
+    if (!inv.isDeleted) {
+      firebaseInvoices.push(inv);
+    }
+  });
+  // إذا كان المستخدم فاتح صفحة الجرد حالياً، يتم تحديث الجدول فوراً تلقائياً
+  if (document.getElementById('pg-summary').classList.contains('active')) {
+    window.renderSummary();
+  }
 });
 
 window.showPage = function(id, btn) {
@@ -453,8 +469,8 @@ window.editReceivedStep = function(itemId) {
   initReceivedFlow();
 };
 
-// ── الدالة السحرية: سحب المبيعات ومطابقتها بالتنظيف المطور ──
-window.renderSummary = async function() {
+// الدالة أصبحت سريعة جداً وتعالج المبيعات لايف من المصفوفة مباشرةً بدون انتظام السيرفر في كل مرة
+window.renderSummary = function() {
   const loaded = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
   const tb = document.getElementById('summaryTable');
   const selectedDate = document.getElementById('summaryDate').value;
@@ -469,16 +485,8 @@ window.renderSummary = async function() {
   let liveSales = {};
 
   try {
-    const querySnapshot = await getDocs(collection(db, "invoices"));
-    
-    // طباعة قائمة الأصناف النظيفة المتواجدة بالمخزن في الـ Console للمقارنة
-    console.log("=== أصناف المخزن المتوفرة الحالية ===");
-    console.log(firebaseItems.map(f => cleanItemName(f.name)));
-
-    querySnapshot.forEach(doc => {
-      const inv = doc.data();
-      if (inv.isDeleted) return;
-
+    // معالجة الفواتير المتواجدة في الذاكرة (القادمة من الـ onSnapshot)
+    firebaseInvoices.forEach(inv => {
       let invDate = "";
       if (inv.time) {
         let cleanTime = inv.time.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
@@ -502,10 +510,6 @@ window.renderSummary = async function() {
       if (invDate === selectedDate && inv.items) {
         inv.items.forEach(itm => {
           const cleanedKey = cleanItemName(itm.name);
-          
-          // طباعة اسم الصنف القادم من الفاتورة لمراقبته في الـ Console
-          console.log("صنف من فاتورة اليوم المختار:", cleanedKey);
-
           if (cleanedKey) {
             if (!liveSales[cleanedKey]) liveSales[cleanedKey] = 0;
             
@@ -526,8 +530,8 @@ window.renderSummary = async function() {
     });
     syncStatus.innerHTML = '✅ تحديث لايف ممتاز';
   } catch(e) {
-    console.error("Error loading invoices from server:", e);
-    syncStatus.innerHTML = '❌ خطأ في السيرفر';
+    console.error("Error calculating invoices:", e);
+    syncStatus.innerHTML = '❌ خطأ في الحسابات';
   }
 
   tb.innerHTML = loaded.map(([id, it]) => {
