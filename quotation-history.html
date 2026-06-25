@@ -62,7 +62,7 @@ nav .btn-back:hover { background: rgba(255, 255, 255, 0.25); }
 .page{display:none;padding:20px 14px;max-width:920px;margin:auto;}
 .page.active{display:block;}
 
-.ph{margin-bottom:18px;}
+.ph {margin-bottom:18px;}
 .ph h2{font-size:19px;color:var(--text);font-weight:800;}
 .ph p{font-size:12px;color:var(--gray);margin-top:3px;}
 
@@ -159,7 +159,7 @@ tr:hover td{background:var(--brand-lt);}
 </div>
 
 <div class="page" id="pg-summary">
-  <div class="ph"><h2>حركة وجرد العربة الكلي والفرق</h2><p>مقارنة المحمل بالمباع (لايف من الفايربيز) والراجع لكشف أي عجز</p></div>
+  <div class="ph"><h2>حركة وجرد العربة الكلي والفرق</h2><p>مقارنة المحمل بالمباع والراجع لكشف أي عجز</p></div>
 
   <div class="date-filter-wrap">
     <label for="summaryDate">تاريخ حركة الفواتير:</label>
@@ -192,7 +192,7 @@ tr:hover td{background:var(--brand-lt);}
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -207,7 +207,6 @@ const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
 let firebaseItems = [];   
-let firebaseInvoices = []; // مصفوفة لتخزين الفواتير المجلوبة لايف من السيرفر
 let cartItems     = JSON.parse(localStorage.getItem('cartItems') || '{}');
 let loadedInSession = JSON.parse(localStorage.getItem('loadedInSession') || '{}');
 let receivedInSession = JSON.parse(localStorage.getItem('receivedInSession') || '{}');
@@ -243,7 +242,6 @@ function cleanItemName(str) {
             .replace(/ى/g, 'ي');
 }
 
-/* ─── دوال معالجة التواريخ والوحدات المطابقة تماماً لكود حركة البضاعة الناجح ─── */
 function toEn(s){
   if(!s)return"";
   const a=[/٠/g,/١/g,/٢/g,/٣/g,/٤/g,/٥/g,/٦/g,/٧/g,/٨/g,/٩/g];
@@ -270,7 +268,7 @@ function isCarton(item){
   return un==="كرتونة"||un==="كرtونه"||un==="كرتونه";
 }
 
-// مراقبة المخزن لايف
+// مراقبة المخزن
 onSnapshot(collection(db, "inventory"), snap => {
   firebaseItems = [];
   snap.forEach(doc => {
@@ -290,20 +288,6 @@ onSnapshot(collection(db, "inventory"), snap => {
   });
 });
 
-// مراقبة الفواتير لايف (التحديث الفوري للمبيعات)
-onSnapshot(collection(db, "invoices"), snap => {
-  firebaseInvoices = [];
-  snap.forEach(doc => {
-    const inv = doc.data();
-    if (!inv.isDeleted) {
-      firebaseInvoices.push(inv);
-    }
-  });
-  if (document.getElementById('pg-summary').classList.contains('active')) {
-    window.renderSummary();
-  }
-});
-
 window.showPage = function(id, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
@@ -311,7 +295,7 @@ window.showPage = function(id, btn) {
   if (btn) btn.classList.add('active');
   if (id === 'pg-load')     initLoadFlow();
   if (id === 'pg-received') initReceivedFlow();
-  if (id === 'pg-summary')  renderSummary();
+  if (id === 'pg-summary')  window.renderSummary();
 };
 
 function renderItemsPage() {
@@ -495,8 +479,8 @@ window.editReceivedStep = function(itemId) {
   initReceivedFlow();
 };
 
-// الدالة السحرية: تم تعديلها كلياً لتقرأ الفواتير وتطابقها بناءً على الكود الناجح لصفحة المبيعات
-window.renderSummary = function() {
+// الدالة السحرية المصححة كلياً لمطابقة الفواتير لايف بالـ ID وجلب البيانات بـ getDocs المضمونة
+window.renderSummary = async function() {
   const loaded = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
   const tb = document.getElementById('summaryTable');
   const selectedDate = document.getElementById('summaryDate').value;
@@ -508,59 +492,65 @@ window.renderSummary = function() {
   }
 
   syncStatus.innerHTML = '⏳ جاري جلب حركة السيرفر...';
-  let liveSales = {};
+  tb.innerHTML = '<tr><td colspan="6"><div class="spin"></div></td></tr>';
+  
+  let liveSales = {}; // التخزين الفريد بناءً على كود الصنف لمنع التكرار والمشاكل النصية
 
   try {
-    // جرد وقراءة الفواتير المخزنة لايف بالذاكرة
-    firebaseInvoices.forEach(inv => {
-      // استخدام دالة الفحص الدقيقة لتواريخ الفواتير
+    const sSnap = await getDocs(collection(db, "invoices"));
+    
+    sSnap.forEach(doc => {
+      const inv = doc.data();
+      if (inv.isDeleted) return;
       if (parseDate(inv.date, inv.timestamp) !== selectedDate) return;
       if (!Array.isArray(inv.items)) return;
 
       inv.items.forEach(itm => {
-        const cleanedKey = cleanItemName(itm.name);
+        const name = (itm.name || "").trim();
+        if (!name) return;
+        const cleanedKey = cleanItemName(name);
+
+        // البحث الفوري عن الصنف داخل الحمولة الحالية للسيارة لضمان دقة الربط
+        const truckItem = loaded.find(([id, v]) => v.name.trim() === name || cleanItemName(v.name) === cleanedKey);
         
-        if (cleanedKey) {
-          if (!liveSales[cleanedKey]) liveSales[cleanedKey] = 0;
-          
-          // البحث عن سعة كرتونة الصنف لتوليد الحسابات بالقطعة بدقة
-          const pInfo = firebaseItems.find(fi => cleanItemName(fi.name) === cleanedKey);
-          const factor = pInfo ? pInfo.capacity : 1;
-          
+        if (truckItem) {
+          const itemId = truckItem[0];
+          const itData = truckItem[1];
+          const cap = itData.capacity || 1;
           const itemQty = Number(itm.qty) || 0;
           
-          // استخدام دالة فحص الوحدة المعتمدة لديك (كرتونة أم جركن منفرد)
-          const totalPcsSold = isCarton(itm) ? (itemQty * factor) : itemQty;
+          const totalPcsSold = isCarton(itm) ? (itemQty * cap) : itemQty;
 
-          // احتساب المرتجعات بخصمها من المبيعات لزيادة الكمية المتبقية بالعربة حسابياً
+          if (!liveSales[itemId]) liveSales[itemId] = 0;
+
           if (itm.isReturn) {
-            liveSales[cleanedKey] -= totalPcsSold; 
+            liveSales[itemId] -= totalPcsSold; 
           } else {
-            liveSales[cleanedKey] += totalPcsSold;
+            liveSales[itemId] += totalPcsSold;
           }
         }
       });
     });
-    syncStatus.innerHTML = '✅ التحديث المباشر نشط ومطابق';
+    syncStatus.innerHTML = '✅ التحديث متطابق وجاهز';
   } catch(e) {
     console.error("Error loading invoices from server:", e);
-    syncStatus.innerHTML = '❌ خطأ في المعالجة';
+    syncStatus.innerHTML = '❌ خطأ في الاتصال بقاعدة البيانات';
   }
 
+  // بناء الجدول والعرض النهائي
   tb.innerHTML = loaded.map(([id, it]) => {
     const unit = getUnitName(it.name);
     const cap = it.capacity || 1;
     
-    const cleanKeyName = cleanItemName(it.name);
-    const totalSoldPcs = liveSales[cleanKeyName] || 0;
+    const totalSoldPcs = liveSales[id] || 0;
     
     const soldCartons = Math.floor(totalSoldPcs / cap);
     const soldLoose = totalSoldPcs % cap;
 
     const totalLoadedPcs = (it.loadedCartons * cap) + it.loadedLoose;
-    const totalRemPcs = Math.max(0, totalLoadedPcs - totalSoldPcs);
-    const remCartons = Math.floor(totalRemPcs / cap);
-    const remLoose = totalRemPcs % cap;
+    const totalRemPcs = totalLoadedPcs - totalSoldPcs;
+    const remCartons = Math.floor(Math.max(0, totalRemPcs) / cap);
+    const remLoose = Math.max(0, totalRemPcs) % cap;
 
     const recCartons = it.receivedCartons || 0;
     const recLoose = it.receivedLoose || 0;
@@ -586,12 +576,32 @@ window.renderSummary = function() {
       diffStyle = 'color:var(--green); font-weight:800;';
     }
 
+    // تنسيق النص للمباع والراجع والمرتجع بدقة
+    let soldText = '';
+    if (totalSoldPcs === 0) {
+      soldText = '0';
+    } else if (totalSoldPcs < 0) {
+      const absSold = Math.abs(totalSoldPcs);
+      const sc = Math.floor(absSold / cap);
+      const sl = absSold % cap;
+      soldText = `↺ مرتجع: ${sc > 0 ? sc + ' ك' : ''} ${sl > 0 ? sl + ' ' + unit : ''}`;
+    } else {
+      soldText = `${soldCartons > 0 ? soldCartons + ' ك' : ''} ${soldLoose > 0 ? soldLoose + ' ' + unit : ''}`;
+    }
+
+    let remText = '';
+    if (totalRemPcs <= 0) {
+      remText = '0';
+    } else {
+      remText = `${remCartons > 0 ? remCartons + ' ك' : ''} ${remLoose > 0 ? remLoose + ' ' + unit : ''}`;
+    }
+
     return `
       <tr>
         <td style="text-align: right; padding-right:15px; font-weight:700; color:var(--text);">${it.name}</td>
         <td>${it.loadedCartons > 0 ? it.loadedCartons + ' ك':''} ${it.loadedLoose > 0 ? it.loadedLoose + ' ' + unit : ''}${it.loadedCartons===0 && it.loadedLoose===0?'0':''}</td>
-        <td style="color:var(--red); font-weight:700;">${soldCartons > 0 ? soldCartons + ' ك':''} ${soldLoose > 0 ? soldLoose + ' ' + unit : ''}${totalSoldPcs===0?'0':''}</td>
-        <td style="color:var(--brand); font-weight:700; background: var(--brand-lt); border-radius: 6px;">${remCartons > 0 ? remCartons + ' ك':''} ${remLoose > 0 ? remLoose + ' ' + unit : ''}${totalRemPcs===0?'0':''}</td>
+        <td style="color:var(--red); font-weight:700;">${soldText}</td>
+        <td style="color:var(--brand); font-weight:700; background: var(--brand-lt); border-radius: 6px;">${remText}</td>
         <td style="color:var(--blue); font-weight:700; background: var(--blue-lt); border-radius: 6px;">
           ${receivedInSession[id] !== undefined ? `${recCartons > 0 ? recCartons + ' ك' : ''} ${recLoose > 0 ? recLoose + ' ' + unit : ''}${recCartons===0 && recLoose===0?'0':''}` : '<span style="color:var(--gray); font-size:11px; font-weight:normal;">انتظار الجرد</span>'}
         </td>
