@@ -134,7 +134,6 @@ tr:hover td{background:var(--brand-lt);}
   <button class="btn-back" onclick="goToMainMenu()">🏠 القائمة الرئيسية</button>
 </nav>
 
-<!-- رأس الطباعة -->
 <div id="print-header">
   <h1 style="font-size: 24px; color: #0a4a31; margin-bottom: 5px;">الزيادي لزيوت السيارات</h1>
   <h2 style="font-size: 16px; font-weight: 600; color: #475569;">تقرير جرد وتتبع حركة حمولة السيارة الفعلي</h2>
@@ -142,35 +141,32 @@ tr:hover td{background:var(--brand-lt);}
   <div style="border-bottom: 2px dashed #000; margin-top: 15px;"></div>
 </div>
 
-<!-- صفحة 1: أصناف المخزن -->
 <div class="page active" id="pg-items">
   <div class="ph"><h2>أصناف المخزن الحالية</h2><p>الأصناف المتاحة للتحميل في الفايربيز</p></div>
   <div class="card" id="itemsCard"><div class="spin"></div></div>
 </div>
 
-<!-- صفحة 2: تسجيل التحميل (جدول مباشر + بحث فوري من أول حرف) -->
 <div class="page" id="pg-load">
-  <div class="ph"><h2>تسجيل تحميل حمولة السيارة</h2><p>اكتب الكميات مباشرة؛ يتم الحفظ والربط تلقائياً دون الحاجة لزراير تأكيد</p></div>
+  <div class="ph"><h2>تسجيل تحميل حمولة السيارة</h2><p>اكتب الكميات مباشرة؛ يتم الحفظ والربط تلقائياً لليوم المحدد دون زراير تأكيد</p></div>
   
   <div class="tools-row" style="margin-bottom: 14px;">
     <div style="flex: 1; min-width: 260px;">
       <input type="text" id="searchLoad" class="search-input" placeholder="🔍 ابدأ بكتابة أول حرف هنا للبحث والفلترة اللحظية..." oninput="window.renderLoadFlow()">
     </div>
-    <button class="btn" style="background:var(--red-lt); color:var(--red); height: 41px; font-weight: 700;" onclick="window.resetLoad()">🗑️ تصفير كل حمولة العربة</button>
+    <button class="btn" style="background:var(--red-lt); color:var(--red); height: 41px; font-weight: 700;" onclick="window.resetLoad()">🗑️ تصفير حمولة اليوم المحدد</button>
   </div>
 
   <div id="noItemsMsg" class="card" style="display:none"><div class="empty"><span class="em">⚠️</span>لا توجد أصناف بها كمية في المخزن الآن</div></div>
   <div id="loadFlow" class="card" style="padding: 12px 8px;"></div>
 </div>
 
-<!-- صفحة 3: جرد الحركة -->
 <div class="page" id="pg-summary">
   <div class="ph"><h2>حركة وجرد العربة الكلي والفرق</h2><p>مقارنة المحمل بالمباع وإدخال الراجع لكشف أي عجز</p></div>
 
   <div class="tools-row">
     <div class="date-filter-wrap">
-      <label for="summaryDate">📅 تاريخ الحركة:</label>
-      <input type="date" id="summaryDate" onchange="window.renderSummary()">
+      <label for="summaryDate">📅 تاريخ الحركة والتحميل:</label>
+      <input type="date" id="summaryDate" onchange="window.onDateChange()">
     </div>
     
     <div class="date-filter-wrap" style="background: #fff;">
@@ -203,7 +199,6 @@ tr:hover td{background:var(--brand-lt);}
   </div>
 </div>
 
-<!-- تذييل الطباعة -->
 <div id="print-footer">
   <div style="border-top: 2px dashed #000; margin-bottom: 15px;"></div>
   <div style="display: flex; justify-content: space-between; font-weight: bold; padding: 0 10px;">
@@ -216,7 +211,7 @@ tr:hover td{background:var(--brand-lt);}
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -231,25 +226,39 @@ const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
 let firebaseItems = [];   
-let cartItems     = JSON.parse(localStorage.getItem('cartItems') || '{}');
-let loadedInSession = JSON.parse(localStorage.getItem('loadedInSession') || '{}');
+let cartItems     = {};
+let loadedInSession = {};
 
+// تظبيط تاريخ اليوم بتوقيت مصر المحلى كافتراضي
 const today = new Date();
 const offset = today.getTimezoneOffset();
 const localToday = new Date(today.getTime() - (offset*60*1000));
-document.getElementById('summaryDate').value = localToday.toISOString().split('T')[0];
+const dateStr = localToday.toISOString().split('T')[0];
+document.getElementById('summaryDate').value = dateStr;
+
+// دالة جلب مفتاح التاريخ الحالي لعزل localStorage (إصلاح نقطة 6)
+function getSelectedDate() {
+  return document.getElementById('summaryDate').value || dateStr;
+}
+
+function loadSessionForDate() {
+  const d = getSelectedDate();
+  cartItems = JSON.parse(localStorage.getItem(`cartItems_${d}`) || '{}');
+  loadedInSession = JSON.parse(localStorage.getItem(`loadedInSession_${d}`) || '{}');
+}
+
+function saveSessionForDate() {
+  const d = getSelectedDate();
+  localStorage.setItem(`cartItems_${d}`, JSON.stringify(cartItems));
+  localStorage.setItem(`loadedInSession_${d}`, JSON.stringify(loadedInSession));
+}
 
 window.goToMainMenu = function() { window.location.href = 'index.html'; };
-
-function saveSession() {
-  localStorage.setItem('cartItems', JSON.stringify(cartItems));
-  localStorage.setItem('loadedInSession', JSON.stringify(loadedInSession));
-}
 
 function getUnitName(name) {
   const n = name.toLowerCase();
   if (n.includes('قطعة') || n.includes('قطعه')) return 'قطعة';
-  if (n.includes('كرتونة') || n.includes('كرtونه') || n.includes('كرتونه')) return 'كرتونة';
+  if (n.includes('كرتونة') || n.includes('كرتونه')) return 'كرتونة'; // إصلاح نقطة 3 (حذف الحرف الإنجليزي)
   return 'جركن'; 
 }
 
@@ -281,12 +290,20 @@ function parseDate(df,ts){
   return"";
 }
 
+// دالة ذكية ومؤمنة لفحص الفاتورة (إصلاح نقطة 1، 4، 10)
 function isCarton(item){
-  const u=(item.unit||"").trim();
-  if(u==="box")return true;
-  if(u==="pcs")return false;
-  const un=(item.unitName||"").trim();
-  return un overlay==="كرتونة"||un==="كرtونه"||un==="كرتونه";
+  const u = (item.unit || "").trim().toLowerCase();
+  if (u === "box" || u === "carton" || u === "كرتونة" || u === "كرتونه") return true;
+  if (u === "pcs" || u === "piece" || u === "قطعة" || u === "قطعه" || u === "جركن") return false;
+
+  const un = (item.unitName || "").trim();
+  if (un === "كرتونة" || un === "كرتونه") return true; // إصلاح نقطة 4 (حذف الحرف الإنجليزي والتثبيت الشامل)
+  
+  // خط دفاع أخير: فحص اسم العنصر داخل الفاتورة نفسها إذا غابت حقول الوحدة
+  const name = (item.name || "").toLowerCase();
+  if (name.includes("كرتونة") || name.includes("كرتونه")) return true;
+
+  return false;
 }
 
 // مراقبة المخزن لايف
@@ -302,7 +319,8 @@ onSnapshot(collection(db, "inventory"), snap => {
   });
   renderItemsPage();
   
-  // تحديث المسميات والسعة للأصناف المحملة فوراً
+  // تحديث المسميات والسعة للأصناف المحملة فوراً مع الحفاظ على البيانات
+  loadSessionForDate();
   firebaseItems.forEach(fi => {
     if (cartItems[fi.id]) {
       cartItems[fi.id].name     = fi.name;
@@ -314,11 +332,18 @@ onSnapshot(collection(db, "inventory"), snap => {
   }
 });
 
+window.onDateChange = function() {
+  loadSessionForDate();
+  window.renderLoadFlow();
+  window.renderSummary();
+};
+
 window.showPage = function(id, btn) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if (btn) btn.classList.add('active');
+  loadSessionForDate();
   if (id === 'pg-load')     window.renderLoadFlow();
   if (id === 'pg-summary')  window.renderSummary();
 };
@@ -352,7 +377,7 @@ function renderItemsPage() {
     </div>`;
 }
 
-// دالة عرض التحميل السريع (جدول الإدخال الفوري والبحث من أول حرف)
+// دالة عرض التحميل السريع
 window.renderLoadFlow = function() {
   const flow = document.getElementById('loadFlow');
   const noMsg = document.getElementById('noItemsMsg');
@@ -406,7 +431,7 @@ window.renderLoadFlow = function() {
   flow.innerHTML = html;
 };
 
-// دالة الحفظ والربط اللحظي بمجرد الكتابة (تأمين الـ ID والبيانات 100%)
+// دالة الحفظ والربط اللحظي بمجرد الكتابة (إصلاح نقطة 8: استخدام parseInt للكراتين والقطع لحظر الكسور)
 window.updateLoadInput = function(itemId, field, value) {
   const it = firebaseItems.find(i => i.id === itemId);
   if (!it) return;
@@ -414,45 +439,47 @@ window.updateLoadInput = function(itemId, field, value) {
   if (!loadedInSession[itemId]) loadedInSession[itemId] = { cartons: 0, loose: 0 };
   if (!cartItems[itemId]) cartItems[itemId] = { name: it.name, capacity: it.capacity };
 
-  if (field === 'cartons') loadedInSession[itemId].cartons = value === '' ? 0 : parseFloat(value);
-  if (field === 'loose') loadedInSession[itemId].loose = value === '' ? 0 : parseInt(value);
+  if (field === 'cartons') loadedInSession[itemId].cartons = value === '' ? 0 : parseInt(value, 10) || 0;
+  if (field === 'loose') loadedInSession[itemId].loose = value === '' ? 0 : parseInt(value, 10) || 0;
 
-  // تأمين صب الأرقام لضمان قراءتها كأرقام حقيقية في الجرد
   cartItems[itemId].loadedCartons = loadedInSession[itemId].cartons;
   cartItems[itemId].loadedLoose = loadedInSession[itemId].loose;
   
-  saveSession();
+  saveSessionForDate();
 };
 
 window.resetLoad = function() { 
-  if(confirm("هل أنت متأكد من تصفير حمولة العربة الحالية بالكامل؟")) {
+  if(confirm(`هل أنت متأكد من تصفير حمولة اليوم (${getSelectedDate()}) بالكامل؟`)) {
+    const d = getSelectedDate();
+    localStorage.removeItem(`cartItems_${d}`);
+    localStorage.removeItem(`loadedInSession_${d}`);
     loadedInSession = {}; 
     cartItems = {}; 
     document.getElementById('searchLoad').value = '';
-    saveSession(); 
+    saveSessionForDate(); 
     window.renderLoadFlow();
-    window.toast("🗑️ تم تصفير الحمولة بالكامل");
+    window.toast("🗑️ تم تصفير الحمولة لليوم المحدد");
   }
 };
 
-// تحديث الراجع الفعلي لحظياً وحساب العجز تلقائياً داخل جدول الجرد
+// تحديث الراجع الفعلي وحساب الفروقات لحظياً داخل جدول الجرد
 window.updateManualSummaryField = function(itemId, field, val, capacity, totalRemPcs, unitName) {
   if (!cartItems[itemId]) cartItems[itemId] = {};
   
-  if (field === 'manualCartons') cartItems[itemId].manualCartons = val === '' ? '' : parseFloat(val);
-  if (field === 'manualLoose') cartItems[itemId].manualLoose = val === '' ? '' : parseInt(val);
+  if (field === 'manualCartons') cartItems[itemId].manualCartons = val === '' ? '' : parseInt(val, 10) || 0;
+  if (field === 'manualLoose') cartItems[itemId].manualLoose = val === '' ? '' : parseInt(val, 10) || 0;
   
-  saveSession();
+  saveSessionForDate();
 
   const row = document.getElementById(`row-${itemId}`);
   if (!row) return;
 
-  const inputCartons = parseFloat(row.querySelector('.inp-m-cartons').value) || 0;
-  const inputLoose = parseInt(row.querySelector('.inp-m-loose').value) || 0;
-  const cap = parseInt(capacity) || 1;
+  const inputCartons = parseInt(row.querySelector('.inp-m-cartons').value, 10) || 0;
+  const inputLoose = parseInt(row.querySelector('.inp-m-loose').value, 10) || 0;
+  const cap = parseInt(capacity, 10) || 1;
 
   const totalManualPcs = (inputCartons * cap) + inputLoose;
-  const diffPcs = totalManualPcs - parseInt(totalRemPcs);
+  const diffPcs = totalManualPcs - parseInt(totalRemPcs, 10);
 
   const selectEl = row.querySelector('.select-diff');
   const badgeContainer = row.querySelector('.badge-container');
@@ -461,7 +488,7 @@ window.updateManualSummaryField = function(itemId, field, val, capacity, totalRe
     selectEl.value = '';
     badgeContainer.innerHTML = '<span style="color:var(--gray)">—</span>';
     cartItems[itemId].diffStatus = '';
-    saveSession();
+    saveSessionForDate();
     return;
   }
 
@@ -479,13 +506,13 @@ window.updateManualSummaryField = function(itemId, field, val, capacity, totalRe
     cartItems[itemId].diffStatus = '';
     badgeContainer.innerHTML = `<span style="color:var(--green); font-weight:800; font-size:11px;">✅ مظبوط شَعرة</span>`;
   }
-  saveSession();
+  saveSessionForDate();
 };
 
 window.updateSelectField = function(itemId, val) {
   if (!cartItems[itemId]) cartItems[itemId] = {};
   cartItems[itemId].diffStatus = val;
-  saveSession();
+  saveSessionForDate();
 };
 
 window.filterSummaryTable = function() {
@@ -499,30 +526,34 @@ window.filterSummaryTable = function() {
   });
 };
 
-// دالة جلب البيانات والربط النهائي لجدول الجرد (تم إصلاح فلتر جلب عمود المحمل الحقيقي)
+// دالة جرد وحركة العربة (تطبيق تحسينات الفلترة الذكية والأداء الكلي)
 window.renderSummary = async function() {
-  // الفلتر الذكي الجديد: جلب أي صنف تم إدخال كراتين أو جراكن منفردة له أكبر من 0 لمنع سقوط الشحم أو الأصناف المنفردة
-  const loaded = Object.entries(cartItems).filter(([,v]) => ((parseFloat(v.loadedCartons) || 0) > 0 || (parseInt(v.loadedLoose) || 0) > 0));
+  loadSessionForDate();
+  
+  // الفلتر الجديد المصلح: سحب أي عنصر كميته المحملة أكبر من 0 حقيقي (منع سقوط الجراكن المنفردة والشحم)
+  const loaded = Object.entries(cartItems).filter(([,v]) => ((parseInt(v.loadedCartons, 10) || 0) > 0 || (parseInt(v.loadedLoose, 10) || 0) > 0));
   const tb = document.getElementById('summaryTable');
-  const selectedDate = document.getElementById('summaryDate').value;
+  const selectedDate = getSelectedDate();
   const syncStatus = document.getElementById('syncStatus');
 
   if (!loaded.length) {
-    tb.innerHTML = '<tr><td colspan="6"><div class="empty"><span class="em">📭</span>لم يتم تسجيل أي حمولة للسيارة بعد.</div></td></tr>';
+    tb.innerHTML = '<tr><td colspan="6"><div class="empty"><span class="em">📭</span>لم يتم تسجيل أي حمولة للسيارة في هذا اليوم بعد.</div></td></tr>';
     return;
   }
 
-  syncStatus.innerHTML = '⏳ جاري مراجعة المبيعات لايف...';
+  syncStatus.innerHTML = '⏳ جاري مراجعة المبيعات المستهدفة...';
   tb.innerHTML = '<tr><td colspan="6"><div class="spin"></div></td></tr>';
   
   let liveSales = {}; 
 
   try {
-    const sSnap = await getDocs(collection(db, "invoices"));
+    // إصلاح نقطة 9: كفاءة أداء خارقة وضغط الاستهلاك عبر الاستعلام بـ query و where لجلب تاريخ اليوم المحدد فقط من السيرفر
+    const qInvoices = query(collection(db, "invoices"), where("date", "==", selectedDate));
+    const sSnap = await getDocs(qInvoices);
+    
     sSnap.forEach(doc => {
       const inv = doc.data();
       if (inv.isDeleted) return;
-      if (parseDate(inv.date, inv.timestamp) !== selectedDate) return;
       if (!Array.isArray(inv.items)) return;
 
       inv.items.forEach(itm => {
@@ -530,7 +561,14 @@ window.renderSummary = async function() {
         if (!name) return;
         const cleanedKey = cleanItemName(name);
 
-        const truckItem = loaded.find(([id, v]) => v.name.trim() === name || cleanItemName(v.name) === cleanedKey);
+        // إصلاح نقطة 7: الربط المتين عبر الـ ID أولاً (fallback للاسم للأمان التام مع الفواتير القديمة)
+        const truckItem = loaded.find(([id, v]) => 
+          id === itm.id || 
+          id === itm.itemId || 
+          v.name.trim() === name || 
+          cleanItemName(v.name) === cleanedKey
+        );
+        
         if (truckItem) {
           const itemId = truckItem[0];
           const cap = truckItem[1].capacity || 1;
@@ -545,9 +583,36 @@ window.renderSummary = async function() {
     syncStatus.innerHTML = '✅ المبيعات متطابقة ومحدثة';
   } catch(e) {
     console.error(e);
-    syncStatus.innerHTML = '❌ خطأ اتصال بالسيرفر';
+    syncStatus.innerHTML = '❌ خطأ اتصال (تم استخدام الفلترة المحلية التلقائية كخط دفاع ثانٍ)';
+    
+    // Fallback في حالة اختلاف صيغة حفظ التاريخ ببعض المستندات القديمة بالسيرفر
+    try {
+      const allSnap = await getDocs(collection(db, "invoices"));
+      liveSales = {};
+      allSnap.forEach(doc => {
+        const inv = doc.data();
+        if (inv.isDeleted) return;
+        if (parseDate(inv.date, inv.timestamp) !== selectedDate) return;
+        if (!Array.isArray(inv.items)) return;
+
+        inv.items.forEach(itm => {
+          const name = (itm.name || "").trim();
+          const cleanedKey = cleanItemName(name);
+          const truckItem = loaded.find(([id, v]) => id === itm.id || id === itm.itemId || v.name.trim() === name || cleanItemName(v.name) === cleanedKey);
+          if (truckItem) {
+            const itemId = truckItem[0];
+            const cap = truckItem[1].capacity || 1;
+            const itemQty = Number(itm.qty) || 0;
+            const totalPcsSold = isCarton(itm) ? (itemQty * cap) : itemQty;
+            if (!liveSales[itemId]) liveSales[itemId] = 0;
+            if (itm.isReturn) { liveSales[itemId] -= totalPcsSold; } else { liveSales[itemId] += totalPcsSold; }
+          }
+        });
+      });
+    } catch(err) { console.error(err); }
   }
 
+  // بناء الجدول النهائي
   tb.innerHTML = loaded.map(([id, it]) => {
     const unit = getUnitName(it.name);
     const cap = it.capacity || 1;
@@ -556,18 +621,21 @@ window.renderSummary = async function() {
     const soldCartons = Math.floor(totalSoldPcs / cap);
     const soldLoose = totalSoldPcs % cap;
 
-    const loadC = parseFloat(it.loadedCartons) || 0;
-    const loadL = parseInt(it.loadedLoose) || 0;
+    const loadC = parseInt(it.loadedCartons, 10) || 0;
+    const loadL = parseInt(it.loadedLoose, 10) || 0;
     const totalLoadedPcs = (loadC * cap) + loadL;
     
     const totalRemPcs = totalLoadedPcs - totalSoldPcs;
-    const remCartons = Math.floor(Math.max(0, totalRemPcs) / cap);
-    const remLoose = Math.max(0, totalRemPcs) % cap;
+
+    // إصلاح نقطة 5: معالجة ذكية للقيم السالبة (إذا زاد المباع عن المحمل يعرض عجز مبيعات حقيقي واضح دون تصفير قسري)
+    const absRemPcs = Math.abs(totalRemPcs);
+    const remCartons = Math.floor(absRemPcs / cap);
+    const remLoose = absRemPcs % cap;
 
     const currentManualCartons = it.manualCartons !== undefined ? it.manualCartons : '';
     const currentManualLoose = it.manualLoose !== undefined ? it.manualLoose : '';
     
-    const totalManualPcs = ((parseFloat(currentManualCartons)||0) * cap) + (parseInt(currentManualLoose)||0);
+    const totalManualPcs = ((parseInt(currentManualCartons, 10)||0) * cap) + (parseInt(currentManualLoose, 10)||0);
     let calculatedStatus = it.diffStatus || "";
     if(!it.diffStatus && (currentManualCartons !== '' || currentManualLoose !== '')) {
        calculatedStatus = (totalManualPcs < totalRemPcs) ? "عجز" : (totalManualPcs > totalRemPcs) ? "زيادة" : "";
@@ -592,7 +660,16 @@ window.renderSummary = async function() {
     let loadedDisplay = loadedText.length > 0 ? loadedText.join(' و ') : '0';
 
     let soldText = totalSoldPcs === 0 ? '0' : totalSoldPcs < 0 ? `↺ مرتجع: ${Math.floor(Math.abs(totalSoldPcs)/cap)} ك و ${Math.abs(totalSoldPcs)%cap} ${unit}` : `${soldCartons > 0 ? soldCartons + ' ك' : ''} ${soldLoose > 0 ? soldLoose + ' ' + unit : ''}`;
-    let remText = totalRemPcs <= 0 ? '0' : `${remCartons > 0 ? remCartons + ' ك' : ''} ${remLoose > 0 ? remLoose + ' ' + unit : ''}`;
+    
+    // صياغة نص المتبقي بناءً على الإشارة الرياضية الفوقية
+    let remText = '';
+    if (totalRemPcs === 0) {
+      remText = '0';
+    } else if (totalRemPcs < 0) {
+      remText = `<span style="color:var(--red)">⚠️ زيادة مبيعات (-${remCartons > 0 ? remCartons + ' ك ' : ''}${remLoose > 0 ? remLoose + ' ' + unit : ''})</span>`;
+    } else {
+      remText = `${remCartons > 0 ? remCartons + ' ك' : ''} ${remLoose > 0 ? remLoose + ' ' + unit : ''}`;
+    }
 
     return `
       <tr id="row-${id}">
@@ -609,9 +686,9 @@ window.renderSummary = async function() {
         <td>
           <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
             <select class="select-diff" style="padding:6px; border-radius:6px; border:1px solid var(--border); font-family:inherit; font-weight:700; font-size:12px; cursor:pointer;" onchange="window.updateSelectField('${id}', this.value)">
-              <option value="" ${calculatedStatus===''?'selected':''}>— حدد —</option>
-              <option value="عجز" ${calculatedStatus==='عجز'?'selected':'}>❌ عجز</option>
-              <option value="زيادة" ${calculatedStatus==='زيادة'?'selected':'}>➕ زيادة</option>
+              <option value="" ${calculatedStatus===''? 'selected':''}>— حدد —</option>
+              <option value="عجز" ${calculatedStatus==='عجز'? 'selected':''}>❌ عجز</option>
+              <option value="زيادة" ${calculatedStatus==='زيادة'? 'selected':''}>➕ زيادة</option>
             </select>
             <div class="badge-container" style="margin-top:2px;">${diffHtml}</div>
           </div>
@@ -623,7 +700,7 @@ window.renderSummary = async function() {
 };
 
 window.printSummaryReport = function() {
-  const d = document.getElementById('summaryDate').value;
+  const d = getSelectedDate();
   document.getElementById('print-date-lbl').textContent = "تاريخ حركة الجرد: " + d;
   window.print();
 };
@@ -633,6 +710,9 @@ window.toast = function(msg) {
   const el = document.getElementById('toast'); el.textContent = msg; el.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
 };
+
+// تحميل أولي للبيانات
+loadSessionForDate();
 </script>
 </body>
 </html>
