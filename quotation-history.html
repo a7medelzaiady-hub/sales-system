@@ -207,7 +207,7 @@ const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
 
 let firebaseItems = [];   
-let firebaseInvoices = []; // مصفوفة لتخزين الفواتير المجلوبة لايف
+let firebaseInvoices = []; // مصفوفة لتخزين الفواتير المجلوبة لايف من السيرفر
 let cartItems     = JSON.parse(localStorage.getItem('cartItems') || '{}');
 let loadedInSession = JSON.parse(localStorage.getItem('loadedInSession') || '{}');
 let receivedInSession = JSON.parse(localStorage.getItem('receivedInSession') || '{}');
@@ -236,14 +236,41 @@ function getUnitName(name) {
 function cleanItemName(str) {
   if (!str) return "";
   return str.trim()
-            .toLowerCase()
-            .replace(/\s+/g, ' ')
+            .toLowerCase() 
+            .replace(/\s+/g, ' ') 
             .replace(/[أإآ]/g, 'ا')
             .replace(/ة/g, 'ه')
             .replace(/ى/g, 'ي');
 }
 
-// 1. الاستماع لايف للأصناف بالمخزن
+/* ─── دوال معالجة التواريخ والوحدات المطابقة تماماً لكود حركة البضاعة الناجح ─── */
+function toEn(s){
+  if(!s)return"";
+  const a=[/٠/g,/١/g,/٢/g,/٣/g,/٤/g,/٥/g,/٦/g,/٧/g,/٨/g,/٩/g];
+  let r=s.toString();a.forEach((p,i)=>r=r.replace(p,i));return r;
+}
+
+function parseDate(df,ts){
+  if(df){
+    const s=toEn(df);
+    let m=s.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+    m=s.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+    if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  }
+  if(ts?.seconds)return new Date(ts.seconds*1000).toISOString().slice(0,10);
+  return"";
+}
+
+function isCarton(item){
+  const u=(item.unit||"").trim();
+  if(u==="box")return true;
+  if(u==="pcs")return false;
+  const un=(item.unitName||"").trim();
+  return un==="كرتونة"||un==="كرtونه"||un==="كرتونه";
+}
+
+// مراقبة المخزن لايف
 onSnapshot(collection(db, "inventory"), snap => {
   firebaseItems = [];
   snap.forEach(doc => {
@@ -263,7 +290,7 @@ onSnapshot(collection(db, "inventory"), snap => {
   });
 });
 
-// 2. الاستماع لايف للفواتير (التعديل السحري للتحديث التلقائي للمبيعات)
+// مراقبة الفواتير لايف (التحديث الفوري للمبيعات)
 onSnapshot(collection(db, "invoices"), snap => {
   firebaseInvoices = [];
   snap.forEach(doc => {
@@ -272,7 +299,6 @@ onSnapshot(collection(db, "invoices"), snap => {
       firebaseInvoices.push(inv);
     }
   });
-  // إذا كان المستخدم فاتح صفحة الجرد حالياً، يتم تحديث الجدول فوراً تلقائياً
   if (document.getElementById('pg-summary').classList.contains('active')) {
     window.renderSummary();
   }
@@ -469,7 +495,7 @@ window.editReceivedStep = function(itemId) {
   initReceivedFlow();
 };
 
-// الدالة أصبحت سريعة جداً وتعالج المبيعات لايف من المصفوفة مباشرةً بدون انتظام السيرفر في كل مرة
+// الدالة السحرية: تم تعديلها كلياً لتقرأ الفواتير وتطابقها بناءً على الكود الناجح لصفحة المبيعات
 window.renderSummary = function() {
   const loaded = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
   const tb = document.getElementById('summaryTable');
@@ -481,57 +507,44 @@ window.renderSummary = function() {
     return;
   }
 
-  syncStatus.innerHTML = '⏳ جاري جلب فواتير السيرفر لايف...';
+  syncStatus.innerHTML = '⏳ جاري جلب حركة السيرفر...';
   let liveSales = {};
 
   try {
-    // معالجة الفواتير المتواجدة في الذاكرة (القادمة من الـ onSnapshot)
+    // جرد وقراءة الفواتير المخزنة لايف بالذاكرة
     firebaseInvoices.forEach(inv => {
-      let invDate = "";
-      if (inv.time) {
-        let cleanTime = inv.time.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
-        const matchIso = cleanTime.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
-        if (matchIso) {
-          invDate = `${matchIso[1]}-${matchIso[2].padStart(2, '0')}-${matchIso[3].padStart(2, '0')}`;
-        } else {
-          const parts = cleanTime.split(',')[0].match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-          if (parts) {
-            let p1 = parts[1];
-            let p2 = parts[2];
-            let year = parts[3];
-            invDate = `${year}-${p1.padStart(2, '0')}-${p2.padStart(2, '0')}`;
-            if (invDate !== selectedDate) {
-              invDate = `${year}-${p2.padStart(2, '0')}-${p1.padStart(2, '0')}`;
-            }
+      // استخدام دالة الفحص الدقيقة لتواريخ الفواتير
+      if (parseDate(inv.date, inv.timestamp) !== selectedDate) return;
+      if (!Array.isArray(inv.items)) return;
+
+      inv.items.forEach(itm => {
+        const cleanedKey = cleanItemName(itm.name);
+        
+        if (cleanedKey) {
+          if (!liveSales[cleanedKey]) liveSales[cleanedKey] = 0;
+          
+          // البحث عن سعة كرتونة الصنف لتوليد الحسابات بالقطعة بدقة
+          const pInfo = firebaseItems.find(fi => cleanItemName(fi.name) === cleanedKey);
+          const factor = pInfo ? pInfo.capacity : 1;
+          
+          const itemQty = Number(itm.qty) || 0;
+          
+          // استخدام دالة فحص الوحدة المعتمدة لديك (كرتونة أم جركن منفرد)
+          const totalPcsSold = isCarton(itm) ? (itemQty * factor) : itemQty;
+
+          // احتساب المرتجعات بخصمها من المبيعات لزيادة الكمية المتبقية بالعربة حسابياً
+          if (itm.isReturn) {
+            liveSales[cleanedKey] -= totalPcsSold; 
+          } else {
+            liveSales[cleanedKey] += totalPcsSold;
           }
         }
-      }
-
-      if (invDate === selectedDate && inv.items) {
-        inv.items.forEach(itm => {
-          const cleanedKey = cleanItemName(itm.name);
-          if (cleanedKey) {
-            if (!liveSales[cleanedKey]) liveSales[cleanedKey] = 0;
-            
-            const pInfo = firebaseItems.find(fi => cleanItemName(fi.name) === cleanedKey);
-            const factor = pInfo ? pInfo.capacity : 1;
-            
-            const itemQty = Number(itm.qty) || 0;
-            const totalPcsSold = (itm.unit === 'box' || itm.unit === 'كرتونة') ? (itemQty * factor) : itemQty;
-
-            if (itm.isReturn) {
-              liveSales[cleanedKey] -= totalPcsSold; 
-            } else {
-              liveSales[cleanedKey] += totalPcsSold;
-            }
-          }
-        });
-      }
+      });
     });
-    syncStatus.innerHTML = '✅ تحديث لايف ممتاز';
+    syncStatus.innerHTML = '✅ التحديث المباشر نشط ومطابق';
   } catch(e) {
-    console.error("Error calculating invoices:", e);
-    syncStatus.innerHTML = '❌ خطأ في الحسابات';
+    console.error("Error loading invoices from server:", e);
+    syncStatus.innerHTML = '❌ خطأ في المعالجة';
   }
 
   tb.innerHTML = loaded.map(([id, it]) => {
@@ -569,7 +582,7 @@ window.renderSummary = function() {
       diffText = `➕ زيادة: ${dc > 0 ? dc + ' ك ' : ''}${dl > 0 ? dl + ' ' + unit : ''}`;
       diffStyle = 'color:var(--green); background:var(--green-lt); padding:4px 8px; border-radius:6px; font-weight:800; display:inline-block;';
     } else if (receivedInSession[id] !== undefined) {
-      diffText = '✅ مظبوط ';
+      diffText = '✅ مظبوط شَعرة';
       diffStyle = 'color:var(--green); font-weight:800;';
     }
 
