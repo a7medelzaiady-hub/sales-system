@@ -132,6 +132,22 @@ nav .btn-back:hover { background: rgba(255, 255, 255, 0.25); }
   margin-bottom: 10px;
   padding-bottom: 8px;
   border-bottom: 1px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+/* شارة المخزون الفعلي */
+.stock-badge {
+  font-size: 11px;
+  font-weight: 700;
+  background: var(--blue-lt);
+  color: var(--blue);
+  border-radius: 20px;
+  padding: 3px 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* صف الأرقام الثلاثة */
@@ -445,16 +461,29 @@ table select:focus { border-color: var(--brand); }
 <div class="page" id="pg-summary">
   <div class="ph"><h2>حركة وجرد العربة الكلي والفرق</h2><p>مقارنة المحمل بالمباع وإدخال الراجع لكشف أي عجز</p></div>
 
-  <div class="tools-row">
-    <div class="date-filter-wrap">
-      <label for="summaryDate">تاريخ الحركة:</label>
-      <input type="date" id="summaryDate" onchange="window.renderSummary()">
+  <!-- صف الأدوات: تاريخ + بحث في سطر واحد -->
+  <div class="tools-row" style="flex-wrap: nowrap; gap: 8px; margin-bottom: 10px;">
+    <div class="date-filter-wrap" style="min-width:0; flex:1;">
+      <label for="summaryDate" style="white-space:nowrap;">📅</label>
+      <input type="date" id="summaryDate" onchange="window.renderSummary()" style="min-width:0; flex:1;">
     </div>
-    <div class="date-filter-wrap">
-      <label for="searchSummary">البحث بالاسم:</label>
-      <input type="text" id="searchSummary" placeholder="اكتب للبحث..." oninput="window.renderSummary()">
+    <div class="date-filter-wrap" style="min-width:0; flex:1.4;">
+      <label for="searchSummary" style="white-space:nowrap;">🔍</label>
+      <input type="text" id="searchSummary" placeholder="بحث بالاسم..." oninput="window.renderSummary()" style="min-width:0; flex:1;">
     </div>
-    <button class="btn btn-success" onclick="window.printSummaryReport()" style="height: 41px; display: flex; align-items: center; gap: 6px; margin-right: auto;">📄 تحويل إلى PDF / طباعة</button>
+  </div>
+
+  <!-- صف ثانٍ: زر toggle + زر طباعة -->
+  <div style="display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
+    <button id="toggleZeroBtn" class="btn btn-sm"
+      style="background:var(--amber-lt); color:var(--amber); border:1.5px solid var(--amber); font-weight:700;"
+      onclick="window.toggleZeroSales()">
+      👁 عرض أصناف المبيعات صفر
+    </button>
+    <button class="btn btn-success btn-sm" onclick="window.printSummaryReport()"
+      style="display:flex; align-items:center; gap:5px; margin-right:auto;">
+      📄 PDF / طباعة
+    </button>
   </div>
 
   <!-- كارد الجدول — كارتات موبايل + جدول للطباعة -->
@@ -887,6 +916,24 @@ window.updateManualSummaryField = function(itemId, field, val) {
   saveSession();
 };
 
+window._showZeroSales = false;
+window.toggleZeroSales = function() {
+  window._showZeroSales = !window._showZeroSales;
+  const btn = document.getElementById('toggleZeroBtn');
+  if (window._showZeroSales) {
+    btn.textContent = '🙈 إخفاء أصناف المبيعات صفر';
+    btn.style.background = 'var(--green-lt)';
+    btn.style.color = 'var(--green)';
+    btn.style.borderColor = 'var(--green)';
+  } else {
+    btn.textContent = '👁 عرض أصناف المبيعات صفر';
+    btn.style.background = 'var(--amber-lt)';
+    btn.style.color = 'var(--amber)';
+    btn.style.borderColor = 'var(--amber)';
+  }
+  window.renderSummary();
+};
+
 window.renderSummary = async function() {
   syncSessionVars();
   let loaded = Object.entries(cartItems).filter(([,v]) => (v.loadedCartons > 0 || v.loadedLoose > 0));
@@ -947,7 +994,7 @@ window.renderSummary = async function() {
     const unit = getUnitName(it.name);
     const cap  = it.capacity || 1;
     const totalSoldPcs   = liveSales[id] || 0;
-    if (totalSoldPcs === 0) return; // تخطي الأصناف التي لم تُباع
+    if (totalSoldPcs === 0 && !window._showZeroSales) return; // تخطي الأصناف صفر مبيعات
     const soldCartons    = Math.floor(Math.abs(totalSoldPcs) / cap);
     const soldLoose      = Math.abs(totalSoldPcs) % cap;
     const totalLoadedPcs = (it.loadedCartons * cap) + it.loadedLoose;
@@ -972,18 +1019,28 @@ window.renderSummary = async function() {
 
     const statusClass = calculatedStatus === 'عجز' ? 'status-ajz' : calculatedStatus === 'زيادة' ? 'status-zyada' : '';
 
+    // المخزون الفعلي من firebaseItems
+    const fbItem = firebaseItems.find(f => f.id === id);
+    const stockPcs = fbItem ? fbItem.totalPcs : null;
+    const stockText = stockPcs !== null
+      ? (Math.floor(stockPcs / cap) > 0 ? Math.floor(stockPcs / cap) + ' ك ' : '') + (stockPcs % cap > 0 ? stockPcs % cap + ' ' + unit : '') || '0'
+      : '—';
+
     // ---- كارد الموبايل ----
     const card = document.createElement('div');
     card.className = 'inv-item-card';
     card.innerHTML = `
-      <div class="inv-item-name">${it.name}</div>
+      <div class="inv-item-name">
+        ${it.name}
+        <span class="stock-badge" title="المخزون الفعلي بالمخزن الرئيسي">🏭 ${stockText}</span>
+      </div>
       <div class="inv-stats-row">
         <div class="inv-stat loaded">
           <span class="lbl">المحمل</span>
           <span class="val">${loadedText}</span>
         </div>
         <div class="inv-stat sold">
-          <span class="lbl">المباع لايف</span>
+          <span class="lbl">المباع</span>
           <span class="val" style="${totalSoldPcs < 0 ? 'color:var(--amber)' : ''}">${soldText}</span>
         </div>
         <div class="inv-stat remain">
@@ -993,7 +1050,7 @@ window.renderSummary = async function() {
       </div>
       <div class="inv-bottom-row">
         <div class="inv-return-group">
-          <label>راجع:</label>
+          <label>فرق:</label>
           <input type="number" value="${currentManualCartons}" placeholder="ك"
             oninput="window.updateManualSummaryField('${id}','manualCartons',this.value)">
           <input type="number" value="${currentManualLoose}" placeholder="${unit.slice(0,3)}"
