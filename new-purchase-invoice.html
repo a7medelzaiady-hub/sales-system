@@ -3,412 +3,306 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>سجل المشتريات الاحترافي - شركة الزيادى</title>
+    <title>فاتورة شراء احترافية - شركة الزيادى</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;500;600;700;800&family=Montserrat:wght=500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+
     <style>
-        :root { 
-            --primary: #0b5e3d; 
-            --primary-gradient: linear-gradient(135deg, #0b5e3d, #148054);
-            --bg-light: #f4f7f5;
-            --text-dark: #111d17;
-            --text-muted: #6c7a73;
-            --border-color: #e2eae5;
+        :root {
+            --primary: #0e6b48;
+            --primary-dark: #0a5037;
+            --primary-gradient: linear-gradient(135deg, #0e6b48, #129463);
+            --bg-light: #f4f7f6;
+            --text-dark: #1c2924;
+            --text-muted: #7c8a83;
+            --border-color: #e6ece9;
             --white: #ffffff;
-            --danger: #d90429;
-            --danger-light: #ffe5ea;
+            --danger: #d6304a;
+            --danger-light: #fdeef0;
+            --danger-border: #f4c6cd;
             --success: #1b4332;
-            --success-light: #d8f3dc;
-            --info: #0077b6;
-            --info-light: #e0f2fe;
-            --warning: #d68102;
-            --warning-light: #fef3c7;
-            --purple: #6d28d9;
-            --purple-light: #f3e8ff;
-            --card-shadow: 0 8px 24px rgba(0, 0, 0, 0.03);
-            --hover-shadow: 0 12px 28px rgba(11, 94, 61, 0.07);
-            --radius-md: 12px;
-            --radius-lg: 18px;
+            --success-light: #e9f7ef;
+            --wallet-color: #1d7fb8;
+            --wallet-light: #e7f4fc;
+            --card-shadow: 0 6px 20px rgba(20, 40, 32, 0.05);
+            --hover-shadow: 0 10px 26px rgba(14, 107, 72, 0.08);
+            --radius-lg: 20px;
+            --radius-md: 14px;
         }
 
         * { box-sizing: border-box; }
 
-        body { 
-            background: var(--bg-light); 
-            font-family: 'Cairo', sans-serif; 
-            color: var(--text-dark); 
+        body {
+            background: var(--bg-light);
+            font-family: 'Cairo', sans-serif;
+            color: var(--text-dark);
             padding-bottom: 60px;
             overflow-x: hidden;
+            line-height: 1.5;
         }
 
-        /* حماية تامة للأرقام والمبالغ الحسابية السالبة والموجبة من الانقلاب */
-        .force-ltr {
-            direction: ltr !important;
-            display: inline-block;
-            text-align: left;
-        }
-
-        .stat-val, .price-val, .balance-strip b, .details-table td, .term-row span, .inv-date, #thermalInvoiceHidden {
+        .amount, .item-subtotal, .item-qty, .item-buy, #itemsCount, #cashAmount, #walletAmount {
             font-family: 'Montserrat', 'Cairo', sans-serif !important;
         }
 
-        /* ============================================================
-           HEADER — مستقر ومانع للاختناق والتداخل
-           ============================================================ */
-        .header { 
-            background: var(--primary-gradient); 
-            padding: 0 16px;
-            height: 60px;
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between; 
-            box-shadow: 0 4px 16px rgba(11, 94, 61, 0.12); 
-            color: white;
-            position: sticky; 
-            top: 0; 
-            z-index: 1000;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
-        }
-
-        .header-start {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            min-width: 0;
-        }
-        .header h6 { 
-            font-size: 1rem; 
-            margin: 0; 
-            font-weight: 700;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .back-btn { 
-            color: white; 
-            transition: transform 0.2s; 
-            display: flex; 
-            align-items: center;
-            flex-shrink: 0;
-        }
-        .back-btn:hover { transform: scale(1.1); color: #d8f3dc; }
-
-        .header-end {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex-shrink: 0;
-        }
-
-        .sync-icon { 
-            transition: transform 0.4s ease; 
-            cursor: pointer; 
-            display: flex; 
-            align-items: center;
-            color: rgba(255,255,255,0.9);
-            padding: 4px;
-        }
-        .sync-icon:hover { 
-            transform: rotate(180deg); 
-            color: #fff;
-        }
-
-        .hdr-home-link {
-            color: white;
-            text-decoration: none;
-            font-size: 0.85rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(255,255,255,0.12);
-            padding: 6px 12px;
-            border-radius: 8px;
-            transition: all 0.2s;
-        }
-        .hdr-home-link:hover {
-            background: #fff;
-            color: var(--primary);
-        }
-
-        /* ============================================================
-           ACTION TOOLBAR — شريط العمليات الانسيابي المانع للتكدس نهائياً
-           ============================================================ */
-        .action-toolbar {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin: 12px 15px 0 15px;
-            overflow-x: auto;
-            white-space: nowrap;
-            padding-bottom: 4px;
-        }
-        .action-toolbar::-webkit-scrollbar { display: none; }
-        
-        .toolbar-btn {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 14px;
-            border-radius: var(--radius-md);
-            font-size: 0.8rem;
-            font-weight: 700;
-            border: 1px solid transparent;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            white-space: nowrap;
-            text-decoration: none;
-        }
-        .toolbar-btn-add { background: var(--primary); color: #fff; }
-        .toolbar-btn-add:hover { background: #08472e; color: #fff; }
-        
-        .toolbar-btn-excel { background: #198754; color: #fff; }
-        .toolbar-btn-excel:hover { background: #146c43; color: #fff; }
-        
-        .toolbar-btn-del { background: var(--danger-light); color: var(--danger); border-color: rgba(217,4,41,0.15); }
-        .toolbar-btn-del:hover { background: var(--danger); color: #fff; }
-
-        /* ============================================================
-           STATS GRID — إصلاح متكامل وحماية الأرقام من الانضغاط بالهاتف
-           ============================================================ */
-        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 14px 15px; }
-        .stat-card { 
-            background: var(--white); 
-            border: 1px solid var(--border-color); 
-            border-radius: var(--radius-md); 
-            padding: 12px 6px; 
-            text-align: center;
-            box-shadow: var(--card-shadow);
-            position: relative;
-            overflow: hidden;
-            min-width: 0;
-        }
-        .stat-card::before {
-            content: ''; position: absolute; top: 0; right: 0; width: 4px; height: 100%;
-        }
-        .stat-card.purchase::before { background: var(--info); }
-        .stat-card.paid::before { background: var(--primary); }
-        .stat-card.pending::before { background: var(--danger); }
-        
-        .stat-val { font-size: 0.95rem; font-weight: 700; display: block; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .stat-label { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; display: block; }
-
-        @media (max-width: 480px) {
-            .stats-grid { grid-template-columns: 1fr; gap: 8px; margin: 12px 15px; }
-            .stat-card { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; text-align: right; }
-            .stat-card::before { right: 0; top: 0; width: 5px; height: 100%; }
-            .stat-val { margin-top: 0; font-size: 1.05rem; }
-            .stat-label { font-size: 0.8rem; }
-        }
-
-        /* ============================================================
-           SEARCH BOX
-           ============================================================ */
-        .search-box { position: relative; margin: 14px 15px; }
-        .search-box input { 
-            background: var(--white); 
-            border: 1px solid var(--border-color); 
-            color: var(--text-dark); 
-            border-radius: var(--radius-md); 
-            padding: 12px 42px 12px 16px; 
-            width: 100%; 
-            font-weight: 600;
-            font-size: 0.88rem;
-            box-shadow: var(--card-shadow);
-            transition: all 0.2s ease;
-        }
-        .search-box input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(11, 94, 61, 0.08);
-            outline: none;
-        }
-        .search-box i { position: absolute; right: 16px; top: 15px; color: var(--primary); font-size: 0.95rem; }
-
-        /* ============================================================
-           INVOICE CARD
-           ============================================================ */
-        .invoice-card { 
-            background: var(--white); 
-            border: 1px solid var(--border-color); 
-            border-radius: var(--radius-lg); 
-            padding: 16px; 
-            margin: 0 15px 14px 15px; 
-            position: relative;
-            box-shadow: var(--card-shadow);
-            transition: box-shadow 0.2s;
-        }
-        .invoice-card:hover { 
-            box-shadow: var(--hover-shadow);
-            border-color: rgba(11, 94, 61, 0.15);
-        }
-        .invoice-card::after {
-            content: ''; position: absolute; top: 16px; right: 0; width: 4px; 
-            height: calc(100% - 32px); border-radius: 4px 0 0 4px;
-        }
-        .purchase-style::after { background: var(--primary); }
-        .return-style::after { background: var(--danger); }
-
-        .inv-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
-        .inv-header-info { flex: 1; min-width: 0; cursor: pointer; }
-        .sup-name { font-weight: 800; font-size: 1rem; color: var(--text-dark); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .inv-date { font-size: 0.78rem; color: var(--text-muted); margin-top: 3px; display: inline-block; }
-        
-        .inv-badge { font-size: 0.72rem; padding: 5px 10px; border-radius: 10px; font-weight: 700; display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
-        .type-cash { background: var(--success-light); color: var(--success); }
-        .type-wallet { background: var(--info-light); color: var(--info); }
-        .type-mixed { background: var(--purple-light); color: var(--purple); }
-        .type-credit { background: var(--warning-light); color: var(--warning); }
-        .type-return { background: var(--danger-light); color: var(--danger); }
-
-        .price-tag { text-align: left; cursor: pointer; }
-        .price-val { font-weight: 800; font-size: 1.15rem; display: block; }
-        .price-label { font-size: 0.68rem; color: var(--text-muted); font-weight: 700; display: block; margin-bottom: 1px; }
-
-        .inv-actions-row {
+        /* ===== HEADER ===== */
+        .header {
+            background: var(--primary-gradient);
+            padding: 14px 18px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin: 12px 0;
-            gap: 8px;
+            box-shadow: 0 3px 14px rgba(11, 94, 61, 0.14);
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
         }
-        .inv-tools {
-            display: flex;
-            gap: 6px;
-            align-items: center;
+        .header h6 { font-size: 1.05rem; margin: 0; font-weight: 700; letter-spacing: .2px; }
+        .clickable-icon { cursor: pointer; transition: transform .2s, opacity .2s; display: flex; align-items: center; opacity: .92; }
+        .clickable-icon:hover { transform: scale(1.12); opacity: 1; }
+        .badge-new { background: rgba(255,255,255,0.18); color: white; border: 1px solid rgba(255,255,255,0.35); padding: 5px 14px; border-radius: 10px; font-weight: 700; font-size: 0.72rem; }
+
+        /* ===== CARD GENERAL ===== */
+        .data-card {
+            background: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 18px;
+            margin-top: 14px;
+            box-shadow: var(--card-shadow);
         }
 
-        .tool-btn {
+        label { font-size: 0.76rem; margin-bottom: 6px; color: var(--primary-dark); font-weight: 700; display: flex; align-items: center; gap: 5px; }
+        label i { font-size: .72rem; opacity: .85; }
+
+        .form-control, .form-select {
+            background: var(--white) !important;
+            border: 1.5px solid var(--border-color) !important;
+            color: var(--text-dark) !important;
+            border-radius: var(--radius-md);
+            padding: 11px 12px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+        }
+        .form-control::placeholder { color: #adb8b3; font-weight: 500; }
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 3px rgba(14, 107, 72, 0.1) !important;
+            outline: none;
+        }
+
+        /* ===== ITEM ROW ===== */
+        .item-row {
+            background: var(--white);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 18px;
+            margin-bottom: 14px;
+            position: relative;
+            box-shadow: var(--card-shadow);
+            border-right: 5px solid var(--primary);
+            transition: box-shadow .25s ease, border-color .25s ease;
+        }
+        .item-row:hover { box-shadow: var(--hover-shadow); }
+        .item-row.is-return { border-right: 5px solid var(--danger); background: linear-gradient(180deg, #fffaf9, #ffffff); }
+
+        .btn-remove {
+            position: absolute;
+            top: -9px;
+            left: -9px;
+            background: var(--danger);
+            color: #fff;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            font-size: 0.85rem;
-            border: 1px solid var(--border-color);
+            font-size: 0.78rem;
             cursor: pointer;
-            transition: all 0.2s ease;
-            background: #f8faf9;
-            color: var(--text-dark);
+            z-index: 10;
+            border: 3px solid var(--bg-light);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.12);
+            transition: 0.2s;
         }
-        .tool-btn:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,0.05); }
-        .tool-btn-share:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
-        .tool-btn-items:hover { background: var(--info); color: #fff; border-color: var(--info); }
-        .tool-btn-delete { background: var(--danger-light); color: var(--danger); border-color: rgba(217,4,41,0.1); }
-        .tool-btn-delete:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+        .btn-remove:hover { transform: scale(1.1); background: #b3243c; }
 
-        .balance-strip {
-            background: #fafcfb;
-            border-radius: 10px;
-            padding: 8px 12px;
-            font-size: 0.76rem;
+        .add-item-btn {
+            background: var(--success-light);
+            color: var(--primary-dark);
+            border: 2px dashed var(--primary);
+            width: calc(100% - 30px);
+            margin: 10px 15px;
+            padding: 14px;
+            border-radius: 16px;
             font-weight: 700;
+            font-size: 0.92rem;
+            transition: all 0.2s ease;
+        }
+        .add-item-btn:hover { background: var(--primary); color: white; transform: translateY(-1px); }
+
+        /* ===== RETURN SWITCH ===== */
+        .return-check-container {
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            border: 1px dashed var(--border-color);
-            flex-wrap: wrap;
+            justify-content: center;
+            background: var(--danger-light);
+            padding: 11px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--danger-border);
+            height: calc(100% - 28px);
+            margin-top: auto;
+        }
+        .form-check-input.item-is-return:checked { background-color: var(--danger); border-color: var(--danger); }
+
+        /* ===== SUBTOTAL ===== */
+        .subtotal-display { background: var(--success-light); border-radius: 12px; padding: 8px 12px; border: 1px solid #cdeadb; color: var(--primary-dark); font-weight: 800; }
+        .item-subtotal { color: var(--primary-dark) !important; }
+
+        /* ===== FOOTER / SUMMARY ===== */
+        .invoice-footer {
+            background: var(--white);
+            padding: 22px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 -6px 20px rgba(0,0,0,0.02);
+            border-radius: var(--radius-lg);
+            width: calc(100% - 30px);
+            max-width: 600px;
+            margin: 26px auto 20px auto;
+        }
+
+        .total-container { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 10px 14px; border-radius: var(--radius-md); border: 1px solid transparent; }
+        .total-container-border { border: 1px dashed var(--border-color); background: #fafcfb; }
+
+        .amount { font-weight: 700; }
+        .amount.total { color: var(--text-dark); font-size: 1.22rem; font-weight: 800; }
+        .amount.paid-cash { color: var(--primary); font-size: 1.05rem; }
+        .amount.paid-wallet { color: var(--wallet-color); font-size: 1.05rem; }
+        .amount.pending { color: var(--danger); font-size: 1.3rem; font-weight: 800; }
+
+        .btn-save {
+            background: var(--primary-gradient);
+            color: #fff;
+            border: none;
+            padding: 14px 0;
+            border-radius: 16px;
+            font-weight: 700;
+            font-size: 1rem;
+            width: 100%;
+            box-shadow: 0 5px 16px rgba(11, 94, 61, 0.18);
+            transition: all 0.2s ease;
+            margin-top: 4px;
+        }
+        .btn-save:hover { opacity: 0.96; transform: translateY(-1px); box-shadow: 0 7px 20px rgba(11, 94, 61, 0.22); }
+        .btn-save:disabled { opacity: .75; transform: none; cursor: not-allowed; }
+
+        /* ===== SECTION DIVIDER LABEL ===== */
+        .section-label {
+            font-size: .72rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            padding: 14px 6px 4px;
+            display: flex;
+            align-items: center;
             gap: 6px;
         }
+        .section-label::after { content:''; flex:1; height:1px; background: var(--border-color); }
 
-        .details-box {
-            background: #fafcfb;
-            border-radius: 12px;
-            padding: 10px;
-            margin-top: 12px;
-            border: 1px solid var(--border-color);
+        @media (max-width: 480px) {
+            .data-card, .item-row { border-radius: 16px; padding: 14px; }
         }
-        .details-table { margin: 0; font-size: 0.78rem; }
-        .details-table th { font-weight: 700; color: var(--text-muted); border-bottom: 2px solid var(--border-color); }
-        .details-table td { font-weight: 600; padding: 6px 4px; vertical-align: middle; }
-
-        /* ============================================================
-           THERMAL PRINT
-           ============================================================ */
-        #thermalInvoiceHidden {
-            position: absolute; left: -9999px; top: -9999px;
-            width: 400px; background: #ffffff; color: #000000; padding: 25px;
-            box-sizing: border-box; direction: rtl; font-family: 'Cairo', sans-serif;
-        }
-        .term-header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 12px; margin-bottom: 12px; }
-        .term-title { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: 0.5px; }
-        .term-table { width: 100%; font-size: 13px; margin-top: 12px; border-collapse: collapse; }
-        .term-table th { border-bottom: 1px dashed #000; padding: 6px 0; text-align: right; font-weight: bold; }
-        .term-table td { padding: 8px 0; border-bottom: 1px dotted #ccc; vertical-align: middle; }
-        .term-footer { margin-top: 15px; border-top: 2px dashed #000; padding-top: 12px; font-size: 14px; }
-        .term-row { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 6px; }
-
-        .loading-wrapper { text-align: center; padding: 70px 0; color: var(--primary); }
-        .loading-wrapper p { font-weight: 700; margin-top: 12px; font-size: 0.9rem; }
     </style>
 </head>
 <body>
 
+<datalist id="productsData"></datalist>
+
 <div class="header">
-    <div class="header-start">
-        <a href="purchase-mgmt.html" class="back-btn"><i class="fas fa-arrow-right fs-5"></i></a>
-        <h6>سجل فواتير المشتريات</h6>
+    <div class="d-flex align-items-center gap-3">
+        <i class="fas fa-arrow-right clickable-icon text-white fs-5" id="btnBack" title="رجوع"></i>
+        <i class="fas fa-home clickable-icon text-white fs-5" id="btnHome" title="الرئيسية"></i>
     </div>
-    <div class="header-end">
-        <a href="index1.html" class="hdr-home-link">
-            <i class="fas fa-home"></i>
-            <span>الرئيسية</span>
-        </a>
-        <i class="fas fa-sync-alt sync-icon fs-5" onclick="init()" title="تحديث البيانات"></i>
-    </div>
+    <h6 class="fw-bold m-0" id="mainTitle">فاتورة شراء جديدة</h6>
+    <div id="statusBadge" class="badge-new">جديدة</div>
 </div>
 
-<div class="action-toolbar">
-    <a href="new-purchase-invoice.html" class="toolbar-btn toolbar-btn-add">
-        <i class="fas fa-plus"></i> فاتورة جديدة
-    </a>
-    <button onclick="exportToExcel()" class="toolbar-btn toolbar-btn-excel">
-        <i class="fas fa-file-excel"></i> تصدير Excel
+<div class="container-fluid px-3 mt-2">
+    <div class="data-card">
+        <div class="row g-3">
+            <div class="col-6 col-md-3">
+                <label><i class="fas fa-calendar-day"></i> تاريخ الفاتورة</label>
+                <input type="date" id="invDate" class="form-control">
+            </div>
+            <div class="col-6 col-md-3">
+                <label><i class="fas fa-truck-field"></i> اسم المورد المستحق</label>
+                <select id="supplierSelect" class="form-select">
+                    <option value="">جاري تحميل الموردين...</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-3">
+                <label class="text-success fw-bold"><i class="fas fa-money-bill-wave"></i> سداد نقدي (كاش)</label>
+                <input type="number" step="0.01" id="cashAmount" class="form-control border-success text-center fw-bold text-success" value="0.00" onfocus="if(this.value=='0.00'||this.value=='0')this.value=''">
+            </div>
+            <div class="col-6 col-md-3">
+                <label style="color: var(--wallet-color);"><i class="fas fa-mobile-screen-button"></i> سداد محفظة إلكترونية</label>
+                <input type="number" step="0.01" id="walletAmount" class="form-control text-center fw-bold" style="border-color: var(--wallet-color); color: var(--wallet-color);" value="0.00" onfocus="if(this.value=='0.00'||this.value=='0')this.value=''">
+            </div>
+        </div>
+    </div>
+
+    <div class="section-label"><i class="fas fa-list-ul"></i> أصناف الفاتورة</div>
+    <div id="itemsList" class="mt-1"></div>
+
+    <button type="button" class="add-item-btn" id="addItemBtn">
+        <i class="fas fa-plus me-1"></i> إضافة صنف جديد للفاتورة
     </button>
-    <button onclick="deleteAllInvoices()" class="toolbar-btn toolbar-btn-del">
-        <i class="fas fa-trash-alt"></i> مسح السجل
-    </button>
 </div>
 
-<div class="container-fluid p-0">
-    <div class="stats-grid">
-        <div class="stat-card purchase">
-            <span class="stat-label">صافي الشراء</span>
-            <span class="stat-val text-dark force-ltr" id="totalPurchase">0.00</span>
-        </div>
-        <div class="stat-card paid">
-            <span class="stat-label">إجمالي المدفوع</span>
-            <span class="stat-val text-success force-ltr" id="totalPaid">0.00</span>
-        </div>
-        <div class="stat-card pending">
-            <span class="stat-label">إجمالي المتبقي</span>
-            <span class="stat-val text-danger force-ltr" id="totalPending">0.00</span>
-        </div>
+<div class="invoice-footer" id="invoiceSummaryCard">
+    <div class="total-container">
+        <span class="small text-muted fw-bold"><i class="fas fa-boxes"></i> عدد البنود الحالية:</span>
+        <span class="fw-bold text-dark fs-6" id="itemsCount">0</span>
     </div>
-
-    <div class="search-box">
-        <i class="fas fa-search"></i>
-        <input type="text" id="searchInput" placeholder="ابحث باسم المورد أو تاريخ الفاتورة..." onkeyup="searchInvoices()">
+    <div class="total-container total-container-border">
+        <span class="small text-muted fw-bold"><i class="fas fa-wallet"></i> الحساب السابق (قبل الفاتورة):</span>
+        <span class="amount text-primary fs-6 fw-bold" id="displayPreviousBalance">0.00</span>
     </div>
-
-    <div id="invoicesContainer">
-        <div class="loading-wrapper">
-            <div class="spinner-border" role="status" style="width: 2.2rem; height: 2.2rem;"></div>
-            <p>جاري تجميع حركات الموردين الحالية والتاريخية...</p>
-        </div>
+    <div class="total-container">
+        <span class="small text-muted fw-bold"><i class="fas fa-calculator"></i> إجمالي الفاتورة الصافي:</span>
+        <span class="amount total" id="grossTotal">0.00</span>
     </div>
+    <div class="total-container">
+        <span class="small text-success fw-bold"><i class="fas fa-money-bill-check"></i> مدفوع نقداً (كاش):</span>
+        <span class="amount paid-cash" id="displayCash">0.00</span>
+    </div>
+    <div class="total-container">
+        <span class="small fw-bold" style="color: var(--wallet-color);"><i class="fas fa-mobile-button"></i> مدفوع محفظة:</span>
+        <span class="amount paid-wallet" id="displayWallet">0.00</span>
+    </div>
+    <div class="total-container" style="background: #fff5f6; border: 1px solid #ffe1e6;">
+        <span class="small text-danger fw-bold"><i class="fas fa-receipt"></i> الصافي الآجل للمستند الحالى:</span>
+        <span class="amount pending" id="netTotal">0.00</span>
+    </div>
+    <div class="total-container" style="background: #eefdf4; border: 1px solid #bbf7d0;">
+        <span class="small text-success fw-bold"><i class="fas fa-file-invoice-dollar"></i> إجمالي الرصيد المتبقي الكلي للمورد:</span>
+        <span class="amount text-success fw-bold fs-5" id="totalSupplierBalance">0.00</span>
+    </div>
+    <button class="btn-save" id="btnSaveInvoice">حفظ وترحيل الفاتورة للسيستم</button>
 </div>
-
-<div id="thermalInvoiceHidden"></div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, addDoc, doc, getDoc, updateDoc, increment, query, where, serverTimestamp, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -423,107 +317,133 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    let allInvoices = [];
-    let suppliersBase = {}; 
-    let globalVouchers = [];
+    const urlParams = new URLSearchParams(window.location.search);
+    const editId = urlParams.get('edit');
+    const orderId = urlParams.get('orderId');
 
-    function formatEnglishDate(dateStr) {
-        if (!dateStr) return 'No Date';
-        return dateStr.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
-    }
+    let allInventory = [];
+    let suppliersBase = {};
+    let allInvoicesHistory = [];
+    let globalVouchersHistory = [];
+    let isDataChanged = false;
+    let isSubmitting = false;
+    let oldInvoiceData = null;
 
-    function generateCurrencyHTML(value, forceColor = '') {
-        const isNegative = value < 0;
-        const absoluteFormatted = Math.abs(value).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-        const styleColor = forceColor ? `color:${forceColor}` : '';
-        
-        if (isNegative) {
-            return `<span class="force-ltr" style="${styleColor}">-${absoluteFormatted}</span>`;
+    window.addEventListener('beforeunload', (e) => {
+        if (isDataChanged && !isSubmitting) {
+            e.preventDefault();
+            e.returnValue = "هل تريد الخروج قبل الحفظ؟";
         }
-        return `<span class="force-ltr" style="${styleColor}">${absoluteFormatted}</span>`;
+    });
+
+    function safeNavigate(targetUrl, useHistory = false) {
+        if (isDataChanged) {
+            if (!confirm("هل تريد الخروج قبل الحفظ؟ ستخسر المدخلات.")) return;
+        }
+        if (useHistory) window.history.back();
+        else window.location.href = targetUrl;
     }
 
-    window.init = async function() {
+    document.getElementById('btnBack').addEventListener('click', () => safeNavigate('purchase-invoices-list.html'));
+    document.getElementById('btnHome').addEventListener('click', () => safeNavigate('index1.html'));
+
+    const cashInput = document.getElementById('cashAmount');
+    const walletInput = document.getElementById('walletAmount');
+
+    cashInput.addEventListener('input', () => { window.calculateTotal(); });
+    walletInput.addEventListener('input', () => { window.calculateTotal(); });
+
+    // مراجعة وهيكلة عملية جلب البيانات لتعمل تحت أي ظرف ومستعرض بدقة
+    async function loadData() {
+        const supSelect = document.getElementById('supplierSelect');
+
+        // 1. جلب الموردين بشكل فوري ومستقل تماماً للتأكد من تعبئتها أولاً
         try {
             const supSnap = await getDocs(collection(db, "suppliers"));
+            supSelect.innerHTML = '<option value="">-- اختر اسم المورد المستحق --</option>';
             suppliersBase = {};
             supSnap.forEach(d => {
                 const data = d.data();
                 suppliersBase[d.id] = { name: data.name, openingBalance: Number(data.openingBalance) || 0 };
+                supSelect.innerHTML += `<option value="${d.id}">${data.name}</option>`;
+            });
+        } catch (err) {
+            console.error("خطأ جلب الموردين: ", err);
+            supSelect.innerHTML = '<option value="">❌ فشل تحميل قائمة الموردين</option>';
+        }
+
+        // 2. جلب الحركات المالية المتبقية والمخازن بالتوازي
+        try {
+            const [transSnap, voucherSnap, invSnap] = await Promise.all([
+                getDocs(query(collection(db, "supplier_transactions"), orderBy("timestamp", "asc"))),
+                getDocs(collection(db, "transactions")),
+                getDocs(collection(db, "inventory"))
+            ]);
+
+            globalVouchersHistory = [];
+            voucherSnap.forEach(v => {
+                globalVouchersHistory.push({ id: v.id, ...v.data() });
             });
 
-            const [transSnap, voucherSnap] = await Promise.all([
-                getDocs(query(collection(db, "supplier_transactions"), orderBy("timestamp", "asc"))), 
-                getDocs(collection(db, "transactions"))
-            ]);
-            
-            globalVouchers = [];
-            voucherSnap.forEach(v => { globalVouchers.push({ id: v.id, ...v.data() }); });
-
-            allInvoices = [];
-            let totalPurchaseSum = 0;
-            let totalReturnSum = 0;
-            let totalDirectPaid = 0; 
-
+            allInvoicesHistory = [];
             transSnap.forEach(doc => {
-                const data = { id: doc.id, ...doc.data() };
+                const data = doc.data();
                 const amt = Number(data.grossTotal) || Number(data.total) || 0;
                 const cashP = Number(data.cashPaid || 0);
                 const walletP = Number(data.walletPaid || 0);
                 const directPaid = data.totalPaid ? Number(data.totalPaid) : (cashP + walletP || Number(data.paidAmount) || 0);
 
-                data.displayGross = amt;
-                data.displayNetPending = amt - directPaid;
-                data.computedCashPaid = cashP;
-                data.computedWalletPaid = walletP;
-                data.computedTotalPaid = directPaid;
-
-                if (data.type === "شراء" || data.type === "فاتورة شراء") {
-                    data.isReturn = false;
-                    totalPurchaseSum += amt;
-                    totalDirectPaid += directPaid; 
-                } else if (data.type === "مرتجع شراء") {
-                    data.isReturn = true;
-                    totalReturnSum += amt;
-                }
-                allInvoices.push(data);
+                allInvoicesHistory.push({
+                    id: doc.id,
+                    ...data,
+                    displayGross: amt,
+                    displayNetPending: amt - directPaid
+                });
             });
 
-            // ── مراجعة وحل اللبس المالي: استبعاد السندات التي تم توليدها تلقائياً مع الفواتير لمنع التكرار المزدوج
-            let totalVoucherPayments = 0;
-            globalVouchers.forEach(v => {
-                if (v.type === "صرف" || v.actionType === "سداد مورد" || String(v.details || '').includes("سداد")) {
-                    if (!v.invoiceId) { 
-                        totalVoucherPayments += Number(v.amount || 0);
-                    }
-                }
+            // تعبئة مصفوفة وقائمة المخزن الكلية للأصناف
+            allInventory = [];
+            const prodDataList = document.getElementById('productsData');
+            prodDataList.innerHTML = "";
+            invSnap.forEach(d => {
+                const data = d.data();
+                allInventory.push({ id: d.id, ...data });
+                prodDataList.innerHTML += `<option value="${data.name}">`;
             });
 
-            const netPurchase = totalPurchaseSum - totalReturnSum;
-            const totalPaid = totalDirectPaid + totalVoucherPayments;
-            const finalPending = netPurchase - totalPaid;
-
-            document.getElementById('totalPurchase').innerHTML = generateCurrencyHTML(netPurchase);
-            document.getElementById('totalPaid').innerHTML = generateCurrencyHTML(totalPaid);
-            document.getElementById('totalPending').innerHTML = generateCurrencyHTML(finalPending > 0 ? finalPending : 0);
-            
-            allInvoices.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-            renderInvoices(allInvoices);
-        } catch (error) {
-            console.error(error);
-            document.getElementById('invoicesContainer').innerHTML = '<div class="text-danger text-center p-5 fw-bold">حدث خطأ غير متوقع أثناء معالجة البيانات.</div>';
+        } catch (err) {
+            console.error("خطأ جلب المخزن والتاريخ: ", err);
         }
-    };
+
+        supSelect.addEventListener('change', () => { window.calculateTotal(); });
+
+        if (editId) {
+            await loadInvoiceForEdit();
+        } else if (orderId) {
+            await loadOrderData(orderId);
+        } else {
+            addNewItemRow();
+        }
+
+        window.calculateTotal();
+
+        setTimeout(() => {
+            document.querySelectorAll('input, select').forEach(el => {
+                el.addEventListener('change', () => { isDataChanged = true; });
+                el.addEventListener('input', () => { isDataChanged = true; });
+            });
+        }, 800);
+    }
 
     function calculateHistoricalPreviousBalance(supId, invoiceTimestamp) {
+        if (!supId || !suppliersBase[supId]) return 0;
         const supplier = suppliersBase[supId];
-        if (!supplier) return 0;
 
         let debt = 0;
         let credit = 0;
-        const targetSeconds = invoiceTimestamp?.seconds || 0;
+        const targetSeconds = invoiceTimestamp?.seconds || (Date.now() / 1000);
 
-        globalVouchers.forEach(v => {
+        globalVouchersHistory.forEach(v => {
             if (v.partyId === supId && v.timestamp && v.timestamp.seconds < targetSeconds) {
                 const amt = Number(v.amount) || 0;
                 if (v.type === "صرف") credit += amt;
@@ -531,7 +451,9 @@
             }
         });
 
-        allInvoices.forEach(inv => {
+        allInvoicesHistory.forEach(inv => {
+            if (editId && inv.id === editId) return;
+
             if (inv.supplierId === supId && inv.timestamp && inv.timestamp.seconds < targetSeconds) {
                 const amt = inv.displayGross;
                 if (inv.type === "شراء" || inv.type === "فاتورة شراء") debt += amt;
@@ -542,314 +464,353 @@
         return (supplier.openingBalance + debt) - credit;
     }
 
-    function renderInvoices(dataList) {
-        const container = document.getElementById('invoicesContainer');
-        if (dataList.length === 0) {
-            container.innerHTML = '<div class="text-center text-muted py-5 fw-bold">لا تتوفر فواتير مسجلة في السجل حالياً</div>';
-            return;
-        }
+    async function loadInvoiceForEdit() {
+        document.getElementById('mainTitle').innerText = "تعديل فاتورة شراء";
+        document.getElementById('statusBadge').innerText = "تعديل";
+        document.getElementById('statusBadge').className = "badge-new bg-warning text-dark";
 
-        container.innerHTML = dataList.map(inv => {
-            const supName = suppliersBase[inv.supplierId] ? suppliersBase[inv.supplierId].name : 'مورد غير معروف';
-            const historicalPrevBalance = calculateHistoricalPreviousBalance(inv.supplierId, inv.timestamp);
-            const formattedDate = formatEnglishDate(inv.date);
+        const invRef = doc(db, "supplier_transactions", editId);
+        const invSnap = await getDoc(invRef);
 
-            let badgeClass = 'type-credit';
-            let badgeText = '<i class="fas fa-user-clock"></i>آجل';
-
-            if (inv.isReturn) {
-                badgeClass = 'type-return';
-                badgeText = '<i class="fas fa-undo-alt"></i>مرتجع';
-            } else if (inv.computedCashPaid > 0 && inv.computedWalletPaid > 0) {
-                badgeClass = 'type-mixed';
-                badgeText = '<i class="fas fa-wallet"></i>مختلط';
-            } else if (inv.computedCashPaid > 0 || inv.paymentType === 'cash') {
-                badgeClass = 'type-cash';
-                badgeText = '<i class="fas fa-money-bill-wave"></i>نقدي';
-            } else if (inv.computedWalletPaid > 0 || inv.paymentType === 'wallet') {
-                badgeClass = 'type-wallet';
-                badgeText = '<i class="fas fa-mobile-alt"></i>محفظة';
+        if (invSnap.exists()) {
+            oldInvoiceData = invSnap.data();
+            if (oldInvoiceData.supplierId) {
+                document.getElementById('supplierSelect').value = oldInvoiceData.supplierId;
             }
+            document.getElementById('invDate').value = oldInvoiceData.date;
+            document.getElementById('cashAmount').value = oldInvoiceData.cashPaid || '0.00';
+            document.getElementById('walletAmount').value = oldInvoiceData.walletPaid || '0.00';
 
-            const totalInvoiceVal = Number(inv.displayGross);
-            const netPendingVal = Number(inv.isReturn ? inv.displayGross : inv.displayNetPending);
-            const finalSupplierTotal = historicalPrevBalance + (inv.isReturn ? -totalInvoiceVal : inv.displayNetPending);
-
-            const targetPriceColor = inv.isReturn ? 'var(--danger)' : (inv.displayNetPending > 0 ? 'var(--danger)' : 'var(--primary)');
-            
-            // تصحيح تصنيف الإشارات السالبة والموجبة محاسبياً ( دائن / مدين )
-            const totalStatusLabel = finalSupplierTotal < 0 ? 'دائن' : 'مدين';
-            const totalStatusClass = finalSupplierTotal < 0 ? 'text-success' : 'text-danger';
-
-            return `
-            <div class="invoice-card ${inv.isReturn ? 'return-style' : 'purchase-style'}" id="card-${inv.id}">
-                <div class="inv-header">
-                    <div class="inv-header-info" onclick="window.location.href='new-purchase-invoice.html?edit=${inv.id}'">
-                        <p class="sup-name">${supName}</p>
-                        <span class="inv-date"><i class="far fa-calendar-alt me-1"></i>${formattedDate}</span>
-                    </div>
-                    <span class="inv-badge ${badgeClass}">${badgeText}</span>
-                </div>
-
-                <div class="inv-actions-row">
-                    <div class="inv-tools">
-                        <button class="tool-btn tool-btn-share" onclick="shareAsThermalImageDirectly('${inv.id}')" title="مشاركة الفاتورة">
-                            <i class="fas fa-share-alt"></i>
-                        </button>
-                        <button class="tool-btn tool-btn-items" onclick="toggleInvoiceDetails('${inv.id}')" title="عرض الأصناف">
-                            <i class="fas fa-cubes"></i>
-                        </button>
-                        <button class="tool-btn tool-btn-delete" onclick="deleteSingleInvoice('${inv.id}')" title="حذف الفاتورة">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    </div>
-
-                    <div class="price-tag" onclick="window.location.href='new-purchase-invoice.html?edit=${inv.id}'">
-                        <span class="price-label">${inv.isReturn ? 'قيمة المرتجع' : 'متبقي الفاتورة'}</span>
-                        <span class="price-val">
-                            ${generateCurrencyHTML(inv.isReturn ? -netPendingVal : netPendingVal, targetPriceColor)}
-                            <small style="font-size:0.65rem; font-weight:700; color:${targetPriceColor};">EGP</small>
-                        </span>
-                    </div>
-                </div>
-
-                <div class="balance-strip text-dark">
-                    <span>إجمالي: <b>${generateCurrencyHTML(totalInvoiceVal, '#6c757d')}</b></span>
-                    <span>السابق: <b>${generateCurrencyHTML(historicalPrevBalance, 'var(--info)')}</b></span>
-                    <span>الصافي (${totalStatusLabel}): <b class="${totalStatusClass}">${generateCurrencyHTML(finalSupplierTotal)}</b></span>
-                </div>
-
-                <div id="details_${inv.id}" class="details-box" style="display:none;">
-                    <table class="table table-sm details-table table-borderless">
-                        <thead>
-                            <tr>
-                                <th>الصنف</th>
-                                <th class="text-center">الكمية</th>
-                                <th class="text-center">السعر</th>
-                                <th class="text-start">الإجمالي</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${(inv.items || []).map(item => `
-                                <tr>
-                                    <td class="text-dark fw-bold">${item.name}</td>
-                                    <td class="text-center text-secondary">${item.qty || item.returnQty || 0}</td>
-                                    <td class="text-center force-ltr">${Number(item.buy || 0).toFixed(2)}</td>
-                                    <td class="text-start text-dark fw-bold force-ltr">${((item.qty || item.returnQty || 0) * Number(item.buy || 0)).toFixed(2)}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            </div>`;
-        }).join('');
+            document.getElementById('itemsList').innerHTML = "";
+            if (oldInvoiceData.items && oldInvoiceData.items.length > 0) {
+                oldInvoiceData.items.forEach(item => { addNewItemRow(item); });
+            }
+            window.calculateTotal();
+        }
     }
 
-    window.deleteSingleInvoice = async function(invoiceId) {
-        if (!confirm('هل تريد حذف هذه الفاتورة؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+    async function loadOrderData(id) {
         try {
-            await deleteDoc(doc(db, "supplier_transactions", invoiceId));
-            const card = document.getElementById('card-' + invoiceId);
-            if (card) {
-                card.style.transition = 'opacity 0.3s, transform 0.3s';
-                card.style.opacity = '0';
-                card.style.transform = 'scale(0.97)';
-                setTimeout(() => card.remove(), 300);
-            }
-            allInvoices = allInvoices.filter(i => i.id !== invoiceId);
-            recalcStats();
-        } catch (e) {
-            alert('خطأ أثناء الحذف: ' + e.message);
-        }
-    };
-
-    function recalcStats() {
-        let totalPurchaseSum = 0, totalReturnSum = 0, totalDirectPaid = 0;
-        allInvoices.forEach(inv => {
-            if (inv.type === "شراء" || inv.type === "فاتورة شراء") {
-                totalPurchaseSum += inv.displayGross;
-                totalDirectPaid += inv.computedTotalPaid;
-            } else if (inv.type === "مرتجع شراء") {
-                totalReturnSum += inv.displayGross;
-            }
-        });
-        let totalVoucherPayments = 0;
-        globalVouchers.forEach(v => {
-            if (v.type === "صرف" || v.actionType === "سداد مورد" || String(v.details || '').includes("سداد")) {
-                if (!v.invoiceId) {
-                    totalVoucherPayments += Number(v.amount || 0);
+            const orderSnap = await getDoc(doc(db, "purchase_orders", id));
+            if (orderSnap.exists()) {
+                const data = orderSnap.data();
+                if (data.supplierId) {
+                    document.getElementById('supplierSelect').value = data.supplierId;
                 }
+                document.getElementById('itemsList').innerHTML = "";
+                data.items.forEach(item => {
+                    addNewItemRow({ name: item.name, qty: item.qty, returnQty: item.returnQty || 0, buy: item.buy || 0, unitName: item.unitName || 'كرتونة' });
+                });
+                window.calculateTotal();
             }
-        });
-        const netPurchase   = totalPurchaseSum - totalReturnSum;
-        const totalPaid     = totalDirectPaid + totalVoucherPayments;
-        const finalPending  = Math.max(0, netPurchase - totalPaid);
-        
-        document.getElementById('totalPurchase').innerHTML = generateCurrencyHTML(netPurchase);
-        document.getElementById('totalPaid').innerHTML     = generateCurrencyHTML(totalPaid);
-        document.getElementById('totalPending').innerHTML  = generateCurrencyHTML(finalPending);
+        } catch (e) { console.error(e); }
     }
 
-    window.shareAsThermalImageDirectly = async (invoiceId) => {
-        const inv = allInvoices.find(i => i.id === invoiceId);
-        if (!inv) return;
+    window.addNewItemRow = (itemData = null) => {
+        const id = Date.now() + Math.random();
+        const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
+        const isReturnChecked = itemData && itemData.returnQty > 0;
+        isDataChanged = true;
 
-        const supName = suppliersBase[inv.supplierId] ? suppliersBase[inv.supplierId].name : 'مورد غير معروف';
-        const historicalPrevBalance = calculateHistoricalPreviousBalance(inv.supplierId, inv.timestamp);
-        const items = inv.items || [];
-        const hiddenDiv = document.getElementById('thermalInvoiceHidden');
-        const formattedDate = formatEnglishDate(inv.date);
-
-        let rowsHtml = "";
-        items.forEach(item => {
-            const isItemReturn = item.returnQty > 0 || inv.isReturn;
-            const qty = item.qty || item.returnQty || 0;
-            const unit = item.unitName || 'كرتونة';
-            const price = item.buy || 0;
-            const subtotal = qty * price;
-            rowsHtml += `
-                <tr>
-                    <td style="padding: 8px 0; font-size:14px; color:#000;">
-                        <b>${item.name}</b><br>
-                        <span style="color:#555; font-size:12px;">(${isItemReturn ? '-' : ''}${qty} ${unit} × ${price.toFixed(2)} EGP)</span>
-                    </td>
-                    <td style="text-align: left; padding: 8px 0; font-family:'Montserrat', sans-serif; font-weight:800; font-size:14px;" dir="ltr">
-                        ${isItemReturn ? '-' : ''}${subtotal.toFixed(2)}
-                    </td>
-                </tr>`;
-        });
-
-        const grossTotal = Number(inv.displayGross);
-        const cashPaid = Number(inv.computedCashPaid || 0);
-        const walletPaid = Number(inv.computedWalletPaid || 0);
-        const netPending = Number(inv.displayNetPending);
-        const finalSupplierTotal = historicalPrevBalance + (inv.isReturn ? -grossTotal : netPending);
-
-        let paymentDesc = "آجل الحساب";
-        if (cashPaid > 0 && walletPaid > 0) paymentDesc = "مشترك (كاش + محفظة)";
-        else if (cashPaid > 0) paymentDesc = "نقدي كاش";
-        else if (walletPaid > 0) paymentDesc = "محفظة إلكترونية";
-
-        hiddenDiv.innerHTML = `
-            <div class="term-header">
-                <p class="term-title">شركة الزيادى للتجارة</p>
-                <small style="color:#222; font-size:14px; font-weight:700;">فاتورة مراجعة مشتريات للمورد</small>
-            </div>
-            <div style="font-size: 13px; margin-bottom: 12px; border-bottom:1px dashed #000; padding-bottom:10px; line-height: 1.6;">
-                <div><b>نوع الحساب:</b> ${inv.isReturn ? 'مرتجع شراء ↩️' : 'فاتورة شراء 🧾'}</div>
-                <div><b>المورد:</b> ${supName}</div>
-                <div><b>التاريخ:</b> ${formattedDate}</div>
-                <div><b>طريقة السداد:</b> ${paymentDesc}</div>
-            </div>
-            <table class="term-table">
-                <thead><tr><th>الصنف</th><th style="text-align:left;">الإجمالي</th></tr></thead>
-                <tbody>${rowsHtml}</tbody>
-            </table>
-            <div class="term-footer">
-                <div class="term-row" style="color:#444;">
-                    <span>الحساب السابق:</span>
-                    <span dir="ltr">${historicalPrevBalance.toFixed(2)} EGP</span>
+        const html = `
+            <div class="item-row ${isReturnChecked ? 'is-return' : ''}" id="row_${id}">
+                <div class="btn-remove" onclick="this.parentElement.remove(); window.calculateTotal();">
+                    <i class="fas fa-times"></i>
                 </div>
-                <div class="term-row">
-                    <span>إجمالي الفاتورة:</span>
-                    <span dir="ltr">${inv.isReturn ? '-' : ''}${grossTotal.toFixed(2)} EGP</span>
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label><i class="fas fa-tag"></i> اسم الصنف</label>
+                        <input type="text" list="productsData" class="form-control item-name" value="${itemData ? itemData.name : ''}" placeholder="اكتب أول حرف وسيتم الإكمال فوراً...">
+                    </div>
+                    <div class="col-6 col-md-3">
+                        <label><i class="fas fa-boxes-stacked"></i> نوع الوحدة</label>
+                        <select class="form-select item-unit">
+                            <option value="كرتونة" ${currentUnit === 'كرتونة' ? 'selected' : ''}>كرتونة</option>
+                            <option value="قطعة" ${currentUnit === 'قطعة' ? 'selected' : ''}>قطعة</option>
+                        </select>
+                    </div>
+                    <div class="col-6 col-md-3 d-flex flex-column justify-content-end">
+                        <div class="return-check-container">
+                            <div class="form-check form-switch m-0 d-flex align-items-center gap-2">
+                                <input class="form-check-input item-is-return" type="checkbox" id="check_${id}" ${isReturnChecked ? 'checked' : ''}>
+                                <label class="form-check-label text-danger fw-bold m-0" for="check_${id}">تحديد كمرتجع ↩</label>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                ${cashPaid > 0 ? `<div class="term-row" style="color:#2d6a4f;"><span>المدفوع نقداً:</span><span dir="ltr">-${cashPaid.toFixed(2)} EGP</span></div>` : ''}
-                ${walletPaid > 0 ? `<div class="term-row" style="color:#0077b6;"><span>المدفوع بالمحفظة:</span><span dir="ltr">-${walletPaid.toFixed(2)} EGP</span></div>` : ''}
-                <div class="term-row" style="border-top:1px dashed #000; padding-top:6px; color:#555;">
-                    <span>صافي الآجل:</span>
-                    <span dir="ltr">${inv.isReturn ? '-' : ''}${netPending.toFixed(2)} EGP</span>
+                <div class="row g-3 mt-1">
+                    <div class="col-6 col-md-4">
+                        <label class="text-success fw-bold" id="label_qty_${id}">العدد الحالي (${currentUnit})</label>
+                        <input type="number" step="0.01" class="form-control item-qty" value="${itemData ? (isReturnChecked ? itemData.returnQty : itemData.qty) : '1'}">
+                    </div>
+                    <div class="col-6 col-md-4">
+                        <label id="label_price_${id}">سعر شراء الـ (${currentUnit})</label>
+                        <input type="number" step="0.01" class="form-control item-buy" value="${itemData ? itemData.buy : ''}" placeholder="0.00">
+                    </div>
+                    <div class="col-12 col-md-4 d-flex flex-column justify-content-end align-items-end">
+                        <label class="w-100 text-start"><i class="fas fa-coins"></i> الصافي الفرعي للبنود</label>
+                        <div class="subtotal-display w-100 text-center">
+                            <input type="text" class="item-subtotal border-0 bg-transparent fw-bold text-center w-100" readonly value="0.00">
+                        </div>
+                    </div>
                 </div>
-                <div class="term-row" style="border-top:2px dashed #000; padding-top:8px; font-size:17px; color:#0b5e3d;">
-                    <span>إجمالي المتبقي الكلي:</span>
-                    <span dir="ltr">${finalSupplierTotal.toFixed(2)} EGP</span>
-                </div>
-            </div>
-            <div style="text-align:center; margin-top:25px; font-size:12px; color:#333; border-top:1px dashed #000; padding-top:10px; font-weight:700;">
-                إدارة وتصميم مالي / أحمد محمود الزيادى
             </div>`;
+        document.getElementById('itemsList').insertAdjacentHTML('beforeend', html);
+        setupRowEvents(id);
+        window.calculateTotal();
+    }
 
-        try {
-            const canvas = await html2canvas(hiddenDiv, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
-            canvas.toBlob(async (blob) => {
-                if (!blob) return alert("فشل تصدير الصورة");
-                const file = new File([blob], `Invoice_${invoiceId}.png`, { type: "image/png" });
-                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({ files: [file], title: `فاتورة شركة الزيادى للمورد ${supName}` });
-                } else {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `فاتورة_${supName}.png`;
-                    a.click();
-                }
-            }, "image/png");
-        } catch (error) {
-            alert("خطأ أثناء توليد الفاتورة: " + error.message);
-        }
-    };
+    function setupRowEvents(id) {
+        const row = document.getElementById(`row_${id}`);
+        const nameInput = row.querySelector('.item-name');
+        const unitSelect = row.querySelector('.item-unit');
+        const returnCheck = row.querySelector('.item-is-return');
 
-    window.searchInvoices = () => {
-        const term = document.getElementById('searchInput').value.toLowerCase();
-        const filtered = allInvoices.filter(inv => {
-            const name = suppliersBase[inv.supplierId] ? suppliersBase[inv.supplierId].name.toLowerCase() : '';
-            return name.includes(term) || (inv.date && inv.date.includes(term));
+        returnCheck.addEventListener('change', (e) => {
+            if(e.target.checked) row.classList.add('is-return');
+            else row.classList.remove('is-return');
+            window.calculateTotal();
         });
-        renderInvoices(filtered);
-    };
 
-    window.deleteAllInvoices = async () => {
-        if (!confirm("⚠️ تحذير: هل أنت متأكد من مسح كافة سجلات الفواتير؟ لن تستطيع استرجاعها.")) return;
-        try {
-            const snap = await getDocs(collection(db, "supplier_transactions"));
-            if (snap.empty) return alert("السجل فارغ بالفعل.");
-            for (const d of snap.docs) {
-                await deleteDoc(doc(db, "supplier_transactions", d.id));
+        unitSelect.addEventListener('change', (e) => {
+            const val = e.target.value;
+            document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (${val})`;
+            document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (${val})`;
+            window.calculateTotal();
+        });
+
+        // آلية الإكمال التلقائي المعدلة والمضمونة (تعتمد على الفحص الفوري للمصفوفة بالأحرف الأولى)
+        nameInput.addEventListener('keyup', (e) => {
+            // تجاهل أزرار التحكم مثل مسح الحروف أو الانتقال للحفاظ على تجربة كتابة سلسلة
+            if (["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+
+            const inputVal = e.target.value;
+            if (!inputVal || inputVal.trim() === "") return;
+
+            // البحث داخل مصفوفة الأصناف الكلية التي جُلبت من السيرفر
+            const match = allInventory.find(p => p.name.toLowerCase().startsWith(inputVal.toLowerCase()));
+
+            if (match && match.name !== inputVal) {
+                const startSelection = inputVal.length;
+                e.target.value = match.name;
+
+                // تحديد النص المتبقي المكمل تلقائياً لتسهيل المتابعة أو الحذف
+                e.target.setSelectionRange(startSelection, match.name.length);
+
+                // تعبئة الحقول الأساسية فورياً وتحديث الحسابات
+                row.querySelector('.item-buy').value = match.buy || 0;
+                unitSelect.value = "كرتونة";
+                document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (كرتونة)`;
+                document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (كرتونة)`;
+                window.calculateTotal();
             }
-            alert("تم إفراغ السجل بنجاح ✅");
-            init();
-        } catch (e) {
-            alert("خطأ: " + e.message);
+        });
+
+        nameInput.addEventListener('change', (e) => {
+            const found = allInventory.find(p => p.name === e.target.value);
+            if(found) {
+                row.querySelector('.item-buy').value = found.buy || 0;
+                unitSelect.value = "كرتونة";
+                unitSelect.dispatchEvent(new Event('change'));
+            } else if (e.target.value !== "") {
+                alert("عذرًا، هذا الصنف غير مسجل بالنظام. يرجى اختيار صنف صحيح من القائمة المقترحة.");
+                e.target.value = "";
+            }
+            window.calculateTotal();
+        });
+
+        row.querySelectorAll('input, select').forEach(input => {
+            input.addEventListener('input', window.calculateTotal);
+            input.addEventListener('change', window.calculateTotal);
+        });
+    }
+
+    window.calculateTotal = () => {
+        let grossTotal = 0;
+        const rows = document.querySelectorAll('.item-row');
+        document.getElementById('itemsCount').innerText = rows.length;
+
+        rows.forEach(row => {
+            const qty = parseFloat(row.querySelector('.item-qty').value) || 0;
+            const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
+            const isReturn = row.querySelector('.item-is-return').checked;
+
+            const sub = qty * buy * (isReturn ? -1 : 1);
+            const subEl = row.querySelector('.item-subtotal');
+            subEl.value = sub.toFixed(2);
+            subEl.style.color = isReturn ? 'var(--danger)' : 'var(--primary-dark)';
+            grossTotal += sub;
+        });
+
+        document.getElementById('grossTotal').innerText = grossTotal.toFixed(2);
+
+        let cashVal = parseFloat(cashInput.value) || 0;
+        let walletVal = parseFloat(walletInput.value) || 0;
+
+        let totalPaid = cashVal + walletVal;
+        let pendingVal = grossTotal - totalPaid;
+
+        document.getElementById('displayCash').innerText = cashVal.toFixed(2);
+        document.getElementById('displayWallet').innerText = walletVal.toFixed(2);
+        document.getElementById('netTotal').innerText = pendingVal.toFixed(2);
+
+        const supplierId = document.getElementById('supplierSelect').value;
+        let prevBalance = 0;
+
+        if (supplierId && suppliersBase[supplierId]) {
+            const targetTimestamp = editId ? oldInvoiceData?.timestamp : null;
+            prevBalance = calculateHistoricalPreviousBalance(supplierId, targetTimestamp);
         }
+        document.getElementById('displayPreviousBalance').innerText = prevBalance.toFixed(2);
+
+        let totalSupplierFinal = prevBalance + pendingVal;
+        document.getElementById('totalSupplierBalance').innerText = totalSupplierFinal.toFixed(2);
     };
 
-    window.exportToExcel = () => {
-        if (allInvoices.length === 0) return alert("لا تتوفر بيانات لاستخراجها");
+    document.getElementById('btnSaveInvoice').addEventListener('click', async () => {
+        const btn = document.getElementById('btnSaveInvoice');
+        const supplierId = document.getElementById('supplierSelect').value;
+        const grossTotal = parseFloat(document.getElementById('grossTotal').innerText) || 0;
 
-        let excelData = [["التاريخ","الحركة","اسم المورد","اسم الصنف","عدد قطعة","عدد كرتونة","سعر قطعة","سعر كرتونة"]];
-        allInvoices.forEach(inv => {
-            const supplierName = suppliersBase[inv.supplierId] ? suppliersBase[inv.supplierId].name : "";
-            if (Array.isArray(inv.items) && inv.items.length > 0) {
-                inv.items.forEach(item => {
-                    const unit = item.unitName || "كرتونة";
-                    const isItemReturn = item.returnQty > 0 || inv.isReturn;
-                    const motionType = isItemReturn ? "بيع" : "شراء";
-                    let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
-                    if (unit === "قطعة") { qtyPcs = item.qty || item.returnQty || 0; pricePcs = item.buy || 0; }
-                    else { qtyCrt = item.qty || item.returnQty || 0; priceCrt = item.buy || 0; }
-                    excelData.push([inv.date || "", motionType, supplierName, item.name || "", qtyPcs, qtyCrt, pricePcs, priceCrt]);
+        const cashPaid = parseFloat(document.getElementById('cashAmount').value) || 0;
+        const walletPaid = parseFloat(document.getElementById('walletAmount').value) || 0;
+        const totalPaid = cashPaid + walletPaid;
+
+        const invoiceDate = document.getElementById('invDate').value;
+        const pendingAmount = grossTotal - totalPaid;
+
+        const rows = document.querySelectorAll('.item-row');
+
+        if(!supplierId) return alert("برجاء اختيار اسم المورد أولاً");
+        if(rows.length === 0) return alert("برجاء إضافة الأصناف أولاً");
+
+        for (const row of rows) {
+            const name = row.querySelector('.item-name').value.trim();
+            const isExist = allInventory.some(p => p.name === name);
+            if (!isExist || name === "") {
+                alert(`خطأ: الصنف "${name}" غير مسجل بقاعدة البيانات! يرجى اختيار صنف صحيح من القائمة المنسدلة للتمكن من الحفظ.`);
+                return;
+            }
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل والموازنة الحالية...';
+
+        try {
+            // ── مراجعة وإصلاح: عند التعديل يجب أولاً عكس تأثير الأصناف القديمة على المخزون
+            // قبل تطبيق الكميات الجديدة، وإلا يحدث ازدواج فى تحديث رصيد المخزن.
+            if (editId && oldInvoiceData) {
+                const oldGross = Number(oldInvoiceData.grossTotal || oldInvoiceData.total || 0);
+                const oldCash = Number(oldInvoiceData.cashPaid || 0);
+                const oldWallet = Number(oldInvoiceData.walletPaid || 0);
+                const oldDebt = oldGross - (oldCash + oldWallet);
+                if (oldDebt !== 0 && suppliersBase[oldInvoiceData.supplierId]) {
+                    await updateDoc(doc(db, "suppliers", oldInvoiceData.supplierId), { currentBalance: increment(-oldDebt) });
+                }
+
+                if (Array.isArray(oldInvoiceData.items)) {
+                    for (const oldItem of oldInvoiceData.items) {
+                        const oldModifier = (typeof oldItem.totalPieces === 'number')
+                            ? oldItem.totalPieces
+                            : ((Number(oldItem.qty) || 0) - (Number(oldItem.returnQty) || 0));
+                        if (!oldModifier) continue;
+                        const qOld = query(collection(db, "inventory"), where("name", "==", oldItem.name));
+                        const qOldSnap = await getDocs(qOld);
+                        if (!qOldSnap.empty) {
+                            await updateDoc(doc(db, "inventory", qOldSnap.docs[0].id), {
+                                qty: increment(-oldModifier),
+                                totalPcs: increment(-oldModifier)
+                            });
+                        }
+                    }
+                }
+            }
+
+            const items = [];
+
+            for (const row of rows) {
+                const name = row.querySelector('.item-name').value;
+                const qtyInput = parseFloat(row.querySelector('.item-qty').value) || 0;
+                const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
+                const unitName = row.querySelector('.item-unit').value;
+                const isReturn = row.querySelector('.item-is-return').checked;
+
+                let qty = isReturn ? 0 : qtyInput;
+                let returnQty = isReturn ? qtyInput : 0;
+                const finalQtyModifier = isReturn ? -qtyInput : qtyInput;
+
+                items.push({ name, qty, returnQty, buy, unitName, unitFactor: 1, totalPieces: finalQtyModifier });
+
+                const q = query(collection(db, "inventory"), where("name", "==", name));
+                const qSnap = await getDocs(q);
+
+                if(!qSnap.empty) {
+                    await updateDoc(doc(db, "inventory", qSnap.docs[0].id), {
+                        qty: increment(finalQtyModifier),
+                        totalPcs: increment(finalQtyModifier),
+                        buy: buy, unitName: unitName, lastUpdate: serverTimestamp()
+                    });
+                }
+            }
+
+            let finalPaymentType = "آجل";
+            if(cashPaid > 0 && walletPaid > 0) finalPaymentType = "مشترك (كاش + محفظة)";
+            else if(cashPaid > 0) finalPaymentType = "نقدي (كاش)";
+            else if(walletPaid > 0) finalPaymentType = "محفظة إلكترونية";
+
+            const invoiceObj = {
+                supplierId: supplierId,
+                total: grossTotal, grossTotal: grossTotal,
+                cashPaid: cashPaid, walletPaid: walletPaid, totalPaid: totalPaid, netTotal: pendingAmount,
+                items, type: "شراء", paymentType: finalPaymentType, date: invoiceDate, timestamp: editId ? oldInvoiceData.timestamp : serverTimestamp()
+            };
+
+            let currentDocId = editId;
+            if (editId) {
+                await updateDoc(doc(db, "supplier_transactions", editId), invoiceObj);
+            } else {
+                const newDocRef = await addDoc(collection(db, "supplier_transactions"), invoiceObj);
+                currentDocId = newDocRef.id;
+            }
+
+            if (supplierId && pendingAmount !== 0) {
+                await updateDoc(doc(db, "suppliers", supplierId), { currentBalance: increment(pendingAmount) });
+            }
+
+            if (cashPaid > 0) {
+                await addDoc(collection(db, "transactions"), {
+                    amount: cashPaid, type: "صرف", actionType: "سداد مورد",
+                    details: `سداد نقدي (كاش) مقابل فاتورة شراء رقم (${currentDocId.substring(0,6)})`,
+                    date: invoiceDate, supplierId: supplierId, invoiceId: currentDocId,
+                    paymentMethod: "cash", timestamp: serverTimestamp()
                 });
             }
-            const currentPaid = Number(inv.computedTotalPaid || 0);
-            if (currentPaid > 0) {
-                excelData.push([inv.date || "", "سداد نقدى", supplierName, "سداد", "", 1, "", currentPaid]);
+
+            if (walletPaid > 0) {
+                await addDoc(collection(db, "transactions"), {
+                    amount: walletPaid, type: "صرف", actionType: "سداد مورد",
+                    details: `سداد محفظة إلكترونية مقابل فاتورة شراء رقم (${currentDocId.substring(0,6)})`,
+                    date: invoiceDate, supplierId: supplierId, invoiceId: currentDocId,
+                    paymentMethod: "wallet", timestamp: serverTimestamp()
+                });
             }
-        });
 
-        const worksheet = XLSX.utils.aoa_to_sheet(excelData);
-        worksheet['!cols'] = [15,15,25,30,15,15,15,15].map(w => ({ wch: w }));
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "المشتريات");
-        XLSX.writeFile(workbook, "تقرير_المشتريات.xlsx");
-    };
+            isSubmitting = true;
+            alert("تم حفظ الفاتورة بنجاح وتحديث الحسابات والمخزن بشكل دقيق 🚀");
+            window.location.href = "purchase-invoices-list.html";
 
-    window.toggleInvoiceDetails = function(id) {
-        const box = document.getElementById(`details_${id}`);
-        if (!box) return;
-        box.style.display = (box.style.display === "none" || box.style.display === "") ? "block" : "none";
-    };
+        } catch (e) {
+            console.error(e);
+            alert("حدث خطأ أثناء الحفظ: " + e.message);
+            btn.disabled = false;
+            btn.innerText = "حفظ وترحيل الفاتورة للسيستم";
+        }
+    });
 
-    init();
+    document.getElementById('addItemBtn').addEventListener('click', () => { window.addNewItemRow(); });
+    document.getElementById('invDate').valueAsDate = new Date();
+    loadData();
 </script>
 </body>
 </html>
+اعد تنسيق الصفحه من غير ماتكسر اى كود او تبوظ اى كود نسق بشكل افضل من ذلك ابدع كعادتك
