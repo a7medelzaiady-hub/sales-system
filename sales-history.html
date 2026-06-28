@@ -902,6 +902,7 @@
         });
     };
 
+    // ===== تصدير الإكسيل - مع التعديلات المطلوبة =====
     document.getElementById('exportExcelBtn').onclick = () => {
         if (!allInvoices.length) {
             window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات لتصديرها بعد.", icon: "info" });
@@ -913,8 +914,8 @@
         allInvoices.forEach(inv => {
             const invDate = parseInvoiceDate(inv);
             const customerName = inv.customerName || 'النقدى';
-            
-            // 1. إضافة الأصناف المبيعة في الفاتورة كسطور مستقلة (حركات بيع)
+
+            // 1. أصناف الفاتورة - الجركن يُسجَّل في عمودَي الجركن، والكرتونة في عمودَيها
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(itm => {
                     let qtyCarton = 0;
@@ -926,11 +927,12 @@
                     const rawQty = Number(itm.qty) || 0;
                     const rawPrice = Number(itm.price) || 0;
 
-                    // الفرز بناءً على الكلمات الدلالية لتحديد الجركن مقابل الكرتونة الأساسية
-                    if (itemName.includes("جركن") || itemName.includes("جركان") || itemName.includes("جركن واحد")) {
+                    if (itemName.includes("جركن") || itemName.includes("جركان")) {
+                        // صنف جركن → يُسجَّل في عمودَي الجركن فقط
                         qtyJarkan = rawQty;
                         priceJarkan = rawPrice;
                     } else {
+                        // صنف كرتونة → يُسجَّل في عمودَي الكرتونة فقط
                         qtyCarton = rawQty;
                         priceCarton = rawPrice;
                     }
@@ -948,18 +950,31 @@
                 });
             }
 
-            // 2. إضافة حركة السداد النقدى كسطر مستقل تماماً مطابقاً لدفتر القيود في صورة 24295.jpg
-            const totalPaid = (inv.calculatedCash || 0) + (inv.calculatedWallet || 0);
-            if (totalPaid > 0) {
+            // 2. سداد نقدى كسطر مستقل (فقط إذا كانت القيمة أكبر من صفر)
+            if ((inv.calculatedCash || 0) > 0) {
                 excelRows.push({
                     "التاريخ": invDate,
                     "الحركة": "سداد منه نقدى",
                     "اسم العميل": customerName,
                     "الصنف": "سداد نقدى",
                     "عدد جركن": 0,
-                    "عدد كرتونة": 1, 
+                    "عدد كرتونة": 1,
                     "سعر جركن": 0,
-                    "سعر كرتونة": totalPaid
+                    "سعر كرتونة": inv.calculatedCash
+                });
+            }
+
+            // 3. سداد محفظه كسطر مستقل (فقط إذا كانت القيمة أكبر من صفر)
+            if ((inv.calculatedWallet || 0) > 0) {
+                excelRows.push({
+                    "التاريخ": invDate,
+                    "الحركة": "سداد منه محفظه",
+                    "اسم العميل": customerName,
+                    "الصنف": "سداد محفظه",
+                    "عدد جركن": 0,
+                    "عدد كرتونة": 1,
+                    "سعر جركن": 0,
+                    "سعر كرتونة": inv.calculatedWallet
                 });
             }
         });
@@ -976,4 +991,4 @@
     loadData(true);
 </script>
 </body>
-</html>  
+</html>
