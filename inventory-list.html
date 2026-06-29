@@ -1,399 +1,776 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>قائمة الجرد - شركة الزيادي</title>
+    <title>   المخزن </title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-green: #0b6641; /* اللون الأخضر الخاص بشركة الزيادي */
+            --accent-green: #10b981;
+            --bg-light: #f4f7f6;
+            --text-dark: #2d3436;
+            --text-muted: #94a3b8;
+            --border-color: #f1f2f6;
+        }
+
+        body { 
+            background-color: var(--bg-light); 
+            font-family: 'Cairo', sans-serif; 
+            color: var(--text-dark);
+            margin: 0;
+            padding-bottom: 80px;
+        }
+
+        /* الهيدر الأخضر */
+        .top-nav {
+            background-color: var(--primary-green);
+            color: white;
+            padding: 18px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            border-radius: 0 0 25px 25px; /* انحناء بسيط زي الصور */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        /* صندوق البحث والباركود */
+        .search-section {
+            padding: 20px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            margin-top: -10px;
+        }
+        .search-wrapper {
+            position: relative;
+            flex-grow: 1;
+        }
+        .search-wrapper i {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--primary-green);
+        }
+        .search-input {
+            width: 100%;
+            padding: 14px 15px 14px 40px;
+            background: white;
+            border: none;
+            border-radius: 15px;
+            font-size: 0.9rem;
+            outline: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+        }
+        .qr-btn {
+            background: white;
+            color: var(--primary-green);
+            border: none;
+            width: 50px;
+            height: 50px;
+            border-radius: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+        }
+
+        /* عناوين الأعمدة */
+        .table-headers {
+            display: flex;
+            padding: 10px 25px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        /* كارت الصنف الأفقي */
+        .item-card {
+            display: flex;
+            align-items: center;
+            padding: 18px 20px;
+            background: white;
+            border-radius: 20px;
+            margin: 0 15px 10px;
+            transition: all 0.2s;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        }
+        .item-card:active { transform: scale(0.98); background: #f8f9fa; }
+
+        .item-info { flex: 2; }
+        .item-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 2px; color: var(--text-dark); }
+        .item-barcode { font-size: 0.75rem; color: var(--text-muted); }
+
+        .item-price { 
+            flex: 1; 
+            text-align: center; 
+            color: var(--primary-green); 
+            font-weight: 800;
+            font-size: 1rem;
+        }
+
+        .item-qty-wrapper {
+            flex: 0.6;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+        }
+        .qty-badge {
+            background: #f0fdf4;
+            color: var(--accent-green);
+            padding: 6px 12px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            min-width: 45px;
+            text-align: center;
+        }
+        .qty-low { background: #fff1f2; color: #f43f5e; }
+
+        /* الفوتر السفلي */
+        .bottom-summary {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            background: white;
+            padding: 15px 20px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: center;
+            border-top: 1px solid var(--border-color);
+            color: var(--primary-green);
+        }
+
+        /* الزر العائم */
+        .fab {
+            position: fixed;
+            bottom: 75px;
+            right: 20px;
+            background: var(--primary-green);
+            color: white;
+            width: 58px;
+            height: 58px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.6rem;
+            box-shadow: 0 8px 20px rgba(11, 102, 65, 0.3);
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="top-nav">
+    <i class="fas fa-sync-alt" onclick="location.reload()"></i>
+    <span class="fw-bold">الأصناف والمخزون</span>
+    <i class="fas fa-chevron-left" onclick="history.back()"></i>
+</div>
+
+<div class="search-section">
+    <button class="qr-btn"><i class="fas fa-qrcode"></i></button>
+    <div class="search-wrapper">
+        <input type="text" id="searchInput" class="search-input" placeholder="ابحث عن منتج أو باركود..." oninput="renderItems()">
+        <i class="fas fa-search"></i>
+    </div>
+</div>
+
+<div class="table-headers">
+    <div style="flex: 2;">المنتج والباركود</div>
+    <div style="flex: 1; text-align: center;">السعر</div>
+    <div style="flex: 0.6; text-align: end;">الكمية</div>
+</div>
+
+<div id="itemsContainer">
+    </div>
+
+<div class="bottom-summary">
+    <i class="fas fa-boxes me-2"></i> إجمالي الأصناف: <span id="totalCount" class="ms-1">0</span>
+</div>
+
+<a href="add-product.html" class="fab">
+    <i class="fas fa-plus"></i>
+</a>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+ const firebaseConfig = {
+  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+  authDomain: "ahmedelzaiady.firebaseapp.com",
+  projectId: "ahmedelzaiady",
+  storageBucket: "ahmedelzaiady.firebasestorage.app",
+  messagingSenderId: "300306825071",
+  appId: "1:300306825071:web:0426ddde56280fa090329a",
+  measurementId: "G-WE04GK5XZZ"
+};
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    let allData = [];
+
+    onSnapshot(collection(db, "inventory"), (snap) => {
+        allData = [];
+        snap.forEach(doc => {
+            const data = doc.data();
+            if (!data.isDeleted) allData.push({ id: doc.id, ...data });
+        });
+        renderItems();
+    });
+
+    window.renderItems = function() {
+        const term = document.getElementById('searchInput').value.toLowerCase();
+        const container = document.getElementById('itemsContainer');
+        const filtered = allData.filter(i => 
+            i.name.toLowerCase().includes(term) || (i.barcode && i.barcode.includes(term))
+        );
+
+        let html = '';
+        filtered.forEach(item => {
+            const factor = Number(item.unitFactor) || 1;
+            const total = Number(item.totalPcs) || 0;
+            const isLow = total <= ((Number(item.min) || 0) * factor);
+
+            html += 
+                <div class="item-card" onclick="goToDetails('${item.id}')">
+                    <div class="item-info">
+                        <div class="item-name">${item.name}</div>
+                        <div class="item-barcode">باركود: ${item.barcode || '---'}</div>
+                    </div>
+                    <div class="item-price">
+                        ${Number(item.sell).toLocaleString('en-US', {minimumFractionDigits: 2})}
+                    </div>
+                    <div class="item-qty-wrapper">
+                        <div class="qty-badge ${isLow ? 'qty-low' : ''}">${total}</div>
+                    </div>
+                </div>
+            ;
+        });
+
+        container.innerHTML = html;
+        document.getElementById('totalCount').innerText = filtered.length;
+    };
+
+    window.goToDetails = function(id) {
+        window.location.href = product-details.html?id=${id};
+    };
+</script>
+</body>
+</html>
+
+
+
+
+المشكلة واضحة من الكود.
+
+أنت تعرض الكمية هكذا:
+
+const factor = Number(item.unitFactor) || 1;
+const total = Number(item.totalPcs) || 0;
+
+<div class="qty-badge">${total}</div>
+أنت تعرض إجمالي القطع فقط (totalPcs) ولا تقوم بتحويلها إلى كرتونة + جركن كما فعلت في صفحة الجرد.
+
+إذا كان صنف بترومين توك توك:
+
+unitFactor = 12
+
+totalPcs = 105
+
+فالمفروض يظهر:
+
+8 كراتين
+
+9 جراكن
+
+لكن الكود الحالي يعرض 105 فقط أو إذا كان totalPcs مخزنًا بطريقة مختلفة فلن يظهر الباقي.
+
+استبدل هذا الجزء:
+const factor = Number(item.unitFactor) || 1;
+const total = Number(item.totalPcs) || 0;
+const isLow = total <= ((Number(item.min) || 0) * factor);
+بـ
+
+const factor = Number(item.unitFactor) || 1;
+const total = Number(item.totalPcs) || 0;
+
+const cartons = Math.floor(total / factor);
+const pieces = total % factor;
+
+const qtyText = pieces > 0
+    ? `${cartons} كرتونة + ${pieces} جركن`
+    : `${cartons} كرتونة`;
+
+const isLow = total <= ((Number(item.min) || 0) * factor);
+ثم استبدل:
+
+<div class="qty-badge ${isLow ? 'qty-low' : ''}">${total}</div>
+بـ
+
+<div class="qty-badge ${isLow ? 'qty-low' : ''}">
+    ${qtyText}
+</div>
+لكن هناك نقطة مهمة جدًا
+أنت قلت:
+
+عندى بترومين توك توك 8 كرتونه و9 جركن ويظهر 8 كرتونه فقط.
+
+إذا حدث ذلك بعد التعديل السابق فالمشكلة ليست في صفحة العرض، وإنما في قاعدة البيانات نفسها.
+
+أريد أن أعرف قيمة هذين الحقلين لهذا الصنف:
+
+unitFactor
+
+totalPcs
+
+مثلاً هل هما:
+
+unitFactor = 12
+totalPcs = 105
+أم شيء آخر؟
+
+إذا أعطيتني هاتين القيمتين (أو أرسلت صورة من مستند الصنف في Firebase)، سأحدد السبب خلال دقائق، لأن الغالب أن totalPcs نفسه لا يحتوي على الـ9 جراكن أو أن unitFactor مسجل بقيمة خاطئة.
+
+
+إذن السبب أصبح واضحًا.
+
+أنت تقول إن الصنف يظهر 64 قطعة، بينما تتوقع 8 كرتونة و9 جركن.
+
+إذا كان يظهر 64 قطعة فهذا يعني أن قيمة:
+
+item.totalPcs
+هي 64 بالفعل، وليست قيمة تعادل 8 كرتونة و9 جركن.
+
+الكود الذي عندك لا يحسب الكراتين والجراكن
+استبدل هذا:
+
+const factor = Number(item.unitFactor) || 1;
+const total = Number(item.totalPcs) || 0;
+const isLow = total <= ((Number(item.min) || 0) * factor);
+بالتالي:
+
+const factor = Number(item.unitFactor) || 1;
+const total = Number(item.totalPcs) || 0;
+
+const cartons = Math.floor(total / factor);
+const jerrycans = total % factor;
+
+const qtyText =
+    jerrycans > 0
+        ? `${cartons} كرتونة + ${jerrycans} جركن`
+        : `${cartons} كرتونة`;
+
+const isLow = total <= ((Number(item.min) || 0) * factor);
+ثم استبدل:
+
+<div class="qty-badge ${isLow ? 'qty-low' : ''}">${total}</div>
+بـ
+
+<div class="qty-badge ${isLow ? 'qty-low' : ''}">
+    ${qtyText}
+</div>
+لكن هناك مشكلة أكبر
+إذا كان المخزون الحقيقي 8 كرتونة و9 جركن، فلا يمكن أن تكون totalPcs = 64 إلا إذا كان عامل التحويل (unitFactor) = 7 تقريبًا، وهذا غير منطقي لزيوت السيارات.
+
+لذلك أعتقد أن المشكلة ليست في صفحة العرض، وإنما في طريقة حفظ الكمية عند الإضافة أو التعديل.
+
+أريد منك ملفًا واحدًا فقط
+أرسل ملف add-product.html (صفحة إضافة/تعديل الصنف)، لأنني أتوقع أن الخطأ موجود في الكود الذي يحسب totalPcs عند الحفظ، وليس في صفحة المخزن. بهذه الطريقة أستطيع تحديد السطر الذي يجعل الـ9 جراكن لا تُضاف إلى المخزون.
+
+
+انا بضسف المخزون عن طريق رفع ملف اكسل بالاعداد
+
+هذا يغيّر التشخيص.
+
+إذا كنت ترفع المخزون من ملف Excel، فصفحة العرض ليست السبب في اختفاء الـ9 جراكن، لأن الصفحة تعرض ما هو موجود في Firebase.
+
+المشكلة ستكون في أحد احتمالين:
+
+ملف Excel نفسه لا يحتوي على عدد الجراكن.
+
+كود استيراد Excel يحفظ عدد الكراتين فقط ويتجاهل عمود الجراكن.
+
+مثال:
+
+إذا كان في الإكسل:
+
+الصنف	كراتين	جراكن	عدد الجراكن في الكرتونة
+بترومين توك توك	8	9	12
+فالمفروض يحفظ:
+
+totalPcs = (8 * 12) + 9 = 105
+أما إذا كان كود الاستيراد يحسب:
+
+totalPcs = 8 * 12;
+فسيحفظ 96 ويضيع الـ9 جراكن.
+
+أو إذا كان يحفظ:
+
+totalPcs = 64;
+فهذا يعني أنه يقرأ بيانات العمود بطريقة خاطئة.
+
+أحتاج رؤية كود واحد فقط
+أرسل ملف صفحة رفع الإكسل (الذي يقرأ ملف Excel ويكتب البيانات إلى Firebase).
+
+هو غالبًا اسمه مثل:
+
+upload-excel.html
+
+import.html
+
+inventory-upload.html
+
+أو أي ملف يحتوي على:
+
+XLSX.read
+أو
+
+sheet_to_json
+أنا شبه متأكد أن الخطأ في كود الاستيراد، وليس في صفحة المخزن، وسأحدد لك السطر المطلوب تعديله.
+
+
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>استيراد بيانات شاملة - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        :root { 
-            --bg-dark: #0d1117; 
-            --glass: rgba(255,255,255,0.05); 
-            --neon-blue: #58a6ff;
-            --neon-red: #f85149;
-            --neon-green: #3fb950;
-            --neon-gold: #d4a373;
-        }
-
-        body { background: var(--bg-dark); font-family: 'Cairo', sans-serif; color: #ffffff; padding-bottom: 50px; }
-        .stat-card { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; padding: 15px; text-align: center; height: 100%; }
-        .stat-value { font-size: 1.4rem; font-weight: 700; display: block; }
-        .inventory-container { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; overflow: hidden; }
-        .search-box { background: rgba(255, 255, 255, 0.05) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: white !important; border-radius: 12px; }
-        .table { color: #ffffff !important; margin-bottom: 0; background: transparent !important; white-space: nowrap; }
-        .table thead th { background: rgba(255, 255, 255, 0.05) !important; color: var(--neon-blue) !important; border-bottom: 1px solid rgba(255,255,255,0.1) !important; padding: 15px; }
-        .table tbody td { background: transparent !important; padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05) !important; color: #ffffff !important; }
-        
-        /* تجربة النقر على السطر */
-        .table tbody tr { cursor: pointer; transition: background 0.2s; }
-        .table tbody tr:hover { background: rgba(255,255,255,0.03) !important; }
-        
-        .low-stock-row { background: rgba(248, 81, 73, 0.1) !important; border-right: 4px solid var(--neon-red); }
-        .action-btn { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: white; text-decoration: none; }
-        .btn-edit:hover { background: var(--neon-blue); color: #000; }
-        .btn-delete:hover { background: var(--neon-red); color: #fff; }
-        .price-text { color: var(--neon-blue); font-weight: 700; }
-        .total-pcs-text { color: var(--neon-green); font-weight: 700; }
-        .qty-badge { background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px; font-size: 0.85rem; }
-        .load-more-btn { background: var(--neon-blue); color: #000; border: none; font-weight: bold; border-radius: 10px; padding: 10px 25px; transition: 0.3s; }
-        .load-more-btn:hover { transform: scale(1.05); filter: brightness(1.2); }
-
-        /* تجميل النافذة المنبثقة لتناسب الوضع الداكن للموقع */
-        .modal-content { background: #161b22; border: 1px solid rgba(255,255,255,0.15); border-radius: 18px; color: #fff; }
-        .modal-header { border-bottom: 1px solid rgba(255,255,255,0.1); }
-        .modal-footer { border-top: 1px solid rgba(255,255,255,0.1); }
-        .btn-close { filter: invert(1); }
-        
-        /* ستايل قائمة الحركات */
-        .history-list { max-height: 450px; overflow-y: auto; padding-right: 5px; }
-        .tx-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); gap: 10px; }
-        .tx-item:last-child { border-bottom: none; }
-        .tx-badge { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; color: #fff; text-align: center; min-width: 70px; }
-        .tx-badge.sale { background: var(--neon-green); color: #000; }
-        .tx-badge.purchase { background: var(--neon-blue); color: #000; }
-        .tx-badge.return { background: var(--neon-gold); color: #000; }
-        .tx-details { flex: 1; min-width: 0; }
-        .tx-title { font-size: 0.85rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .tx-date { font-size: 0.75rem; color: #8b949e; margin-top: 2px; }
-        .tx-qty { font-size: 1.1rem; font-weight: bold; }
-        .tx-qty.minus { color: var(--neon-red); }
-        .tx-qty.plus { color: var(--neon-green); }
-        
-        /* Spinner */
-        .spinner-custom { width: 2.5rem; height: 2.5rem; color: var(--neon-blue); }
+        :root { --bg-dark: #0d1117; --glass: rgba(255,255,255,0.05); --neon: #58a6ff; }
+        body { background: var(--bg-dark); font-family: 'Cairo', sans-serif; color: #c9d1d9; padding: 10px; }
+        .import-card { background: var(--glass); border: 2px dashed rgba(88, 166, 255, 0.3); border-radius: 20px; padding: 40px; text-align: center; cursor: pointer; }
+        .preview-container { background: var(--glass); border-radius: 15px; margin-top: 20px; max-height: 400px; overflow: auto; border: 1px solid rgba(255,255,255,0.1); }
+        .table { color: white !important; font-size: 0.75rem; white-space: nowrap; }
+        .loading-overlay { display: none; color: var(--neon); font-weight: bold; }
+        .instruction-box { background: rgba(242, 202, 48, 0.1); border: 1px solid #f2ca30; border-radius: 10px; padding: 15px; margin-bottom: 20px; font-size: 0.85rem; }
     </style>
 </head>
 <body>
 
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4 class="fw-bold m-0 text-white"><i class="fas fa-boxes me-2"></i> قائمة الجرد </h4>
-        <div class="d-flex gap-2 flex-wrap">
-            <button onclick="cleanDuplicates()" class="btn btn-warning btn-sm px-3 text-dark fw-bold"><i class="fas fa-broom"></i> تنظيف المكرر</button>
-            <button onclick="clearAllInventory()" class="btn btn-danger btn-sm px-3"><i class="fas fa-exclamation-triangle"></i> تصفير المخزن</button>
-            <a href="trash.html" class="btn btn-outline-danger btn-sm px-3"><i class="fas fa-trash-restore"></i> السلة</a>
-            <a href="inventory-menu.html" class="btn btn-outline-light btn-sm px-3">رجوع</a>
+        <h4 class="fw-bold m-0 text-white"><i class="fas fa-file-excel me-2 text-success"></i> استيراد الأصناف المطور</h4>
+        <div class="d-flex gap-2">
+            <button class="btn btn-success btn-sm fw-bold" onclick="downloadSample()">تحميل النموذج </button>
+            <a href="inventory-menu.html" class="btn btn-outline-light btn-sm">رجوع</a>
         </div>
     </div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-12">
-            <div class="stat-card border-bottom border-success border-3">
-                <span class="stat-value text-success" id="totalValue">0</span>
-                <small>إجمالي قيمة بضاعة المخزن (بسعر الشراء)</small>
-            </div>
-        </div>
-        <div class="col-6">
-            <div class="stat-card">
-                <span class="stat-value text-white" id="totalItems">0</span>
-                <small>عدد الأصناف</small>
-            </div>
-        </div>
-        <div class="col-6">
-            <div class="stat-card">
-                <span class="stat-value text-danger" id="lowStockCount">0</span>
-                <small>أصناف تحت حد الطلب</small>
-            </div>
-        </div>
+    <div class="instruction-box">
+        <strong><i class="fas fa-check-double me-1"></i> طريقة الإدخال الجديدة:</strong>
+        <p class="mb-0 small">لديك طريقتين لتعبئة الرصيد في الإكسيل:</p>
+        <ul class="small">
+            <li><b>مثال 1:</b> 10 كرتونة و 5 قطع (المعامل 12) -> اكتب 10 في عمود الكرتونة و 5 في عمود القطع.</li>
+            <li><b>مثال 2:</b> لو الصنف بالقطعة فقط -> اكتب الكمية في عمود القطع واجعل "المعامل" 1.</li>
+        </ul>
     </div>
 
-    <div class="mb-3 d-flex gap-2">
-        <input type="text" id="searchStock" class="form-control search-box" placeholder="بحث سريع بالاسم أو الباركود..." oninput="renderStock()">
-        <button class="btn btn-info px-3" onclick="location.href='add-product.html'"><i class="fas fa-plus"></i></button>
+    <div class="import-card" onclick="document.getElementById('fileInput').click()">
+        <i class="fas fa-file-import fa-3x mb-3 text-info"></i>
+        <h5>ارفع ملف الإكسيل المحدث هنا</h5>
+        <input type="file" id="fileInput" accept=".xlsx, .xls" class="d-none">
     </div>
 
-    <div class="inventory-container">
-        <div class="table-responsive">
-            <table class="table text-center align-middle">
-                <thead>
-                    <tr>
-                        <th class="text-start">المنتج</th>
-                        <th>الفئة</th>
-                        <th>الكمية (كرتونه وقطع)</th>
-                        <th>إجمالي (قطعة)</th>
-                        <th>سعر البيع</th>
-                        <th>الحالة</th>
-                        <th>إجراء</th>
-                    </tr>
-                </thead>
-                <tbody id="stockTable"></tbody>
+    <div id="loading" class="text-center mt-3 loading-overlay">
+        <div class="spinner-border spinner-border-sm"></div> جارٍ المعالجة الحسابية للقطع...
+    </div>
+
+    <div id="previewArea" style="display: none;">
+        <div class="preview-container">
+            <table class="table table-sm table-dark table-hover m-0 text-center">
+                <thead id="tableHead" class="table-secondary text-dark"></thead>
+                <tbody id="tableBody"></tbody>
             </table>
         </div>
+        <button class="btn btn-primary w-100 mt-3 p-3 fw-bold" onclick="uploadToFirebase()">تأكيد الاستيراد النهائي</button>
     </div>
 </div>
-
-<div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold" id="modalItemName">سجل حركات الصنف</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="modalBody">
-                </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">إغلاق</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, updateDoc, doc, onSnapshot, serverTimestamp, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, writeBatch, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
    const firebaseConfig = {
-      apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-      authDomain: "ahmedelzaiady.firebaseapp.com",
-      projectId: "ahmedelzaiady",
-      storageBucket: "ahmedelzaiady.firebasestorage.app",
-      messagingSenderId: "300306825071",
-      appId: "1:300306825071:web:0426ddde56280fa090329a",
-      measurementId: "G-WE04GK5XZZ"
-    };
-
+  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+  authDomain: "ahmedelzaiady.firebaseapp.com",
+  projectId: "ahmedelzaiady",
+  storageBucket: "ahmedelzaiady.firebasestorage.app",
+  messagingSenderId: "300306825071",
+  appId: "1:300306825071:web:0426ddde56280fa090329a",
+  measurementId: "G-WE04GK5XZZ"
+};
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    let inventoryData = [];
-    let displayLimit = 50;
-    let bsModalInstance = null;
+    let jsonData = [];
 
-    window.cleanDuplicates = async () => {
-        if (inventoryData.length === 0) { alert("المخزن فارغ حالياً."); return; }
-        const confirmClean = confirm("هل تريد فحص المخزن وحذف الأصناف المكررة ونقلها للسلة؟");
-        if (!confirmClean) return;
-        try {
-            const batch = writeBatch(db);
-            const seenItems = {};
-            let duplicateCount = 0;
-            inventoryData.forEach(item => {
-                const uniqueKey = item.barcode ? item.barcode.trim() : item.name.trim().toLowerCase();
-                if (seenItems[uniqueKey]) {
-                    const itemRef = doc(db, "inventory", item.id);
-                    batch.update(itemRef, { isDeleted: true, deletedAt: serverTimestamp() });
-                    duplicateCount++;
-                } else { seenItems[uniqueKey] = true; }
-            });
-            if (duplicateCount > 0) { await batch.commit(); alert(`🚀 تم نقل ${duplicateCount} صنف مكرر للسلة!`); }
-            else { alert("✨ لا توجد أي أصناف مكررة."); }
-        } catch (e) { alert("حدث خطأ أثناء محاولة مسح المكرر."); }
+    window.downloadSample = function() {
+        const headers = [["الاسم", "الفئة", "الباركود", "كمية (كرتونة)", "قطع زائدة", "المعامل", "حد الطلب", "سعر الشراء", "سعر البيع 1", "اسم الوحدة"]];
+        const sampleData = [["زيت توتال", "زيوت", "622100", 10, 6, 12, 5, 1200, 1500, "علبة"]];
+        const ws = XLSX.utils.aoa_to_sheet(headers.concat(sampleData));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+        XLSX.writeFile(wb, "Template_Al-Zyady_New.xlsx");
     };
 
-    window.clearAllInventory = async () => {
-        const firstConfirm = confirm("⚠️ تحذير: أنت على وشك حذف جميع الأصناف ونقلها للسلة. هل أنت متأكد؟");
-        if (!firstConfirm) return;
-        try {
-            const batch = writeBatch(db);
-            inventoryData.forEach(item => {
-                const itemRef = doc(db, "inventory", item.id);
-                batch.update(itemRef, { isDeleted: true, deletedAt: serverTimestamp() });
-            });
-            await batch.commit(); alert("تم تصفير المخزن بنجاح.");
-        } catch (e) { alert("حدث خطأ."); }
-    };
+    document.getElementById('fileInput').addEventListener('change', handleFile);
 
-    function listenToInventory() {
-        onSnapshot(collection(db, "inventory"), (snap) => {
-            inventoryData = [];
-            snap.forEach(docSnap => {
-                const data = docSnap.data();
-                if (data.isDeleted !== true) { inventoryData.push({ id: docSnap.id, ...data }); }
-            });
-            updateStats();
-            renderStock();
-        });
+    function handleFile(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        document.getElementById('loading').style.display = 'block';
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const workbook = XLSX.read(evt.target.result, { type: 'binary' });
+            jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            displayPreview(jsonData);
+            document.getElementById('loading').style.display = 'none';
+        };
+        reader.readAsBinaryString(file);
     }
 
-    function updateStats() {
-        document.getElementById('totalItems').innerText = inventoryData.length;
-        let totalVal = 0; let low = 0;
-        inventoryData.forEach(i => {
-            const factor = Number(i.unitFactor) || 1;
-            const currentTotalPcs = Number(i.totalPcs) || 0;
-            const minTotalPcs = (Number(i.min) || 0) * factor;
-            if (currentTotalPcs <= minTotalPcs) low++;
-            totalVal += (currentTotalPcs / factor) * (Number(i.buy) || 0);
+    function displayPreview(data) {
+        if (data.length === 0) return;
+        const head = document.getElementById('tableHead');
+        const body = document.getElementById('tableBody');
+        head.innerHTML = ''; body.innerHTML = '';
+        const keys = Object.keys(data[0]);
+        head.innerHTML = '<tr>' + keys.map(k => <th>${k}</th>).join('') + '</tr>';
+        data.slice(0, 5).forEach(row => {
+            body.innerHTML += '<tr>' + keys.map(k => <td>${row[k] || 0}</td>).join('') + '</tr>';
         });
-        document.getElementById('lowStockCount').innerText = low;
-        document.getElementById('totalValue').innerText = Math.round(totalVal).toLocaleString() + " EGP";
+        document.getElementById('previewArea').style.display = 'block';
     }
 
-    window.renderStock = function(isMore = false) {
-        if (!isMore) displayLimit = 50; 
-        const term = document.getElementById('searchStock').value.toLowerCase();
-        const tbody = document.getElementById('stockTable');
-        
-        const filtered = inventoryData.filter(i => 
-            i.name.toLowerCase().includes(term) || (i.barcode && i.barcode.includes(term))
-        );
+    window.uploadToFirebase = async function() {
+        if (jsonData.length === 0) return;
+        document.getElementById('loading').style.display = 'block';
+        const batch = writeBatch(db);
+        const collectionRef = collection(db, "inventory");
 
-        const dataToShow = (term === "") ? filtered.slice(0, displayLimit) : filtered;
-
-        let rowsHtml = ''; 
-        dataToShow.forEach(item => {
-            const factor = Number(item.unitFactor) || 1;
-            const totalPcs = Number(item.totalPcs) || 0;
-            const boxes = Math.floor(totalPcs / factor);
-            const pieces = totalPcs % factor;
-            const isLow = totalPcs <= ((Number(item.min) || 0) * factor);
+        jsonData.forEach((item) => {
+            const factor = parseInt(item["المعامل"]) || 1;
+            const crates = parseFloat(item["كمية (كرتونة)"]) || 0;
+            const extraPcs = parseFloat(item["جركن"]) || 0;
             
-            let qtyDisplay = `<span class="qty-badge">${boxes} كرتونه</span>`;
-            if(pieces > 0) qtyDisplay += ` <span class="qty-badge text-info">${pieces} قطعة</span>`;
+            // العملية الحسابية المكتملة
+            const totalPieces = Math.round((crates * factor) + extraPcs);
+            // إعادة حساب عمود الـ qty ككسر لضمان توافق العرض (مثلاً 10.5 كرتونة)
+            const finalQty = crates + (extraPcs / factor);
 
-            const safeName = item.name.replace(/'/g, "\\'");
-
-            // أضفنا حدث onclick على السطر بالكامل ما عدا أزرار التعديل والحذف لحماية الإجراءات
-            rowsHtml += `
-                <tr class="${isLow ? 'low-stock-row' : ''}" onclick="openItemHistory('${item.id}', '${safeName}', event)">
-                    <td class="text-start">
-                        <div class="fw-bold text-white">${item.name}</div>
-                        <small class="text-muted" style="font-size:0.7rem">${item.barcode || '---'}</small>
-                    </td>
-                    <td><span class="badge bg-secondary opacity-75">${item.category || 'عام'}</span></td>
-                    <td><div class="d-flex flex-column gap-1">${qtyDisplay}</div></td>
-                    <td><span class="total-pcs-text">${totalPcs}</span> <small style="font-size:0.6rem">ق</small></td>
-                    <td class="price-text">${Number(item.sell).toLocaleString()}</td>
-                    <td><span class="badge ${isLow ? 'bg-danger' : 'bg-success'}">${isLow ? 'ناقص' : 'متوفر'}</span></td>
-                    <td>
-                        <div class="d-flex gap-2 justify-content-center" onclick="event.stopPropagation()">
-                            <a href="add-product.html?edit=${item.id}" class="action-btn btn-edit"><i class="fas fa-edit"></i></a>
-                            <button onclick="softDeleteItem('${item.id}', '${item.name}')" class="action-btn btn-delete"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </td>
-                </tr>
-            `;
+            batch.set(doc(collectionRef), {
+                name: item["الاسم"] || "صنف بدون اسم",
+                category: item["الفئة"] || "عام",
+                barcode: String(item["الباركود"] || ""),
+                qty: finalQty, // الكمية الإجمالية بنظام الكرتونة
+                unitFactor: factor,
+                totalPcs: totalPieces, // إجمالي القطع الفعلي للجرد
+                min: parseFloat(item["حد الطلب"]) || 0,
+                buy: parseFloat(item["سعر الشراء"]) || 0,
+                sell: parseFloat(item["سعر البيع 1"]) || 0,
+                unitName: item["اسم الوحدة"] || "قطعة",
+                isDeleted: false,
+                timestamp: serverTimestamp()
+            });
         });
 
-        tbody.innerHTML = rowsHtml;
-
-        if (filtered.length > displayLimit && term === "") {
-            tbody.innerHTML += `
-                <tr>
-                    <td colspan="7" class="text-center p-4" onclick="event.stopPropagation()">
-                        <button class="load-more-btn" onclick="loadMore()">عرض المزيد (+)</button>
-                        <p class="text-muted mt-2 small">يتم عرض ${displayLimit} من أصل ${filtered.length} صنف</p>
-                    </td>
-                </tr>
-            `;
-        }
-    };
-
-    window.loadMore = () => { displayLimit += 100; renderStock(true); };
-
-    window.softDeleteItem = async (id, name) => {
-        if(confirm(`هل أنت متأكد من نقل "${name}" إلى سلة المحذوفات؟`)) { 
-            try { await updateDoc(doc(db, "inventory", id), { isDeleted: true, deletedAt: serverTimestamp() }); } 
-            catch (e) { alert("حدث خطأ أثناء الحذف"); }
-        }
-    };
-
-    // --- الدالة السحرية الجديدة لجلب سجل الحركات من الجداول المكتشفة ---
-    window.openItemHistory = async function(itemId, itemName, event) {
-        if (!bsModalInstance) {
-            bsModalInstance = new bootstrap.Modal(document.getElementById('historyModal'));
-        }
-        
-        document.getElementById('modalItemName').innerText = `حركات الصنف: ${itemName}`;
-        const body = document.getElementById('modalBody');
-        body.innerHTML = `
-            <div class="text-center py-4">
-                <div class="spinner-border spinner-custom" role="status"></div>
-                <p class="text-muted mt-2 small">جاري البحث في حركات المعاملات والطلبات...</p>
-            </div>
-        `;
-        
-        bsModalInstance.show();
-
         try {
-            let matchedLogs = [];
-            const collectionsToSearch = ["transactions", "orders", "purchase_orders"];
-
-            for (const colName of collectionsToSearch) {
-                try {
-                    const snap = await getDocs(collection(db, colName));
-                    snap.forEach(docSnap => {
-                        const d = docSnap.data();
-                        
-                        // التحقق الذكي عبر مطابقة المعرف أو الاسم داخل مستندات الجداول المحددة
-                        const isMatch = (d.itemId === itemId || d.productId === itemId || d.id === itemId ||
-                                         (d.itemName && d.itemName.trim() === itemName.trim()) ||
-                                         (d.productName && d.productName.trim() === itemName.trim()) ||
-                                         // فحص المصفوفات إن كانت الفاتورة تحتوي على أصناف متعددة بالداخل
-                                         (d.items && Array.isArray(d.items) && d.items.some(sub => sub.itemId === itemId || sub.id === itemId || sub.name === itemName)));
-                        
-                        if (isMatch) {
-                            // إذا كانت الفاتورة تحتوي على مصفوفة أصناف نأخذ كمية الصنف المحدد فقط
-                            let finalQty = d.qty || d.quantity || d.count || 0;
-                            if (d.items && Array.isArray(d.items)) {
-                                const foundSub = d.items.find(sub => sub.itemId === itemId || sub.id === itemId || sub.name === itemName);
-                                if (foundSub) finalQty = foundSub.qty || foundSub.quantity || foundSub.count || finalQty;
-                            }
-                            matchedLogs.push({ id: docSnap.id, ...d, calculatedQty: finalQty, source: colName });
-                        }
-                    });
-                } catch(e) { console.warn(`الكولكشن ${colName} غير متاح أو فارغ`); }
-            }
-
-            // ترتيب الحركات تنازلياً حسب التاريخ من الأحدث للأقدم
-            matchedLogs.sort((a, b) => {
-                const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date || a.createdAt || 0);
-                const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date || b.createdAt || 0);
-                return dateB - dateA;
-            });
-
-            if (matchedLogs.length === 0) {
-                body.innerHTML = `
-                    <div class="text-center text-muted py-4">
-                        <i class="fas fa-history fa-2x mb-2 opacity-50"></i>
-                        <p class="small">لم يتم العثور على حركات مسجلة لهذا الصنف في السجلات حالياً.</p>
-                    </div>`;
-                return;
-            }
-
-            let html = '<div class="history-list">';
-            matchedLogs.forEach(log => {
-                let badgeClass = 'sale'; let typeText = 'بيع'; let sign = '-'; let qtyClass = 'minus';
-                const type = (log.type || log.status || log.source || '').toLowerCase();
-
-                if (type.includes('purchase') || type.includes('شراء') || type.includes('تزويد')) {
-                    badgeClass = 'purchase'; typeText = 'شراء'; sign = '+'; qtyClass = 'plus';
-                } else if (type.includes('return') || type.includes('مرتجع')) {
-                    badgeClass = 'return'; typeText = 'مرتجع'; sign = '+'; qtyClass = 'plus';
-                }
-
-                let dateDisplay = 'بدون تاريخ';
-                const rawDate = log.date || log.createdAt;
-                if (rawDate) {
-                    const d = rawDate.toDate ? rawDate.toDate() : new Date(rawDate);
-                    dateDisplay = d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                }
-
-                let detailsText = log.notes || log.clientName || log.customerName || log.supplierName || 'حركة مستودع';
-
-                html += `
-                    <div class="tx-item">
-                        <span class="tx-badge ${badgeClass}">${typeText}</span>
-                        <div class="tx-details ms-2 text-end">
-                            <div class="tx-title text-white">${detailsText}</div>
-                            <div class="tx-date">${dateDisplay}</div>
-                        </div>
-                        <div class="tx-qty ${qtyClass}">${sign}${log.calculatedQty}</div>
-                    </div>
-                `;
-            });
-            html += '</div>';
-            body.innerHTML = html;
-
-        } catch(err) {
-            body.innerHTML = `<div class="alert alert-danger small m-2">حدث خطأ أثناء جلب الحركات: ${err.message}</div>`;
-        }
-    };
-
-    listenToInventory();
+            await batch.commit();
+            alert("تم الاستيراد بنجاح! تم دمج الكراتين والقطع في رصيد واحد.");
+            window.location.href = "inventory-list.html";
+        } catch (e) { alert("حدث خطأ في الرفع"); }
+        document.getElementById('loading').style.display = 'none';
+    }
 </script>
 </body>
 </html>
+
+وجدت السبب في الكود، وهو ليس في عملية الحساب نفسها، وإنما في اسم العمود الذي يقرأه من Excel.
+
+أنت تقرأ الجراكن بهذا السطر:
+
+const extraPcs = parseFloat(item["جركن"]) || 0;
+لكن نموذج الإكسل الذي تنشئه يحتوي على العمود:
+
+"قطع زائدة"
+وليس:
+
+جركن
+لذلك:
+
+item["جركن"]
+ترجع undefined دائمًا، وبالتالي:
+
+extraPcs = 0
+ولهذا يتم حفظ 8 كراتين فقط وتضيع الـ9 جراكن.
+
+الحل
+إذا كان اسم العمود في الإكسل هو قطع زائدة فاستبدل السطر بـ:
+
+const extraPcs = parseFloat(item["قطع زائدة"]) || 0;
+أو الأفضل أن يدعم أكثر من اسم:
+
+const extraPcs =
+    parseFloat(
+        item["قطع زائدة"] ??
+        item["جركن"] ??
+        item["جراكن"] ??
+        item["قطع"]
+    ) || 0;
+وهناك ملاحظة ثانية
+إذا كان عندك صنف مثل:
+
+8 كرتونة
+
+9 جركن
+
+والمعامل = 12
+
+فبعد الحساب يجب أن تكون:
+
+totalPcs = 8 * 12 + 9 = 105
+إذا وجدت في Firebase أن totalPcs يساوي 96 أو 64 فهذا يؤكد أن عمود الجراكن لم يُقرأ أثناء الاستيراد.
+
+أريد أن أتأكد من شيء واحد
+اكتب لي عنوان العمود الخامس في ملف Excel الحقيقي.
+
+هل هو:
+
+قطع زائدة
+
+جركن
+
+جراكن
+
+أم اسم آخر؟
+
+لأن الكود الحالي حساس جدًا لاختلاف اسم العمود بحرف واحد.
+
+
+<!DOCTYPE html>
+
+<html lang="ar" dir="rtl"> <head> <meta charset="UTF-8"> <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>قائمة الجرد - شركة الزيادي</title> <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css"> <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet"> <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> <style> :root { --bg-dark: #0d1117; --glass: rgba(255,255,255,0.05); --neon-blue: #58a6ff; --neon-red: #f85149; --neon-green: #3fb950; --neon-gold: #d4a373; }
+
+    body { background: var(--bg-dark); font-family: 'Cairo', sans-serif; color: #ffffff; padding-bottom: 50px; }
+    .stat-card { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; padding: 15px; text-align: center; height: 100%; }
+    .stat-value { font-size: 1.4rem; font-weight: 700; display: block; }
+    .inventory-container { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; overflow: hidden; }
+    .search-box { background: rgba(255, 255, 255, 0.05) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: white !important; border-radius: 12px; }
+    .table { color: #ffffff !important; margin-bottom: 0; background: transparent !important; white-space: nowrap; }
+    .table thead th { background: rgba(255, 255, 255, 0.05) !important; color: var(--neon-blue) !important; border-bottom: 1px solid rgba(255,255,255,0.1) !important; padding: 15px; }
+    .table tbody td { background: transparent !important; padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05) !important; color: #ffffff !important; }
+    
+    /* تجربة النقر على السطر */
+    .table tbody tr { cursor: pointer; transition: background 0.2s; }
+    .table tbody tr:hover { background: rgba(255,255,255,0.03) !important; }
+    
+    .low-stock-row { background: rgba(248, 81, 73, 0.1) !important; border-right: 4px solid var(--neon-red); }
+    .action-btn { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: white; text-decoration: none; }
+    .btn-edit:hover { background: var(--neon-blue); color: #000; }
+    .btn-delete:hover { background: var(--neon-red); color: #fff; }
+    .price-text { color: var(--neon-blue); font-weight: 700; }
+    .total-pcs-text { color: var(--neon-green); font-weight: 700; }
+    .qty-badge { background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px; font-size: 0.85rem; }
+    .load-more-btn { background: var(--neon-blue); color: #000; border: none; font-weight: bold; border-radius: 10px; padding: 10px 25px; transition: 0.3s; }
+    .load-more-btn:hover { transform: scale(1.05); filter: brightness(1.2); }
+
+    /* تجميل النافذة المنبثقة لتناسب الوضع الداكن للموقع */
+    .modal-content { background: #161b22; border: 1px solid rgba(255,255,255,0.15); border-radius: 18px; color: #fff; }
+    .modal-header { border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .modal-footer { border-top: 1px solid rgba(255,255,255,0.1); }
+    .btn-close { filter: invert(1); }
+    
+    /* ستايل قائمة الحركات */
+    .history-list { max-height: 450px; overflow-y: auto; padding-right: 5px; }
+    .tx-item { display: flex; align-items: center; justify-content: space-between; padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); gap: 10px; }
+    .tx-item:last-child { border-bottom: none; }
+    .tx-badge { padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: bold; color: #fff; text-align: center; min-width: 70px; }
+    .tx-badge.sale { background: var(--neon-green); color: #000; }
+    .tx-badge.purchase { background: var(--neon-blue); color: #000; }
+    .tx-badge.return { background: var(--neon-gold); color: #000; }
+    .tx-details { flex: 1; min-width: 0; }
+    .tx-title { font-size: 0.85rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tx-date { font-size: 0.75rem; color: #8b949e; margin-top: 2px; }
+    .tx-qty { font-size: 1.1rem; font-weight: bold; }
+    .tx-qty.minus { color: var(--neon-red); }
+    .tx-qty.plus { color: var(--neon-green); }
+    
+    /* Spinner */
+    .spinner-custom { width: 2.5rem; height: 2.5rem; color: var(--neon-blue); }
+</style>
+</head> <body>
+
+<div class="container py-4"> <div class="d-flex justify-content-between align-items-center mb-4"> <h4 class="fw-bold m-0 text-white"><i class="fas fa-boxes me-2"></i> قائمة الجرد </h4> <div class="d-flex gap-2 flex-wrap"> <button onclick="cleanDuplicates()" class="btn btn-warning btn-sm px-3 text-dark fw-bold"><i class="fas fa-broom"></i> تنظيف المكرر</button> <button onclick="clearAllInventory()" class="btn btn-danger btn-sm px-3"><i class="fas fa-exclamation-triangle"></i> تصفير المخزن</button> <a href="trash.html" class="btn btn-outline-danger btn-sm px-3"><i class="fas fa-trash-restore"></i> السلة</a> <a href="inventory-menu.html" class="btn btn-outline-light btn-sm px-3">رجوع</a> </div> </div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12">
+        <div class="stat-card border-bottom border-success border-3">
+            <span class="stat-value text-success" id="totalValue">0</span>
+            <small>إجمالي قيمة بضاعة المخزن (بسعر الشراء)</small>
+        </div>
+    </div>
+    <div class="col-6">
+        <div class="stat-card">
+            <span class="stat-value text-white" id="totalItems">0</span>
+            <small>عدد الأصناف</small>
+        </div>
+    </div>
+    <div class="col-6">
+        <div class="stat-card">
+            <span class="stat-value text-danger" id="lowStockCount">0</span>
+            <small>أصناف تحت حد الطلب</small>
+        </div>
+    </div>
+</div>
+
+<div class="mb-3 d-flex gap-2">
+    <input type="text" id="searchStock" class="form-control search-box" placeholder="بحث سريع بالاسم أو الباركود..." oninput="renderStock()">
+    <button class="btn btn-info px-3" onclick="location.href='add-product.html'"><i class="fas fa-plus"></i></button>
+</div>
+
+<div class="inventory-container">
+    <div class="table-responsive">
+        <table class="table text-center align-middle">
+            <thead>
+                <tr>
+                    <th class="text-start">المنتج</th>
+                    <th>الفئة</th>
+                    <th>الكمية (كرتونة وقطع)</th>
+                    <th>إجمالي (قطعة)</th>
+                    <th>سعر البيع</th>
+                    <th>الحالة</th>
+                    <th>إجراء</th>
+                </tr>
+            </thead>
+            <tbody id="stockTable"></tbody>
+        </table>
+    </div>
+</div>
+</div>
+
+<div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true"> <div class="modal-dialog modal-dialog-centered"> <div class="modal-content"> <div class="modal-header"> <h5 class="modal-title fw-bold" id="modalItemName">سجل حركات الصنف</h5> <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button> </div> <div class="modal-body" id="modalBody"> </div> <div class="modal-footer"> <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">إغلاق</button> </div> </div> </div> </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script type="module"> import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js"; import { getFirestore, collection, updateDoc, doc, onSnapshot, serverTimestamp, writeBatch, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js"; const firebaseConfig = { apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls", authDomain: "ahmedelzaiady.firebaseapp.com", projectId: "ahmedelzaiady", storageBucket: "ahmedelzaiady.firebasestorage.app", messagingSenderId: "300306825071", appId: "1:300306825071:web:0426ddde56280fa090329a", measurementId: "G-WE04GK5XZZ" }; const app = initializeApp(firebaseConfig); const db = getFirestore(app); let inventoryData = []; let displayLimit = 50; let bsModalInstance = null; window.cleanDuplicates = async () => { if (inventoryData.length === 0) { alert("المخزن فارغ حالياً."); return; } const confirmClean = confirm("هل تريد فحص المخزن وحذف الأصناف المكررة ونقلها للسلة؟"); if (!confirmClean) return; try { const batch = writeBatch(db); const seenItems = {}; let duplicateCount = 0; inventoryData.forEach(item => { const uniqueKey = item.barcode ? item.barcode.trim() : item.name.trim().toLowerCase(); if (seenItems[uniqueKey]) { const itemRef = doc(db, "inventory", item.id); batch.update(itemRef, { isDeleted: true, deletedAt: serverTimestamp() }); duplicateCount++; } else { seenItems[uniqueKey] = true; } }); if (duplicateCount > 0) { await batch.commit(); alert(`🚀 تم نقل ${duplicateCount} صنف مكرر للسلة!`); } else { alert("✨ لا توجد أي أصناف مكررة."); } } catch (e) { alert("حدث خطأ أثناء محاولة مسح المكرر."); } }; window.clearAllInventory = async () => { const firstConfirm = confirm("⚠️ تحذير: أنت على وشك حذف جميع الأصناف ونقلها للسلة. هل أنت متأكد؟"); if (!firstConfirm) return; try { const batch = writeBatch(db); inventoryData.forEach(item => { const itemRef = doc(db, "inventory", item.id); batch.update(itemRef, { isDeleted: true, deletedAt: serverTimestamp() }); }); await batch.commit(); alert("تم تصفير المخزن بنجاح."); } catch (e) { alert("حدث خطأ."); } }; function listenToInventory() { onSnapshot(collection(db, "inventory"), (snap) => { inventoryData = []; snap.forEach(docSnap => { const data = docSnap.data(); if (data.isDeleted !== true) { inventoryData.push({ id: docSnap.id, ...data }); } }); updateStats(); renderStock(); }); } function updateStats() { document.getElementById('totalItems').innerText = inventoryData.length; let totalVal = 0; let low = 0; inventoryData.forEach(i => { const factor = Number(i.unitFactor) || 1; const currentTotalPcs = Number(i.totalPcs) || 0; const minTotalPcs = (Number(i.min) || 0) * factor; if (currentTotalPcs <= minTotalPcs) low++; totalVal += (currentTotalPcs / factor) * (Number(i.buy) || 0); }); document.getElementById('lowStockCount').innerText = low; document.getElementById('totalValue').innerText = Math.round(totalVal).toLocaleString() + " EGP"; } window.renderStock = function(isMore = false) { if (!isMore) displayLimit = 50; const term = document.getElementById('searchStock').value.toLowerCase(); const tbody = document.getElementById('stockTable'); const filtered = inventoryData.filter(i => i.name.toLowerCase().includes(term) || (i.barcode && i.barcode.includes(term)) ); const dataToShow = (term === "") ? filtered.slice(0, displayLimit) : filtered; let rowsHtml = ''; dataToShow.forEach(item => { const factor = Number(item.unitFactor) || 1; const totalPcs = Number(item.totalPcs) || 0; const boxes = Math.floor(totalPcs / factor); const pieces = totalPcs % factor; const isLow = totalPcs <= ((Number(item.min) || 0) * factor); let qtyDisplay = `<span class="qty-badge">${boxes} كرتونة</span>`; if(pieces > 0) qtyDisplay += ` <span class="qty-badge text-info">${pieces} قطعة</span>`; const safeName = item.name.replace(/'/g, "\\'"); // أضفنا حدث onclick على السطر بالكامل ما عدا أزرار التعديل والحذف لحماية الإجراءات rowsHtml += ` <tr class="${isLow ? 'low-stock-row' : ''}" onclick="openItemHistory('${item.id}', '${safeName}', event)"> <td class="text-start"> <div class="fw-bold text-white">${item.name}</div> <small class="text-muted" style="font-size:0.7rem">${item.barcode || '---'}</small> </td> <td><span class="badge bg-secondary opacity-75">${item.category || 'عام'}</span></td> <td><div class="d-flex flex-column gap-1">${qtyDisplay}</div></td> <td><span class="total-pcs-text">${totalPcs}</span> <small style="font-size:0.6rem">ق</small></td> <td class="price-text">${Number(item.sell).toLocaleString()}</td> <td><span class="badge ${isLow ? 'bg-danger' : 'bg-success'}">${isLow ? 'ناقص' : 'متوفر'}</span></td> <td> <div class="d-flex gap-2 justify-content-center" onclick="event.stopPropagation()"> <a href="add-product.html?edit=${item.id}" class="action-btn btn-edit"><i class="fas fa-edit"></i></a> <button onclick="softDeleteItem('${item.id}', '${item.name}')" class="action-btn btn-delete"><i class="fas fa-trash"></i></button> </div> </td> </tr> `; }); tbody.innerHTML = rowsHtml; if (filtered.length > displayLimit && term === "") { tbody.innerHTML += ` <tr> <td colspan="7" class="text-center p-4" onclick="event.stopPropagation()"> <button class="load-more-btn" onclick="loadMore()">عرض المزيد (+)</button> <p class="text-muted mt-2 small">يتم عرض ${displayLimit} من أصل ${filtered.length} صنف</p> </td> </tr> `; } }; window.loadMore = () => { displayLimit += 100; renderStock(true); }; window.softDeleteItem = async (id, name) => { if(confirm(`هل أنت متأكد من نقل "${name}" إلى سلة المحذوفات؟`)) { try { await updateDoc(doc(db, "inventory", id), { isDeleted: true, deletedAt: serverTimestamp() }); } catch (e) { alert("حدث خطأ أثناء الحذف"); } } }; // --- الدالة السحرية الجديدة لجلب سجل الحركات من الجداول المكتشفة --- window.openItemHistory = async function(itemId, itemName, event) { if (!bsModalInstance) { bsModalInstance = new bootstrap.Modal(document.getElementById('historyModal')); } document.getElementById('modalItemName').innerText = `حركات الصنف: ${itemName}`; const body = document.getElementById('modalBody'); body.innerHTML = ` <div class="text-center py-4"> <div class="spinner-border spinner-custom" role="status"></div> <p class="text-muted mt-2 small">جاري البحث في حركات المعاملات والطلبات...</p> </div> `; bsModalInstance.show(); try { let matchedLogs = []; const collectionsToSearch = ["transactions", "orders", "purchase_orders"]; for (const colName of collectionsToSearch) { try { const snap = await getDocs(collection(db, colName)); snap.forEach(docSnap => { const d = docSnap.data(); // التحقق الذكي عبر مطابقة المعرف أو الاسم داخل مستندات الجداول المحددة const isMatch = (d.itemId === itemId || d.productId === itemId || d.id === itemId || (d.itemName && d.itemName.trim() === itemName.trim()) || (d.productName && d.productName.trim() === itemName.trim()) || // فحص المصفوفات إن كانت الفاتورة تحتوي على أصناف متعددة بالداخل (d.items && Array.isArray(d.items) && d.items.some(sub => sub.itemId === itemId || sub.id === itemId || sub.name === itemName))); if (isMatch) { // إذا كانت الفاتورة تحتوي على مصفوفة أصناف نأخذ كمية الصنف المحدد فقط let finalQty = d.qty || d.quantity || d.count || 0; if (d.items && Array.isArray(d.items)) { const foundSub = d.items.find(sub => sub.itemId === itemId || sub.id === itemId || sub.name === itemName); if (foundSub) finalQty = foundSub.qty || foundSub.quantity || foundSub.count || finalQty; } matchedLogs.push({ id: docSnap.id, ...d, calculatedQty: finalQty, source: colName }); } }); } catch(e) { console.warn(`الكولكشن ${colName} غير متاح أو فارغ`); } } // ترتيب الحركات تنازلياً حسب التاريخ من الأحدث للأقدم matchedLogs.sort((a, b) => { const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date || a.createdAt || 0); const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date || b.createdAt || 0); return dateB - dateA; }); if (matchedLogs.length === 0) { body.innerHTML = ` <div class="text-center text-muted py-4"> <i class="fas fa-history fa-2x mb-2 opacity-50"></i> <p class="small">لم يتم العثور على حركات مسجلة لهذا الصنف في السجلات حالياً.</p> </div>`; return; } let html = '<div class="history-list">'; matchedLogs.forEach(log => { let badgeClass = 'sale'; let typeText = 'بيع'; let sign = '-'; let qtyClass = 'minus'; const type = (log.type || log.status || log.source || '').toLowerCase(); if (type.includes('purchase') || type.includes('شراء') || type.includes('تزويد')) { badgeClass = 'purchase'; typeText = 'شراء'; sign = '+'; qtyClass = 'plus'; } else if (type.includes('return') || type.includes('مرتجع')) { badgeClass = 'return'; typeText = 'مرتجع'; sign = '+'; qtyClass = 'plus'; } let dateDisplay = 'بدون تاريخ'; const rawDate = log.date || log.createdAt; if (rawDate) { const d = rawDate.toDate ? rawDate.toDate() : new Date(rawDate); dateDisplay = d.toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } let detailsText = log.notes || log.clientName || log.customerName || log.supplierName || 'حركة مستودع'; html += ` <div class="tx-item"> <span class="tx-badge ${badgeClass}">${typeText}</span> <div class="tx-details ms-2 text-end"> <div class="tx-title text-white">${detailsText}</div> <div class="tx-date">${dateDisplay}</div> </div> <div class="tx-qty ${qtyClass}">${sign}${log.calculatedQty}</div> </div> `; }); html += '</div>'; body.innerHTML = html; } catch(err) { body.innerHTML = `<div class="alert alert-danger small m-2">حدث خطأ أثناء جلب الحركات: ${err.message}</div>`; } }; listenToInventory(); </script>
+
+</body> </html>
+
+
