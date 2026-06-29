@@ -901,9 +901,7 @@
             }
         });
     };
-
-    // ===== تصدير الإكسيل - مع التعديلات المطلوبة =====
- // ===== تصدير الإكسيل - مع التصحيح والاعتماد على الوحدة البيعية =====
+// ===== تصدير الإكسيل - مع التصحيح والاعتماد على الوحدة البيعية وإضافة المرتجع =====
     document.getElementById('exportExcelBtn').onclick = () => {
         if (!allInvoices.length) {
             window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات لتصديرها بعد.", icon: "info" });
@@ -912,12 +910,12 @@
 
         let excelRows = [];
 
-        // البيانات هنا مرتبة من الأحدث للأقدم تلقائياً كما تم ضبطها في جلب البيانات
+        // البيانات هنا مرتبة من الأحدث للأقدم تلقائياً
         allInvoices.forEach(inv => {
             const invDate = parseInvoiceDate(inv);
             const customerName = inv.customerName || 'النقدى';
 
-            // 1. أصناف الفاتورة - تم تصحيح الفرز ليعتمد على الوحدة (unit) وليس الاسم
+            // 1. أصناف الفاتورة
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(itm => {
                     let qtyCarton = 0;
@@ -925,24 +923,25 @@
                     let priceCarton = 0;
                     let priceJarkan = 0;
 
-                    const itemName = itm.name || "";
+                    // إضافة كلمة مرتجع أمام اسم الصنف إذا كان مرتجعاً
+                    const isRet = itm.isReturn === true;
+                    const itemName = (isRet ? "(مرتجع) " : "") + (itm.name || "");
+                    
                     const rawQty = Number(itm.qty) || 0;
                     const rawPrice = Number(itm.price) || 0;
 
-                    // الاعتماد على وحدة التخزين الحقيقية المحفوظة في قاعدة البيانات
+                    // الاعتماد على وحدة التخزين الحقيقية
                     if (itm.unit === 'pcs') {
-                        // صنف جركن
                         qtyJarkan = rawQty;
                         priceJarkan = rawPrice;
                     } else {
-                        // صنف كرتونة (box أو غيره)
                         qtyCarton = rawQty;
                         priceCarton = rawPrice;
                     }
 
                     excelRows.push({
                         "التاريخ": invDate,
-                        "الحركة": itm.isReturn ? "مرتجع مبيعات" : "بيع",
+                        "الحركة": isRet ? "مرتجع" : "بيع",
                         "اسم العميل": customerName,
                         "الصنف": itemName,
                         "عدد الجركن": qtyJarkan,
