@@ -502,13 +502,18 @@
             allVouchers = [];
             querySnapshot.forEach((doc) => {
                 const d = doc.data();
-                if (d.type === 'قبض' || d.type === 'صرف') {
+                // فلترة صارمة: نسجل فقط سندات القبض أو الصرف الخاصة بعميل أو مورد فعلي
+                // أي سندات أو حركات أخرى (مثل تسديد فواتير من شاشات مختلفة) يتم تجاهلها هنا
+                const isValidVoucherType = (d.type === 'قبض' || d.type === 'صرف');
+                const resolvedPartyType = d.partyType || (partiesMap[d.partyId] ? partiesMap[d.partyId].type : null);
+                const isValidParty = !!d.partyId && (resolvedPartyType === 'عميل' || resolvedPartyType === 'مورد');
+                if (isValidVoucherType && isValidParty) {
                     allVouchers.push({
                         id: doc.id,
                         date: d.date,
                         type: d.type,
                         partyId: d.partyId,
-                        partyType: d.partyType || (partiesMap[d.partyId] ? partiesMap[d.partyId].type : 'مورد'),
+                        partyType: resolvedPartyType,
                         amount: Number(d.amount || 0),
                         method: d.method || 'نقدى',
                         note: d.note || d.notes || ''
@@ -735,6 +740,16 @@
         const amount = Number(document.getElementById('vAmount').value);
         const method = document.getElementById('vMethod').value;
         const note = document.getElementById('vNote').value;
+
+        // تأكيد إضافي: لا يتم تسجيل أي سند إلا إذا كان النوع قبض/صرف والطرف عميل/مورد محدد فعلياً
+        if (type !== 'قبض' && type !== 'صرف') {
+            alert("خطأ: نوع الحركة غير صالح، يجب أن يكون قبض أو صرف فقط.");
+            return;
+        }
+        if (partyType !== 'عميل' && partyType !== 'مورد') {
+            alert("خطأ: يجب تحديد نوع الطرف (عميل أو مورد) فقط.");
+            return;
+        }
         if (!partyId) {
             alert("خطأ: يرجى كتابة الاسم واختياره من قائمة البحث الذكي المنبثقة.");
             return;
@@ -787,11 +802,16 @@
         }
     };
 
-    // ===== تصدير الإكسل - مع التعديلات المطلوبة =====
-    // قبض + نقدى     → سداد منه نقدى
-    // قبض + محفظة    → سداد منه محفظه
-    // صرف + نقدى     → سداد له نقدى
-    // صرف + محفظة    → سداد له محفظه
+    // ===== تصدير الإكسل - بالتنسيق الجديد المطلوب (8 أعمدة) =====
+    // 1) التاريخ
+    // 2) الحركة: قبض+نقدى → سداد منه نقدى | قبض+محفظة → سداد منه محفظه
+    //            صرف+نقدى → سداد له نقدى   | صرف+محفظة → سداد له محفظه
+    // 3) اسم العميل أو المورد
+    // 4) ثابت: "سداد نقدى"
+    // 5) ثابت: 0
+    // 6) ثابت: 1
+    // 7) ثابت: 0
+    // 8) المبلغ
     window.exportToExcel = () => {
         if (allVouchers.length === 0) {
             alert("لا توجد بيانات لتصديرها.");
@@ -813,6 +833,7 @@
                 'التاريخ': v.date,
                 'الحركة': movementLabel,
                 'اسم العميل': pName,
+                'نوع السداد': 'سداد نقدى',
                 'عدد جركن': 0,
                 'عدد كرتونة': 1,
                 'سعر جركن': 0,
