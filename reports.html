@@ -23,6 +23,7 @@
             --purple: #6f42c1;
             --orange: #e65c00;
             --teal: #14b8a6;
+            --gold: #d4af37;
         }
 
         body { 
@@ -46,7 +47,6 @@
             padding: 25px 15px;
         }
         
-        /* ضبط الكروت لتكون متساوية الارتفاع ومرنة */
         .hub-card {
             background: var(--white);
             border-radius: 16px;
@@ -65,7 +65,7 @@
             overflow: hidden;
             cursor: pointer;
             width: 100%;
-            height: 100%; /* تضمن تساوي الطول لجميع الكروت في نفس الصف */
+            height: 100%;
             min-height: 190px;
         }
 
@@ -78,6 +78,7 @@
             height: 5px;
         }
 
+        .card-all::before { background: var(--gold); }
         .card-sales::before { background: var(--accent); }
         .card-purchases::before { background: var(--danger); }
         .card-vouchers::before { background: var(--info); }
@@ -103,6 +104,7 @@
             transition: 0.3s;
         }
 
+        .card-all .icon-wrapper { background: #fef3c7; color: var(--gold); }
         .card-sales .icon-wrapper { background: #e8f5e9; color: var(--accent); }
         .card-purchases .icon-wrapper { background: #ffebee; color: var(--danger); }
         .card-vouchers .icon-wrapper { background: #e0f7fa; color: var(--info); }
@@ -116,6 +118,7 @@
             color: var(--white);
         }
 
+        .card-all:hover .icon-wrapper { background: var(--gold); }
         .card-sales:hover .icon-wrapper { background: var(--accent); }
         .card-purchases:hover .icon-wrapper { background: var(--danger); }
         .card-vouchers:hover .icon-wrapper { background: var(--info); }
@@ -161,6 +164,16 @@
     <div class="hub-container container">
         <div class="row g-3 justify-content-center row-cols-2 row-cols-md-4">
             
+            <div class="col-12 col-md-8 mb-2">
+                <div class="hub-card card-all" id="combinedCard" onclick="exportComprehensiveToExcel()">
+                    <div class="icon-wrapper" id="combinedIcon">
+                        <i class="fas fa-file-excel"></i>
+                    </div>
+                    <h3>التصدير الشامل (ملف واحد لكافة السجلات)</h3>
+                    <p>توليد ملف إكسيل موحد يحتوي على 3 صفحات تبويب منفصلة تشمل سجل المبيعات، سجل المشتريات، وجميع السندات المالية بضغطة واحدة.</p>
+                </div>
+            </div>
+
             <div class="col">
                 <div class="hub-card card-sales" id="salesCard" onclick="exportSalesToExcel()">
                     <div class="icon-wrapper" id="salesIcon">
@@ -190,15 +203,7 @@
                     <p>توليد ملف إكسيل منفصل لكافة سندات القبض والصرف المباشرة.</p>
                 </div>
             </div>
-          <div class="col">
-                <a href="reports3.html" class="hub-card card-van">
-                    <div class="icon-wrapper">
-                        <i class="fas fa-truck-moving"></i>
-                    </div>
-                    <h3>كل الملفات</h3>
-                    <p>اتصدير كل الملفات مبيعات ومشتريات وسندات</p>
-                </a>
-            </div>
+        
             <div class="col">
                 <a href="reports1.html" class="hub-card card-portal">
                     <div class="icon-wrapper">
@@ -280,61 +285,179 @@
         "سعر كرتونه"
     ];
 
+    // دالة تجميع بيانات المبيعات
+    async function fetchSalesData() {
+        let rows = [excelHeader];
+        const salesSnap = await getDocs(collection(db, "invoices"));
+        salesSnap.forEach(doc => {
+            const inv = doc.data();
+            const dateStr = getCleanDate(inv);
+            const name = inv.customerName || inv.partyName || "عميل نقدي";
+            
+            let itemsFound = [];
+            if (Array.isArray(inv.items) && inv.items.length > 0) {
+                itemsFound = inv.items;
+            } else {
+                Object.keys(inv).forEach(k => {
+                    if (!isNaN(k) && inv[k] && typeof inv[k] === 'object') {
+                        itemsFound.push(inv[k]);
+                    }
+                });
+            }
+
+            itemsFound.forEach(item => {
+                const isBox = item.unit === "box";
+                rows.push([
+                    dateStr, "بيع", name, item.name || "صنف مبيعات",
+                    !isBox ? (item.qty || 0) : 0,
+                    isBox ? (item.qty || 0) : 0,
+                    !isBox ? Math.round(item.price || 0) : 0,
+                    isBox ? Math.round(item.price || 0) : 0
+                ]);
+            });
+
+            const total = Number(inv.total || 0);
+            const remaining = Number(inv.remaining || 0);
+            const paid = total - remaining;
+            
+            if (paid > 0) {
+                rows.push([
+                    dateStr, "سداد منه نقدى", name, "سداد نقدي", "", 1, "", Math.round(paid)
+                ]);
+            }
+        });
+        return rows;
+    }
+
+    // دالة تجميع بيانات المشتريات
+    async function fetchPurchasesData() {
+        let rows = [excelHeader];
+        const supSnap = await getDocs(collection(db, "suppliers"));
+        let suppliersNames = {};
+        supSnap.forEach(d => suppliersNames[d.id] = d.data().name);
+
+        const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
+        
+        purchasesSnap.forEach(doc => {
+            const inv = doc.data();
+            if (inv.type === "شراء" || inv.type === "فاتورة شراء" || inv.type === "مرتجع شراء") {
+                const dateStr = inv.date || getCleanDate(inv);
+                const supplierName = suppliersNames[inv.supplierId] || 'مورد غير معروف';
+                const isReturn = inv.type === "مرتجع شراء";
+                const motionType = isReturn ? "بيع" : "شراء";
+
+                if (Array.isArray(inv.items) && inv.items.length > 0) {
+                    inv.items.forEach(item => {
+                        const unit = item.unitName || "كرتونة";
+                        const qty = item.qty || item.returnQty || 0;
+                        const price = item.buy || 0;
+
+                        let qtyPcs = 0, qtyCrt = 0, pricePcs = 0, priceCrt = 0;
+
+                        if (unit === "قطعة") {
+                            qtyPcs = qty;
+                            pricePcs = Math.round(price);
+                        } else {
+                            qtyCrt = qty;
+                            priceCrt = Math.round(price);
+                        }
+
+                        rows.push([
+                            dateStr, motionType, supplierName, item.name || item.productName || "صنف مشتريات",
+                            qtyPcs || "", qtyCrt || "", pricePcs || "", priceCrt || ""
+                        ]);
+                    });
+                }
+
+                const currentPaid = Number(inv.paidAmount || 0);
+                if (currentPaid > 0) {
+                    rows.push([
+                        dateStr, "سداد له نقدى", supplierName, "سداد نقدى", "", 1, "", Math.round(currentPaid)
+                    ]);
+                }
+            }
+        });
+        return rows;
+    }
+
+    // دالة تجميع بيانات السندات المالية
+    async function fetchVouchersData() {
+        let rows = [excelHeader];
+        const transSnap = await getDocs(collection(db, "transactions"));
+        transSnap.forEach(doc => {
+            const d = doc.data();
+            if (d.type === 'قبض' || d.type === 'صرف') {
+                const dateStr = getCleanDate(d);
+                
+                const name = d.partyName || 
+                             d.customerName || 
+                             d.supplierName || 
+                             d.name || 
+                             d.clientName || 
+                             'حساب غير معروف';
+                
+                let movementText = "سداد نقدى";
+                if (d.type === 'قبض') movementText = "سداد منه نقدى";
+                else if (d.type === 'صرف') movementText = "سداد له نقدى";
+
+                rows.push([
+                    dateStr, movementText, name, d.note || "سداد نقدي", "", 1, "", Math.round(Number(d.amount || 0)) 
+                ]);
+            }
+        });
+        return rows;
+    }
+
+    // التصدير الشامل المدمج (ملف واحد متعدد الصفحات)
+    window.exportComprehensiveToExcel = async () => {
+        const card = document.getElementById('combinedCard');
+        const iconWrapper = document.getElementById('combinedIcon');
+        card.style.pointerEvents = "none";
+        iconWrapper.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+        try {
+            const salesRows = await fetchSalesData();
+            const purchasesRows = await fetchPurchasesData();
+            const vouchersRows = await fetchVouchersData();
+
+            const wb = XLSX.utils.book_new();
+
+            // 1. إضافة ورقة المبيعات
+            const wsSales = XLSX.utils.aoa_to_sheet(salesRows);
+            XLSX.utils.book_append_sheet(wb, wsSales, "المبيعات");
+
+            // 2. إضافة ورقة المشتريات
+            const wsPurchases = XLSX.utils.aoa_to_sheet(purchasesRows);
+            XLSX.utils.book_append_sheet(wb, wsPurchases, "المشتريات");
+
+            // 3. إضافة ورقة السندات المالية
+            const wsVouchers = XLSX.utils.aoa_to_sheet(vouchersRows);
+            XLSX.utils.book_append_sheet(wb, wsVouchers, "السندات المالية");
+
+            // حفظ وتحميل الملف النهائي الشامل
+            XLSX.writeFile(wb, `التقرير_الشامل_شركة_الزيادي_${new Date().toISOString().split('T')[0]}.xlsx`);
+
+        } catch (e) {
+            console.error(e);
+            alert("حدث خطأ أثناء تحميل التقرير الشامل.");
+        } default {
+            card.style.pointerEvents = "auto";
+            iconWrapper.innerHTML = '<i class="fas fa-file-excel"></i>';
+        }
+    };
+
     window.exportSalesToExcel = async () => {
         const card = document.getElementById('salesCard');
         const iconWrapper = document.getElementById('salesIcon');
         card.style.pointerEvents = "none";
         iconWrapper.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        
-        let excelRows = [excelHeader];
-
         try {
-            const salesSnap = await getDocs(collection(db, "invoices"));
-            salesSnap.forEach(doc => {
-                const inv = doc.data();
-                const dateStr = getCleanDate(inv);
-                const name = inv.customerName || inv.partyName || "عميل نقدي";
-                
-                let itemsFound = [];
-                if (Array.isArray(inv.items) && inv.items.length > 0) {
-                    itemsFound = inv.items;
-                } else {
-                    Object.keys(inv).forEach(k => {
-                        if (!isNaN(k) && inv[k] && typeof inv[k] === 'object') {
-                            itemsFound.push(inv[k]);
-                        }
-                    });
-                }
-
-                itemsFound.forEach(item => {
-                    const isBox = item.unit === "box";
-                    excelRows.push([
-                        dateStr, "بيع", name, item.name || "صنف مبيعات",
-                        !isBox ? (item.qty || 0) : 0,
-                        isBox ? (item.qty || 0) : 0,
-                        !isBox ? Math.round(item.price || 0) : 0,
-                        isBox ? Math.round(item.price || 0) : 0
-                    ]);
-                });
-
-                const total = Number(inv.total || 0);
-                const remaining = Number(inv.remaining || 0);
-                const paid = total - remaining;
-                
-                if (paid > 0) {
-                    excelRows.push([
-                        dateStr, "سداد منه نقدى", name, "سداد نقدي", "", 1, "", Math.round(paid)
-                    ]);
-                }
-            });
-
-            if (excelRows.length <= 1) { alert("لم يتم العثور على أي سجلات مبيعات!"); return; }
-
-            const ws = XLSX.utils.aoa_to_sheet(excelRows);
+            const rows = await fetchSalesData();
+            if (rows.length <= 1) { alert("لم يتم العثور على أي سجلات مبيعات!"); return; }
+            const ws = XLSX.utils.aoa_to_sheet(rows);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "المبيعات");
             XLSX.writeFile(wb, `تقرير_كارت_المبيعات_${new Date().toISOString().split('T')[0]}.xlsx`);
-
         } catch (e) {
             console.error(e);
             alert("حدث خطأ أثناء تحميل بيانات المبيعات.");
@@ -349,69 +472,15 @@
         const iconWrapper = document.getElementById('purchasesIcon');
         card.style.pointerEvents = "none";
         iconWrapper.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        
-        let excelRows = [excelHeader];
-
         try {
-            const supSnap = await getDocs(collection(db, "suppliers"));
-            let suppliersNames = {};
-            supSnap.forEach(d => suppliersNames[d.id] = d.data().name);
-
-            const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
-            
-            purchasesSnap.forEach(doc => {
-                const inv = doc.data();
-                
-                if (inv.type === "شراء" || inv.type === "فاتورة شراء" || inv.type === "مرتجع شراء") {
-                    const dateStr = inv.date || getCleanDate(inv);
-                    const supplierName = suppliersNames[inv.supplierId] || 'مورد غير معروف';
-                    const isReturn = inv.type === "مرتجع شراء";
-                    const motionType = isReturn ? "بيع" : "شراء";
-
-                    if (Array.isArray(inv.items) && inv.items.length > 0) {
-                        inv.items.forEach(item => {
-                            const unit = item.unitName || "كرتونة";
-                            const qty = item.qty || item.returnQty || 0;
-                            const price = item.buy || 0;
-
-                            let qtyPcs = 0, qtyCrt = 0, pricePcs = 0, priceCrt = 0;
-
-                            if (unit === "قطعة") {
-                                qtyPcs = qty;
-                                pricePcs = Math.round(price);
-                            } else {
-                                qtyCrt = qty;
-                                priceCrt = Math.round(price);
-                            }
-
-                            excelRows.push([
-                                dateStr, motionType, supplierName, item.name || item.productName || "صنف مشتريات",
-                                qtyPcs || "", qtyCrt || "", pricePcs || "", priceCrt || ""
-                            ]);
-                        });
-                    }
-
-                    const currentPaid = Number(inv.paidAmount || 0);
-                    if (currentPaid > 0) {
-                        excelRows.push([
-                            dateStr, "سداد له نقدى", supplierName, "سداد نقدى", "", 1, "", Math.round(currentPaid)
-                        ]);
-                    }
-                }
-            });
-
-            if (excelRows.length <= 1) { 
-                alert("لم يتم العثور على أي سجلات في كولكشن المشتريات الحالي!"); 
-                return; 
-            }
-
-            const ws = XLSX.utils.aoa_to_sheet(excelRows);
+            const rows = await fetchPurchasesData();
+            if (rows.length <= 1) { alert("لم يتم العثور على أي سجلات في المشتريات!"); return; }
+            const ws = XLSX.utils.aoa_to_sheet(rows);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "المشتريات");
             XLSX.writeFile(wb, `تقرير_كارت_المشتريات_${new Date().toISOString().split('T')[0]}.xlsx`);
-
         } catch (e) {
-            console.error("خطأ المشتريات:", e);
+            console.error(e);
             alert("حدث خطأ أثناء تحميل بيانات المشتريات.");
         } finally {
             card.style.pointerEvents = "auto";
@@ -424,40 +493,13 @@
         const iconWrapper = document.getElementById('vouchersIcon');
         card.style.pointerEvents = "none";
         iconWrapper.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-        
-        let excelRows = [excelHeader];
-
         try {
-            const transSnap = await getDocs(collection(db, "transactions"));
-            transSnap.forEach(doc => {
-                const d = doc.data();
-                if (d.type === 'قبض' || d.type === 'صرف') {
-                    const dateStr = getCleanDate(d);
-                    
-                    const name = d.partyName || 
-                                 d.customerName || 
-                                 d.supplierName || 
-                                 d.name || 
-                                 d.clientName || 
-                                 'حساب غير معروف';
-                    
-                    let movementText = "سداد نقدى";
-                    if (d.type === 'قبض') movementText = "سداد منه نقدى";
-                    else if (d.type === 'صرف') movementText = "سداد له نقدى";
-
-                    excelRows.push([
-                        dateStr, movementText, name, d.note || "سداد نقدي", "", 1, "", Math.round(Number(d.amount || 0)) 
-                    ]);
-                }
-            });
-
-            if (excelRows.length <= 1) { alert("لم يتم العثور على أي سندات مسجلة بالخزنة!"); return; }
-
-            const ws = XLSX.utils.aoa_to_sheet(excelRows);
+            const rows = await fetchVouchersData();
+            if (rows.length <= 1) { alert("لم يتم العثور على أي سندات مسجلة!"); return; }
+            const ws = XLSX.utils.aoa_to_sheet(rows);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "السندات المالية");
             XLSX.writeFile(wb, `تقرير_كارت_السندات_${new Date().toISOString().split('T')[0]}.xlsx`);
-
         } catch (e) {
             console.error(e);
             alert("حدث خطأ أثناء تحميل بيانات السندات.");
