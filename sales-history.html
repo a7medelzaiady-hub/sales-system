@@ -107,6 +107,12 @@
         }
         .invoice-item:hover { box-shadow: var(--shadow-md); }
         .invoice-item.no-date { border-right: 4px solid var(--danger); }
+        .invoice-item.voucher-item { border-right: 4px solid var(--purple); background: #fbfaff; }
+        .vouchers-divider {
+            display: flex; align-items: center; gap: 8px; margin: 16px 0 10px 0;
+            font-size: 0.78rem; font-weight: 800; color: var(--purple);
+        }
+        .vouchers-divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
         .meta-container { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
         .detail-badge {
@@ -408,10 +414,10 @@
         return "00:00 م";
     }
 
-    window.renderInvoices = (invoices) => {
+    window.renderInvoices = (invoices, vouchers = []) => {
         currentRenderedInvoices = invoices;
         const container = document.getElementById('invoicesList');
-        if (invoices.length === 0) {
+        if (invoices.length === 0 && vouchers.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-folder-open fa-2x mb-2"></i>
@@ -420,7 +426,7 @@
             return;
         }
 
-        container.innerHTML = invoices.map(inv => {
+        const invoicesHtml = invoices.map(inv => {
             let methodBadgeColor = "bg-secondary";
             if (inv.paymentMethod === "سداد نقدى" || inv.paymentMethod === "كاش" || inv.paymentMethod === "نقدى") methodBadgeColor = "bg-success";
             else if (inv.paymentMethod === "سداد مرئية" || inv.paymentMethod === "سداد محفظه" || inv.paymentMethod === "محفظه") methodBadgeColor = "bg-primary";
@@ -482,6 +488,32 @@
                 </div>
             `;
         }).join('');
+
+        const vouchersHtml = vouchers.map(v => `
+            <div class="invoice-item voucher-item">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.92rem;">${v.customerName}</h6>
+                        <div class="meta-container">
+                            <span class="pay-badge bg-secondary" style="background-color: var(--purple) !important;">سند قبض</span>
+                            <span class="detail-badge"><i class="far fa-clock"></i> ${v.date || 'بلا تاريخ'}</span>
+                        </div>
+                        ${v.note ? `<div class="text-muted mt-1" style="font-size:0.75rem;"><i class="fas fa-sticky-note me-1"></i> ${v.note}</div>` : ''}
+                    </div>
+                </div>
+                <div class="financial-grid">
+                    <div class="fin-box text-success">نقدى مستلم <span>${v.cashAmount.toFixed(2)}</span></div>
+                    <div class="fin-box text-primary">محفظه مستلمة <span>${v.walletAmount.toFixed(2)}</span></div>
+                </div>
+            </div>
+        `).join('');
+
+        let dividerHtml = '';
+        if (vouchers.length > 0 && invoices.length > 0) {
+            dividerHtml = `<div class="vouchers-divider"><i class="fas fa-hand-holding-usd"></i> سندات القبض (${vouchers.length})</div>`;
+        }
+
+        container.innerHTML = invoicesHtml + dividerHtml + vouchersHtml;
     };
 
     function calculateStats() {
@@ -561,8 +593,9 @@
                 if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);
                 else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);
 
-                // نجمع فقط سندات "قبض" (المبالغ المُستلمة فعلياً) عشان تدخل في إحصائيات نقدى/محفظه اليوم
-                if (tr.type === 'قبض') {
+                // نجمع فقط سندات "قبض" الخاصة بالعملاء (المبالغ المُستلمة فعلياً) عشان تدخل في إحصائيات نقدى/محفظه اليوم
+                const isCustomerVoucher = tr.partyType === 'عميل' || (!tr.partyType && customersData[tr.partyId]);
+                if (tr.type === 'قبض' && isCustomerVoucher) {
                     let cashAmount = 0;
                     let walletAmount = 0;
                     if (tr.cashPaid !== undefined || tr.walletPaid !== undefined) {
@@ -577,7 +610,15 @@
                     } else {
                         cashAmount = Number(tr.amount) || 0;
                     }
-                    allReceiptVouchers.push({ date: tr.date, cashAmount, walletAmount });
+                    const customerName = (customersData[tr.partyId] && customersData[tr.partyId].name) || 'عميل غير معروف';
+                    allReceiptVouchers.push({
+                        id: d.id,
+                        date: tr.date,
+                        cashAmount,
+                        walletAmount,
+                        customerName,
+                        note: tr.note || tr.notes || ''
+                    });
                 }
             });
 
@@ -883,9 +924,22 @@
                 default: return true;
             }
         });
-        document.getElementById('filterStatusText').innerText = `${statusLabel} (${filtered.length} فاتورة) - ملحوظة: الرقم في البطاقة أعلاه يشمل أيضاً سندات القبض`;
+
+        // ضم سندات القبض المطابقة لنفس اليوم ونفس نوع الفلتر (نقدى/محفظه) كصفوف منفصلة تحت الفواتير
+        let matchingVouchers = [];
+        if (type === 'today-cash' || type === 'today-wallet') {
+            matchingVouchers = allReceiptVouchers.filter(v => {
+                const vDateStr = parseVoucherDate(v);
+                const isToday = (vDateStr === dateStr);
+                if (!isToday) return false;
+                return type === 'today-cash' ? v.cashAmount > 0 : v.walletAmount > 0;
+            });
+        }
+
+        const vouchersCountLabel = matchingVouchers.length > 0 ? ` + ${matchingVouchers.length} سند قبض` : '';
+        document.getElementById('filterStatusText').innerText = `${statusLabel} (${filtered.length} فاتورة${vouchersCountLabel})`;
         document.getElementById('filterStatusBar').style.display = "flex";
-        window.renderInvoices(filtered);
+        window.renderInvoices(filtered, matchingVouchers);
     }
 
     window.resetStatFilter = () => {
