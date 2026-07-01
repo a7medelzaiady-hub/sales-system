@@ -154,6 +154,8 @@
 
         .product-row.is-return-row { background: #fff0f1; border-color: #ffccd0; }
 
+        .product-row.has-validation-error { border-color: var(--danger) !important; box-shadow: 0 0 0 3px rgba(217, 4, 41, 0.12); }
+
         .btn-remove {
             position: absolute;
             left: -8px; top: -8px;
@@ -969,12 +971,49 @@
         return { itemsTotal, discount, total: netTotal, paid, remaining: netTotal - paid };
     };
 
+    // دالة مساعدة: تتحقق من صحة جميع صفوف الأصناف (الكمية والسعر) قبل أي حفظ أو مراجعة
+    // ترجع null لو كل شيء سليم، أو رسالة الخطأ المناسبة لو وجدت مشكلة
+    // كما تضيف/تزيل كلاس تنبيه بصري على الصف الذي فيه الخطأ
+    function validateItemRows(rows) {
+        // إزالة أي تنبيه بصري سابق
+        rows.forEach(r => r.classList.remove('has-validation-error'));
+
+        for (const r of rows) {
+            const pid = r.querySelector('.p-select')?.value;
+            if (!pid) continue; // صف بدون صنف محدد، يتم تجاهله بالكامل
+
+            const name = r.querySelector('.p-search')?.value || 'الصنف المحدد';
+            const qtyRaw = (r.querySelector('.p-qty')?.value ?? '').toString().trim();
+            const priceRaw = (r.querySelector('.p-price')?.value ?? '').toString().trim();
+            const qty = Number(qtyRaw);
+            const price = Number(priceRaw);
+
+            if (qtyRaw === '' || isNaN(qty) || qty <= 0) {
+                r.classList.add('has-validation-error');
+                r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return `خطأ: لا يمكن ترك خانة الكمية فارغة أو صفر للصنف "${name}". برجاء إدخال كمية صحيحة أكبر من صفر.`;
+            }
+
+            if (priceRaw === '' || isNaN(price) || price <= 0) {
+                r.classList.add('has-validation-error');
+                r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return `خطأ: لا يمكن ترك خانة السعر فارغة أو صفر للصنف "${name}". برجاء إدخال سعر صحيح أكبر من صفر.`;
+            }
+        }
+        return null;
+    }
+
     window.openReviewModal = () => {
         const customerId = document.getElementById('customerSelect').value;
         const customerName = document.getElementById('customerSearch').value;
         if (!customerId || !customerName) { return alert("الرجاء اختيار العميل"); }
 
-        const rows = document.querySelectorAll('.product-row');
+        const rows = Array.from(document.querySelectorAll('.product-row'));
+
+        // التحقق الصارم: لا تقبل أي صنف بسعر أو كمية فاضية أو صفر
+        const validationError = validateItemRows(rows);
+        if (validationError) { return alert(validationError); }
+
         let validItemsCount = 0;
         let htmlList = "";
 
@@ -1018,13 +1057,19 @@
     window.saveInvoice = async () => {
         const saveBtn = document.getElementById('saveBtn');
         try {
-            const { itemsTotal, discount, total, paid, remaining } = calc();
             const customerId = document.getElementById('customerSelect').value;
             const customerName = document.getElementById('customerSearch').value;
             if (!customerId || !customerName) { return alert("الرجاء اختيار العميل"); }
 
+            // تحقق صارم إضافي قبل الحفظ الفعلي (حماية مضاعفة حتى لو تم استدعاء الدالة مباشرة)
+            const allRows = Array.from(document.querySelectorAll('.product-row'));
+            const validationError = validateItemRows(allRows);
+            if (validationError) { return alert(validationError); }
+
+            const { itemsTotal, discount, total, paid, remaining } = calc();
+
             const items = [];
-            document.querySelectorAll('.product-row').forEach(r => {
+            allRows.forEach(r => {
                 const pid = r.querySelector('.p-select')?.value;
                 const name = r.querySelector('.p-search')?.value;
                 const unit = r.querySelector('.p-unit')?.value;
