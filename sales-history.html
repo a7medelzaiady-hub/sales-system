@@ -289,6 +289,8 @@
     let customersData = {};
     let currentFilterType = null;
     let currentRenderedInvoices = [];
+    // سندات القبض (نقدى/محفظه) الخاصة بالعملاء - تُستخدم لإضافتها لإحصائيات نقدى/محفظه اليوم
+    let allReceiptVouchers = [];
 
     window.showCustomUi = (options) => {
         const modal = document.getElementById('customGlobalModal');
@@ -376,6 +378,17 @@
         }
         if (!dateStr) return "";
         dateStr = convertToEnglishNumbers(dateStr);
+        let m = dateStr.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+        if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+        m = dateStr.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+        if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+        return dateStr;
+    }
+
+    // نفس منطق تطبيع التاريخ لكن مخصص لتاريخ السندات (transactions) اللي بييجي أصلاً كنص من input type=date
+    function parseVoucherDate(tr) {
+        if (!tr || !tr.date) return "";
+        let dateStr = convertToEnglishNumbers(tr.date);
         let m = dateStr.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
         if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
         m = dateStr.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
@@ -488,6 +501,16 @@
                 if (rawRemaining > 0) { todayRemaining += rawRemaining; }
             }
         });
+
+        // إضافة سندات القبض (نقدى / محفظه) الخاصة باليوم المستهدف على نفس البطاقات
+        allReceiptVouchers.forEach(v => {
+            const vDateStr = parseVoucherDate(v);
+            if (vDateStr === targetDateStr) {
+                todayCash += v.cashAmount;
+                todayWallet += v.walletAmount;
+            }
+        });
+
         document.getElementById('todayCash').innerText = todayCash.toFixed(1);
         document.getElementById('todayWallet').innerText = todayWallet.toFixed(1);
         document.getElementById('todayRemaining').innerText = todayRemaining.toFixed(1);
@@ -530,12 +553,32 @@
             });
 
             let transByCustomer = {};
+            allReceiptVouchers = [];
             transSnap.forEach(d => {
                 const tr = d.data();
                 if (tr.isDeleted === true) return;
                 if (!transByCustomer[tr.partyId]) transByCustomer[tr.partyId] = 0;
                 if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);
                 else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);
+
+                // نجمع فقط سندات "قبض" (المبالغ المُستلمة فعلياً) عشان تدخل في إحصائيات نقدى/محفظه اليوم
+                if (tr.type === 'قبض') {
+                    let cashAmount = 0;
+                    let walletAmount = 0;
+                    if (tr.cashPaid !== undefined || tr.walletPaid !== undefined) {
+                        // صيغة صفحة حسابات العملاء (فيها كاش ومحفظه في نفس السند)
+                        cashAmount = Number(tr.cashPaid) || 0;
+                        walletAmount = Number(tr.walletPaid) || 0;
+                    } else if (tr.method !== undefined) {
+                        // صيغة صفحة سندات القبض والصرف العامة (طريقة سداد واحدة لكل سند)
+                        const amt = Number(tr.amount) || 0;
+                        if (tr.method === 'محفظة' || tr.method === 'محفظه') walletAmount = amt;
+                        else cashAmount = amt;
+                    } else {
+                        cashAmount = Number(tr.amount) || 0;
+                    }
+                    allReceiptVouchers.push({ date: tr.date, cashAmount, walletAmount });
+                }
             });
 
             let runningBalances = {};
@@ -840,7 +883,7 @@
                 default: return true;
             }
         });
-        document.getElementById('filterStatusText').innerText = `${statusLabel} (${filtered.length} فاتورة)`;
+        document.getElementById('filterStatusText').innerText = `${statusLabel} (${filtered.length} فاتورة) - ملحوظة: الرقم في البطاقة أعلاه يشمل أيضاً سندات القبض`;
         document.getElementById('filterStatusBar').style.display = "flex";
         window.renderInvoices(filtered);
     }
