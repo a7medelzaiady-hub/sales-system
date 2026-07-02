@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
         :root {
             --primary-green: #0b6641; 
@@ -59,7 +60,7 @@
         }
         .search-wrapper i {
             position: absolute;
-            right: 15px; /* تم تعديله ليتناسب مع RTL */
+            right: 15px;
             top: 50%;
             transform: translateY(-50%);
             color: var(--primary-green);
@@ -92,7 +93,7 @@
             cursor: pointer;
         }
 
-        /* نظام الشبكة للأعمدة (لضمان المحاذاة الدقيقة) */
+        /* نظام الشبكة للأعمدة */
         .grid-layout {
             display: grid;
             grid-template-columns: 2fr 1fr 0.6fr 0.6fr;
@@ -220,8 +221,7 @@
     <div>جركن</div>
 </div>
 
-<div id="itemsContainer">
-    </div>
+<div id="itemsContainer"></div>
 
 <div class="bottom-summary">
     <i class="fas fa-boxes me-2"></i> إجمالي الأصناف: <span id="totalCount" class="ms-2">0</span>
@@ -231,9 +231,41 @@
     <i class="fas fa-plus"></i>
 </a>
 
+<div class="modal fade" id="transactionsModal" tabindex="-1" aria-labelledby="transactionsModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content" style="border-radius: 20px; border: none;">
+      <div class="modal-header" style="background: var(--bg-light); border-radius: 20px 20px 0 0; border-bottom: 1px solid var(--border-color);">
+        <h5 class="modal-title fw-bold" id="transactionsModalLabel" style="color: var(--primary-green);">سجل حركات الصنف</h5>
+        <button type="button" class="btn-close m-0" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover text-center mb-0" style="font-size: 0.9rem;">
+                <thead class="table-light" style="font-size: 0.85rem; color: var(--text-muted);">
+                    <tr>
+                        <th>التاريخ</th>
+                        <th>النوع</th>
+                        <th>الكمية</th>
+                        <th>السعر</th>
+                    </tr>
+                </thead>
+                <tbody id="transactionsBody">
+                    </tbody>
+            </table>
+        </div>
+      </div>
+      <div class="modal-footer" style="border-top: 1px solid var(--border-color);">
+        <button type="button" class="btn btn-secondary" style="border-radius: 10px;" data-bs-dismiss="modal">إغلاق</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -249,7 +281,7 @@
     const db = getFirestore(app);
     let allData = [];
 
-    // جلب البيانات من فايربيز
+    // جلب بيانات الأصناف
     onSnapshot(collection(db, "inventory"), (snap) => {
         allData = [];
         snap.forEach(doc => {
@@ -280,18 +312,17 @@
             const qtyA = Number(a.totalPcs) || 0;
             const qtyB = Number(b.totalPcs) || 0;
             
-            if (qtyA === 0 && qtyB > 0) return 1;  // نقل A للأسفل
-            if (qtyB === 0 && qtyA > 0) return -1; // نقل B للأسفل
-            return 0; // الحفاظ على الترتيب الافتراضي للباقي
+            if (qtyA === 0 && qtyB > 0) return 1;
+            if (qtyB === 0 && qtyA > 0) return -1;
+            return 0;
         });
 
         // 3. بناء واجهة المستخدم HTML
         let html = '';
         filtered.forEach(item => {
-            const factor = Number(item.unitFactor) || 1; // معامل التحويل (كم جركن في الكرتونة)
-            const total = Number(item.totalPcs) || 0;    // إجمالي الجراكن/القطع
+            const factor = Number(item.unitFactor) || 1;
+            const total = Number(item.totalPcs) || 0;
             
-            // حساب الكراتين والجراكن المتبقية
             const cartons = Math.floor(total / factor);
             const jerrycans = total % factor;
 
@@ -299,7 +330,6 @@
             const minAllowed = (Number(item.min) || 0) * factor;
             const isLow = !isZero && (total <= minAllowed);
 
-            // تحديد شكل الشارة (Badge) بناءً على الكمية
             let badgeClass = 'qty-badge';
             if (isZero) {
                 badgeClass += ' qty-zero';
@@ -334,8 +364,59 @@
         document.getElementById('totalCount').innerText = filtered.length;
     };
 
-    window.goToDetails = function(id) {
-        window.location.href = `product-details.html?id=${id}`;
+    // دالة عرض التفاصيل في النافذة المنبثقة
+    window.goToDetails = async function(id) {
+        // إظهار النافذة
+        const modalElement = document.getElementById('transactionsModal');
+        const modalInstance = new bootstrap.Modal(modalElement);
+        modalInstance.show();
+
+        const tbody = document.getElementById('transactionsBody');
+        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i> جاري تحميل البيانات...</td></tr>';
+
+        try {
+            // جلب الحركات الخاصة بهذا الصنف من قاعدة البيانات (تأكد من أن اسم الـ collection هو transactions)
+            const q = query(
+                collection(db, "transactions"),
+                where("productId", "==", id)
+            );
+            
+            const querySnapshot = await getDocs(q);
+
+            if (querySnapshot.empty) {
+                tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-danger fw-bold">لا توجد حركات مسجلة لهذا الصنف.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                
+                const isSale = data.type === 'sale';
+                const typeText = isSale ? '<span class="badge bg-danger">بيع</span>' : '<span class="badge bg-success">شراء</span>';
+                
+                let dateStr = '---';
+                if(data.date) {
+                    const dateObj = data.date.toDate ? data.date.toDate() : new Date(data.date);
+                    dateStr = dateObj.toLocaleDateString('ar-EG');
+                }
+
+                html += `
+                    <tr>
+                        <td class="align-middle">${dateStr}</td>
+                        <td class="align-middle">${typeText}</td>
+                        <td class="align-middle fw-bold">${data.quantity || data.qty || 0}</td>
+                        <td class="align-middle text-primary-green">${Number(data.price || 0).toLocaleString('en-US')}</td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+
+        } catch (error) {
+            console.error("خطأ في جلب الحركات: ", error);
+            tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-danger">حدث خطأ أثناء الاتصال بقاعدة البيانات.</td></tr>';
+        }
     };
 </script>
 </body>
