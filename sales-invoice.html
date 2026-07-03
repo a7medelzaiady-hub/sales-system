@@ -233,13 +233,14 @@
         .sub-lbl { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px; display: block; font-weight: 700; padding-right: 2px; }
         .unit-info-area { font-size: 0.75rem; margin-top: 6px; color: var(--accent); font-weight: 700; }
 
+        /* تعديل وتحسين مظهر زر المرتجع لعدم التداخل وتوفير مساحة مريحة للضغط والكلية */
         .return-switch-container {
-            display: flex; align-items: center; justify-content: center; gap: 6px;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
             background: #fff5f5; border: 1px solid #ffdbde; border-radius: var(--input-radius);
-            padding: 4px 6px; height: 44px;
+            padding: 4px 10px; height: 44px; width: 100%; margin-top: 0;
         }
-        .return-switch-label { font-size: 0.72rem; font-weight: 700; color: var(--danger); display: flex; align-items: center; gap: 3px; white-space: nowrap; }
-        .form-switch .form-check-input { width: 2rem; height: 1rem; margin-top: 0; cursor: pointer; background-color: #cbd5e1; border-color: transparent; }
+        .return-switch-label { font-size: 0.8rem; font-weight: 700; color: var(--danger); display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .form-switch .form-check-input { width: 2.2rem; height: 1.1rem; margin-top: 0; cursor: pointer; background-color: #cbd5e1; border-color: transparent; }
         .form-switch .form-check-input:checked { background-color: var(--danger); border-color: transparent; }
 
         .floating-items-badge {
@@ -388,6 +389,18 @@
         </div>
 
         <button class="btn-save" onclick="openReviewModal()" id="saveBtn">حفظ وتحديث البيانات</button>
+    </div>
+</div>
+
+<!-- مودال التنبيه الاحترافي المخصص بدلاً من الـ alert العادي لحماية اسم الموقع من الظهور -->
+<div id="customAlertModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
+    <div style="background: white; width: 88%; max-width: 380px; padding: 22px; border-radius: var(--card-radius); text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: scaleUp 0.2s ease;">
+        <div style="width: 55px; height: 55px; background: #fff3cd; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
+            <i class="fas fa-exclamation-triangle" style="color: var(--warning); font-size: 1.8rem;"></i>
+        </div>
+        <h5 style="font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">تنبيه النظام</h5>
+        <p id="customAlertMessage" style="color: #555; font-size: 0.9rem; margin-bottom: 20px; line-height: 1.5; text-align: right; direction: rtl;"></p>
+        <button onclick="closeCustomAlert()" style="background: var(--accent); color: white; border: none; padding: 9px; border-radius: 10px; font-weight: 700; width: 100%; cursor: pointer;">حسناً، فهمت</button>
     </div>
 </div>
 
@@ -582,6 +595,15 @@
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000;
 
+    // دوال للتحكم بـ المودال الاحترافي للتنبيهات
+    window.showCustomAlert = (msg) => {
+        document.getElementById('customAlertMessage').innerText = msg;
+        document.getElementById('customAlertModal').style.display = 'flex';
+    };
+    window.closeCustomAlert = () => {
+        document.getElementById('customAlertModal').style.display = 'none';
+    };
+
     function getCustomerBaseBalance(cust) {
         if (!cust) return 0;
         if (cust.currentBalance !== undefined && cust.currentBalance !== null) {
@@ -590,7 +612,6 @@
         return Number(cust.initialBalance) || 0;
     }
 
-    // تم تعديل هذه الدالة بالكامل لتطابق منطق كشف الحساب السريع الدقيق 100%
     async function getRealBalance(customerId, baseBalance = 0) {
         try {
             const [snapInvoices, snapTrans] = await Promise.all([
@@ -600,7 +621,6 @@
 
             let invoiceDebt = 0;
             snapInvoices.forEach(doc => {
-                // إذا كنا في وضع التعديل، نستثني الفاتورة الحالية لكي يظهر حسابها القديم في "الحساب السابق" بشكل صحيح
                 if (editId && doc.id === editId) return;
                 invoiceDebt += (Number(doc.data().remaining) || 0);
             });
@@ -794,7 +814,7 @@
         const customerName = nameInput.value.trim();
         const newInitialBalance = parseFloat(balanceInput.value) || 0;
 
-        if (!customerName) { alert("برجاء تحديد أو كتابة اسم العميل أولاً"); return; }
+        if (!customerName) { window.showCustomAlert("برجاء تحديد أو كتابة اسم العميل أولاً"); return; }
 
         try {
             btnSaveCustomer.disabled = true;
@@ -809,7 +829,7 @@
                 idInput.value = docRef.id;
                 currentFetchedOldBalance = newInitialBalance;
                 showBalance(newInitialBalance);
-                alert(`تم حفظ العميل الجديد "${customerName}" بنجاح.`);
+                window.showCustomAlert(`تم حفظ العميل الجديد "${customerName}" بنجاح.`);
             } else {
                 const customerRef = doc(db, "customers", customerId);
                 await updateDoc(customerRef, { initialBalance: newInitialBalance });
@@ -820,7 +840,7 @@
                 const updatedRealBalance = await getRealBalance(customerId, startBalance);
                 currentFetchedOldBalance = updatedRealBalance;
                 showBalance(updatedRealBalance);
-                alert(`تم تحديث الرصيد الافتتاحي للعميل "${customerName}" بنجاح.`);
+                window.showCustomAlert(`تم تحديث الرصيد الافتتاحي للعميل "${customerName}" بنجاح.`);
             }
 
             persistCache();
@@ -830,7 +850,7 @@
             calc();
         } catch (error) {
             console.error(error);
-            alert("حدث خطأ، برجاء المحاولة مرة أخرى");
+            window.showCustomAlert("حدث خطأ، برجاء المحاولة مرة أخرى");
         } finally {
             btnSaveCustomer.disabled = false;
         }
@@ -873,6 +893,7 @@
         const isReturnChecked = oldData && oldData.isReturn ? 'checked' : '';
         const returnClass = oldData && oldData.isReturn ? 'is-return-row' : '';
 
+        // تم إعادة هيكلة التقسيم (col-3) لزر المرتجع لكي يعطيه اتساعاً تاماً يمنع تداخله على الشاشات الصغيرة
         const html = `
             <div class="product-row ${returnClass}" id="${id}">
                 <i class="fas fa-times-circle btn-remove" onclick="document.getElementById('${id}').remove(); handleInput();"></i>
@@ -971,16 +992,12 @@
         return { itemsTotal, discount, total: netTotal, paid, remaining: netTotal - paid };
     };
 
-    // دالة مساعدة: تتحقق من صحة جميع صفوف الأصناف (الكمية والسعر) قبل أي حفظ أو مراجعة
-    // ترجع null لو كل شيء سليم، أو رسالة الخطأ المناسبة لو وجدت مشكلة
-    // كما تضيف/تزيل كلاس تنبيه بصري على الصف الذي فيه الخطأ
     function validateItemRows(rows) {
-        // إزالة أي تنبيه بصري سابق
         rows.forEach(r => r.classList.remove('has-validation-error'));
 
         for (const r of rows) {
             const pid = r.querySelector('.p-select')?.value;
-            if (!pid) continue; // صف بدون صنف محدد، يتم تجاهله بالكامل
+            if (!pid) continue;
 
             const name = r.querySelector('.p-search')?.value || 'الصنف المحدد';
             const qtyRaw = (r.querySelector('.p-qty')?.value ?? '').toString().trim();
@@ -1006,13 +1023,12 @@
     window.openReviewModal = () => {
         const customerId = document.getElementById('customerSelect').value;
         const customerName = document.getElementById('customerSearch').value;
-        if (!customerId || !customerName) { return alert("الرجاء اختيار العميل"); }
+        if (!customerId || !customerName) { return window.showCustomAlert("الرجاء اختيار أو كتابة العميل أولاً وبشكل صحيح."); }
 
         const rows = Array.from(document.querySelectorAll('.product-row'));
 
-        // التحقق الصارم: لا تقبل أي صنف بسعر أو كمية فاضية أو صفر
         const validationError = validateItemRows(rows);
-        if (validationError) { return alert(validationError); }
+        if (validationError) { return window.showCustomAlert(validationError); }
 
         let validItemsCount = 0;
         let htmlList = "";
@@ -1039,7 +1055,7 @@
                 </tr>`;
         });
 
-        if (validItemsCount === 0) { return alert("الرجاء إضافة أصناف للفاتورة"); }
+        if (validItemsCount === 0) { return window.showCustomAlert("الرجاء إضافة أصناف للفاتورة"); }
 
         document.getElementById('revCustomerName').innerText = customerName;
         document.getElementById('revItemsCount').innerText = `${validItemsCount} صنف`;
@@ -1059,12 +1075,11 @@
         try {
             const customerId = document.getElementById('customerSelect').value;
             const customerName = document.getElementById('customerSearch').value;
-            if (!customerId || !customerName) { return alert("الرجاء اختيار العميل"); }
+            if (!customerId || !customerName) { return window.showCustomAlert("الرجاء اختيار العميل"); }
 
-            // تحقق صارم إضافي قبل الحفظ الفعلي (حماية مضاعفة حتى لو تم استدعاء الدالة مباشرة)
             const allRows = Array.from(document.querySelectorAll('.product-row'));
             const validationError = validateItemRows(allRows);
-            if (validationError) { return alert(validationError); }
+            if (validationError) { return window.showCustomAlert(validationError); }
 
             const { itemsTotal, discount, total, paid, remaining } = calc();
 
@@ -1080,7 +1095,7 @@
                 items.push({ stockId: pid, name: name || "", unit: unit || "pcs", qty, price, isReturn });
             });
 
-            if (items.length === 0) { return alert("الرجاء إضافة أصناف للفاتورة"); }
+            if (items.length === 0) { return window.showCustomAlert("الرجاء إضافة أصناف للفاتورة"); }
 
             saveBtn.disabled = true;
             saveBtn.innerText = "جاري الحفظ...";
@@ -1186,7 +1201,7 @@
 
         } catch (e) {
             console.error("Firebase Error: ", e);
-            alert("فشل حفظ التعديل\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
+            window.showCustomAlert("فشل حفظ التعديل\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
         } finally {
             saveBtn.disabled = false;
             saveBtn.innerText = "حفظ وتحديث البيانات";
@@ -1263,7 +1278,7 @@
                         });
                 } else {
                     downloadReceiptImage(blob);
-                    alert("متصفحك لا يدعم المشاركة المباشرة للصور.\nتم تنزيل صورة الفاتورة على جهازك، يمكنك إرسالها يدويًا عبر واتساب.");
+                    window.showCustomAlert("متصفحك لا يدعم المشاركة المباشرة للصور.\nتم تنزيل صورة الفاتورة على جهازك، يمكنك إرسالها يدويًا عبر واتساب.");
                     shareBtn.disabled = false;
                     shareBtn.innerHTML = originalBtnHtml;
                     window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html";
@@ -1273,7 +1288,7 @@
             console.error(err);
             shareBtn.disabled = false;
             shareBtn.innerHTML = originalBtnHtml;
-            alert("حدث خطأ أثناء تجهيز صورة الفاتورة");
+            window.showCustomAlert("حدث خطأ أثناء تجهيز صورة الفاتورة");
         });
     };
 
@@ -1370,6 +1385,7 @@
                 document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
 
                 document.getElementById('customerSearch').value = paramCustomerName || '';
+                // إصلاح جذري: تعيين الآيدي في حقل السلكت المخفي ليتعرف عليه السيستم عند الحفظ بدون مشاكل
                 document.getElementById('customerSelect').value = paramCustomerId || '';
 
                 if (paramCustomerId) {
