@@ -435,6 +435,7 @@
             const totalPaid = inv.calculatedCash + inv.calculatedWallet;
             const displayTime = formatInvoiceTime(inv.time, inv.date);
             const originalDate = parseInvoiceDate(inv);
+            const discountAmount = Number(inv.discount) || 0;
             let shortDate = originalDate;
             if (originalDate.includes('-')) {
                 const parts = originalDate.split('-');
@@ -459,9 +460,10 @@
                     </div>
                     <div class="financial-grid">
                         <div class="fin-box text-dark">إجمالي الفاتورة <span>${(Number(inv.total) || 0).toFixed(2)}</span></div>
+                        ${discountAmount > 0 ? `<div class="fin-box" style="color: var(--danger);">الخصم <span>${discountAmount.toFixed(2)}</span></div>` : ''}
                         <div class="fin-box text-success">المسدد الشامل <span>${totalPaid.toFixed(2)}</span></div>
                         <div class="fin-box text-danger">الأجل (المتبقي) <span>${(Number(inv.remaining) || 0).toFixed(2)}</span></div>
-                        <div class="fin-box text-secondary">حساب سابق كان كام <span>${(Number(inv.previousBalance || 0) || 0).toFixed(2)}</span></div>
+                        <div class="fin-box text-secondary">حساب سابق <span>${(Number(inv.previousBalance || 0) || 0).toFixed(2)}</span></div>
                     </div>
                     <div class="invoice-actions-group">
                         <button class="btn btn-outline-info text-dark" onclick="toggleDetails('${inv.id}')" title="عرض الأصناف"><i class="fas fa-eye"></i></button>
@@ -999,7 +1001,6 @@
         });
     };
 
-// ===== تصدير الإكسيل - مع التصحيح والاعتماد على الوحدة البيعية وإضافة المرتجع والخصم =====
     document.getElementById('exportExcelBtn').onclick = () => {
         if (!allInvoices.length) {
             window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات لتصديرها بعد.", icon: "info" });
@@ -1008,13 +1009,11 @@
 
         let excelRows = [];
 
-        // البيانات هنا مرتبة من الأحدث للأقدم تلقائياً
         allInvoices.forEach(inv => {
             const invDate = parseInvoiceDate(inv);
             const customerName = inv.customerName || 'النقدى';
             const discountAmount = Number(inv.discount) || 0;
 
-            // 1. أصناف الفاتورة
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(itm => {
                     let qtyCarton = 0;
@@ -1022,14 +1021,12 @@
                     let priceCarton = 0;
                     let priceJarkan = 0;
 
-                    // إضافة كلمة مرتجع أمام اسم الصنف إذا كان مرتجعاً
                     const isRet = itm.isReturn === true;
                     const itemName = (isRet ? "(مرتجع) " : "") + (itm.name || "");
                     
                     const rawQty = Number(itm.qty) || 0;
                     const rawPrice = Number(itm.price) || 0;
 
-                    // الاعتماد على وحدة التخزين الحقيقية
                     if (itm.unit === 'pcs') {
                         qtyJarkan = rawQty;
                         priceJarkan = rawPrice;
@@ -1051,7 +1048,6 @@
                 });
             }
 
-            // 2. سداد نقدى كسطر مستقل
             if ((inv.calculatedCash || 0) > 0) {
                 excelRows.push({
                     "التاريخ": invDate,
@@ -1065,7 +1061,6 @@
                 });
             }
 
-            // 3. سداد محفظه كسطر مستقل
             if ((inv.calculatedWallet || 0) > 0) {
                 excelRows.push({
                     "التاريخ": invDate,
@@ -1079,7 +1074,6 @@
                 });
             }
 
-            // 4. الخصم النقدي كسطر مستقل
             if (discountAmount > 0) {
                 excelRows.push({
                     "التاريخ": invDate,
@@ -1102,7 +1096,6 @@
         XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
     };
       
-    // Initial single load
     loadData(true);
 </script>
 </body>
