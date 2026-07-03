@@ -998,7 +998,8 @@
             }
         });
     };
-// ===== تصدير الإكسيل - مع التصحيح والاعتماد على الوحدة البيعية وإضافة المرتجع =====
+
+// ===== تصدير الإكسيل - مع التصحيح والاعتماد على الوحدة البيعية وإضافة المرتجع والخصم =====
     document.getElementById('exportExcelBtn').onclick = () => {
         if (!allInvoices.length) {
             window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات لتصديرها بعد.", icon: "info" });
@@ -1011,6 +1012,7 @@
         allInvoices.forEach(inv => {
             const invDate = parseInvoiceDate(inv);
             const customerName = inv.customerName || 'النقدى';
+            const discountAmount = Number(inv.discount) || 0;
 
             // 1. أصناف الفاتورة
             if (inv.items && inv.items.length > 0) {
@@ -1074,6 +1076,20 @@
                     "عدد الكرتونة": 1,
                     "سعر الجركن": 0,
                     "سعر الكرتونة": inv.calculatedWallet
+                });
+            }
+
+            // 4. الخصم النقدي كسطر مستقل
+            if (discountAmount > 0) {
+                excelRows.push({
+                    "التاريخ": invDate,
+                    "الحركة": "بيع",
+                    "اسم العميل": customerName,
+                    "الصنف": "مبيعات اخرى",
+                    "عدد الجركن": 0,
+                    "عدد الكرتونة": -1,
+                    "سعر الجركن": 0,
+                    "سعر الكرتونة": discountAmount
                 });
             }
         });
