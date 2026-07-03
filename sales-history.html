@@ -59,8 +59,7 @@
             border-radius: 10px;
             display: flex; align-items: center; justify-content: center;
             color: white; text-decoration: none; font-size: 0.9rem;
-            border: none;
-            font-family: 'Cairo', sans-serif;
+            border: none; font-family: 'Cairo', sans-serif;
             transition: all 0.2s;
         }
         .add-btn:hover { background: rgba(255,255,255,0.3); color: white; transform: translateY(-1px); }
@@ -247,7 +246,7 @@
 
         <div class="row g-2 mb-3 align-items-end">
             <div class="col-6">
-                <input type="text" id="searchInput" class="form-control search-box h-100" placeholder="البحث باسم العميل أو السداد..." onkeyup="filterInvoices()">
+                <input type="text" id="searchInput" class="form-control search-box h-100" placeholder="البحث باسم العميل أو السداد..." oninput="filterInvoices()">
             </div>
             <div class="col-6">
                 <input type="date" id="dateFilterInput" class="form-control h-100" onchange="window.handleDateFilterChange()">
@@ -295,11 +294,8 @@
     let allInvoices = [];
     let customersData = {};
     let currentFilterType = null;
-    
-    // متغيرات التحكم في الرندر (لمنع التهنيج)
     let currentRenderedInvoices = [];
-    let currentRenderedVouchers = [];
-    let currentRenderLimit = 50; 
+    // سندات القبض (نقدى/محفظه) الخاصة بالعملاء - تُستخدم لإضافتها لإحصائيات نقدى/محفظه اليوم
     let allReceiptVouchers = [];
 
     window.showCustomUi = (options) => {
@@ -364,10 +360,12 @@
         modal.style.display = 'flex';
     };
 
-    // [تحسين]: دالة أسرع بكثير لتحويل الأرقام ولا تسبب التهنيج
     function convertToEnglishNumbers(str) {
         if (!str) return "";
-        return str.toString().replace(/[٠-٩]/g, d => d.charCodeAt(0) - 1632);
+        const arabicNumbers = [/٠/g, /١/g, /٢/g, /٣/g, /٤/g, /٥/g, /٦/g, /٧/g, /٨/g, /٩/g];
+        let res = str.toString();
+        for (let i = 0; i < 10; i++) { res = res.replace(arabicNumbers[i], i); }
+        return res;
     }
 
     function cleanDateString(dateStr) {
@@ -393,6 +391,7 @@
         return dateStr;
     }
 
+    // نفس منطق تطبيع التاريخ لكن مخصص لتاريخ السندات (transactions) اللي بييجي أصلاً كنص من input type=date
     function parseVoucherDate(tr) {
         if (!tr || !tr.date) return "";
         let dateStr = convertToEnglishNumbers(tr.date);
@@ -415,16 +414,10 @@
         return "00:00 م";
     }
 
-    // [تحسين]: دالة الرندر أصبحت تدعم الـ Pagination ولن تهنج المتصفح
-    window.renderInvoices = (invoices, vouchers = [], isLoadMore = false) => {
-        if (!isLoadMore) {
-            currentRenderedInvoices = invoices;
-            currentRenderedVouchers = vouchers;
-            currentRenderLimit = 50; // الحد الأقصى للمرحلة الأولى
-        }
-
+    window.renderInvoices = (invoices, vouchers = []) => {
+        currentRenderedInvoices = invoices;
         const container = document.getElementById('invoicesList');
-        if (currentRenderedInvoices.length === 0 && currentRenderedVouchers.length === 0) {
+        if (invoices.length === 0 && vouchers.length === 0) {
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-folder-open fa-2x mb-2"></i>
@@ -433,21 +426,15 @@
             return;
         }
 
-        // قص البيانات لتتناسب مع الحد المسموح به لمنع التهنيج
-        const invoicesToRender = currentRenderedInvoices.slice(0, currentRenderLimit);
-        const hasMoreInvoices = currentRenderedInvoices.length > currentRenderLimit;
-
-        const invoicesHtml = invoicesToRender.map(inv => {
+        const invoicesHtml = invoices.map(inv => {
             let methodBadgeColor = "bg-secondary";
             if (inv.paymentMethod === "سداد نقدى" || inv.paymentMethod === "كاش" || inv.paymentMethod === "نقدى") methodBadgeColor = "bg-success";
             else if (inv.paymentMethod === "سداد مرئية" || inv.paymentMethod === "سداد محفظه" || inv.paymentMethod === "محفظه") methodBadgeColor = "bg-primary";
             else if (inv.paymentMethod === "آجل") methodBadgeColor = "bg-warning text-dark";
 
             const totalPaid = inv.calculatedCash + inv.calculatedWallet;
-            // الاعتماد على المتغيرات الجاهزة بدلًا من الحساب في كل مرة
-            const originalDate = inv.parsedDate || "";
-            const displayTime = inv.displayTime || "";
-            
+            const displayTime = formatInvoiceTime(inv.time, inv.date);
+            const originalDate = parseInvoiceDate(inv);
             let shortDate = originalDate;
             if (originalDate.includes('-')) {
                 const parts = originalDate.split('-');
@@ -502,14 +489,14 @@
             `;
         }).join('');
 
-        const vouchersHtml = currentRenderedVouchers.map(v => `
+        const vouchersHtml = vouchers.map(v => `
             <div class="invoice-item voucher-item">
                 <div class="d-flex justify-content-between align-items-start">
                     <div>
                         <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.92rem;">${v.customerName}</h6>
                         <div class="meta-container">
                             <span class="pay-badge bg-secondary" style="background-color: var(--purple) !important;">سند قبض</span>
-                            <span class="detail-badge"><i class="far fa-clock"></i> ${v.parsedDate || 'بلا تاريخ'}</span>
+                            <span class="detail-badge"><i class="far fa-clock"></i> ${v.date || 'بلا تاريخ'}</span>
                         </div>
                         ${v.note ? `<div class="text-muted mt-1" style="font-size:0.75rem;"><i class="fas fa-sticky-note me-1"></i> ${v.note}</div>` : ''}
                     </div>
@@ -522,26 +509,11 @@
         `).join('');
 
         let dividerHtml = '';
-        if (currentRenderedVouchers.length > 0 && invoicesToRender.length > 0) {
-            dividerHtml = `<div class="vouchers-divider"><i class="fas fa-hand-holding-usd"></i> سندات القبض (${currentRenderedVouchers.length})</div>`;
-        }
-        
-        let loadMoreBtn = '';
-        if (hasMoreInvoices) {
-            const remaining = currentRenderedInvoices.length - currentRenderLimit;
-            loadMoreBtn = `<div class="text-center mt-3 mb-4">
-                <button class="btn btn-outline-dark fw-bold px-4 py-2" style="border-radius:10px; font-family:'Cairo'; font-size: 0.85rem;" onclick="loadMoreInvoices()">
-                    <i class="fas fa-arrow-down me-1"></i> عرض المزيد من الفواتير (${remaining} متبقي)
-                </button>
-            </div>`;
+        if (vouchers.length > 0 && invoices.length > 0) {
+            dividerHtml = `<div class="vouchers-divider"><i class="fas fa-hand-holding-usd"></i> سندات القبض (${vouchers.length})</div>`;
         }
 
-        container.innerHTML = invoicesHtml + dividerHtml + vouchersHtml + loadMoreBtn;
-    };
-
-    window.loadMoreInvoices = () => {
-        currentRenderLimit += 50;
-        window.renderInvoices(currentRenderedInvoices, currentRenderedVouchers, true);
+        container.innerHTML = invoicesHtml + dividerHtml + vouchersHtml;
     };
 
     function calculateStats() {
@@ -549,11 +521,10 @@
         const filterInput = document.getElementById('dateFilterInput')?.value;
         const targetDateStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
         const statsTitle = document.getElementById('todayStatsTitle');
-        
         if (statsTitle) { statsTitle.innerHTML = `<i class="fas fa-calendar-day"></i> إحصائيات يوم (${targetDateStr})`; }
-        
         allInvoices.forEach(inv => {
-            const isTargetDate = (inv.parsedDate === targetDateStr);
+            const invDateStr = parseInvoiceDate(inv);
+            const isTargetDate = (invDateStr === targetDateStr);
             if (isTargetDate) {
                 todayCash += inv.calculatedCash;
                 todayWallet += inv.calculatedWallet;
@@ -563,8 +534,10 @@
             }
         });
 
+        // إضافة سندات القبض (نقدى / محفظه) الخاصة باليوم المستهدف على نفس البطاقات
         allReceiptVouchers.forEach(v => {
-            if (v.parsedDate === targetDateStr) {
+            const vDateStr = parseVoucherDate(v);
+            if (vDateStr === targetDateStr) {
                 todayCash += v.cashAmount;
                 todayWallet += v.walletAmount;
             }
@@ -585,7 +558,7 @@
         } else {
             const filterInput = document.getElementById('dateFilterInput')?.value;
             const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
-            const todayInvoices = allInvoices.filter(inv => inv.parsedDate === targetDate);
+            const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === targetDate);
             window.renderInvoices(todayInvoices);
         }
     }
@@ -620,13 +593,17 @@
                 if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);
                 else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);
 
+                // نجمع فقط سندات "قبض" الخاصة بالعملاء (المبالغ المُستلمة فعلياً) عشان تدخل في إحصائيات نقدى/محفظه اليوم
                 const isCustomerVoucher = tr.partyType === 'عميل' || (!tr.partyType && customersData[tr.partyId]);
                 if (tr.type === 'قبض' && isCustomerVoucher) {
-                    let cashAmount = 0; let walletAmount = 0;
+                    let cashAmount = 0;
+                    let walletAmount = 0;
                     if (tr.cashPaid !== undefined || tr.walletPaid !== undefined) {
+                        // صيغة صفحة حسابات العملاء (فيها كاش ومحفظه في نفس السند)
                         cashAmount = Number(tr.cashPaid) || 0;
                         walletAmount = Number(tr.walletPaid) || 0;
                     } else if (tr.method !== undefined) {
+                        // صيغة صفحة سندات القبض والصرف العامة (طريقة سداد واحدة لكل سند)
                         const amt = Number(tr.amount) || 0;
                         if (tr.method === 'محفظة' || tr.method === 'محفظه') walletAmount = amt;
                         else cashAmount = amt;
@@ -634,12 +611,9 @@
                         cashAmount = Number(tr.amount) || 0;
                     }
                     const customerName = (customersData[tr.partyId] && customersData[tr.partyId].name) || 'عميل غير معروف';
-                    
-                    // [تحسين] حساب وتخزين التاريخ مرة واحدة فقط
                     allReceiptVouchers.push({
                         id: d.id,
                         date: tr.date,
-                        parsedDate: parseVoucherDate(tr),
                         cashAmount,
                         walletAmount,
                         customerName,
@@ -672,15 +646,12 @@
                     else cPaid = p;
                 }
 
-                // [تحسين] حساب وتخزين التواريخ والأوقات الجاهزة مرة واحدة
                 tempInvoices.push({
                     id: d.id,
                     ...data,
                     calculatedCash: cPaid,
                     calculatedWallet: wPaid,
-                    previousBalance: previousBalance,
-                    parsedDate: parseInvoiceDate(data),
-                    displayTime: formatInvoiceTime(data.time, data.date)
+                    previousBalance: previousBalance
                 });
             });
 
@@ -712,20 +683,21 @@
         calculateStats();
         const filterInput = document.getElementById('dateFilterInput').value;
         if (filterInput) {
-            const filtered = allInvoices.filter(inv => inv.parsedDate === filterInput);
+            const filtered = allInvoices.filter(inv => parseInvoiceDate(inv) === filterInput);
             window.renderInvoices(filtered);
         } else {
             const todayStr = new Date().toLocaleDateString('en-CA');
-            const todayInvoices = allInvoices.filter(inv => inv.parsedDate === todayStr);
+            const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);
             window.renderInvoices(todayInvoices);
         }
     };
 
     function generateThermalInvoiceHtml(inv) {
-        const displayTime = inv.displayTime;
-        const invDate = inv.parsedDate || "بدون تاريخ";
+        const displayTime = formatInvoiceTime(inv.time, inv.date);
+        const invDate = parseInvoiceDate(inv) || "بدون تاريخ";
         const discount = Number(inv.discount) || 0;
         const totalInvoice = Number(inv.total) || 0;
+        const totalPaid = inv.calculatedCash + inv.calculatedWallet;
         const currentRemaining = Number(inv.remaining) || 0;
         const prevBalance = Number(inv.previousBalance) || 0;
         const finalAccountTotal = prevBalance + currentRemaining;
@@ -806,14 +778,23 @@
 
         try {
             await new Promise(resolve => setTimeout(resolve, 350));
-            const canvas = await html2canvas(shareContainer, { scale: 2.5, backgroundColor: '#ffffff', useCORS: true });
+            const canvas = await html2canvas(shareContainer, {
+                scale: 2.5,
+                backgroundColor: '#ffffff',
+                useCORS: true
+            });
             document.body.removeChild(shareContainer);
 
             canvas.toBlob(async (blob) => {
                 if (!blob) return;
                 const file = new File([blob], `فاتورة_${inv.customerName || 'نقدى'}.png`, { type: 'image/png' });
+
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({ files: [file], title: `فاتورة ${inv.customerName || 'نقدى'}`, text: `فاتورة الزيادي لزيوت السيارات` });
+                    await navigator.share({
+                        files: [file],
+                        title: `فاتورة ${inv.customerName || 'نقدى'}`,
+                        text: `فاتورة الزيادي لزيوت السيارات`
+                    });
                 } else {
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -844,19 +825,23 @@
             const origItem = originalItems.find(oi => oi.name === item.name);
             if (origItem) {
                 if (Number(origItem.qty) !== Number(item.qty)) {
-                    report += `${index}- 🔢 تعديل كمية [${item.name}]: كانت (${origItem.qty}) أصبحت (${item.qty})\n`; index++;
+                    report += `${index}- 🔢 تعديل كمية [${item.name}]: كانت (${origItem.qty}) أصبحت (${item.qty})\n`;
+                    index++;
                 }
                 if (Number(origItem.price) !== Number(item.price)) {
-                    report += `${index}- 💰 تعديل سعر [${item.name}]: كان (${Number(origItem.price).toFixed(2)}) أصبح (${Number(item.price).toFixed(2)})\n`; index++;
+                    report += `${index}- 💰 تعديل سعر [${item.name}]: كان (${Number(origItem.price).toFixed(2)}) أصبح (${Number(item.price).toFixed(2)})\n`;
+                    index++;
                 }
             } else {
-                report += `${index}- ➕ صنف مُضاف جديد: [${item.name}] بكمية (${item.qty}) وسعر (${Number(item.price).toFixed(2)})\n`; index++;
+                report += `${index}- ➕ صنف مُضاف جديد: [${item.name}] بكمية (${item.qty}) وسعر (${Number(item.price).toFixed(2)})\n`;
+                index++;
             }
         });
         originalItems.forEach(origItem => {
             const stillExists = currentItems.some(ci => ci.name === origItem.name);
             if (!stillExists) {
-                report += `${index}- ❌ صنف تم حذفه تماماً: [${origItem.name}] (كان بكمية: ${origItem.qty} وسعر: ${Number(origItem.price).toFixed(2)})\n`; index++;
+                report += `${index}- ❌ صنف تم حذفه تماماً: [${origItem.name}] (كان بكمية: ${origItem.qty} وسعر: ${Number(origItem.price).toFixed(2)})\n`;
+                index++;
             }
         });
         if (index === 1 && inv.originalDate) {
@@ -869,26 +854,44 @@
         window.showCustomUi({
             title: "🔒 تصفير الحسابات ونقلها للسلة",
             message: "الرجاء إدخل كلمة التأكيد (الزيادي) للمتابعة في تصفير النظام ونقله للسلة:",
-            type: "prompt", icon: "danger", confirmText: "تأكيد التصفير المؤقت",
+            type: "prompt",
+            icon: "danger",
+            confirmText: "تأكيد التصفير المؤقت",
             onConfirm: async (inputValue) => {
                 if (inputValue !== "الزيادي") {
-                    setTimeout(() => { window.showCustomUi({ title: "خطأ", message: "كلمة التأكيد غير صحيحة. تم إلغاء العملية.", icon: "danger" }); }, 300);
+                    setTimeout(() => {
+                        window.showCustomUi({ title: "خطأ", message: "كلمة التأكيد غير صحيحة. تم إلغاء العملية.", icon: "danger" });
+                    }, 300);
                     return;
                 }
                 setTimeout(() => {
                     window.showCustomUi({
-                        title: "🛑 تحذير نقل للسلة", message: "هل أنت متأكد من تصفير المخزن، الفواتير، والعمليات ونقلها جميعاً لسلة المحذوفات؟",
-                        type: "confirm", icon: "danger",
+                        title: "🛑 تحذير نقل للسلة",
+                        message: "هل أنت متأكد من تصفير المخزن، الفواتير، والعمليات ونقلها جميعاً لسلة المحذوفات؟",
+                        type: "confirm",
+                        icon: "danger",
                         onConfirm: async () => {
                             try {
                                 const batch = writeBatch(db);
                                 const collectionsToTrash = ["invoices", "transactions", "inventory", "customers", "suppliers", "purchases"];
+
                                 for (const colName of collectionsToTrash) {
                                     const snap = await getDocs(collection(db, colName));
-                                    snap.forEach(d => { batch.update(doc(db, colName, d.id), { isDeleted: true, deletedAt: serverTimestamp() }); });
+                                    snap.forEach(d => {
+                                        const docRef = doc(db, colName, d.id);
+                                        batch.update(docRef, {
+                                            isDeleted: true,
+                                            deletedAt: serverTimestamp()
+                                        });
+                                    });
                                 }
                                 await batch.commit();
-                                window.showCustomUi({ title: "نجاح التصفير", message: "🚀 تم تصفير البيانات بنجاح ونقلها بالكامل إلى السلة.", icon: "success", onConfirm: () => { location.reload(); } });
+                                window.showCustomUi({
+                                    title: "نجاح التصفير",
+                                    message: "🚀 تم تصفير البيانات بنجاح ونقلها بالكامل إلى السلة.",
+                                    icon: "success",
+                                    onConfirm: () => { location.reload(); }
+                                });
                             } catch (err) {
                                 window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء نقل البيانات للسلة.", icon: "danger" });
                             }
@@ -911,7 +914,8 @@
     function executeFilterLogic(type, dateStr) {
         let filtered = []; let statusLabel = "";
         filtered = allInvoices.filter(inv => {
-            const isToday = (inv.parsedDate === dateStr);
+            const invDateStr = parseInvoiceDate(inv);
+            const isToday = (invDateStr === dateStr);
             switch (type) {
                 case 'today-cash': statusLabel = `نقدى يوم (${dateStr})`; return isToday && inv.calculatedCash > 0;
                 case 'today-wallet': statusLabel = `محفظه يوم (${dateStr})`; return isToday && inv.calculatedWallet > 0;
@@ -921,10 +925,13 @@
             }
         });
 
+        // ضم سندات القبض المطابقة لنفس اليوم ونفس نوع الفلتر (نقدى/محفظه) كصفوف منفصلة تحت الفواتير
         let matchingVouchers = [];
         if (type === 'today-cash' || type === 'today-wallet') {
             matchingVouchers = allReceiptVouchers.filter(v => {
-                if (v.parsedDate !== dateStr) return false;
+                const vDateStr = parseVoucherDate(v);
+                const isToday = (vDateStr === dateStr);
+                if (!isToday) return false;
                 return type === 'today-cash' ? v.cashAmount > 0 : v.walletAmount > 0;
             });
         }
@@ -943,29 +950,24 @@
         document.getElementById('dateFilterInput').value = "";
         calculateStats();
         const todayStr = new Date().toLocaleDateString('en-CA');
-        const todayInvoices = allInvoices.filter(inv => inv.parsedDate === todayStr);
+        const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);
         window.renderInvoices(todayInvoices);
     };
 
-    // [تحسين]: تم إضافة مهلة تأخير (Debounce) لعملية البحث لمنع التجميد أثناء الكتابة السريعة
-    let searchTimeoutId = null;
     window.filterInvoices = () => {
-        clearTimeout(searchTimeoutId);
-        searchTimeoutId = setTimeout(() => {
-            const query = document.getElementById('searchInput').value.toLowerCase().trim();
-            if (!query) {
-                const filterInput = document.getElementById('dateFilterInput').value;
-                const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
-                const filtered = allInvoices.filter(inv => inv.parsedDate === targetDate);
-                window.renderInvoices(filtered);
-                return;
-            }
-            const filtered = allInvoices.filter(inv =>
-                (inv.customerName && inv.customerName.toLowerCase().includes(query)) ||
-                (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(query))
-            );
+        const query = document.getElementById('searchInput').value.toLowerCase().trim();
+        if (!query) {
+            const filterInput = document.getElementById('dateFilterInput').value;
+            const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
+            const filtered = allInvoices.filter(inv => parseInvoiceDate(inv) === targetDate);
             window.renderInvoices(filtered);
-        }, 350); // ينتظر 350 جزء من الثانية بعد التوقف عن الكتابة لتبدأ الفلترة
+            return;
+        }
+        const filtered = allInvoices.filter(inv =>
+            (inv.customerName && inv.customerName.toLowerCase().includes(query)) ||
+            (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(query))
+        );
+        window.renderInvoices(filtered);
     };
 
     window.toggleDetails = (id) => {
@@ -973,14 +975,18 @@
         element.style.display = (element.style.display === "none") ? "block" : "none";
     };
 
-    window.editInvoice = (id) => { window.location.href = `sales-invoice.html?edit=${id}&allowDateEdit=true`; };
+    window.editInvoice = (id) => {
+        window.location.href = `sales-invoice.html?edit=${id}&allowDateEdit=true`;
+    };
 
     window.deleteInvoice = (id) => {
         const inv = allInvoices.find(i => i.id === id);
         const nameDisplay = inv ? (inv.customerName || 'عميل نقدى') : '';
         window.showCustomUi({
-            title: "نقل الفاتورة إلى السلة", message: `هل أنت متأكد من نقل فاتورة "${nameDisplay}" إلى سلة المحذوفات؟`,
-            type: "confirm", icon: "danger",
+            title: "نقل الفاتورة إلى السلة",
+            message: `هل أنت متأكد من نقل فاتورة "${nameDisplay}" إلى سلة المحذوفات؟`,
+            type: "confirm",
+            icon: "danger",
             onConfirm: async () => {
                 try {
                     await updateDoc(doc(db, "invoices", id), { isDeleted: true, deletedAt: serverTimestamp() });
@@ -992,39 +998,94 @@
             }
         });
     };
-
+// ===== تصدير الإكسيل - مع التصحيح والاعتماد على الوحدة البيعية وإضافة المرتجع =====
     document.getElementById('exportExcelBtn').onclick = () => {
-        if (!allInvoices.length) { window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات لتصديرها بعد.", icon: "info" }); return; }
+        if (!allInvoices.length) {
+            window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات لتصديرها بعد.", icon: "info" });
+            return;
+        }
+
         let excelRows = [];
+
+        // البيانات هنا مرتبة من الأحدث للأقدم تلقائياً
         allInvoices.forEach(inv => {
-            const invDate = inv.parsedDate;
+            const invDate = parseInvoiceDate(inv);
             const customerName = inv.customerName || 'النقدى';
+
+            // 1. أصناف الفاتورة
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(itm => {
-                    let qtyCarton = 0; let qtyJarkan = 0; let priceCarton = 0; let priceJarkan = 0;
+                    let qtyCarton = 0;
+                    let qtyJarkan = 0;
+                    let priceCarton = 0;
+                    let priceJarkan = 0;
+
+                    // إضافة كلمة مرتجع أمام اسم الصنف إذا كان مرتجعاً
                     const isRet = itm.isReturn === true;
                     const itemName = (isRet ? "(مرتجع) " : "") + (itm.name || "");
+                    
                     const rawQty = Number(itm.qty) || 0;
                     const rawPrice = Number(itm.price) || 0;
-                    if (itm.unit === 'pcs') { qtyJarkan = rawQty; priceJarkan = rawPrice; } 
-                    else { qtyCarton = rawQty; priceCarton = rawPrice; }
-                    excelRows.push({ "التاريخ": invDate, "الحركة": isRet ? "مرتجع" : "بيع", "اسم العميل": customerName, "الصنف": itemName, "عدد الجركن": qtyJarkan, "عدد الكرتونة": qtyCarton, "سعر الجركن": priceJarkan, "سعر الكرتونة": priceCarton });
+
+                    // الاعتماد على وحدة التخزين الحقيقية
+                    if (itm.unit === 'pcs') {
+                        qtyJarkan = rawQty;
+                        priceJarkan = rawPrice;
+                    } else {
+                        qtyCarton = rawQty;
+                        priceCarton = rawPrice;
+                    }
+
+                    excelRows.push({
+                        "التاريخ": invDate,
+                        "الحركة": isRet ? "مرتجع" : "بيع",
+                        "اسم العميل": customerName,
+                        "الصنف": itemName,
+                        "عدد الجركن": qtyJarkan,
+                        "عدد الكرتونة": qtyCarton,
+                        "سعر الجركن": priceJarkan,
+                        "سعر الكرتونة": priceCarton
+                    });
                 });
             }
+
+            // 2. سداد نقدى كسطر مستقل
             if ((inv.calculatedCash || 0) > 0) {
-                excelRows.push({ "التاريخ": invDate, "الحركة": "سداد منه نقدى", "اسم العميل": customerName, "الصنف": "سداد نقدى", "عدد الجركن": 0, "عدد الكرتونة": 1, "سعر الجركن": 0, "سعر الكرتونة": inv.calculatedCash });
+                excelRows.push({
+                    "التاريخ": invDate,
+                    "الحركة": "سداد منه نقدى",
+                    "اسم العميل": customerName,
+                    "الصنف": "سداد نقدى",
+                    "عدد الجركن": 0,
+                    "عدد الكرتونة": 1,
+                    "سعر الجركن": 0,
+                    "سعر الكرتونة": inv.calculatedCash
+                });
             }
+
+            // 3. سداد محفظه كسطر مستقل
             if ((inv.calculatedWallet || 0) > 0) {
-                excelRows.push({ "التاريخ": invDate, "الحركة": "سداد منه محفظه", "اسم العميل": customerName, "الصنف": "سداد محفظه", "عدد الجركن": 0, "عدد الكرتونة": 1, "سعر الجركن": 0, "سعر الكرتونة": inv.calculatedWallet });
+                excelRows.push({
+                    "التاريخ": invDate,
+                    "الحركة": "سداد منه محفظه",
+                    "اسم العميل": customerName,
+                    "الصنف": "سداد محفظه",
+                    "عدد الجركن": 0,
+                    "عدد الكرتونة": 1,
+                    "سعر الجركن": 0,
+                    "سعر الكرتونة": inv.calculatedWallet
+                });
             }
         });
+
         const ws = XLSX.utils.json_to_sheet(excelRows);
         ws['!dir'] = "rtl";
+
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "المبيعات والأرشيف");
         XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
     };
-
+      
     // Initial single load
     loadData(true);
 </script>
