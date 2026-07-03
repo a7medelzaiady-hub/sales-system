@@ -200,6 +200,9 @@
                 <button id="refreshBtn" class="btn-fetch-all" style="border-color: var(--text-secondary); color: var(--text-secondary);">
                     <i class="fas fa-sync-alt"></i> تحديث
                 </button>
+                <button id="shareAllInvoicesBtn" class="btn-fetch-all" style="border-color: #2d6a4f; color: #2d6a4f;">
+                    <i class="fas fa-images"></i> مشاركة الفواتير كصور
+                </button>
                 <button class="btn btn-danger btn-sm fw-bold px-3" id="deleteAllCustomersBtn" style="font-size: 0.75rem; border-radius: 9px; height: 33px; display: inline-flex; align-items: center; gap: 4px;">
                     <i class="fas fa-trash-can"></i> تصفير النظام للسلة
                 </button>
@@ -998,7 +1001,8 @@
             }
         });
     };
-// ===== تصدير الإكسيل - مع التصحيح والاعتماد على الوحدة البيعية وإضافة المرتجع =====
+
+    // ===== تصدير الإكسيل - مع التصحيح والاعتماد على الوحدة البيعية وإضافة المرتجع =====
     document.getElementById('exportExcelBtn').onclick = () => {
         if (!allInvoices.length) {
             window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات لتصديرها بعد.", icon: "info" });
@@ -1084,6 +1088,94 @@
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "المبيعات والأرشيف");
         XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
+    };
+
+    // ===== دالة مشاركة كل الفواتير المعروضة حالياً كصور مستقلة =====
+    document.getElementById('shareAllInvoicesBtn').onclick = async () => {
+        // 1. التأكد من وجود فواتير معروضة
+        if (!currentRenderedInvoices || currentRenderedInvoices.length === 0) {
+            window.showCustomUi({ title: "تنبيه", message: "لا توجد فواتير معروضة لمشاركتها.", icon: "info" });
+            return;
+        }
+
+        // 2. إظهار رسالة للمستخدم للانتظار لأن تحويل عدة صور يستغرق ثواني
+        window.showCustomUi({ 
+            title: "جاري المعالجة", 
+            message: `يتم الآن تجهيز عدد (${currentRenderedInvoices.length}) صورة للمشاركة، برجاء الانتظار وعدم إغلاق الصفحة...`, 
+            icon: "info" 
+        });
+
+        const filesArray = [];
+        
+        // إنشاء حاوية مخفية لرسم الفواتير بداخلها
+        const shareContainer = document.createElement('div');
+        shareContainer.style.position = 'fixed';
+        shareContainer.style.right = '-9999px';
+        shareContainer.style.top = '0';
+        shareContainer.style.width = '340px';
+        shareContainer.style.background = '#ffffff';
+        shareContainer.style.boxSizing = 'border-box';
+        document.body.appendChild(shareContainer);
+
+        try {
+            // 3. المرور على كل فاتورة وتحويلها لصورة
+            for (const inv of currentRenderedInvoices) {
+                shareContainer.innerHTML = generateThermalInvoiceHtml(inv);
+                
+                // إعطاء وقت قصير جداً للمتصفح لتطبيق التنسيقات
+                await new Promise(resolve => setTimeout(resolve, 150));
+
+                const canvas = await html2canvas(shareContainer, {
+                    scale: 2, // دقة ممتازة للقراءة ولا تستهلك الذاكرة بشكل مبالغ فيه
+                    backgroundColor: '#ffffff',
+                    useCORS: true
+                });
+
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                if (blob) {
+                    // تجهيز اسم فريد لكل فاتورة لتجنب التكرار
+                    const safeName = inv.customerName ? inv.customerName.replace(/ /g, '_') : 'نقدى';
+                    const file = new File([blob], `فاتورة_${safeName}_${inv.id.substring(0,4)}.png`, { type: 'image/png' });
+                    filesArray.push(file);
+                }
+            }
+
+            // تنظيف الصفحة بعد الانتهاء
+            document.body.removeChild(shareContainer);
+            document.getElementById('customGlobalModal').style.display = 'none';
+
+            // 4. استدعاء نافذة المشاركة الخاصة بالنظام
+            if (navigator.canShare && navigator.canShare({ files: filesArray })) {
+                await navigator.share({
+                    files: filesArray,
+                    title: `مشاركة فواتير النظام`,
+                    text: `مرفق صور الفواتير المطلوبة من سجل المبيعات`
+                });
+            } else {
+                // إجراء بديل (Fallback) في حال كان المتصفح لا يدعم المشاركة المجمعة
+                window.showCustomUi({ 
+                    title: "مشاركة غير مدعومة", 
+                    message: "جهازك لا يدعم نافذة المشاركة المجمعة للصور. سيتم تحميل الصور تباعاً كملفات على جهازك.", 
+                    icon: "info", 
+                    onConfirm: async () => {
+                        for (const file of filesArray) {
+                            const url = URL.createObjectURL(file);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = file.name;
+                            a.click();
+                            URL.revokeObjectURL(url);
+                            await new Promise(res => setTimeout(res, 500)); // فاصل زمني لتجنب حظر التنزيل المتعدد
+                        }
+                    }
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            if (document.body.contains(shareContainer)) document.body.removeChild(shareContainer);
+            document.getElementById('customGlobalModal').style.display = 'none';
+            window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء معالجة أو تجميع الصور.", icon: "danger" });
+        }
     };
       
     // Initial single load
