@@ -247,12 +247,13 @@
             </div>
         </div>
 
+        <!-- خانة مطابقة النقدية الاحترافية الذكية والمطورة بالتجميع التلقائي -->
         <div class="recon-card">
             <div class="recon-title"><i class="fas fa-scale-balanced text-success"></i> مطابقة وتدقيق النقدية (الكاش) الميداني</div>
             <div class="row g-2 align-items-center">
                 <div class="col-6">
                     <label class="stat-label mb-1 fw-bold text-dark d-block">النقدية الموجودة معك حالياً:</label>
-                    <input type="number" id="actualCashInput" class="form-control text-center recon-input fw-bold text-success" placeholder="اكتب المبلغ هنا..." oninput="window.calculateCashReconciliation()">
+                    <input type="text" id="actualCashInput" class="form-control text-center recon-input fw-bold text-success" placeholder="مثال: 30000 + 5400 + 470" oninput="window.calculateCashReconciliation()">
                 </div>
                 <div class="col-6">
                     <label class="stat-label mb-1 fw-bold text-dark d-block">حالة المطابقة والفارق:</label>
@@ -321,7 +322,6 @@
     let currentRenderedInvoices = [];
     let allReceiptVouchers = [];
     
-    // متغير عام لتخزين النقدية الدفترية المتوقعة لليوم المختار
     window.globalExpectedTodayCash = 0;
 
     window.showCustomUi = (options) => {
@@ -574,12 +574,11 @@
         document.getElementById('todayRemaining').innerText = todayRemaining.toFixed(1);
         document.getElementById('todayTotalSales').innerText = todaySales.toFixed(1);
 
-        // حفظ القيمة الدفترية ومطابقة النقدية فوراً عند تغير التاريخ أو تحديث البيانات
         window.globalExpectedTodayCash = todayCash;
         window.calculateCashReconciliation();
     }
 
-    // دالة احترافية لمطابقة النقدية الميدانية حياً وتلقائياً
+    // دالة احترافية مطورة لمطابقة وتجميع النقدية الميدانية حياً وتلقائياً (تدعم عمليات الجمع والزائد +)
     window.calculateCashReconciliation = () => {
         const inputField = document.getElementById('actualCashInput');
         const resultBox = document.getElementById('reconResultBox');
@@ -594,30 +593,39 @@
             return;
         }
 
-        const actual = parseFloat(inputVal) || 0;
+        let sanitizedVal = convertToEnglishNumbers(inputVal);
+        const amountParts = sanitizedVal.split('+');
+        let actual = 0;
+        
+        amountParts.forEach(part => {
+            const parsedNum = parseFloat(part.trim());
+            if (!isNaN(parsedNum)) {
+                actual += parsedNum;
+            }
+        });
+
         const expected = window.globalExpectedTodayCash || 0;
         const diff = actual - expected;
 
-        // إذا كان الفارق متناهي الصغر (مطابق)
+        let totalEnteredStr = amountParts.length > 1 ? `[جردك: ${actual.toFixed(1)}] ` : '';
+
         if (Math.abs(diff) < 0.1) {
-            resultBox.className = "text-center fw-bold text-success p-2 animate__animated animate__fadeIn";
+            resultBox.className = "text-center fw-bold text-success p-2";
             resultBox.style.background = "#eefaf1";
             resultBox.style.border = "1px solid var(--success)";
-            resultBox.innerHTML = `<i class="fas fa-check-circle"></i> مطابق تماماً (0.00)`;
+            resultBox.innerHTML = `<i class="fas fa-check-circle"></i> ${totalEnteredStr} مطابق تماماً (0.00)`;
         } 
-        // في حالة وجود زيادة بالخزينة
         else if (diff > 0) {
-            resultBox.className = "text-center fw-bold text-primary p-2 animate__animated animate__fadeIn";
+            resultBox.className = "text-center fw-bold text-primary p-2";
             resultBox.style.background = "#eef4fa";
             resultBox.style.border = "1px solid #0077b6";
-            resultBox.innerHTML = `<i class="fas fa-circle-plus"></i> زيادة بمقدار (+${diff.toFixed(2)})`;
+            resultBox.innerHTML = `<i class="fas fa-circle-plus"></i> ${totalEnteredStr} زيادة (+${diff.toFixed(1)})`;
         } 
-        // في حالة وجود عجز بالخزينة
         else {
-            resultBox.className = "text-center fw-bold text-danger p-2 animate__animated animate__fadeIn";
+            resultBox.className = "text-center fw-bold text-danger p-2";
             resultBox.style.background = "#fff5f5";
             resultBox.style.border = "1px solid var(--danger)";
-            resultBox.innerHTML = `<i class="fas fa-circle-minus"></i> عجز بمقدار (${diff.toFixed(2)})`;
+            resultBox.innerHTML = `<i class="fas fa-circle-minus"></i> ${totalEnteredStr} عجز (${diff.toFixed(1)})`;
         }
     };
 
