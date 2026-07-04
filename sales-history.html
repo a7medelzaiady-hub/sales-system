@@ -84,6 +84,14 @@
         .stat-label { font-size: 0.66rem; color: var(--text-secondary); font-weight: 700; }
         .stat-value { font-size: 0.95rem; font-weight: 800; margin-top: 2px; }
 
+        /* ===== Reconciliation Card ===== */
+        .recon-card {
+            background: var(--white); border: 1.5px solid var(--border);
+            border-radius: var(--card-radius); padding: 14px;
+            margin-bottom: 14px; box-shadow: var(--shadow-sm);
+        }
+        .recon-title { font-size: 0.78rem; font-weight: 800; color: var(--accent); margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+
         /* ===== Control panel ===== */
         .control-panel-card {
             background: var(--white); border: 1px solid var(--border);
@@ -130,12 +138,12 @@
         .fin-box { font-size: 0.74rem; font-weight: 700; color: var(--text-secondary); }
         .fin-box span { display: block; font-size: 0.92rem; margin-top: 2px; font-weight: 800; }
 
-        .search-box, input[type="date"] {
+        .search-box, input[type="date"], .recon-input {
             border: 1px solid var(--border); border-radius: var(--input-radius);
             padding: 9px 14px; font-weight: 600; font-size: 0.85rem;
             font-family: 'Cairo', sans-serif; background: var(--white);
         }
-        .search-box:focus, input[type="date"]:focus {
+        .search-box:focus, input[type="date"]:focus, .recon-input:focus {
             border-color: var(--accent); box-shadow: 0 0 0 3px rgba(11,94,61,0.1); outline: none;
         }
 
@@ -173,7 +181,7 @@
         #thermalPrintSection { display: none; }
         @media print {
             body { background: white; color: black; padding: 0; margin: 0; }
-            #content-to-export, .header-nav, .control-panel-card, .stats-section-title, .row, .filter-status-bar, #customGlobalModal, .invoice-item { display: none !important; }
+            #content-to-export, .header-nav, .control-panel-card, .stats-section-title, .row, .filter-status-bar, #customGlobalModal, .invoice-item, .recon-card { display: none !important; }
             #thermalPrintSection { display: block !important; width: 80mm; max-width: 80mm; padding: 4mm 2mm; margin: 0 auto; direction: rtl; font-family: 'Cairo', sans-serif; }
         }
     </style>
@@ -239,6 +247,22 @@
             </div>
         </div>
 
+        <div class="recon-card">
+            <div class="recon-title"><i class="fas fa-scale-balanced text-success"></i> مطابقة وتدقيق النقدية (الكاش) الميداني</div>
+            <div class="row g-2 align-items-center">
+                <div class="col-6">
+                    <label class="stat-label mb-1 fw-bold text-dark d-block">النقدية الموجودة معك حالياً:</label>
+                    <input type="number" id="actualCashInput" class="form-control text-center recon-input fw-bold text-success" placeholder="اكتب المبلغ هنا..." oninput="window.calculateCashReconciliation()">
+                </div>
+                <div class="col-6">
+                    <label class="stat-label mb-1 fw-bold text-dark d-block">حالة المطابقة والفارق:</label>
+                    <div id="reconResultBox" class="text-center fw-bold text-muted p-2" style="border-radius: var(--input-radius); font-size: 0.8rem; background: #f8faf9; border: 1px dashed var(--border); height: 39px; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                        بانتظار جردك الفعلي...
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <div class="filter-status-bar mb-3" id="filterStatusBar">
             <span id="filterStatusText">عرض فلاتر مخصصة</span>
             <button class="btn btn-sm btn-dark py-0" onclick="resetStatFilter()" style="font-size:0.7rem; font-family: 'Cairo'; border-radius: 7px;">عرض الكل</button>
@@ -295,8 +319,10 @@
     let customersData = {};
     let currentFilterType = null;
     let currentRenderedInvoices = [];
-    // سندات القبض (نقدى/محفظه) الخاصة بالعملاء - تُستخدم لإضافتها لإحصائيات نقدى/محفظه اليوم
     let allReceiptVouchers = [];
+    
+    // متغير عام لتخزين النقدية الدفترية المتوقعة لليوم المختار
+    window.globalExpectedTodayCash = 0;
 
     window.showCustomUi = (options) => {
         const modal = document.getElementById('customGlobalModal');
@@ -391,7 +417,6 @@
         return dateStr;
     }
 
-    // نفس منطق تطبيع التاريخ لكن مخصص لتاريخ السندات (transactions) اللي بييجي أصلاً كنص من input type=date
     function parseVoucherDate(tr) {
         if (!tr || !tr.date) return "";
         let dateStr = convertToEnglishNumbers(tr.date);
@@ -536,7 +561,6 @@
             }
         });
 
-        // إضافة سندات القبض (نقدى / محفظه) الخاصة باليوم المستهدف على نفس البطاقات
         allReceiptVouchers.forEach(v => {
             const vDateStr = parseVoucherDate(v);
             if (vDateStr === targetDateStr) {
@@ -549,7 +573,53 @@
         document.getElementById('todayWallet').innerText = todayWallet.toFixed(1);
         document.getElementById('todayRemaining').innerText = todayRemaining.toFixed(1);
         document.getElementById('todayTotalSales').innerText = todaySales.toFixed(1);
+
+        // حفظ القيمة الدفترية ومطابقة النقدية فوراً عند تغير التاريخ أو تحديث البيانات
+        window.globalExpectedTodayCash = todayCash;
+        window.calculateCashReconciliation();
     }
+
+    // دالة احترافية لمطابقة النقدية الميدانية حياً وتلقائياً
+    window.calculateCashReconciliation = () => {
+        const inputField = document.getElementById('actualCashInput');
+        const resultBox = document.getElementById('reconResultBox');
+        if (!inputField || !resultBox) return;
+
+        const inputVal = inputField.value.trim();
+        if (inputVal === "") {
+            resultBox.className = "text-center fw-bold text-muted p-2";
+            resultBox.style.background = "#f8faf9";
+            resultBox.style.border = "1px dashed var(--border)";
+            resultBox.innerHTML = "بانتظار جردك الفعلي...";
+            return;
+        }
+
+        const actual = parseFloat(inputVal) || 0;
+        const expected = window.globalExpectedTodayCash || 0;
+        const diff = actual - expected;
+
+        // إذا كان الفارق متناهي الصغر (مطابق)
+        if (Math.abs(diff) < 0.1) {
+            resultBox.className = "text-center fw-bold text-success p-2 animate__animated animate__fadeIn";
+            resultBox.style.background = "#eefaf1";
+            resultBox.style.border = "1px solid var(--success)";
+            resultBox.innerHTML = `<i class="fas fa-check-circle"></i> مطابق تماماً (0.00)`;
+        } 
+        // في حالة وجود زيادة بالخزينة
+        else if (diff > 0) {
+            resultBox.className = "text-center fw-bold text-primary p-2 animate__animated animate__fadeIn";
+            resultBox.style.background = "#eef4fa";
+            resultBox.style.border = "1px solid #0077b6";
+            resultBox.innerHTML = `<i class="fas fa-circle-plus"></i> زيادة بمقدار (+${diff.toFixed(2)})`;
+        } 
+        // في حالة وجود عجز بالخزينة
+        else {
+            resultBox.className = "text-center fw-bold text-danger p-2 animate__animated animate__fadeIn";
+            resultBox.style.background = "#fff5f5";
+            resultBox.style.border = "1px solid var(--danger)";
+            resultBox.innerHTML = `<i class="fas fa-circle-minus"></i> عجز بمقدار (${diff.toFixed(2)})`;
+        }
+    };
 
     function applyCurrentView() {
         calculateStats();
@@ -595,17 +665,14 @@
                 if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);
                 else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);
 
-                // نجمع فقط سندات "قبض" الخاصة بالعملاء (المبالغ المُستلمة فعلياً) عشان تدخل في إحصائيات نقدى/محفظه اليوم
                 const isCustomerVoucher = tr.partyType === 'عميل' || (!tr.partyType && customersData[tr.partyId]);
                 if (tr.type === 'قبض' && isCustomerVoucher) {
                     let cashAmount = 0;
                     let walletAmount = 0;
                     if (tr.cashPaid !== undefined || tr.walletPaid !== undefined) {
-                        // صيغة صفحة حسابات العملاء (فيها كاش ومحفظه في نفس السند)
                         cashAmount = Number(tr.cashPaid) || 0;
                         walletAmount = Number(tr.walletPaid) || 0;
                     } else if (tr.method !== undefined) {
-                        // صيغة صفحة سندات القبض والصرف العامة (طريقة سداد واحدة لكل سند)
                         const amt = Number(tr.amount) || 0;
                         if (tr.method === 'محفظة' || tr.method === 'محفظه') walletAmount = amt;
                         else cashAmount = amt;
@@ -928,7 +995,6 @@
             }
         });
 
-        // ضم سندات القبض المطابقة لنفس اليوم ونفس نوع الفلتر (نقدى/محفظه) كصفوف منفصلة تحت الفواتير
         let matchingVouchers = [];
         if (type === 'today-cash' || type === 'today-wallet') {
             matchingVouchers = allReceiptVouchers.filter(v => {
