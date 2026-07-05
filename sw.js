@@ -1,4 +1,4 @@
-const CACHE_NAME = "elzaiady-cache-v6";
+const CACHE_NAME = "elzaiady-cache-v7";
 
 // 🔥 قائمة شاملة بكافة الملفات الموجودة في المستودع
 const STATIC_FILES = [
