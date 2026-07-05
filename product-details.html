@@ -147,6 +147,15 @@
             font-weight: 700;
             box-shadow: 0 8px 20px rgba(11, 102, 65, 0.2);
         }
+        
+        /* التنسيقات الإضافية لسجل الحركات */
+        .movement-card {
+            margin: 10px 20px;
+            background: white;
+            border-radius: 25px;
+            padding: 15px 20px;
+            box-shadow: var(--card-shadow);
+        }
     </style>
 </head>
 
@@ -220,6 +229,16 @@
         لا يوجد وصف متاح لهذا المنتج..
     </div>
 
+    <!-- القسم الجديد: سجل حركات المنتج -->
+    <div class="section-title">سجل حركات المنتج (الوارد والمنصرف)</div>
+    <div class="movement-card">
+        <div id="movementsContainer">
+            <div class="text-center text-muted py-3">
+                <i class="fas fa-spinner fa-spin me-2"></i> جاري تحميل سجل الحركات...
+            </div>
+        </div>
+    </div>
+
     <div class="bottom-actions">
         <button class="btn-delete" onclick="deleteItem()"><i class="fas fa-trash-alt me-2"></i> حذف</button>
         <button class="btn-edit" id="editBtn"><i class="fas fa-edit me-2"></i> تعديل المنتج</button>
@@ -227,17 +246,17 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-       const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-  measurementId: "G-WE04GK5XZZ"
-};
+        const firebaseConfig = {
+            apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+            authDomain: "ahmedelzaiady.firebaseapp.com",
+            projectId: "ahmedelzaiady",
+            storageBucket: "ahmedelzaiady.firebasestorage.app",
+            messagingSenderId: "300306825071",
+            appId: "1:300306825071:web:0426ddde56280fa090329a",
+            measurementId: "G-WE04GK5XZZ"
+        };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
@@ -265,6 +284,104 @@
                 document.getElementById('editBtn').onclick = () => {
                     window.location.href = `add-product.html?edit=${productId}`;
                 };
+
+                // استدعاء دالة تحميل الحركات بعد تحميل بيانات المنتج الأساسية
+                loadProductMovements();
+            }
+        }
+
+        // الدالة الجديدة لجلب وعرض حركات الصنف
+        async function loadProductMovements() {
+            const container = document.getElementById('movementsContainer');
+            
+            try {
+                // جلب الحركات من المجموعة الفرعية ومرتبة تنازلياً حسب التاريخ (الأحدث أولاً)
+                const movementsRef = collection(db, "inventory", productId, "movements");
+                const q = query(movementsRef, orderBy("date", "desc"));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    container.innerHTML = '<div class="text-center text-muted py-3">لا توجد حركات مسجلة لهذا المنتج حتى الآن.</div>';
+                    return;
+                }
+
+                container.innerHTML = ''; // تفريغ مؤشر التحميل
+
+                querySnapshot.forEach((doc) => {
+                    const move = doc.data();
+                    let typeText = '';
+                    let badgeClass = '';
+                    let iconClass = '';
+                    let qtySign = '';
+
+                    // تحديد الشكل واللون حسب نوع الحركة
+                    switch(move.type) {
+                        case 'opening':
+                            typeText = 'رصيد أول المدة';
+                            badgeClass = 'bg-primary-subtle text-primary';
+                            iconClass = 'fas fa-box-open text-primary';
+                            qtySign = '';
+                            break;
+                        case 'purchase':
+                            typeText = 'فاتورة شراء';
+                            badgeClass = 'bg-success-subtle text-success';
+                            iconClass = 'fas fa-arrow-down text-success';
+                            qtySign = '+';
+                            break;
+                        case 'sale':
+                            typeText = 'فاتورة بيع';
+                            badgeClass = 'bg-danger-subtle text-danger';
+                            iconClass = 'fas fa-arrow-up text-danger';
+                            qtySign = '-';
+                            break;
+                        case 'sale_return':
+                            typeText = 'مرتجع مبيعات';
+                            badgeClass = 'bg-success-subtle text-success';
+                            iconClass = 'fas fa-undo text-success';
+                            qtySign = '+';
+                            break;
+                        case 'purchase_return':
+                            typeText = 'مرتجع مشتريات';
+                            badgeClass = 'bg-danger-subtle text-danger';
+                            iconClass = 'fas fa-undo text-danger';
+                            qtySign = '-';
+                            break;
+                        default:
+                            typeText = move.type || 'حركة مخزن';
+                            badgeClass = 'bg-secondary-subtle text-secondary';
+                            iconClass = 'fas fa-exchange-alt';
+                    }
+
+                    // تنسيق التاريخ المسترجع من فيربيز
+                    let moveDate = '---';
+                    if (move.date) {
+                        moveDate = move.date.toDate ? move.date.toDate().toLocaleDateString('ar-EG') : move.date;
+                    }
+
+                    // بناء سطر الحركة
+                    const rowHtml = `
+                        <div class="data-row d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <div class="icon-box me-0 ms-3" style="background: #f8f9fa; border: 1px solid #edf2f7; width: 40px; height: 40px;">
+                                    <i class="${iconClass}"></i>
+                                </div>
+                                <div>
+                                    <span class="fw-bold d-block small">${typeText}</span>
+                                    <small class="text-muted" style="font-size: 0.75rem;">${moveDate} ${move.reference ? `| رقم: ${move.reference}` : ''}</small>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge ${badgeClass} fs-6 fw-bold">${qtySign}${move.qty || 0} قطعة</span>
+                                ${move.price ? `<small class="text-muted d-block" style="font-size: 0.7rem; margin-top: 2px;">بسعر: ${move.price} ج.م</small>` : ''}
+                            </div>
+                        </div>
+                    `;
+                    container.insertAdjacentHTML('beforeend', rowHtml);
+                });
+
+            } catch (error) {
+                console.error("Error loading movements:", error);
+                container.innerHTML = '<div class="text-center text-danger py-3">حدث خطأ أثناء تحميل سجل الحركات.</div>';
             }
         }
 
