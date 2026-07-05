@@ -10,7 +10,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
-            --primary-green: #0b6641; /* لون الزيادي المعتمد */
+            --primary-green: #0b6641;
             --bg-light: #f7f9fc;
             --card-shadow: 0 10px 20px rgba(0, 0, 0, 0.02);
         }
@@ -21,7 +21,6 @@
             padding-bottom: 120px;
         }
 
-        /* الهيدر الأخضر المنحني */
         .details-header {
             background-color: var(--primary-green);
             height: 150px;
@@ -45,12 +44,11 @@
             font-size: 1.3rem;
         }
 
-        /* كروت البيانات */
         .info-card {
             background: white;
             border-radius: 25px;
             padding: 20px;
-            margin: 60px 20px 20px; /* تداخل احترافي مع الهيدر */
+            margin: 60px 20px 20px;
             box-shadow: var(--card-shadow);
         }
 
@@ -83,12 +81,10 @@
             font-size: 1.2rem;
         }
 
-        /* ألوان أيقونات لطيفة ومتناسقة */
         .bg-blue-light { background: #eef2ff; color: #6366f1; }
         .bg-orange-light { background: #fff7ed; color: #f97316; }
         .bg-green-light { background: #f0fdf4; color: #22c55e; }
 
-        /* شبكة المخزون */
         .stock-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -116,7 +112,6 @@
             color: #94a3b8;
         }
 
-        /* أزرار التحكم السفلية */
         .bottom-actions {
             position: fixed;
             bottom: 25px;
@@ -148,7 +143,6 @@
             box-shadow: 0 8px 20px rgba(11, 102, 65, 0.2);
         }
         
-        /* التنسيقات الإضافية لسجل الحركات */
         .movement-card {
             margin: 10px 20px;
             background: white;
@@ -229,12 +223,11 @@
         لا يوجد وصف متاح لهذا المنتج..
     </div>
 
-    <!-- القسم الجديد: سجل حركات المنتج -->
-    <div class="section-title">سجل حركات المنتج (الوارد والمنصرف)</div>
+    <div class="section-title">سجل حركات المنتج الكاملة</div>
     <div class="movement-card">
         <div id="movementsContainer">
             <div class="text-center text-muted py-3">
-                <i class="fas fa-spinner fa-spin me-2"></i> جاري تحميل سجل الحركات...
+                <i class="fas fa-spinner fa-spin me-2"></i> جاري جلب سجل الحركات من قاعدة البيانات...
             </div>
         </div>
     </div>
@@ -246,7 +239,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, doc, getDoc, updateDoc, serverTimestamp, collection, query, orderBy, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -285,80 +278,89 @@
                     window.location.href = `add-product.html?edit=${productId}`;
                 };
 
-                // استدعاء دالة تحميل الحركات بعد تحميل بيانات المنتج الأساسية
+                // استدعاء جلب الحركات فور الانتهاء من تفاصيل المنتج
                 loadProductMovements();
             }
         }
 
-        // الدالة الجديدة لجلب وعرض حركات الصنف
         async function loadProductMovements() {
             const container = document.getElementById('movementsContainer');
             
             try {
-                // جلب الحركات من المجموعة الفرعية ومرتبة تنازلياً حسب التاريخ (الأحدث أولاً)
-                const movementsRef = collection(db, "inventory", productId, "movements");
-                const q = query(movementsRef, orderBy("date", "desc"));
+                // ⚠️ هام: تم توجيه الكود إلى مجموعة "transactions" الرئيسية بناءً على صورتك.
+                // إذا كانت حركات الشراء مخزنة في "purchase_orders" فاستبدل كلمة "transactions" بـ "purchase_orders"
+                const movementsRef = collection(db, "transactions"); 
+                
+                // البحث عن المستندات التي تحتوي على حقل productId يساوي رقم المنتج الحالي
+                // ⚠️ تأكد أن اسم الحقل في الفيربيز هو productId (أو قم بتعديل الكلمة الأولى بالأسفل لتطابق حقل الربط لديك)
+                const q = query(movementsRef, where("productId", "==", productId));
                 const querySnapshot = await getDocs(q);
 
                 if (querySnapshot.empty) {
-                    container.innerHTML = '<div class="text-center text-muted py-3">لا توجد حركات مسجلة لهذا المنتج حتى الآن.</div>';
+                    container.innerHTML = '<div class="text-center text-muted py-3">لا توجد حركات مسجلة لهذا المنتج في هذه المجموعة.</div>';
                     return;
                 }
 
-                container.innerHTML = ''; // تفريغ مؤشر التحميل
+                container.innerHTML = ''; 
 
+                const movementsList = [];
                 querySnapshot.forEach((doc) => {
-                    const move = doc.data();
-                    let typeText = '';
-                    let badgeClass = '';
-                    let iconClass = '';
+                    movementsList.push({ id: doc.id, ...doc.data() });
+                });
+
+                // ترتيب الحركات برمجياً لمنع الحاجة لعمل Index يدوي في الفيربيز (الأحدث أولاً)
+                movementsList.sort((a, b) => {
+                    const dateA = a.date?.toDate ? a.date.toDate() : new Date(a.date || a.timestamp || 0);
+                    const dateB = b.date?.toDate ? b.date.toDate() : new Date(b.date || b.timestamp || 0);
+                    return dateB - dateA;
+                });
+
+                movementsList.forEach((move) => {
+                    let typeText = 'حركة مخزنية';
+                    let badgeClass = 'bg-secondary-subtle text-secondary';
+                    let iconClass = 'fas fa-exchange-alt';
                     let qtySign = '';
 
-                    // تحديد الشكل واللون حسب نوع الحركة
-                    switch(move.type) {
-                        case 'opening':
-                            typeText = 'رصيد أول المدة';
-                            badgeClass = 'bg-primary-subtle text-primary';
-                            iconClass = 'fas fa-box-open text-primary';
-                            qtySign = '';
-                            break;
-                        case 'purchase':
-                            typeText = 'فاتورة شراء';
-                            badgeClass = 'bg-success-subtle text-success';
-                            iconClass = 'fas fa-arrow-down text-success';
-                            qtySign = '+';
-                            break;
-                        case 'sale':
-                            typeText = 'فاتورة بيع';
-                            badgeClass = 'bg-danger-subtle text-danger';
-                            iconClass = 'fas fa-arrow-up text-danger';
-                            qtySign = '-';
-                            break;
-                        case 'sale_return':
-                            typeText = 'مرتجع مبيعات';
-                            badgeClass = 'bg-success-subtle text-success';
-                            iconClass = 'fas fa-undo text-success';
-                            qtySign = '+';
-                            break;
-                        case 'purchase_return':
-                            typeText = 'مرتجع مشتريات';
-                            badgeClass = 'bg-danger-subtle text-danger';
-                            iconClass = 'fas fa-undo text-danger';
-                            qtySign = '-';
-                            break;
-                        default:
-                            typeText = move.type || 'حركة مخزن';
-                            badgeClass = 'bg-secondary-subtle text-secondary';
-                            iconClass = 'fas fa-exchange-alt';
+                    // قراءة نوع الحركة (يدعم الإنجليزية والعربية حسب تسجيلك في السيستم)
+                    const mType = move.type || '';
+                    if (mType === 'purchase' || mType === 'شراء' || mType === 'فاتورة شراء') {
+                        typeText = 'فاتورة شراء';
+                        badgeClass = 'bg-success-subtle text-success';
+                        iconClass = 'fas fa-arrow-down text-success';
+                        qtySign = '+';
+                    } else if (mType === 'sale' || mType === 'بيع' || mType === 'فاتورة بيع') {
+                        typeText = 'فاتورة بيع';
+                        badgeClass = 'bg-danger-subtle text-danger';
+                        iconClass = 'fas fa-arrow-up text-danger';
+                        qtySign = '-';
+                    } else if (mType === 'opening' || mType === 'رصيد أول المدة') {
+                        typeText = 'رصيد أول المدة';
+                        badgeClass = 'bg-primary-subtle text-primary';
+                        iconClass = 'fas fa-box-open text-primary';
+                        qtySign = '';
+                    } else if (mType === 'sale_return' || mType === 'مرتجع مبيعات') {
+                        typeText = 'مرتجع مبيعات';
+                        badgeClass = 'bg-success-subtle text-success';
+                        iconClass = 'fas fa-undo text-success';
+                        qtySign = '+';
+                    } else if (mType === 'purchase_return' || mType === 'مرتجع مشتريات') {
+                        typeText = 'مرتجع مشتريات';
+                        badgeClass = 'bg-danger-subtle text-danger';
+                        iconClass = 'fas fa-undo text-danger';
+                        qtySign = '-';
                     }
 
-                    // تنسيق التاريخ المسترجع من فيربيز
+                    // قراءة وتنسيق التاريخ والوقت بشكل مرن
                     let moveDate = '---';
-                    if (move.date) {
-                        moveDate = move.date.toDate ? move.date.toDate().toLocaleDateString('ar-EG') : move.date;
+                    const rawDate = move.date || move.timestamp || move.createdAt;
+                    if (rawDate) {
+                        moveDate = rawDate.toDate ? rawDate.toDate().toLocaleDateString('ar-EG') : rawDate;
                     }
 
-                    // بناء سطر الحركة
+                    // قراءة الكمية (يدعم الحقلين الأكثر استخداماً qty أو quantity)
+                    const finalQty = move.qty || move.quantity || 0;
+                    const finalPrice = move.price || move.cost || 0;
+
                     const rowHtml = `
                         <div class="data-row d-flex justify-content-between align-items-center">
                             <div class="d-flex align-items-center">
@@ -367,12 +369,12 @@
                                 </div>
                                 <div>
                                     <span class="fw-bold d-block small">${typeText}</span>
-                                    <small class="text-muted" style="font-size: 0.75rem;">${moveDate} ${move.reference ? `| رقم: ${move.reference}` : ''}</small>
+                                    <small class="text-muted" style="font-size: 0.75rem;">${moveDate} ${move.reference || move.invoiceNo ? `| رقم: ${move.reference || move.invoiceNo}` : ''}</small>
                                 </div>
                             </div>
                             <div class="text-end">
-                                <span class="badge ${badgeClass} fs-6 fw-bold">${qtySign}${move.qty || 0} قطعة</span>
-                                ${move.price ? `<small class="text-muted d-block" style="font-size: 0.7rem; margin-top: 2px;">بسعر: ${move.price} ج.م</small>` : ''}
+                                <span class="badge ${badgeClass} fs-6 fw-bold">${qtySign}${finalQty} قطعة</span>
+                                ${finalPrice ? `<small class="text-muted d-block" style="font-size: 0.7rem; margin-top: 2px;">بسعر: ${finalPrice} ج.م</small>` : ''}
                             </div>
                         </div>
                     `;
@@ -381,7 +383,7 @@
 
             } catch (error) {
                 console.error("Error loading movements:", error);
-                container.innerHTML = '<div class="text-center text-danger py-3">حدث خطأ أثناء تحميل سجل الحركات.</div>';
+                container.innerHTML = '<div class="text-center text-danger py-3">حدث خطأ أثناء جلب البيانات من السيرفر.</div>';
             }
         }
 
