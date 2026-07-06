@@ -205,8 +205,14 @@
             overflow: hidden; 
             height: 36px;
         }
-        .row-meta { font-size: 10px; color: var(--sub); font-weight: 600; margin-top: 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-        .cat-tag { background: #f1f5f9; color: #475569; padding: 2px 6px; border-radius: 6px; font-size: 9px; font-weight: 700; }
+        .row-meta { font-size: 10px; color: var(--sub); font-weight: 600; margin-top: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .cat-tag { background: #f1f5f9; color: #475569; padding: 2px 7px; border-radius: 6px; font-size: 9px; font-weight: 700; white-space: nowrap; }
+        .price-tag {
+            background: rgba(11,94,61,0.08); color: var(--accent);
+            padding: 2px 7px; border-radius: 6px; font-size: 9px; font-weight: 800;
+            white-space: nowrap; display: inline-flex; align-items: center; gap: 3px;
+        }
+        .price-tag.no-price { background: #f1f5f9; color: var(--sub); font-weight: 700; }
 
         /* الأرقام والأيقونات - منجرفة لليسار تماماً */
         .row-widgets {
@@ -234,29 +240,49 @@
         .status-dot.low  { background: var(--gold);    box-shadow: 0 0 6px rgba(217,119,6,0.5); }
         .status-dot.zero { background: var(--danger);  box-shadow: 0 0 6px rgba(225,29,72,0.5); }
 
-        /* شريط الكمية بالأسفل - محاذاة لليمين */
+        /* شريط الكمية بالأسفل - كرتونة وقطع منفصلة + الإجمالي */
         .row-qty {
             border-top: 1px dashed #e2e8f0;
-            padding-top: 8px; 
-            display: flex; 
-            align-items: center; 
-            justify-content: flex-start; /* تبدأ من اليمين لمطابقة السيستم */
+            padding-top: 9px;
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            width: 100%;
+        }
+        .qty-chips {
+            display: flex;
+            align-items: stretch;
             gap: 6px;
             width: 100%;
         }
-        .qty-main { font-size: 20px; font-weight: 900; line-height: 1; }
+        .qty-chip {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #f8fafc;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 5px 4px 6px;
+            min-width: 0;
+        }
+        .qty-chip.is-empty { opacity: 0.45; }
+        .qty-main { font-size: 18px; font-weight: 900; line-height: 1.1; }
         .qty-main.ok   { color: var(--success); }
         .qty-main.low  { color: var(--gold); }
         .qty-main.zero { color: var(--danger); }
-        .qty-lbl { font-size: 11px; font-weight: 700; color: var(--sub); }
+        .qty-lbl { font-size: 9.5px; font-weight: 700; color: var(--sub); margin-top: 2px; white-space: nowrap; }
 
-        .qty-extra {
-            display: inline-flex; align-items: center; gap: 3px;
-            background: #e0f2fe; color: #0369a1;
-            border-radius: 8px; padding: 2px 8px;
-            font-size: 10px; font-weight: 800;
-            margin-right: auto; /* يرمي الشارة الإضافية لليسار لعمل توازن بصري رائع */
+        .qty-total {
+            display: flex; align-items: center; justify-content: center; gap: 5px;
+            background: rgba(11,94,61,0.05); color: var(--accent);
+            border-radius: 8px; padding: 4px 6px;
+            font-size: 10.5px; font-weight: 800;
         }
+        .qty-total i { font-size: 9px; }
+        .zero-row .qty-total { background: rgba(225,29,72,0.05); color: var(--danger); }
+        .low-row  .qty-total { background: rgba(217,119,6,0.06); color: var(--gold); }
 
         /* فواصل النفاذ */
         .zero-divider {
@@ -317,11 +343,14 @@
         @media (max-width: 400px) {
             #listBody { grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; }
             .row-name { font-size: 12px; height: 34px; }
-            .qty-main { font-size: 18px; }
+            .qty-main { font-size: 16px; }
+            .qty-lbl { font-size: 9px; }
+            .qty-total { font-size: 9.5px; padding: 3px 5px; }
             .stats { padding: 12px; gap: 8px; }
             .stat { padding: 10px 8px; }
             .stat-num { font-size: 24px; }
             .row-info { padding-right: 8px; }
+            .item-card { padding: 10px; gap: 8px; }
         }
     </style>
 </head>
@@ -502,30 +531,18 @@
         else if (totalPcs <= minPcs) status = 'low';
 
         let unitName = (item.unitName && item.unitName.trim() !== 'كرتونة') ? item.unitName.trim() : 'جركن';
-        
-        let boxDisplay = '';
-        let labelDisplay = 'كرتونة';
-        let extraHtml = '';
 
-        if (status === 'zero') {
-            boxDisplay = 'صفر';
-        } else if (boxes === 0 && jars > 0) {
-            boxDisplay = jars.toLocaleString();
-            labelDisplay = unitName; 
-            extraHtml = ''; 
-        } else {
-            boxDisplay = boxes.toLocaleString();
-            labelDisplay = 'كرتونة';
-            extraHtml = (jars > 0)
-                ? `<div class="qty-extra"><i class="fas fa-tag" style="font-size:9px; margin-left:3px;"></i>${jars} ${unitName}</div>`
-                : '';
-        }
+        // كرتونة + قطع منفردة تُعرضان معاً دائماً، بجانب إجمالي عدد القطع
+        const boxesEmpty = boxes === 0;
+        const jarsEmpty  = jars  === 0;
 
-        const catHtml   = item.category ? `<span class="cat-tag">${item.category}</span>` : '';
-        const priceHtml = item.sell     ? `<span>${Number(item.sell).toLocaleString()} ج.م</span>` : '';
+        const catHtml = item.category ? `<span class="cat-tag">${item.category}</span>` : '';
+        const priceHtml = (item.sell !== undefined && item.sell !== null && item.sell !== '')
+            ? `<span class="price-tag"><i class="fas fa-tag"></i>${Number(item.sell).toLocaleString()} ج.م</span>`
+            : `<span class="price-tag no-price"><i class="fas fa-tag"></i>السعر غير محدد</span>`;
 
         const safeName = (item.name || 'بدون اسم').replace(/'/g, "\\'");
-        
+
         // الهيكل الجديد يعيد ترتيب العناصر: البيانات يمين، والترقيم يسار لمنع ميل التنسيق
         return `
         <div class="item-card${status==='zero' ? ' zero-row' : status==='low' ? ' low-row' : ''}" onclick="showItemHistory('${item.id}', '${safeName}')">
@@ -541,9 +558,17 @@
                 </div>
             </div>
             <div class="row-qty">
-                <div class="qty-main ${status}">${boxDisplay}</div>
-                <div class="qty-lbl">${labelDisplay}</div>
-                ${extraHtml}
+                <div class="qty-chips">
+                    <div class="qty-chip${boxesEmpty ? ' is-empty' : ''}">
+                        <div class="qty-main ${status}">${boxes.toLocaleString()}</div>
+                        <div class="qty-lbl">كرتونة</div>
+                    </div>
+                    <div class="qty-chip${jarsEmpty ? ' is-empty' : ''}">
+                        <div class="qty-main ${status}">${jars.toLocaleString()}</div>
+                        <div class="qty-lbl">${unitName}</div>
+                    </div>
+                </div>
+                <div class="qty-total"><i class="fas fa-cubes"></i>إجمالي القطع: ${totalPcs.toLocaleString()}</div>
             </div>
         </div>`;
     }
