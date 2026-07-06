@@ -195,15 +195,16 @@
             padding-right: 12px; /* مساحة لنقطة الحالة */
         }
         .row-name { 
-            font-size: 13px; 
+            font-size: 12px; 
             font-weight: 700; 
-            line-height: 1.4; 
+            line-height: 1.35; 
             color: #0f172a;
             display: -webkit-box; 
             -webkit-line-clamp: 2; 
             -webkit-box-orient: vertical; 
             overflow: hidden; 
-            height: 36px;
+            height: 33px;
+            letter-spacing: -0.1px;
         }
         .row-meta { font-size: 10px; color: var(--sub); font-weight: 600; margin-top: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
         .cat-tag { background: #f1f5f9; color: #475569; padding: 2px 7px; border-radius: 6px; font-size: 9px; font-weight: 700; white-space: nowrap; }
@@ -342,7 +343,7 @@
 
         @media (max-width: 400px) {
             #listBody { grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; }
-            .row-name { font-size: 12px; height: 34px; }
+            .row-name { font-size: 11.5px; height: 32px; }
             .qty-main { font-size: 16px; }
             .qty-lbl { font-size: 9px; }
             .qty-total { font-size: 9.5px; padding: 3px 5px; }
@@ -530,7 +531,16 @@
         if (totalPcs === 0)          status = 'zero';
         else if (totalPcs <= minPcs) status = 'low';
 
-        let unitName = (item.unitName && item.unitName.trim() !== 'كرتونة') ? item.unitName.trim() : 'جركن';
+        // نطبّع النص العربي (نشيل التشكيل ونوحّد الألف/التاء المربوطة) عشان لو اسم الوحدة
+        // في قاعدة البيانات مكتوب "كرتونة" بشكل مختلف شكلياً، منمنعش تكراره في الشاشة
+        const normalizeAr = (s) => String(s || '').trim()
+            .replace(/[\u064B-\u0652]/g, '')
+            .replace(/[إأآا]/g, 'ا')
+            .replace(/ى/g, 'ي')
+            .replace(/ة/g, 'ه');
+
+        const rawUnit = (item.unitName || '').trim();
+        const unitName = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
 
         // كرتونة + قطع منفردة تُعرضان معاً دائماً، بجانب إجمالي عدد القطع
         const boxesEmpty = boxes === 0;
