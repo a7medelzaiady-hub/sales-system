@@ -97,6 +97,7 @@
         .bg-orange-light { background: #fff7ed; color: #f97316; }
         .bg-green-light { background: #f0fdf4; color: #22c55e; }
         .bg-purple-light { background: #faf5ff; color: #a855f7; }
+        .bg-red-light { background: #fef2f2; color: #ef4444; }
 
         .stock-grid {
             display: grid;
@@ -197,6 +198,40 @@
         }
 
         .movement-row:last-child { border: none; }
+
+        .min-price-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px dashed #e2e8f0;
+        }
+
+        .btn-edit-minprice {
+            background: #fef2f2;
+            color: #ef4444;
+            border: 1px solid #ffe4e6;
+            border-radius: 12px;
+            padding: 8px 14px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        .btn-edit-minprice:active { transform: scale(0.97); background: #ffe4e6; }
+
+        .min-price-edit-box {
+            margin-top: 12px;
+        }
+
+        .btn-save-minprice {
+            background: var(--primary-green);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 0 18px;
+            font-weight: 700;
+        }
     </style>
 </head>
 
@@ -266,6 +301,31 @@
                 <div class="fw-bold text-dark fs-5" id="priceHalf">0</div>
             </div>
         </div>
+
+        <!-- الحد الأدنى للسعر المسموح ببيع الصنف به (يمنع البائع من كتابة سعر أقل منه في فاتورة المبيعات) -->
+        <div class="min-price-box">
+            <div class="d-flex align-items-center">
+                <div class="icon-box bg-red-light" style="width:40px;height:40px;font-size:1.05rem;">
+                    <i class="fas fa-shield-halved"></i>
+                </div>
+                <div>
+                    <small class="text-muted d-block" style="font-size: 0.75rem;">السعر الأدنى المسموح به (بسعر الكرتونة)</small>
+                    <span class="fw-bold text-danger" id="minPriceVal">غير محدد</span>
+                </div>
+            </div>
+            <button type="button" class="btn-edit-minprice" onclick="toggleMinPriceEdit()">
+                <i class="fas fa-pen me-1"></i> تعديل
+            </button>
+        </div>
+        <div class="min-price-edit-box" id="minPriceEditBox" style="display:none;">
+            <div class="input-group">
+                <input type="number" class="form-control" id="minPriceInput" placeholder="أدخل الحد الأدنى لسعر الكرتونة">
+                <button class="btn-save-minprice" onclick="saveMinPrice()"><i class="fas fa-check"></i></button>
+            </div>
+            <small class="text-muted d-block mt-2" style="font-size: 0.72rem;">
+                اتركه فارغًا أو صفر لإلغاء الحد الأدنى لهذا الصنف. القيمة المُدخلة تُحسب على أساس سعر "الكرتونة"، وسيتم تحويلها تلقائيًا عند البيع بالجركن.
+            </small>
+        </div>
     </div>
 
     <div class="section-title"><i class="fas fa-align-right text-secondary"></i> تفاصيل أو وصف المنتج</div>
@@ -311,6 +371,42 @@
         if (!productId) {
             alert("عذراً، لم يتم تحديد رقم الصنف بشكل صحيح بالرابط.");
         }
+
+        function renderMinPrice(minPriceVal) {
+            const val = Number(minPriceVal) || 0;
+            const displaySpan = document.getElementById('minPriceVal');
+            const input = document.getElementById('minPriceInput');
+            if (val > 0) {
+                displaySpan.innerText = `${val.toLocaleString('ar-EG')} ج.م`;
+                displaySpan.classList.remove('text-muted');
+                displaySpan.classList.add('text-danger');
+            } else {
+                displaySpan.innerText = 'غير محدد (مفيش حد أدنى مفعّل)';
+                displaySpan.classList.remove('text-danger');
+                displaySpan.classList.add('text-muted');
+            }
+            input.value = val > 0 ? val : '';
+        }
+
+        window.toggleMinPriceEdit = () => {
+            const box = document.getElementById('minPriceEditBox');
+            box.style.display = (box.style.display === 'none' || !box.style.display) ? 'block' : 'none';
+        };
+
+        window.saveMinPrice = async () => {
+            if (!productId) return;
+            const rawVal = document.getElementById('minPriceInput').value;
+            const val = parseFloat(rawVal) || 0;
+            try {
+                await updateDoc(doc(db, "inventory", productId), { minPrice: val });
+                renderMinPrice(val);
+                document.getElementById('minPriceEditBox').style.display = 'none';
+                alert(val > 0 ? "تم تحديث الحد الأدنى للسعر بنجاح." : "تم إلغاء الحد الأدنى لهذا الصنف.");
+            } catch (err) {
+                console.error("Error saving minPrice:", err);
+                alert("تعذر حفظ الحد الأدنى، برجاء المحاولة مرة أخرى.");
+            }
+        };
 
         async function loadProductDetails() {
             if (!productId) return;
@@ -374,6 +470,9 @@
                     document.getElementById('priceRetail').innerText = `${(data.sell || 0).toLocaleString('ar-EG')} ج.م`;
                     document.getElementById('priceWholesale').innerText = `${(data.wholesale || 0).toLocaleString('ar-EG')} ج.م`;
                     document.getElementById('priceHalf').innerText = `${(data.halfWholesale || 0).toLocaleString('ar-EG')} ج.م`;
+
+                    // عرض الحد الأدنى للسعر المسجل مسبقاً إن وجد
+                    renderMinPrice(data.minPrice);
                     
                     document.getElementById('productDesc').innerText = data.description || `لا يوجد وصف متاح لـ ${data.name}`;
 
