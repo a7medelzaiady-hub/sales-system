@@ -518,14 +518,19 @@
     };
 
     function buildRow(item, num) {
-        let factor = Number(item.unitFactor) || 1;
-        if (factor <= 0) factor = 1;
+        const totalPcs = Number(item.totalPcs) || 0;
 
-        const totalPcs = Number(item.totalPcs)   || 0;
-        const minPcs   = (Number(item.min) || 0) * factor;
+        // معامل التحويل (كام قطعة/جركن في الكرتونة). لو الصنف مش متسجل بنظام
+        // الكراتين (unitFactor غير موجود أو أقل من أو يساوي 1) نعتبره صنف
+        // "قطعة فقط" ونحط كل الكمية في خانة القطع بدل ما تختفي في خانة الكرتونة
+        const rawFactor  = item.unitFactor;
+        const hasCartons = rawFactor !== undefined && rawFactor !== null && Number(rawFactor) > 1;
+        const factor     = hasCartons ? Number(rawFactor) : 1;
 
-        const boxes = Math.floor(totalPcs / factor);
-        const jars  = totalPcs % factor;
+        const minPcs = (Number(item.min) || 0) * (hasCartons ? factor : 1);
+
+        const boxes = hasCartons ? Math.floor(totalPcs / factor) : 0;
+        const jars  = hasCartons ? totalPcs % factor : totalPcs;
 
         let status = 'ok';
         if (totalPcs === 0)          status = 'zero';
