@@ -261,7 +261,6 @@
         .sub-lbl { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px; display: block; font-weight: 700; padding-right: 2px; }
         .unit-info-area { font-size: 0.75rem; margin-top: 6px; color: var(--accent); font-weight: 700; }
 
-        /* تعديل وتحسين مظهر زر المرتجع لعدم التداخل وتوفير مساحة مريحة للضغط والكلية */
         .return-switch-container {
             display: flex; align-items: center; justify-content: center; gap: 8px;
             background: #fff5f5; border: 1px solid #ffdbde; border-radius: var(--input-radius);
@@ -428,7 +427,6 @@
     </div>
 </div>
 
-<!-- مودال التنبيه الاحترافي المخصص بدلاً من الـ alert العادي لحماية اسم الموقع من الظهور -->
 <div id="customAlertModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
     <div style="background: white; width: 88%; max-width: 380px; padding: 22px; border-radius: var(--card-radius); text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: scaleUp 0.2s ease;">
         <div style="width: 55px; height: 55px; background: #fff3cd; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
@@ -632,7 +630,6 @@
     const CACHE_TTL_MS = 10 * 60 * 1000;
     const DRAFT_KEY = 'invoice_draft_' + (editId ? editId : 'new');
 
-    // ------- تنبيه صوتي + اهتزاز عند وجود خطأ (خانة فارغة أو نحوها) -------
     function playAlertSound() {
         try {
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -651,15 +648,13 @@
             };
             playBeep(880, 0, 0.15);
             playBeep(880, 0.22, 0.15);
-        } catch (e) { /* المتصفح لا يدعم Web Audio */ }
+        } catch (e) { }
     }
 
     function vibrateDevice() {
         try { if (navigator.vibrate) navigator.vibrate([180, 80, 180]); } catch (e) { }
     }
 
-    // دوال للتحكم بـ المودال الاحترافي للتنبيهات
-    // playSound = true (افتراضي) يعني رسالة تنبيه/خطأ فتصدر صوت واهتزاز، وإذا كانت رسالة نجاح عادية يتم تمرير false
     window.showCustomAlert = (msg, playSound = true) => {
         if (playSound) { playAlertSound(); vibrateDevice(); }
         document.getElementById('customAlertMessage').innerText = msg;
@@ -669,7 +664,6 @@
         document.getElementById('customAlertModal').style.display = 'none';
     };
 
-    // ------- الحفظ المؤقت (Draft) على جهاز المستخدم -------
     function collectDraftPayload() {
         const items = [];
         document.querySelectorAll('.product-row').forEach(r => {
@@ -701,7 +695,7 @@
         try {
             const payload = collectDraftPayload();
             localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
-            isChanged = false; // تم تأمين البيانات مؤقتًا على الجهاز
+            isChanged = false;
             window.showCustomAlert("تم حفظ بيانات الفاتورة مؤقتًا على هذا الجهاز. يمكنك إغلاق الصفحة أو متابعة العمل، وستجد البيانات كما هي عند العودة لهذه الصفحة مرة أخرى.", false);
             const banner = document.getElementById('draftBanner');
             if (banner) banner.style.display = 'flex';
@@ -1038,7 +1032,6 @@
         const isReturnChecked = oldData && oldData.isReturn ? 'checked' : '';
         const returnClass = oldData && oldData.isReturn ? 'is-return-row' : '';
 
-        // تم إعادة هيكلة التقسيم (col-3) لزر المرتجع لكي يعطيه اتساعاً تاماً يمنع تداخله على الشاشات الصغيرة
         const html = `
             <div class="product-row ${returnClass}" id="${id}">
                 <i class="fas fa-times-circle btn-remove" onclick="document.getElementById('${id}').remove(); handleInput();"></i>
@@ -1137,6 +1130,7 @@
         return { itemsTotal, discount, total: netTotal, paid, remaining: netTotal - paid };
     };
 
+    // دالة التحقق المعدلة لفحص الحد الأدنى للأسعار قبل الحفظ أو المراجعة
     function validateItemRows(rows) {
         rows.forEach(r => r.classList.remove('has-validation-error'));
 
@@ -1149,6 +1143,8 @@
             const priceRaw = (r.querySelector('.p-price')?.value ?? '').toString().trim();
             const qty = Number(qtyRaw);
             const price = Number(priceRaw);
+            const unit = r.querySelector('.p-unit')?.value || 'pcs';
+            const isReturn = r.querySelector('.p-return-checkbox')?.checked || false;
 
             if (qtyRaw === '' || isNaN(qty) || qty <= 0) {
                 r.classList.add('has-validation-error');
@@ -1160,6 +1156,23 @@
                 r.classList.add('has-validation-error');
                 r.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return `خطأ: لا يمكن ترك خانة السعر فارغة أو صفر للصنف "${name}". برجاء إدخال سعر صحيح أكبر من صفر.`;
+            }
+
+            // فحص حد الأمان للسعر (يُطبق فقط في حالة المبيعات وليس في حالة المرتجع)
+            if (!isReturn) {
+                const p = inventory.find(i => i.id === pid);
+                if (p && p.minPrice !== undefined && p.minPrice !== null) {
+                    const factor = Number(p.unitFactor) || 1;
+                    // حساب الحد الأدنى بناءً على الوحدة البيعية النشطة بالسيرفر
+                    const allowedMinPrice = (unit === 'box') ? Number(p.minPrice) : (Number(p.minPrice) / factor);
+                    
+                    if (price < allowedMinPrice) {
+                        r.classList.add('has-validation-error');
+                        r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        const unitName = (unit === 'box') ? 'كرتونة' : 'جركن';
+                        return `خطأ: الصنف "${name}" مبرمج بحد أمان؛ لا يمكن بيعه بأقل من ${allowedMinPrice.toFixed(2)} ج.م للـ (${unitName}).`;
+                    }
+                }
             }
         }
         return null;
@@ -1348,6 +1361,9 @@
         } catch (e) {
             console.error("Firebase Error: ", e);
             window.showCustomAlert("فشل حفظ التعديل\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
+        } catch (e) {
+            console.error("Firebase Error: ", e);
+            window.showCustomAlert("فشل حفظ التعديل\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
         } finally {
             saveBtn.disabled = false;
             saveBtn.innerText = "حفظ وتحديث البيانات";
@@ -1519,7 +1535,6 @@
 
             const urlParams = new URLSearchParams(window.location.search);
 
-            // إذا وجدت مسودة محفوظة مؤقتًا على هذا الجهاز لنفس الفاتورة (جديدة أو تعديل)، نعرضها فورًا
             const draftLoaded = tryLoadDraftOnInit();
             if (draftLoaded) {
                 if (fromOrderId) document.getElementById('modeText').innerText = "من طلبية";
@@ -1539,7 +1554,6 @@
                 document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
 
                 document.getElementById('customerSearch').value = paramCustomerName || '';
-                // إصلاح جذري: تعيين الآيدي في حقل السلكت المخفي ليتعرف عليه السيستم عند الحفظ بدون مشاكل
                 document.getElementById('customerSelect').value = paramCustomerId || '';
 
                 if (paramCustomerId) {
