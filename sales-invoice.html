@@ -103,6 +103,20 @@
             font-size: 0.82rem; font-weight: 700; color: var(--accent);
         }
 
+        .draft-banner {
+            background: linear-gradient(135deg, #fff8e6, #ffedc2);
+            border: 1px solid #ffdd8a;
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            font-size: 0.8rem; font-weight: 700; color: #8a5b00;
+        }
+        .draft-banner .btn-clear-draft {
+            border: none; background: transparent; color: var(--danger); font-weight: 800; font-size: 0.75rem;
+            text-decoration: underline; white-space: nowrap;
+        }
+
         .data-status-bar {
             display: flex; align-items: center; justify-content: space-between;
             font-size: 0.7rem; font-weight: 700; color: var(--text-secondary);
@@ -230,6 +244,20 @@
         }
         .btn-save:active { transform: scale(0.98); }
 
+        .btn-draft-save {
+            background: #fff;
+            border: 1.5px solid #d9a441;
+            color: #8a5b00;
+            border-radius: var(--input-radius);
+            padding: 11px;
+            width: 100%;
+            font-weight: 700;
+            margin-top: 10px;
+            font-size: 0.9rem;
+            transition: 0.2s;
+        }
+        .btn-draft-save:active { transform: scale(0.98); background: #fff8e6; }
+
         .sub-lbl { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px; display: block; font-weight: 700; padding-right: 2px; }
         .unit-info-area { font-size: 0.75rem; margin-top: 6px; color: var(--accent); font-weight: 700; }
 
@@ -294,6 +322,11 @@
             <div style="font-size:0.78rem; opacity:0.8;">تم تحميل البيانات من الطلبية</div>
             <div id="orderSourceText" style="font-size:0.85rem;"></div>
         </div>
+    </div>
+
+    <div class="draft-banner" id="draftBanner" style="display:none;">
+        <span><i class="fas fa-clock me-1"></i> تم استرجاع فاتورة محفوظة مؤقتًا على هذا الجهاز</span>
+        <button type="button" class="btn-clear-draft" onclick="clearDraftManually()">حذف المسودة</button>
     </div>
 
     <div class="data-status-bar">
@@ -389,6 +422,9 @@
         </div>
 
         <button class="btn-save" onclick="openReviewModal()" id="saveBtn">حفظ وتحديث البيانات</button>
+        <button class="btn-draft-save" onclick="saveDraftTemporary()" id="draftSaveBtn">
+            <i class="fas fa-cloud-upload-alt me-1"></i> حفظ مؤقت (احتياطي على الجهاز)
+        </button>
     </div>
 </div>
 
@@ -594,15 +630,124 @@
 
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000;
+    const DRAFT_KEY = 'invoice_draft_' + (editId ? editId : 'new');
+
+    // ------- تنبيه صوتي + اهتزاز عند وجود خطأ (خانة فارغة أو نحوها) -------
+    function playAlertSound() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const playBeep = (freq, start, dur) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = freq;
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                gain.gain.setValueAtTime(0.0001, ctx.currentTime + start);
+                gain.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + start + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + start + dur);
+                osc.start(ctx.currentTime + start);
+                osc.stop(ctx.currentTime + start + dur + 0.02);
+            };
+            playBeep(880, 0, 0.15);
+            playBeep(880, 0.22, 0.15);
+        } catch (e) { /* المتصفح لا يدعم Web Audio */ }
+    }
+
+    function vibrateDevice() {
+        try { if (navigator.vibrate) navigator.vibrate([180, 80, 180]); } catch (e) { }
+    }
 
     // دوال للتحكم بـ المودال الاحترافي للتنبيهات
-    window.showCustomAlert = (msg) => {
+    // playSound = true (افتراضي) يعني رسالة تنبيه/خطأ فتصدر صوت واهتزاز، وإذا كانت رسالة نجاح عادية يتم تمرير false
+    window.showCustomAlert = (msg, playSound = true) => {
+        if (playSound) { playAlertSound(); vibrateDevice(); }
         document.getElementById('customAlertMessage').innerText = msg;
         document.getElementById('customAlertModal').style.display = 'flex';
     };
     window.closeCustomAlert = () => {
         document.getElementById('customAlertModal').style.display = 'none';
     };
+
+    // ------- الحفظ المؤقت (Draft) على جهاز المستخدم -------
+    function collectDraftPayload() {
+        const items = [];
+        document.querySelectorAll('.product-row').forEach(r => {
+            items.push({
+                stockId: r.querySelector('.p-select')?.value || '',
+                name: r.querySelector('.p-search')?.value || '',
+                unit: r.querySelector('.p-unit')?.value || 'pcs',
+                qty: r.querySelector('.p-qty')?.value || '',
+                price: r.querySelector('.p-price')?.value || '',
+                isReturn: r.querySelector('.p-return-checkbox')?.checked || false
+            });
+        });
+
+        return {
+            customerId: document.getElementById('customerSelect').value,
+            customerName: document.getElementById('customerSearch').value,
+            invTime: document.getElementById('invTime').value,
+            discountAmount: document.getElementById('discountAmount').value,
+            cashAmount: document.getElementById('cashAmount').value,
+            walletAmount: document.getElementById('walletAmount').value,
+            paidAmount: document.getElementById('paidAmount').value,
+            oldBalance: currentFetchedOldBalance,
+            items,
+            savedAt: new Date().toISOString()
+        };
+    }
+
+    window.saveDraftTemporary = () => {
+        try {
+            const payload = collectDraftPayload();
+            localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
+            isChanged = false; // تم تأمين البيانات مؤقتًا على الجهاز
+            window.showCustomAlert("تم حفظ بيانات الفاتورة مؤقتًا على هذا الجهاز. يمكنك إغلاق الصفحة أو متابعة العمل، وستجد البيانات كما هي عند العودة لهذه الصفحة مرة أخرى.", false);
+            const banner = document.getElementById('draftBanner');
+            if (banner) banner.style.display = 'flex';
+        } catch (e) {
+            window.showCustomAlert("تعذر إجراء الحفظ المؤقت على هذا الجهاز، برجاء المحاولة مرة أخرى.");
+        }
+    };
+
+    function restoreDraftPayload(payload) {
+        document.getElementById('customerSearch').value = payload.customerName || '';
+        document.getElementById('customerSelect').value = payload.customerId || '';
+        document.getElementById('invTime').value = payload.invTime || '';
+        document.getElementById('discountAmount').value = payload.discountAmount || 0;
+        document.getElementById('cashAmount').value = payload.cashAmount || 0;
+        document.getElementById('walletAmount').value = payload.walletAmount || 0;
+        document.getElementById('paidAmount').value = payload.paidAmount || 0;
+        currentFetchedOldBalance = Number(payload.oldBalance) || 0;
+        showBalance(currentFetchedOldBalance);
+        if (payload.customerId) document.getElementById('customerBalanceInfo').style.display = 'block';
+
+        document.getElementById('itemsContainer').innerHTML = '';
+        (payload.items || []).forEach(item => window.addNewRow(item));
+
+        document.getElementById('draftBanner').style.display = 'flex';
+        calc();
+    }
+
+    function tryLoadDraftOnInit() {
+        try {
+            const raw = localStorage.getItem(DRAFT_KEY);
+            if (!raw) return false;
+            const payload = JSON.parse(raw);
+            restoreDraftPayload(payload);
+            isChanged = true;
+            return true;
+        } catch (e) { return false; }
+    }
+
+    window.clearDraftManually = () => {
+        try { localStorage.removeItem(DRAFT_KEY); } catch (e) { }
+        document.getElementById('draftBanner').style.display = 'none';
+    };
+
+    function clearDraftSilently() {
+        try { localStorage.removeItem(DRAFT_KEY); } catch (e) { }
+    }
 
     function getCustomerBaseBalance(cust) {
         if (!cust) return 0;
@@ -829,7 +974,7 @@
                 idInput.value = docRef.id;
                 currentFetchedOldBalance = newInitialBalance;
                 showBalance(newInitialBalance);
-                window.showCustomAlert(`تم حفظ العميل الجديد "${customerName}" بنجاح.`);
+                window.showCustomAlert(`تم حفظ العميل الجديد "${customerName}" بنجاح.`, false);
             } else {
                 const customerRef = doc(db, "customers", customerId);
                 await updateDoc(customerRef, { initialBalance: newInitialBalance });
@@ -840,7 +985,7 @@
                 const updatedRealBalance = await getRealBalance(customerId, startBalance);
                 currentFetchedOldBalance = updatedRealBalance;
                 showBalance(updatedRealBalance);
-                window.showCustomAlert(`تم تحديث الرصيد الافتتاحي للعميل "${customerName}" بنجاح.`);
+                window.showCustomAlert(`تم تحديث الرصيد الافتتاحي للعميل "${customerName}" بنجاح.`, false);
             }
 
             persistCache();
@@ -1197,6 +1342,7 @@
             }
 
             isChanged = false;
+            clearDraftSilently();
             document.getElementById('shareModal').style.display = 'flex';
 
         } catch (e) {
@@ -1278,7 +1424,7 @@
                         });
                 } else {
                     downloadReceiptImage(blob);
-                    window.showCustomAlert("متصفحك لا يدعم المشاركة المباشرة للصور.\nتم تنزيل صورة الفاتورة على جهازك، يمكنك إرسالها يدويًا عبر واتساب.");
+                    window.showCustomAlert("متصفحك لا يدعم المشاركة المباشرة للصور.\nتم تنزيل صورة الفاتورة على جهازك، يمكنك إرسالها يدويًا عبر واتساب.", false);
                     shareBtn.disabled = false;
                     shareBtn.innerHTML = originalBtnHtml;
                     window.location.href = fromOrderId ? "all-orders.html" : "sales-history.html";
@@ -1373,6 +1519,14 @@
 
             const urlParams = new URLSearchParams(window.location.search);
 
+            // إذا وجدت مسودة محفوظة مؤقتًا على هذا الجهاز لنفس الفاتورة (جديدة أو تعديل)، نعرضها فورًا
+            const draftLoaded = tryLoadDraftOnInit();
+            if (draftLoaded) {
+                if (fromOrderId) document.getElementById('modeText').innerText = "من طلبية";
+                else if (editId) document.getElementById('modeText').innerText = "تعديل";
+                return;
+            }
+
             if (fromOrderId) {
                 document.getElementById('modeText').innerText = "من طلبية";
 
@@ -1455,4 +1609,3 @@
 </script>
 </body>
 </html>
- 
