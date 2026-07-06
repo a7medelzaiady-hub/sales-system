@@ -16,6 +16,7 @@
         .table { color: white !important; font-size: 0.75rem; white-space: nowrap; }
         .loading-overlay { display: none; color: var(--neon); font-weight: bold; }
         .instruction-box { background: rgba(242, 202, 48, 0.1); border: 1px solid #f2ca30; border-radius: 10px; padding: 15px; margin-bottom: 20px; font-size: 0.85rem; }
+        .instruction-box.min-price-note { background: rgba(217, 54, 79, 0.1); border-color: #d9364f; }
     </style>
 </head>
 <body>
@@ -36,6 +37,11 @@
             <li><b>مثال 1:</b> 10 كرتونه و 5 قطع (المعامل 12) -> اكتب 10 في عمود الكرتونه و 5 في عمود القطع.</li>
             <li><b>مثال 2:</b> لو الصنف بالقطعة فقط -> اكتب الكمية في عمود القطع واجعل "المعامل" 1.</li>
         </ul>
+    </div>
+
+    <div class="instruction-box min-price-note">
+        <strong><i class="fas fa-shield-halved me-1"></i> عمود "السعر الأدنى":</strong>
+        <p class="mb-0 small">لو عايز تحدد حد أدنى لسعر بيع الكرتونة لأي صنف (يمنع البائع من البيع بسعر أقل منه في الفاتورة)، اكتب الرقم في عمود "السعر الأدنى". اتركه فارغًا أو صفر للأصناف اللي مش محتاجة حد أدنى.</p>
     </div>
 
     <div class="import-card" onclick="document.getElementById('fileInput').click()">
@@ -77,8 +83,8 @@
     let jsonData = [];
 
     window.downloadSample = function() {
-        const headers = [["الاسم", "الفئة", "الباركود", "كمية (كرتونه)", "قطع زائدة", "المعامل", "حد الطلب", "سعر الشراء", "سعر البيع 1", "اسم الوحدة"]];
-        const sampleData = [["زيت توتال", "زيوت", "622100", 10, 6, 12, 5, 1200, 1500, "علبة"]];
+        const headers = [["الاسم", "الفئة", "الباركود", "كمية (كرتونه)", "قطع زائدة", "المعامل", "حد الطلب", "سعر الشراء", "سعر البيع 1", "السعر الأدنى", "اسم الوحدة"]];
+        const sampleData = [["زيت توتال", "زيوت", "622100", 10, 6, 12, 5, 1200, 1500, 1400, "علبة"]];
         const ws = XLSX.utils.aoa_to_sheet(headers.concat(sampleData));
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Inventory");
@@ -130,6 +136,9 @@
             // إعادة حساب عمود الـ qty ككسر لضمان توافق العرض (مثلاً 10.5 كرتونه)
             const finalQty = crates + (extraPcs / factor);
 
+            // الحد الأدنى المسموح ببيع الكرتونة (يتوافق مع نفس حقل minPrice المستخدم في صفحة الفاتورة وصفحة إضافة/تعديل الصنف)
+            const minPriceVal = parseFloat(item["السعر الأدنى"]) || 0;
+
             batch.set(doc(collectionRef), {
                 name: item["الاسم"] || "صنف بدون اسم",
                 category: item["الفئة"] || "عام",
@@ -140,6 +149,7 @@
                 min: parseFloat(item["حد الطلب"]) || 0,
                 buy: parseFloat(item["سعر الشراء"]) || 0,
                 sell: parseFloat(item["سعر البيع 1"]) || 0,
+                minPrice: minPriceVal,
                 unitName: item["اسم الوحدة"] || "قطعة",
                 isDeleted: false,
                 timestamp: serverTimestamp()
