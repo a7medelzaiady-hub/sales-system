@@ -223,17 +223,31 @@
             width: 100%;
             font-weight: 700;
             color: white;
-            margin-top: 16px;
+            margin-top: 10px;
             font-size: 1rem;
             box-shadow: 0 4px 12px rgba(11,94,61,0.25);
             transition: 0.2s;
         }
         .btn-save:active { transform: scale(0.98); }
 
+        .btn-draft-save {
+            background: linear-gradient(135deg, #495057, #343a40);
+            border: none;
+            border-radius: var(--input-radius);
+            padding: 11px;
+            width: 100%;
+            font-weight: 700;
+            color: white;
+            margin-top: 16px;
+            font-size: 0.95rem;
+            box-shadow: var(--shadow-sm);
+            transition: 0.2s;
+        }
+        .btn-draft-save:active { transform: scale(0.98); }
+
         .sub-lbl { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px; display: block; font-weight: 700; padding-right: 2px; }
         .unit-info-area { font-size: 0.75rem; margin-top: 6px; color: var(--accent); font-weight: 700; }
 
-        /* تعديل وتحسين مظهر زر المرتجع لعدم التداخل وتوفير مساحة مريحة للضغط والكلية */
         .return-switch-container {
             display: flex; align-items: center; justify-content: center; gap: 8px;
             background: #fff5f5; border: 1px solid #ffdbde; border-radius: var(--input-radius);
@@ -388,15 +402,18 @@
             </div>
         </div>
 
+        <button class="btn-draft-save" onclick="saveDraft()">
+            <i class="fas fa-save me-1"></i> حفظ مؤقت (مسودة)
+        </button>
+
         <button class="btn-save" onclick="openReviewModal()" id="saveBtn">حفظ وتحديث البيانات</button>
     </div>
 </div>
 
-<!-- مودال التنبيه الاحترافي المخصص بدلاً من الـ alert العادي لحماية اسم الموقع من الظهور -->
 <div id="customAlertModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
     <div style="background: white; width: 88%; max-width: 380px; padding: 22px; border-radius: var(--card-radius); text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: scaleUp 0.2s ease;">
-        <div style="width: 55px; height: 55px; background: #fff3cd; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
-            <i class="fas fa-exclamation-triangle" style="color: var(--warning); font-size: 1.8rem;"></i>
+        <div id="alertIconContainer" style="width: 55px; height: 55px; background: #fff3cd; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
+            <i id="customAlertIcon" class="fas fa-exclamation-triangle" style="color: var(--warning); font-size: 1.8rem;"></i>
         </div>
         <h5 style="font-weight: 700; color: var(--text-primary); margin-bottom: 8px;">تنبيه النظام</h5>
         <p id="customAlertMessage" style="color: #555; font-size: 0.9rem; margin-bottom: 20px; line-height: 1.5; text-align: right; direction: rtl;"></p>
@@ -562,7 +579,7 @@
         <div style="text-align: center; margin-top: 25px; border-top: 1.5px dashed #000; padding-top: 12px; font-size: 12px; font-weight: 700;">
             <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: 800;">شكراً لتعاملكم معنا 🙏</p>
             <p style="margin: 0 0 6px 0; color: #333;">برجاء مراجعة الفاتورة بعد استلامها</p>
-            <p style="margin: 4px 0 0 0; font-size: 13px; background-color: #f5f5f5; padding: 3px 0; border-radius: 4px; font-weight: 800; border: 1px dotted #ccc;">للمراجعة: 01027830834</p>
+            <p style="margin: 4px 0 0 0; font-size: 13px; background-color: #f5f5f5; padding: 3px 0; border-radius: 4px; font-weight: 800; border: 1px dotted #ccc;">ل للمراجعة: 01027830834</p>
         </div>
     </div>
 </div>
@@ -595,13 +612,81 @@
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000;
 
-    // دوال للتحكم بـ المودال الاحترافي للتنبيهات
-    window.showCustomAlert = (msg) => {
+    // دالة لتشغيل صوت تحذيري واهتزاز الموبايل فوراً عند الأخطاء
+    window.playWarningSoundAndVibrate = () => {
+        if (navigator.vibrate) {
+            navigator.vibrate([150, 80, 150]); // اهتزاز ثنائي ذكي للموبايل
+        }
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const playBeep = (startTime, frequency, duration) => {
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.type = 'sine';
+                oscillator.frequency.value = frequency;
+                gainNode.gain.setValueAtTime(0.12, startTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.start(startTime);
+                oscillator.stop(startTime + duration);
+            };
+            const now = audioCtx.currentTime;
+            playBeep(now, 450, 0.12);    // النغمة الأولى مرتفعة
+            playBeep(now + 0.15, 350, 0.15); // النغمة الثانية أعمق للتحذير
+        } catch (e) { console.warn("Audio Context not supported or blocked", e); }
+    };
+
+    // التحكم بالـ المودال الاحترافي للتنبيهات وحماية النطاق
+    window.showCustomAlert = (msg, isSuccess = false) => {
+        const iconEl = document.getElementById('customAlertIcon');
+        const iconBox = document.getElementById('alertIconContainer');
+        
+        if (isSuccess) {
+            iconEl.className = "fas fa-check-circle";
+            iconEl.style.color = "#2d6a4f";
+            iconBox.style.background = "#ebf9eb";
+        } else {
+            iconEl.className = "fas fa-exclamation-triangle";
+            iconEl.style.color = "var(--warning)";
+            iconBox.style.background = "#fff3cd";
+        }
+        
         document.getElementById('customAlertMessage').innerText = msg;
         document.getElementById('customAlertModal').style.display = 'flex';
     };
+    
     window.closeCustomAlert = () => {
         document.getElementById('customAlertModal').style.display = 'none';
+    };
+
+    // دالة حفظ المسودة الحالية مؤقتاً بالمتصفح
+    window.saveDraft = () => {
+        const customerId = document.getElementById('customerSelect').value;
+        const customerName = document.getElementById('customerSearch').value;
+        const invTime = document.getElementById('invTime').value;
+        const discountAmount = document.getElementById('discountAmount').value;
+        const cashAmount = document.getElementById('cashAmount').value;
+        const walletAmount = document.getElementById('walletAmount').value;
+        const paidAmount = document.getElementById('paidAmount').value;
+
+        const rows = Array.from(document.querySelectorAll('.product-row'));
+        const items = rows.map(r => {
+            return {
+                stockId: r.querySelector('.p-select')?.value || '',
+                name: r.querySelector('.p-search')?.value || '',
+                unit: r.querySelector('.p-unit')?.value || 'pcs',
+                qty: r.querySelector('.p-qty')?.value || '1',
+                price: r.querySelector('.p-price')?.value || '',
+                isReturn: r.querySelector('.p-return-checkbox')?.checked || false
+            };
+        });
+
+        const draftData = { customerId, customerName, invTime, discountAmount, cashAmount, walletAmount, paidAmount, items };
+        localStorage.setItem('sales_system_invoice_draft', JSON.stringify(draftData));
+        
+        // استخدام المودال الداخلي لإخفاء اسم جيت هاب وابقاء الصفحة مفتوحة
+        window.showCustomAlert("تم الحفظ المؤقت للفاتورة (كمسودة) بنجاح! يمكنك إكمال العمل الآن دون قلق.", true);
     };
 
     function getCustomerBaseBalance(cust) {
@@ -814,7 +899,11 @@
         const customerName = nameInput.value.trim();
         const newInitialBalance = parseFloat(balanceInput.value) || 0;
 
-        if (!customerName) { window.showCustomAlert("برجاء تحديد أو كتابة اسم العميل أولاً"); return; }
+        if (!customerName) { 
+            window.playWarningSoundAndVibrate();
+            window.showCustomAlert("برجاء تحديد أو كتابة اسم العميل أولاً"); 
+            return; 
+        }
 
         try {
             btnSaveCustomer.disabled = true;
@@ -829,7 +918,7 @@
                 idInput.value = docRef.id;
                 currentFetchedOldBalance = newInitialBalance;
                 showBalance(newInitialBalance);
-                window.showCustomAlert(`تم حفظ العميل الجديد "${customerName}" بنجاح.`);
+                window.showCustomAlert(`تم حفظ العميل الجديد "${customerName}" بنجاح.`, true);
             } else {
                 const customerRef = doc(db, "customers", customerId);
                 await updateDoc(customerRef, { initialBalance: newInitialBalance });
@@ -840,7 +929,7 @@
                 const updatedRealBalance = await getRealBalance(customerId, startBalance);
                 currentFetchedOldBalance = updatedRealBalance;
                 showBalance(updatedRealBalance);
-                window.showCustomAlert(`تم تحديث الرصيد الافتتاحي للعميل "${customerName}" بنجاح.`);
+                window.showCustomAlert(`تم تحديث الرصيد الافتتاحي للعميل "${customerName}" بنجاح.`, true);
             }
 
             persistCache();
@@ -893,7 +982,6 @@
         const isReturnChecked = oldData && oldData.isReturn ? 'checked' : '';
         const returnClass = oldData && oldData.isReturn ? 'is-return-row' : '';
 
-        // تم إعادة هيكلة التقسيم (col-3) لزر المرتجع لكي يعطيه اتساعاً تاماً يمنع تداخله على الشاشات الصغيرة
         const html = `
             <div class="product-row ${returnClass}" id="${id}">
                 <i class="fas fa-times-circle btn-remove" onclick="document.getElementById('${id}').remove(); handleInput();"></i>
@@ -1008,12 +1096,14 @@
             if (qtyRaw === '' || isNaN(qty) || qty <= 0) {
                 r.classList.add('has-validation-error');
                 r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                window.playWarningSoundAndVibrate(); // إطلاق الصوت والاهتزاز فوراً
                 return `خطأ: لا يمكن ترك خانة الكمية فارغة أو صفر للصنف "${name}". برجاء إدخال كمية صحيحة أكبر من صفر.`;
             }
 
             if (priceRaw === '' || isNaN(price) || price <= 0) {
                 r.classList.add('has-validation-error');
                 r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                window.playWarningSoundAndVibrate(); // إطلاق الصوت والاهتزاز فوراً
                 return `خطأ: لا يمكن ترك خانة السعر فارغة أو صفر للصنف "${name}". برجاء إدخال سعر صحيح أكبر من صفر.`;
             }
         }
@@ -1023,7 +1113,10 @@
     window.openReviewModal = () => {
         const customerId = document.getElementById('customerSelect').value;
         const customerName = document.getElementById('customerSearch').value;
-        if (!customerId || !customerName) { return window.showCustomAlert("الرجاء اختيار أو كتابة العميل أولاً وبشكل صحيح."); }
+        if (!customerId || !customerName) { 
+            window.playWarningSoundAndVibrate();
+            return window.showCustomAlert("الرجاء اختيار أو كتابة العميل أولاً وبشكل صحيح."); 
+        }
 
         const rows = Array.from(document.querySelectorAll('.product-row'));
 
@@ -1055,7 +1148,10 @@
                 </tr>`;
         });
 
-        if (validItemsCount === 0) { return window.showCustomAlert("الرجاء إضافة أصناف للفاتورة"); }
+        if (validItemsCount === 0) { 
+            window.playWarningSoundAndVibrate();
+            return window.showCustomAlert("الرجاء إضافة أصناف للفاتورة"); 
+        }
 
         document.getElementById('revCustomerName').innerText = customerName;
         document.getElementById('revItemsCount').innerText = `${validItemsCount} صنف`;
@@ -1075,7 +1171,10 @@
         try {
             const customerId = document.getElementById('customerSelect').value;
             const customerName = document.getElementById('customerSearch').value;
-            if (!customerId || !customerName) { return window.showCustomAlert("الرجاء اختيار العميل"); }
+            if (!customerId || !customerName) { 
+                window.playWarningSoundAndVibrate();
+                return window.showCustomAlert("الرجاء اختيار العميل"); 
+            }
 
             const allRows = Array.from(document.querySelectorAll('.product-row'));
             const validationError = validateItemRows(allRows);
@@ -1095,7 +1194,10 @@
                 items.push({ stockId: pid, name: name || "", unit: unit || "pcs", qty, price, isReturn });
             });
 
-            if (items.length === 0) { return window.showCustomAlert("الرجاء إضافة أصناف للفاتورة"); }
+            if (items.length === 0) { 
+                window.playWarningSoundAndVibrate();
+                return window.showCustomAlert("الرجاء إضافة أصناف للفاتورة"); 
+            }
 
             saveBtn.disabled = true;
             saveBtn.innerText = "جاري الحفظ...";
@@ -1196,6 +1298,8 @@
                 }
             }
 
+            // مسح المسودة المحلية عند نجاح الحفظ النهائي بالسيرفر بنجاح
+            localStorage.removeItem('sales_system_invoice_draft');
             isChanged = false;
             document.getElementById('shareModal').style.display = 'flex';
 
@@ -1324,134 +1428,4 @@
         if (cachedCustomers && cachedInventory && cachedTs && age < CACHE_TTL_MS) {
             customers = JSON.parse(cachedCustomers);
             inventory = JSON.parse(cachedInventory);
-            setDataStatus(`بيانات محفوظة محليًا — ${customers.length} عميل، ${inventory.length} صنف`, "fa-check-circle");
-            return;
-        }
-
-        if (cachedCustomers && cachedInventory) {
-            customers = JSON.parse(cachedCustomers);
-            inventory = JSON.parse(cachedInventory);
-        }
-        setDataStatus("جاري تحديث قوائم العملاء والأصناف...", "fa-spinner fa-spin");
-        await fetchFreshLists();
-        setDataStatus(`تم التحديث — ${customers.length} عميل، ${inventory.length} صنف`, "fa-check-circle");
-    }
-
-    document.getElementById('btnRefreshData').onclick = async (e) => {
-        const btn = e.currentTarget;
-        btn.disabled = true;
-        setDataStatus("جاري تحديث قوائم العملاء والأصناف...", "fa-spinner fa-spin");
-        try {
-            await fetchFreshLists();
-            setDataStatus(`تم التحديث — ${customers.length} عميل، ${inventory.length} صنف`, "fa-check-circle");
-
-            const currentCustId = document.getElementById('customerSelect').value;
-            if (currentCustId) {
-                const cust = customers.find(c => c.id === currentCustId);
-                if (cust) {
-                    const startBalance = getCustomerBaseBalance(cust);
-                    const realDebt = await getRealBalance(currentCustId, startBalance);
-                    currentFetchedOldBalance = realDebt;
-                    showBalance(realDebt);
-                }
-            }
-            calc();
-        } catch (err) {
-            setDataStatus("تعذر التحديث، حاول مرة أخرى", "fa-exclamation-triangle");
-        } finally {
-            btn.disabled = false;
-        }
-    };
-
-    async function init() {
-        try {
-            if (!editId) {
-                document.getElementById('invTime').value = new Date().toLocaleString('ar-EG');
-            }
-
-            await loadCustomersAndInventory();
-
-            const urlParams = new URLSearchParams(window.location.search);
-
-            if (fromOrderId) {
-                document.getElementById('modeText').innerText = "من طلبية";
-
-                const paramCustomerId = urlParams.get('customerId');
-                const paramCustomerName = urlParams.get('customerName');
-                const paramItems = JSON.parse(urlParams.get('items') || '[]');
-
-                const banner = document.getElementById('orderSourceBanner');
-                banner.style.display = 'flex';
-                document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
-
-                document.getElementById('customerSearch').value = paramCustomerName || '';
-                // إصلاح جذري: تعيين الآيدي في حقل السلكت المخفي ليتعرف عليه السيستم عند الحفظ بدون مشاكل
-                document.getElementById('customerSelect').value = paramCustomerId || '';
-
-                if (paramCustomerId) {
-                    const cust = customers.find(c => c.id === paramCustomerId);
-                    if (cust) {
-                        const startBalance = getCustomerBaseBalance(cust);
-                        const realB = await getRealBalance(cust.id, startBalance);
-                        currentFetchedOldBalance = realB;
-                        showBalance(realB);
-                    } else {
-                        currentFetchedOldBalance = 0;
-                        showBalance(0);
-                    }
-                    document.getElementById('customerBalanceInfo').style.display = 'block';
-                }
-
-                document.getElementById("itemsContainer").innerHTML = "";
-                paramItems.forEach(item => window.addNewRow(item));
-                isChanged = true;
-                calc();
-
-            } else if (editId) {
-                document.getElementById('modeText').innerText = "تعديل";
-                const invDoc = await getDoc(doc(db, "invoices", editId));
-
-                if (invDoc.exists()) {
-                    const data = invDoc.data();
-                    document.getElementById('customerSelect').value = data.customerId || "";
-                    document.getElementById('customerSearch').value = data.customerName || 'عميل نقدي';
-
-                    originalInvoiceTime = data.time || "";
-                    document.getElementById('invTime').value = originalInvoiceTime;
-                    document.getElementById('invTime').readOnly = true;
-
-                    document.getElementById('cashAmount').value = data.cashAmount || 0;
-                    document.getElementById('walletAmount').value = data.walletAmount || 0;
-                    document.getElementById('paidAmount').value = data.paid || 0;
-                    document.getElementById('discountAmount').value = data.discount || 0;
-
-                    if (data.customerId) {
-                        const cust = customers.find(c => c.id === data.customerId);
-                        document.getElementById('customerBalanceInfo').style.display = 'block';
-
-                        const startBalance = getCustomerBaseBalance(cust);
-                        const realB = await getRealBalance(data.customerId, startBalance);
-                        currentFetchedOldBalance = realB;
-                        showBalance(realB);
-                    } else {
-                        currentFetchedOldBalance = 0;
-                        showBalance(0);
-                    }
-
-                    document.getElementById("itemsContainer").innerHTML = "";
-                    data.items?.forEach(item => window.addNewRow(item));
-                }
-                isChanged = false;
-                calc();
-            } else {
-                window.addNewRow();
-                calc();
-            }
-
-        } catch (e) { console.error("Initialization Error: ", e); }
-    }
-
-    init();
-</script>
-</body>
-</html>
+            setDataStatus(`بيانات محفوظة محليًا — ${customers.length} عميل، ${inventory.
