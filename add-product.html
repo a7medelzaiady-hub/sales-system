@@ -62,6 +62,15 @@
 
         label { margin-bottom: 8px; font-size: 0.85rem; font-weight: 600; opacity: 0.9; }
         .price-tag { font-size: 0.75rem; color: var(--accent); display: block; margin-bottom: 8px; font-weight: 700; }
+
+        .min-price-field input[type="number"].form-control {
+            color: #d9364f !important;
+        }
+        .min-price-field .form-control:focus {
+            border-color: #d9364f !important;
+            box-shadow: 0 0 0 3px rgba(217, 54, 79, 0.12);
+        }
+        .min-price-hint { font-size: 0.7rem; color: #8a5b00; margin-top: 6px; display: block; }
         
         .btn-save { 
             background: var(--accent) !important; 
@@ -134,6 +143,11 @@
             <div class="col-md-4">
                 <label class="price-tag" style="color:#d9534f">سعر بيع الكرتونة (خاص)</label>
                 <input type="number" id="pSell3" class="form-control" placeholder="0.00" oninput="isChanged=true">
+            </div>
+            <div class="col-md-6 min-price-field">
+                <label class="price-tag" style="color:#d9364f"><i class="fas fa-shield-halved me-1"></i> الحد الأدنى المسموح ببيع الكرتونة</label>
+                <input type="number" id="pMinPrice" class="form-control" placeholder="اتركه فارغًا لعدم تفعيل حد أدنى" oninput="isChanged=true">
+                <small class="min-price-hint">لو حددت رقم هنا، مش هيقبل النظام إدخال سعر بيع أقل منه في فاتورة المبيعات لهذا الصنف. اتركه فارغًا أو صفر لتعطيل الميزة.</small>
             </div>
         </div>
     </div>
@@ -246,6 +260,7 @@
                 document.getElementById('pSell').value = data.sell || 0;
                 document.getElementById('pSell2').value = data.sell2 || 0;
                 document.getElementById('pSell3').value = data.sell3 || 0;
+                document.getElementById('pMinPrice').value = data.minPrice || '';
                 document.getElementById('pCategoryNew').value = data.category || '';
                 document.getElementById('pUnitName').value = data.unitName || '';
                 document.getElementById('pFactor').value = factor;
@@ -263,15 +278,22 @@
 
         if(!name || !cat) { alert("برجاء إدخال الاسم والفئة"); return; }
 
+        const minPriceVal = parseFloat(document.getElementById('pMinPrice').value) || 0;
+        const sellVal = parseFloat(document.getElementById('pSell').value) || 0;
+        if (minPriceVal > 0 && sellVal > 0 && minPriceVal > sellVal) {
+            if (!confirm("تنبيه: الحد الأدنى للسعر أكبر من سعر البيع القطاعي نفسه، هل تريد المتابعة على أي حال؟")) return;
+        }
+
         let finalTotalPcs = (id && newQtyInput === originalQtyInCrates) ? originalTotalPcs : Math.round(newQtyInput * factor);
 
         const itemData = { 
             name, category: cat, qty: newQtyInput, unitFactor: factor, totalPcs: finalTotalPcs, 
             min: parseInt(document.getElementById('pMin').value) || 0, 
             buy: parseFloat(document.getElementById('pBuy').value) || 0, 
-            sell: parseFloat(document.getElementById('pSell').value) || 0, 
+            sell: sellVal, 
             sell2: parseFloat(document.getElementById('pSell2').value) || 0,
             sell3: parseFloat(document.getElementById('pSell3').value) || 0,
+            minPrice: minPriceVal,
             barcode: document.getElementById('pBarcode').value,
             unitName: document.getElementById('pUnitName').value || 'قطعة',
             lastUpdate: serverTimestamp() 
