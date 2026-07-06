@@ -784,6 +784,15 @@
         }
     }
 
+    // ------- الحد الأدنى للسعر المسموح به لكل صنف (مخزّن يدويًا في بيانات الصنف بحقل minPrice) -------
+    function getMinPriceForUnit(product, selectedUnit) {
+        if (!product) return null;
+        const minBox = Number(product.minPrice);
+        if (!minBox || minBox <= 0) return null; // لا يوجد حد أدنى محدد لهذا الصنف
+        if (selectedUnit === 'box') return minBox;
+        return minBox / (Number(product.unitFactor) || 1);
+    }
+
     async function fetchSmartPrice(stockId, customerId, selectedUnit) {
         try {
             if (customerId) {
@@ -1059,7 +1068,11 @@
                 </div>
                 <div class="row g-2 align-items-end">
                     <div class="col-3"><span class="sub-lbl">الكمية</span><input type="number" class="form-control p-qty" value="${oldData ? oldData.qty : 1}" oninput="handleInput()"></div>
-                    <div class="col-3"><span class="sub-lbl">السعر</span><input type="number" class="form-control p-price" value="${oldData ? oldData.price : ''}" oninput="handleInput()"></div>
+                    <div class="col-3">
+                        <span class="sub-lbl">السعر</span>
+                        <input type="number" class="form-control p-price" value="${oldData ? oldData.price : ''}" oninput="handleInput()">
+                        <div class="min-price-warn" style="display:none; color:var(--danger); font-size:0.65rem; margin-top:3px; font-weight:700;"></div>
+                    </div>
                     <div class="col-3"><span class="sub-lbl">الإجمالي</span><input type="text" class="form-control p-subtotal" readonly value="0.00" style="background:#f8faf9!important;"></div>
                     <div class="col-3">
                         <div class="return-switch-container">
@@ -1116,6 +1129,24 @@
             const sub = qty * price;
             r.querySelector('.p-subtotal').value = (isReturn ? "-" : "") + sub.toFixed(2);
             if (isReturn) { itemsTotal -= sub; } else { itemsTotal += sub; }
+
+            // تنبيه فوري (بدون منع) لو السعر المدخل أقل من الحد الأدنى المسموح به لهذا الصنف
+            const pid = r.querySelector('.p-select')?.value;
+            const unit = r.querySelector('.p-unit')?.value;
+            const warnDiv = r.querySelector('.min-price-warn');
+            const priceInput = r.querySelector('.p-price');
+            if (pid && warnDiv && priceInput) {
+                const product = inventory.find(i => i.id === pid);
+                const minAllowed = getMinPriceForUnit(product, unit);
+                if (!isReturn && minAllowed !== null && price > 0 && price < minAllowed) {
+                    warnDiv.style.display = 'block';
+                    warnDiv.innerText = `⚠ أقل من الحد الأدنى (${minAllowed.toFixed(2)})`;
+                    priceInput.style.borderColor = 'var(--danger)';
+                } else {
+                    warnDiv.style.display = 'none';
+                    priceInput.style.borderColor = '';
+                }
+            }
         });
 
         const discount = parseFloat(document.getElementById('discountAmount').value) || 0;
@@ -1160,6 +1191,18 @@
                 r.classList.add('has-validation-error');
                 r.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return `خطأ: لا يمكن ترك خانة السعر فارغة أو صفر للصنف "${name}". برجاء إدخال سعر صحيح أكبر من صفر.`;
+            }
+
+            const isReturn = r.querySelector('.p-return-checkbox')?.checked;
+            if (!isReturn) {
+                const unit = r.querySelector('.p-unit')?.value;
+                const product = inventory.find(i => i.id === pid);
+                const minAllowed = getMinPriceForUnit(product, unit);
+                if (minAllowed !== null && price < minAllowed) {
+                    r.classList.add('has-validation-error');
+                    r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return `خطأ: السعر المدخل (${price.toFixed(2)}) أقل من الحد الأدنى المسموح به لبيع الصنف "${name}" (${minAllowed.toFixed(2)} ج.م). برجاء تعديل السعر قبل الحفظ.`;
+                }
             }
         }
         return null;
@@ -1609,4 +1652,3 @@
 </script>
 </body>
 </html>
-عاوز  اخلى صنف معين ميتبعش أقل من مبلغ معين
