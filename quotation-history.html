@@ -298,15 +298,29 @@ tr:hover td { background: var(--brand-lt); }
 .snum.dn{background:var(--green);}
 .dsummary{font-size:13px;color:var(--green);font-weight:700;}
 
+/* شارة كمية المخزون بجانب اسم الصنف أثناء التحميل */
+.item-stock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: var(--blue-lt);
+  color: var(--blue);
+  border-radius: 20px;
+  padding: 2px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* ============================================================
-   NEW ITEM BADGE — شارة الصنف الجديد (تم تعديل اللون)
+   NEW ITEM BADGE — شارة الصنف الجديد (لون أخضر غامق)
    ============================================================ */
 .new-item-badge {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: linear-gradient(135deg, #ede9fe, #ddd6fe); /* خلفية بنفسجية فاتحة */
-  color: #4c1d95; /* نص بنفسجي داكن */
+  background: linear-gradient(135deg, #d7f3e3, #bfeacd);
+  color: var(--brand-d);
   border: 1.5px solid #0a4a31;
   border-radius: 20px;
   padding: 3px 10px;
@@ -316,31 +330,31 @@ tr:hover td { background: var(--brand-lt); }
   animation: pulse-badge 1.5s ease-in-out infinite;
 }
 @keyframes pulse-badge {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4); }
-  50%       { box-shadow: 0 0 0 6px rgba(139, 92, 246, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(11, 94, 61, 0.4); }
+  50%       { box-shadow: 0 0 0 6px rgba(11, 94, 61, 0); }
 }
 .lstep.new-item {
   border-color: #0a4a31;
   border-width: 2px;
-  background: #faf5ff;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+  background: #f2fbf6;
+  box-shadow: 0 0 0 3px rgba(11, 94, 61, 0.15);
 }
 .lstep.new-item.active {
   border-color: #0a4a31;
-  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.25);
+  box-shadow: 0 0 0 4px rgba(11, 94, 61, 0.25);
 }
 
 /* بانر إشعار الأصناف الجديدة */
 #newItemsBanner {
   display: none;
-  background: linear-gradient(135deg, #f3e8ff, #ede9fe);
+  background: linear-gradient(135deg, #d7f3e3, #c3edd6);
   border: 2px solid #0a4a31;
   border-radius: 12px;
   padding: 12px 16px;
   margin-bottom: 14px;
   font-size: 13px;
   font-weight: 700;
-  color: #4c1d95;
+  color: var(--brand-d);
   align-items: center;
   gap: 10px;
 }
@@ -900,7 +914,7 @@ function renderItemsPage() {
     <div class="tbl-wrap">
       <table style="min-width: 100%;">
         <thead>
-          <tr><th>#</th><th style="text-align: right; padding-right:15px;">اسم الصنف</th><th>سعة الكرتونة</th><th>الكمية المنفردة</th><th>الكمية بالكرتونة</th></tr>
+          <tr><th>#</th><th style="text-align: right; padding-right:15px;">اسم الصنف</th><th>الكمية المنفردة</th><th>الكمية بالكرتونة</th></tr>
         </thead>
         <tbody>
           ${firebaseItems.map((it, i) => {
@@ -909,7 +923,6 @@ function renderItemsPage() {
             <tr>
               <td>${i+1}</td>
               <td style="text-align: right; padding-right:15px; font-weight:700;">${it.name}</td>
-              <td><span class="tag tag-blue">${it.capacity} ${unit}/ك</span></td>
               <td>${it.totalPcs} ${unit}</td>
               <td style="color:var(--brand); font-weight:700;">${Math.floor(it.totalPcs / it.capacity)} كرتونة ${it.totalPcs % it.capacity > 0 ? '+ ' + (it.totalPcs % it.capacity) + ' ' + unit : ''}</td>
             </tr>`}).join('')}
@@ -993,6 +1006,12 @@ function renderLoadFlow() {
       ? `<span class="new-item-badge">🆕 صنف جديد يحتاج تسجيل تحميل</span>`
       : '';
 
+    // شارة كمية المخزون الحالية لهذا الصنف
+    const stockUnitCount = Math.floor(it.totalPcs / it.capacity);
+    const stockLooseCount = it.totalPcs % it.capacity;
+    const stockText = (stockUnitCount > 0 ? stockUnitCount + ' ك ' : '') + (stockLooseCount > 0 ? stockLooseCount + ' ' + unit : '') || '0';
+    const stockBadge = `<span class="item-stock-badge">🏭 المخزون: ${it.totalPcs} ${unit}${stockUnitCount > 0 ? ' (' + stockText + ')' : ''}</span>`;
+
     if (isDone) {
       const sess = loadedInSession[it.id];
       let doneText = (sess.cartons > 0 ? sess.cartons + ' كرتونة ' : '') + (sess.loose > 0 ? sess.loose + ' ' + unit : '');
@@ -1000,6 +1019,7 @@ function renderLoadFlow() {
       div.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div>
+           <div style="margin-bottom:6px">${it.name} ${stockBadge}</div>
            ${Math.floor(it.totalPcs / it.capacity)} كرتونة + ${it.totalPcs % it.capacity}
             <div class="dsummary">✅ تم تحميل: ${doneText}</div>
           </div>
@@ -1011,6 +1031,7 @@ function renderLoadFlow() {
         <div class="stitle">
           <span class="snum ${isCurrent ? '' : 'style="background:var(--gray)"'}">${origIdx + 1}</span>
           <span>${it.name}</span>
+          ${stockBadge}
           ${newBadge}
         </div>
         ${isPiecesItem(it) ? `<div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:8px;padding:4px 8px;background:var(--blue-lt);border-radius:6px;display:inline-block;">💡 تم اقتراح كمية المخزون تلقائياً — يمكنك تعديلها</div>` : ''}
@@ -1098,12 +1119,16 @@ window.resetLoad = function() {
   document.getElementById('searchLoad').value = '';
   document.getElementById('searchSuggestList').classList.remove('open');
   document.getElementById('newItemsBanner').classList.remove('visible');
-  // دالة جديدة لإظهار القائمة للتعديل بعد الانتهاء
+  saveSession();
+  renderLoadFlow();
+};
+
+// دالة لإظهار القائمة للتعديل بعد الانتهاء
 window.editAllLoad = function() {
   forceShowLoadList = true;
   document.getElementById('loadDoneMsg').style.display = 'none';
   renderLoadFlow();
-  
+
   // العودة لأول صنف في القائمة لتسهيل المراجعة
   setTimeout(() => {
     const firstStep = document.querySelector('#loadFlow .lstep');
@@ -1111,9 +1136,6 @@ window.editAllLoad = function() {
       firstStep.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, 100);
-};
-  saveSession();
-  renderLoadFlow();
 };
 
 window.updateManualSummaryField = function(itemId, field, val) {
