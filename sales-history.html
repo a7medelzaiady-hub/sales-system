@@ -10,6 +10,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -98,10 +99,7 @@
             border: 1.5px solid transparent; transition: all 0.18s ease; cursor: pointer;
         }
         .panel-btn i { font-size: 0.8rem; }
-        .btn-fetch-all {
-            background: var(--success-bg);
-            color: var(--success); border-color: rgba(28,122,77,.28);
-        }
+        .btn-fetch-all { background: var(--success-bg); color: var(--success); border-color: rgba(28,122,77,.28); }
         .btn-fetch-all:hover { background: var(--success); color: #fff; }
         .btn-fetch-all:disabled { opacity: 0.55; cursor: not-allowed; }
         .btn-refresh-panel { background: #eef1ef; color: var(--text-secondary); border-color: var(--border); }
@@ -315,11 +313,16 @@
         </div>
 
         <div class="row g-2 mb-3 align-items-end">
-            <div class="col-6">
-                <input type="text" id="searchInput" class="form-control search-box h-100" placeholder="البحث باسم العميل أو السداد..." oninput="filterInvoices()">
+            <div class="col-4">
+                <input type="text" id="searchInput" class="form-control search-box h-100" placeholder="بحث..." oninput="filterInvoices()">
             </div>
-            <div class="col-6">
+            <div class="col-4">
                 <input type="date" id="dateFilterInput" class="form-control h-100" onchange="window.handleDateFilterChange()">
+            </div>
+            <div class="col-4">
+                <button class="btn btn-outline-primary w-100 h-100 fw-bold" style="border-radius:12px; font-family:'Cairo'; font-size:0.75rem;" onclick="downloadInvoicesImagesByDate()">
+                    <i class="fas fa-images"></i> تحميل فواتير (ZIP)
+                </button>
             </div>
         </div>
 
@@ -356,7 +359,6 @@
         measurementId: "G-WE04GK5XZZ"
     };
 
-    // تهيئة المشروع بالطريقة المتوافقة عالمياً لتجنب مشاكل المتصفح المحلي
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
@@ -368,7 +370,6 @@
     
     window.globalExpectedTodayCash = 0;
 
-    // محرك واجهة المستخدم المنبثقة
     window.showCustomUi = (options) => {
         const modal = document.getElementById('customGlobalModal');
         const title = document.getElementById('customModalTitle');
@@ -693,7 +694,7 @@
         }
     }
 
-    // الدالة الأساسية لجلب البيانات بنظام فايربيس المتوافق والآمن محلياً
+    // الدالة الأساسية لجلب البيانات
     async function loadData(showSpinner = true) {
         const container = document.getElementById('invoicesList');
         if (showSpinner) {
@@ -884,6 +885,83 @@
         `;
     }
 
+    // --- دالة مساعدة لتوليد صورة الفاتورة ---
+    async function getInvoiceImageBlob(inv) {
+        return new Promise(async (resolve) => {
+            const shareContainer = document.createElement('div');
+            shareContainer.style.position = 'fixed';
+            shareContainer.style.right = '-9999px';
+            shareContainer.style.top = '0';
+            shareContainer.style.width = '340px';
+            shareContainer.style.background = '#ffffff';
+            shareContainer.style.boxSizing = 'border-box';
+            shareContainer.innerHTML = generateThermalInvoiceHtml(inv);
+            
+            document.body.appendChild(shareContainer);
+
+            await new Promise(res => setTimeout(res, 100)); // لضمان تحميل الخطوط وتجهيز العنصر
+
+            const canvas = await html2canvas(shareContainer, {
+                scale: 2.5,
+                backgroundColor: '#ffffff',
+                useCORS: true
+            });
+            
+            document.body.removeChild(shareContainer);
+
+            canvas.toBlob((blob) => {
+                resolve(blob);
+            }, 'image/png');
+        });
+    }
+
+    // --- دالة تحميل فواتير التاريخ المحدد في ملف ZIP ---
+    window.downloadInvoicesImagesByDate = async () => {
+        const filterInput = document.getElementById('dateFilterInput').value;
+        const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
+        
+        const targetInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === targetDate);
+
+        if (targetInvoices.length === 0) {
+            window.showCustomUi({ title: "تنبيه", message: "لا توجد فواتير في هذا التاريخ لتنزيلها.", icon: "info" });
+            return;
+        }
+
+        window.showCustomUi({ 
+            title: "جاري التجهيز للتحميل...", 
+            message: `جاري تجميع وتحويل (${targetInvoices.length}) فاتورة إلى صور.\nيرجى الانتظار وعدم إغلاق الصفحة.`, 
+            type: "alert", 
+            icon: "info" 
+        });
+
+        try {
+            const zip = new JSZip();
+            const folder = zip.folder(`فواتير_${targetDate}`);
+
+            for (let i = 0; i < targetInvoices.length; i++) {
+                const inv = targetInvoices[i];
+                const blob = await getInvoiceImageBlob(inv);
+                const safeCustomerName = (inv.customerName || 'عميل_نقدى').replace(/[/\\?%*:|"<>]/g, '-');
+                const fileName = `فاتورة_${safeCustomerName}_${i + 1}.png`;
+                folder.file(fileName, blob);
+            }
+
+            const content = await zip.generateAsync({ type: "blob" });
+            
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `فواتير_يوم_${targetDate}.zip`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            window.showCustomUi({ title: "اكتمل التنزيل", message: "تم تنزيل ملف ZIP يحتوي على جميع صور الفواتير المحددة بنجاح.", icon: "success" });
+        } catch (error) {
+            console.error(error);
+            window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء تجميع وتنزيل الصور.", icon: "danger" });
+        }
+    };
+
     window.printThermalInvoice = (id) => {
         const inv = allInvoices.find(i => i.id === id);
         if (!inv) return;
@@ -895,46 +973,25 @@
     window.shareThermalInvoice = async (id) => {
         const inv = allInvoices.find(i => i.id === id);
         if (!inv) return;
-
-        const shareContainer = document.createElement('div');
-        shareContainer.style.position = 'fixed';
-        shareContainer.style.right = '-9999px';
-        shareContainer.style.top = '0';
-        shareContainer.style.width = '340px';
-        shareContainer.style.background = '#ffffff';
-        shareContainer.style.boxSizing = 'border-box';
-        shareContainer.innerHTML = generateThermalInvoiceHtml(inv);
         
-        document.body.appendChild(shareContainer);
-
         try {
-            await new Promise(resolve => setTimeout(resolve, 350));
-            const canvas = await html2canvas(shareContainer, {
-                scale: 2.5,
-                backgroundColor: '#ffffff',
-                useCORS: true
-            });
-            document.body.removeChild(shareContainer);
+            const blob = await getInvoiceImageBlob(inv);
+            const file = new File([blob], `فاتورة_${inv.customerName || 'نقدى'}.png`, { type: 'image/png' });
 
-            canvas.toBlob(async (blob) => {
-                if (!blob) return;
-                const file = new File([blob], `فاتورة_${inv.customerName || 'نقدى'}.png`, { type: 'image/png' });
-
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    await navigator.share({
-                        files: [file],
-                        title: `فاتورة ${inv.customerName || 'نقدى'}`,
-                        text: `فاتورة الزيادي لزيوت السيارات`
-                    });
-                } else {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `فاتورة_${inv.customerName || 'نقدى'}.png`;
-                    a.click();
-                    URL.revokeObjectURL(url);
-                }
-            }, 'image/png');
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    files: [file],
+                    title: `فاتورة ${inv.customerName || 'نقدى'}`,
+                    text: `فاتورة الزيادي لزيوت السيارات`
+                });
+            } else {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `فاتورة_${inv.customerName || 'نقدى'}.png`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
         } catch (err) {
             console.error(err);
             alert("حدث خطأ أثناء معالجة صورة الفاتورة الحرارية.");
