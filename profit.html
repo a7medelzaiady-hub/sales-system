@@ -472,31 +472,34 @@ async function load(){
   const D = {};
 
   try{
-    // 1. جلب الأصناف من جدول المخزون (inventory) لعمل خريطة id -> اسم الصنف
+    // 1. سعر الشراء الحالي: كل صنف في "inventory" له حقل buy بيتحدث تلقائيًا
+    //    من صفحة فاتورة الشراء وقت الحفظ (buy: buy). ده أهم مصدر للسعر.
     const itemsSnap = await getDocs(collection(db, "inventory"));
-    const idToName = {};
+    const currentBuyMap = {}; // name -> current buy price (آخر سعر معروف دلوقتي)
     itemsSnap.forEach(doc => {
       const itm = doc.data();
-      if(itm.name) idToName[doc.id] = itm.name.trim();
+      if(itm.name) currentBuyMap[itm.name.trim()] = Number(itm.buy) || 0;
     });
 
-    // 2. سعر الشراء متسجل فعليًا في جدول "transactions" (حركات المخزون)، كل حركة شراء
-    //    فيها productId (بيربط بالصنف في inventory) وprice وdate ونوع الحركة (type != 'sale' يعني شراء).
-    //    بنجيب آخر سعر شراء مسجل للصنف في تاريخ يسبق أو يساوي تاريخ التقرير المختار (سعر دقيق تاريخيًا).
-    const costMap = {}; // name -> { price, date }
-    const txSnap = await getDocs(collection(db, "transactions"));
-    txSnap.forEach(doc => {
-      const tx = doc.data();
-      if(tx.type === "sale") return; // نهتم بحركات الشراء فقط
-      const name = idToName[tx.productId];
-      if(!name) return;
-      const txDate = transactionDateStr(tx);
-      if(!txDate || txDate > date) return; // نتجاهل أي شراء بعد تاريخ التقرير
-      const price = Number(tx.price) || 0;
-      if(price <= 0) return;
-      if(!costMap[name] || txDate >= costMap[name].date){
-        costMap[name] = { price, date: txDate };
-      }
+    // 2. للحصول على سعر شراء دقيق تاريخيًا (سعر الصنف وقت تاريخ التقرير تحديدًا، مش سعر النهاردة)
+    //    بندور في فواتير الشراء الفعلية "supplier_transactions" (type: "شراء") ونجيب آخر
+    //    سعر buy مسجل للصنف في تاريخ يسبق أو يساوي تاريخ التقرير.
+    const historicalBuyMap = {}; // name -> { price, date }
+    const purchSnap = await getDocs(collection(db, "supplier_transactions"));
+    purchSnap.forEach(doc => {
+      const pinv = doc.data();
+      if(pinv.type !== "شراء") return; // نستبعد المرتجعات وأنواع أخرى
+      const invDate = parseDate(pinv.date, pinv.timestamp);
+      if(!invDate || invDate > date) return; // نتجاهل فواتير بعد تاريخ التقرير
+      if(!Array.isArray(pinv.items)) return;
+      pinv.items.forEach(it => {
+        const name = (it.name||"").trim();
+        const price = Number(it.buy) || 0;
+        if(!name || price <= 0) return;
+        if(!historicalBuyMap[name] || invDate >= historicalBuyMap[name].date){
+          historicalBuyMap[name] = { price, date: invDate };
+        }
+      });
     });
 
     let totalGrossSales = 0;
@@ -515,10 +518,11 @@ async function load(){
         const qty = Number(item.qty)||0;
         const sellPrice = Number(item.price)||0;
 
-        // الأولوية: سعر الشراء المسجل داخل بند الفاتورة نفسه (نادر)، وإلا آخر سعر شراء
-        // مسجل لهذا الصنف في جدول transactions حتى تاريخ التقرير
+        // الأولوية: سعر الشراء المسجل داخل بند الفاتورة نفسه (نادر) ← سعر الشراء التاريخي
+        // من فواتير الشراء حتى هذا التاريخ ← آخر سعر شراء حالي مسجل في المخزون
         let buyPrice = extractBuyPrice(item);
-        if(buyPrice === 0) buyPrice = (costMap[name] && costMap[name].price) || 0;
+        if(buyPrice === 0) buyPrice = (historicalBuyMap[name] && historicalBuyMap[name].price) || 0;
+        if(buyPrice === 0) buyPrice = currentBuyMap[name] || 0;
 
         if(!name || qty<=0) return;
 
