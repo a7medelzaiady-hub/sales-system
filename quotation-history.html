@@ -312,78 +312,6 @@ tr:hover td { background: var(--brand-lt); }
   white-space: nowrap;
 }
 
-/* ============================================================
-   NEW ITEM BADGE — شارة الصنف الجديد (لون أخضر غامق)
-   ============================================================ */
-.new-item-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: linear-gradient(135deg, #d7f3e3, #bfeacd);
-  color: var(--brand-d);
-  border: 1.5px solid #0a4a31;
-  border-radius: 20px;
-  padding: 3px 10px;
-  font-size: 11px;
-  font-weight: 800;
-  white-space: nowrap;
-  animation: pulse-badge 1.5s ease-in-out infinite;
-}
-@keyframes pulse-badge {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(11, 94, 61, 0.4); }
-  50%       { box-shadow: 0 0 0 6px rgba(11, 94, 61, 0); }
-}
-.lstep.new-item {
-  border-color: #0a4a31;
-  border-width: 2px;
-  background: #f2fbf6;
-  box-shadow: 0 0 0 3px rgba(11, 94, 61, 0.15);
-}
-.lstep.new-item.active {
-  border-color: #0a4a31;
-  box-shadow: 0 0 0 4px rgba(11, 94, 61, 0.25);
-}
-
-/* بانر إشعار الأصناف الجديدة */
-#newItemsBanner {
-  display: none;
-  background: linear-gradient(135deg, #d7f3e3, #c3edd6);
-  border: 2px solid #0a4a31;
-  border-radius: 12px;
-  padding: 12px 16px;
-  margin-bottom: 14px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--brand-d);
-  align-items: center;
-  gap: 10px;
-}
-#newItemsBanner.visible { display: flex; }
-#newItemsBanner .banner-count {
-  background: #0a4a31;
-  color: #fff;
-  border-radius: 50%;
-  width: 26px;
-  height: 26px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 900;
-  flex-shrink: 0;
-}
-#newItemsBanner .go-btn {
-  margin-right: auto;
-  background: #0a4a31;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  font-family: inherit;
-  cursor: pointer;
-}
 .empty{text-align:center;padding:36px 20px;color:var(--gray);font-size:13px;}
 .empty .em{font-size:36px;display:block;margin-bottom:10px;}
 .spin{display:inline-block;width:32px;height:32px;border:4px solid var(--border);border-top-color:var(--brand);border-radius:50%;animation:spin .7s linear infinite;margin:20px auto;display:block;}
@@ -512,12 +440,6 @@ table select:focus { border-color: var(--brand); }
 <div class="page" id="pg-load">
   <div class="ph"><h2>تسجيل تحميل حمولة السيارة</h2><p>سجّل كمية التحميل الحالية لكل صنف لربطها بالمبيعات</p></div>
 
-  <div id="newItemsBanner">
-    <div class="banner-count" id="newItemsCount">0</div>
-    <span id="newItemsBannerText">أصناف جديدة أُضيفت للمخزن تحتاج تسجيل تحميل</span>
-    <button class="go-btn" onclick="window.scrollToFirstNewItem()">انتقل إليها ⬇️</button>
-  </div>
-
   <div class="card load-search-box" style="padding: 10px; margin-bottom: 14px;">
     <input
       type="text"
@@ -643,11 +565,6 @@ let forceShowLoadList = false;
 // ============================================================
 let suggestFocusIdx = -1;
 
-// ============================================================
-// [جديد] تتبع الأصناف الجديدة
-// ============================================================
-let _newItemIds = new Set(); 
-
 // تظبيط تاريخ اليوم بتوقيت مصر المحلى
 const today = new Date();
 const offset = today.getTimezoneOffset();
@@ -727,43 +644,6 @@ function isCarton(item){
   return un==="كرتونة"||un==="كرtونه"||un==="كرتونه";
 }
 
-function detectNewItems() {
-  syncSessionVars();
-  const newItems = firebaseItems.filter(it => loadedInSession[it.id] === undefined);
-  _newItemIds = new Set(newItems.map(it => it.id));
-  return newItems;
-}
-
-function updateNewItemsBanner() {
-  const banner = document.getElementById('newItemsBanner');
-  const countEl = document.getElementById('newItemsCount');
-  const textEl  = document.getElementById('newItemsBannerText');
-
-  if (_newItemIds.size === 0) {
-    banner.classList.remove('visible');
-    return;
-  }
-
-  countEl.textContent = _newItemIds.size;
-  textEl.textContent  = _newItemIds.size === 1
-    ? 'صنف جديد أُضيف للمخزن يحتاج تسجيل تحميل'
-    : `أصناف جديدة (${_newItemIds.size}) أُضيفت للمخزن تحتاج تسجيل تحميل`;
-  banner.classList.add('visible');
-}
-
-window.scrollToFirstNewItem = function() {
-  const firstNewId = [..._newItemIds][0];
-  if (!firstNewId) return;
-  const el = document.getElementById('step-' + firstNewId);
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    setTimeout(() => {
-      const inp = document.getElementById('lc-' + firstNewId);
-      if (inp) { inp.focus(); inp.select(); }
-    }, 500);
-  }
-};
-
 window.handleSearchInput = function() {
   suggestFocusIdx = -1;
   openSuggestList();
@@ -784,12 +664,9 @@ window.openSuggestList = function() {
 
   list.innerHTML = matches.map((it, i) => {
     const done    = loadedInSession[it.id] !== undefined;
-    const isNew   = _newItemIds.has(it.id);
     const label   = done
       ? '<span class="s-status done">✓ تم</span>'
-      : isNew
-        ? '<span class="s-status pending" style="background:#fff3cd;color:#856404;">🆕 جديد</span>'
-        : '<span class="s-status pending">لم يُحمَّل</span>';
+      : '<span class="s-status pending">لم يُحمَّل</span>';
     return `<div class="suggest-item" data-id="${it.id}" onmousedown="selectSuggestItem('${it.id}')">${highlightMatch(it.name, document.getElementById('searchLoad').value)}${label}</div>`;
   }).join('');
 
@@ -882,10 +759,7 @@ onSnapshot(collection(db, "inventory"), snap => {
   });
   saveSession();
 
-  detectNewItems();
-
   if (document.getElementById('pg-load').classList.contains('active')) {
-    updateNewItemsBanner();
     renderLoadFlow();
   }
   if(document.getElementById('pg-summary').classList.contains('active')) {
@@ -938,51 +812,33 @@ function initLoadFlow() {
     document.getElementById('loadFlow').innerHTML = '';
     noMsg.style.display = 'block';
     document.getElementById('loadDoneMsg').style.display = 'none';
-    document.getElementById('newItemsBanner').classList.remove('visible');
     return;
   }
 
   noMsg.style.display = 'none';
-  detectNewItems();
-  updateNewItemsBanner();
   renderLoadFlow();
-
-  if (_newItemIds.size > 0) {
-    setTimeout(() => window.scrollToFirstNewItem(), 300);
-  }
 }
 
-// ============================================================
-// [معدّل] رسم قائمة التحميل باحترافية وتثبيت ترتيب الأصناف
-// ============================================================
 function renderLoadFlow() {
   const flow    = document.getElementById('loadFlow');
   const doneMsg = document.getElementById('loadDoneMsg');
   flow.innerHTML = '';
 
   const searchVal = cleanItemName(document.getElementById('searchLoad').value);
-  detectNewItems();
 
   const allDone = firebaseItems.every(it => loadedInSession[it.id] !== undefined);
   if (allDone && !forceShowLoadList && !searchVal) {
     doneMsg.style.display = 'block';
-    document.getElementById('newItemsBanner').classList.remove('visible');
     return;
   }
   doneMsg.style.display = 'none';
-  updateNewItemsBanner();
 
-  // ترتيب ثابت: الأصناف الجديدة أولاً ثم القديمة للحفاظ على الاستقرار
-  const sortedItems = [
-    ...firebaseItems.filter(it => _newItemIds.has(it.id)),
-    ...firebaseItems.filter(it => !_newItemIds.has(it.id))
-  ];
+  // ترتيب ثابت ومستقر دائماً متطابق مع المخزن لسهولة التتبع
+  const sortedItems = [...firebaseItems];
 
   sortedItems.forEach((it, idx) => {
     const isDone    = loadedInSession[it.id] !== undefined;
-    const isNew     = _newItemIds.has(it.id);
     const origIdx   = firebaseItems.findIndex(f => f.id === it.id); 
-    // تمييز أول صنف غير مكتمل كمؤشر بصري فقط، مع إتاحة الكل للإدخال
     const isCurrent = !isDone && (searchVal ? true : sortedItems.slice(0, idx).every(prev => loadedInSession[prev.id] !== undefined));
     const unit = getUnitName(it.name);
 
@@ -993,8 +849,7 @@ function renderLoadFlow() {
     }
 
     const div = document.createElement('div');
-    // إضافة كلاس pending-step للوصول السهل إليه لاحقاً
-    div.className = 'lstep' + (isDone ? ' done' : ' pending-step') + (isCurrent ? ' active' : '') + (isNew && !isDone ? ' new-item' : '');
+    div.className = 'lstep' + (isDone ? ' done' : ' pending-step') + (isCurrent ? ' active' : '');
     div.dataset.itemid = it.id;
     div.id = 'step-' + it.id;
 
@@ -1002,11 +857,7 @@ function renderLoadFlow() {
       div.style.display = 'none';
     }
 
-    const newBadge = (isNew && !isDone)
-      ? `<span class="new-item-badge">🆕 صنف جديد يحتاج تسجيل تحميل</span>`
-      : '';
-
-    // شارة كمية المخزون الحالية لهذا الصنف
+    // شارة كمية المخزون الحالية المنظمة لهذا الصنف
     const stockUnitCount = Math.floor(it.totalPcs / it.capacity);
     const stockLooseCount = it.totalPcs % it.capacity;
     const stockText = (stockUnitCount > 0 ? stockUnitCount + ' ك ' : '') + (stockLooseCount > 0 ? stockLooseCount + ' ' + unit : '') || '0';
@@ -1019,20 +870,17 @@ function renderLoadFlow() {
       div.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
           <div>
-           <div style="margin-bottom:6px">${it.name} ${stockBadge}</div>
-           ${Math.floor(it.totalPcs / it.capacity)} كرتونة + ${it.totalPcs % it.capacity}
+            <div style="margin-bottom:6px; font-weight:800; color:var(--brand-d);">${it.name} ${stockBadge}</div>
             <div class="dsummary">✅ تم تحميل: ${doneText}</div>
           </div>
           <button class="btn btn-sm" style="background:var(--amber-lt);color:var(--amber);font-weight:700" onclick="window.editStep('${it.id}')">✏️ تعديل الكمية</button>
         </div>`;
     } else {
-      // إظهار حقول الإدخال بشكل دائم لكل الأصناف غير المكتملة لتجربة مستخدم سريعة
       div.innerHTML = `
         <div class="stitle">
           <span class="snum ${isCurrent ? '' : 'style="background:var(--gray)"'}">${origIdx + 1}</span>
           <span>${it.name}</span>
           ${stockBadge}
-          ${newBadge}
         </div>
         ${isPiecesItem(it) ? `<div style="font-size:11px;color:var(--blue);font-weight:700;margin-bottom:8px;padding:4px 8px;background:var(--blue-lt);border-radius:6px;display:inline-block;">💡 تم اقتراح كمية المخزون تلقائياً — يمكنك تعديلها</div>` : ''}
         <div class="frow-inline">
@@ -1053,9 +901,6 @@ function renderLoadFlow() {
   });
 }
 
-// ============================================================
-// الانتقال الآلي والذكي عند الضغط على "تم" أو "تعديل"
-// ============================================================
 window.confirmStep = function(itemId) {
   syncSessionVars();
   const it = firebaseItems.find(i => i.id === itemId);
@@ -1068,15 +913,12 @@ window.confirmStep = function(itemId) {
   cartItems[itemId].loadedLoose   = loose;
   
   saveSession();
-  detectNewItems();
-  updateNewItemsBanner();
   
   const allDone = firebaseItems.every(i => loadedInSession[i.id] !== undefined);
   if (allDone) forceShowLoadList = false;
   
   renderLoadFlow();
 
-  // بعد الحفظ، البحث عن أول صنف غير مكتمل والتمرير إليه تلقائياً
   setTimeout(() => {
     const nextStep = document.querySelector('.lstep.pending-step');
     if (nextStep) {
@@ -1096,11 +938,8 @@ window.editStep = function(itemId) {
     cartItems[itemId].loadedLoose = 0; 
   }
   saveSession();
-  detectNewItems();
-  updateNewItemsBanner();
   renderLoadFlow();
 
-  // البقاء في نفس المكان مع التمرير الناعم للحقل المطلوب
   setTimeout(() => {
     const step = document.getElementById('step-' + itemId);
     if (step) {
@@ -1115,21 +954,17 @@ window.resetLoad = function() {
   loadedInSession = {};
   cartItems = {};
   forceShowLoadList = false;
-  _newItemIds.clear();
   document.getElementById('searchLoad').value = '';
   document.getElementById('searchSuggestList').classList.remove('open');
-  document.getElementById('newItemsBanner').classList.remove('visible');
   saveSession();
   renderLoadFlow();
 };
 
-// دالة لإظهار القائمة للتعديل بعد الانتهاء
 window.editAllLoad = function() {
   forceShowLoadList = true;
   document.getElementById('loadDoneMsg').style.display = 'none';
   renderLoadFlow();
 
-  // العودة لأول صنف في القائمة لتسهيل المراجعة
   setTimeout(() => {
     const firstStep = document.querySelector('#loadFlow .lstep');
     if (firstStep) {
@@ -1147,16 +982,11 @@ window.updateManualSummaryField = function(itemId, field, val) {
   saveSession();
 };
 
-// ============================================================
-// [معدّل] تجميع بيانات الجرد لكل الأصناف المتاحة في المخزن
-// ============================================================
 async function buildSummaryData() {
   syncSessionVars();
   
-  // بناء مصفوفة الجرد باستخدام كافة أصناف المخزن دائماً
   let loaded = firebaseItems.map(fbItem => {
     let cartData = cartItems[fbItem.id];
-    // الحفاظ على المدخلات اليدوية السابقة إن وجدت
     if (!cartData) {
       cartData = {
         name: fbItem.name,
@@ -1278,7 +1108,7 @@ window.renderSummary = async function() {
   cardsContainer.innerHTML = '';
   tb.innerHTML = '';
 
-  rows.forEach(({ id, it, unit, cap, totalSoldPcs, loadedText, soldText, remText, manualText, stockText, calculatedStatus, currentManualCartons, currentManualLoose }) => {
+  rows.forEach(({ id, it, unit, cap, totalSoldPcs, loadedText, soldText, remText, stockText, calculatedStatus, currentManualCartons, currentManualLoose }) => {
     const statusClass = calculatedStatus === 'عجز' ? 'status-ajz' : calculatedStatus === 'زيادة' ? 'status-zyada' : '';
 
     // ---- كارد الموبايل ----
