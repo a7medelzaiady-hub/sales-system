@@ -382,7 +382,7 @@ function parseDate(df,ts){
   return"";
 }
 
-/* دالة موحّدة لاستخراج سعر الشراء من أي مسمى حقل ممكن يكون مستخدم فى قاعدة البيانات */
+/* دالة موحّدة لاستخراج سعر الشراء لو كان محفوظ جوه بند الفاتورة نفسه (حالة نادرة/احتياطية) */
 function extractBuyPrice(obj){
   if(!obj) return 0;
   const candidates = [
@@ -397,6 +397,20 @@ function extractBuyPrice(obj){
     }
   }
   return 0;
+}
+
+/* استخراج تاريخ الحركة (yyyy-mm-dd) من حقل date في جدول transactions
+   بيدعم Firestore Timestamp (له .toDate) أو {seconds} أو نص/تاريخ عادي */
+function transactionDateStr(data){
+  if(!data || !data.date) return "";
+  const d = data.date;
+  if(typeof d.toDate === "function"){
+    return d.toDate().toISOString().slice(0,10);
+  }
+  if(d.seconds){
+    return new Date(d.seconds*1000).toISOString().slice(0,10);
+  }
+  return parseDate(d, null);
 }
 
 let rowsData=[];
@@ -458,13 +472,30 @@ async function load(){
   const D = {};
 
   try{
-    // 1. جلب أسعار الشراء من جدول المخزون (inventory) — بندعم أكتر من مسمى للحقل
+    // 1. جلب الأصناف من جدول المخزون (inventory) لعمل خريطة id -> اسم الصنف
     const itemsSnap = await getDocs(collection(db, "inventory"));
-    const costMap = {};
+    const idToName = {};
     itemsSnap.forEach(doc => {
       const itm = doc.data();
-      if(itm.name) {
-        costMap[itm.name.trim()] = extractBuyPrice(itm);
+      if(itm.name) idToName[doc.id] = itm.name.trim();
+    });
+
+    // 2. سعر الشراء متسجل فعليًا في جدول "transactions" (حركات المخزون)، كل حركة شراء
+    //    فيها productId (بيربط بالصنف في inventory) وprice وdate ونوع الحركة (type != 'sale' يعني شراء).
+    //    بنجيب آخر سعر شراء مسجل للصنف في تاريخ يسبق أو يساوي تاريخ التقرير المختار (سعر دقيق تاريخيًا).
+    const costMap = {}; // name -> { price, date }
+    const txSnap = await getDocs(collection(db, "transactions"));
+    txSnap.forEach(doc => {
+      const tx = doc.data();
+      if(tx.type === "sale") return; // نهتم بحركات الشراء فقط
+      const name = idToName[tx.productId];
+      if(!name) return;
+      const txDate = transactionDateStr(tx);
+      if(!txDate || txDate > date) return; // نتجاهل أي شراء بعد تاريخ التقرير
+      const price = Number(tx.price) || 0;
+      if(price <= 0) return;
+      if(!costMap[name] || txDate >= costMap[name].date){
+        costMap[name] = { price, date: txDate };
       }
     });
 
@@ -484,9 +515,10 @@ async function load(){
         const qty = Number(item.qty)||0;
         const sellPrice = Number(item.price)||0;
 
-        // الأولوية: سعر الشراء المسجل داخل بند الفاتورة نفسه، وإلا من جدول المخزون
+        // الأولوية: سعر الشراء المسجل داخل بند الفاتورة نفسه (نادر)، وإلا آخر سعر شراء
+        // مسجل لهذا الصنف في جدول transactions حتى تاريخ التقرير
         let buyPrice = extractBuyPrice(item);
-        if(buyPrice === 0) buyPrice = costMap[name] || 0;
+        if(buyPrice === 0) buyPrice = (costMap[name] && costMap[name].price) || 0;
 
         if(!name || qty<=0) return;
 
