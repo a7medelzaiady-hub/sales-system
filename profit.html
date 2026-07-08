@@ -139,7 +139,6 @@ body{
 .sec-ttl{font-size:.76rem;font-weight:800;color:var(--s7);display:flex;align-items:center;gap:6px;}
 .sec-dot{width:7px;height:7px;border-radius:50%;background:var(--g6)}
 
-/* نظام الكروت الجديد الموفر للمساحة */
 .cards-container{
   display:grid;
   grid-template-columns:1fr;
@@ -224,7 +223,6 @@ body{
 .profit-pos-text{ color:var(--g7); }
 .profit-neg-text{ color:var(--r7); }
 
-/* إجماليات التقرير السفلية */
 .summary-bar-card{
   margin:10px;
   background:var(--g8);
@@ -501,10 +499,9 @@ async function load(){
   const D = {};
 
   try {
-    // 1. جلب المخزون النشط لبناء خريطة المعاملات الدقيقة (unitFactor) لمنع الأخطاء الحسابية في الأسعار
     const itemsSnap = await getDocs(collection(db, "inventory"));
-    const factorMap = {};     // اسم الصنف -> معامل الكرتونة الداخلي
-    const currentBuyMap = {}; // اسم الصنف -> السعر الافتراضي للجركن المفرد
+    const factorMap = {};     
+    const currentBuyMap = {}; 
 
     itemsSnap.forEach(doc => {
       const itm = doc.data();
@@ -513,19 +510,16 @@ async function load(){
       const factor = Number(itm.unitFactor) || 1;
       factorMap[name] = factor;
       
-      // توحيد وتحويل السعر الأساسي المدخل لجركن مفرد
+      // التعديل الجوهري هنا لضمان دقة الأسعار:
+      // السعر المسجل في حقل الشراء (itm.buy) في المخزن يُمثل دائماً سعر الوحدة الكبرى (الكرتونة/العبوة الجملة)
+      // وبالتالي، سعر الجركن المفرد = سعر الكرتونة مقسوماً على المعامل الفعلي الداخلي للصنف
       let rawBuy = Number(itm.buy) || 0;
-      if(itm.unitName === "box" || itm.unitName === "كرتونة"){
-        currentBuyMap[name] = rawBuy / factor;
-      } else {
-        currentBuyMap[name] = rawBuy;
-      }
+      currentBuyMap[name] = rawBuy / factor; 
     });
 
     let totalGrossSales = 0;
     let totalGrossProfit = 0;
 
-    // 2. جلب الفواتير الصادرة لليوم المحدد
     const sSnap = await getDocs(collection(db, "invoices"));
     sSnap.forEach(doc => {
       const inv = doc.data();
@@ -533,7 +527,7 @@ async function load(){
       if(!Array.isArray(inv.items)) return;
 
       inv.items.forEach(item => {
-        if(item.isReturn) return; // استبعاد مرتجعات البيع
+        if(item.isReturn) return; 
 
         const name = (item.name || "").trim();
         const qty = Number(item.qty) || 0;
@@ -543,10 +537,8 @@ async function load(){
 
         if(!name || qty <= 0) return;
 
-        // حساب تكلفة الجركن الفردي الدقيق بناءً على قاعدة البيانات التاريخية أو الحالية للمخزن
         let basePieceCost = currentBuyMap[name] || 0;
 
-        // تشييد معمارية الصنف المؤقت داخل المصنف الدائري
         if(!D[name]) {
           D[name] = { 
             qtyBox: 0, 
@@ -558,7 +550,6 @@ async function load(){
           };
         }
 
-        // توزيع الحصص الاستيرادية (تفتيت الكميات والمبيعات بناءً على وحدة الفاتورة الفعلية)
         if(unit === "box" || unit === "كرتونة") {
           D[name].qtyBox += qty;
           D[name].totalSales += (qty * sellPrice);
@@ -571,7 +562,6 @@ async function load(){
       });
     });
 
-    // 3. صياغة البيانات وترتيبها أبجدياً
     const sortedKeys = Object.keys(D).sort((a,b) => a.localeCompare(b,"ar"));
 
     sortedKeys.forEach(name => {
@@ -580,7 +570,6 @@ async function load(){
       totalGrossSales += d.totalSales;
       totalGrossProfit += profit;
 
-      // حساب أسعار العرض للكارت الفردي (سعر الكرتونة وسعر الجركن)
       const buyPiece = d.basePieceCost;
       const buyBox = d.basePieceCost * d.factor;
 
@@ -597,7 +586,6 @@ async function load(){
 
     const netProfit = totalGrossProfit - TOTAL_FIXED_EXPENSES;
 
-    // شحن واجهات العرض العلوية (KPIs)
     document.getElementById("kGrossSales").innerText = `${totalGrossSales.toFixed(2)} ج`;
     document.getElementById("kGrossProfit").innerText = `${totalGrossProfit.toFixed(2)} ج`;
 
@@ -606,7 +594,6 @@ async function load(){
     if(netProfit < 0) kNet.classList.add("negative");
     else kNet.classList.remove("negative");
 
-    // شحن الملخص المالي السفلي الشامل
     document.getElementById("fTotalSales").innerText = `${totalGrossSales.toFixed(2)} ج`;
     document.getElementById("fTotalProfit").innerText = `${totalGrossProfit.toFixed(2)} ج`;
     document.getElementById("fTotalExpenses").innerText = `-${TOTAL_FIXED_EXPENSES} ج`;
@@ -618,7 +605,7 @@ async function load(){
     console.error(e);
     document.getElementById("cardsContainer").innerHTML = `<div class="state-box">
       <div class="state-ico" style="background:var(--r1);color:var(--r7)"><i class="fas fa-triangle-exclamation"></i></div>
-      <div class="state-p" style="color:var(--r7)">فشل الاتصال بـ Firestore أو هناك خطأ في بنية البيانات الداخية.</div>
+      <div class="state-p" style="color:var(--r7)">فشل في معالجة الحسابات.</div>
     </div>`;
   }
 }
