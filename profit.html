@@ -413,6 +413,26 @@ function transactionDateStr(data){
   return parseDate(d, null);
 }
 
+/* توحيد اسم الوحدة: "box" أو فارغة تتحول لقيمة معروفة */
+function normUnit(u){
+  u = (u||"").toString().trim();
+  if(u === "box") return "كرتونة";
+  return u || "قطعة";
+}
+
+/* تحويل سعر مسجل بوحدة معينة (كرتونة/قطعة) إلى سعر الوحدة الواحدة (قطعة/جركن)
+   باستخدام unitFactor بتاع الصنف (عدد الجراكن في الكرتونة) */
+function toPerPiece(price, unitName, factor){
+  const f = Number(factor) > 0 ? Number(factor) : 1;
+  return normUnit(unitName) === "كرتونة" ? (price / f) : price;
+}
+
+/* عكس التحويل: من سعر الوحدة الواحدة (قطعة) إلى سعر بوحدة البيع الفعلية (كرتونة/قطعة) */
+function fromPerPiece(perPiecePrice, unitName, factor){
+  const f = Number(factor) > 0 ? Number(factor) : 1;
+  return normUnit(unitName) === "كرتونة" ? (perPiecePrice * f) : perPiecePrice;
+}
+
 let rowsData=[];
 
 function renderRows(filter){
@@ -473,18 +493,26 @@ async function load(){
 
   try{
     // 1. سعر الشراء الحالي: كل صنف في "inventory" له حقل buy بيتحدث تلقائيًا
-    //    من صفحة فاتورة الشراء وقت الحفظ (buy: buy). ده أهم مصدر للسعر.
+    //    من صفحة فاتورة الشراء وقت الحفظ، مع unitName اللي كان متسجل بيها وقتها،
+    //    وunitFactor اللي بيوضح عدد الجراكن/القطع في الكرتونة الواحدة.
+    //    بنطبّع كل سعر لسعر "الوحدة الواحدة" (قطعة/جركن) عشان نقدر نحوّله لأي وحدة بعدين بدقة.
     const itemsSnap = await getDocs(collection(db, "inventory"));
-    const currentBuyMap = {}; // name -> current buy price (آخر سعر معروف دلوقتي)
+    const factorMap = {};     // name -> unitFactor (عدد القطع في الكرتونة)
+    const currentBuyMap = {}; // name -> سعر الوحدة الواحدة (قطعة) الحالي
     itemsSnap.forEach(doc => {
       const itm = doc.data();
-      if(itm.name) currentBuyMap[itm.name.trim()] = Number(itm.buy) || 0;
+      if(!itm.name) return;
+      const name = itm.name.trim();
+      const factor = Number(itm.unitFactor) || 1;
+      factorMap[name] = factor;
+      currentBuyMap[name] = toPerPiece(Number(itm.buy) || 0, itm.unitName, factor);
     });
 
     // 2. للحصول على سعر شراء دقيق تاريخيًا (سعر الصنف وقت تاريخ التقرير تحديدًا، مش سعر النهاردة)
     //    بندور في فواتير الشراء الفعلية "supplier_transactions" (type: "شراء") ونجيب آخر
-    //    سعر buy مسجل للصنف في تاريخ يسبق أو يساوي تاريخ التقرير.
-    const historicalBuyMap = {}; // name -> { price, date }
+    //    سعر buy مسجل للصنف في تاريخ يسبق أو يساوي تاريخ التقرير، بعد تطبيعه لسعر الوحدة الواحدة
+    //    (لأن الفاتورة ممكن تكون اتسجلت بالكرتونة، ومطلوب مقارنته بمبيعات بالجركن أو العكس).
+    const historicalBuyMap = {}; // name -> { perPiece, date }
     const purchSnap = await getDocs(collection(db, "supplier_transactions"));
     purchSnap.forEach(doc => {
       const pinv = doc.data();
@@ -494,10 +522,14 @@ async function load(){
       if(!Array.isArray(pinv.items)) return;
       pinv.items.forEach(it => {
         const name = (it.name||"").trim();
-        const price = Number(it.buy) || 0;
-        if(!name || price <= 0) return;
+        const rawPrice = Number(it.buy) || 0;
+        if(!name || rawPrice <= 0) return;
+        // نستخدم unitFactor الحالي المسجل للصنف في المخزون (أدق من unitFactor
+        // المسجل جوه الفاتورة نفسها لأنه بيتسجل دايمًا 1 في كود فاتورة الشراء)
+        const factor = factorMap[name] || 1;
+        const perPiece = toPerPiece(rawPrice, it.unitName, factor);
         if(!historicalBuyMap[name] || invDate >= historicalBuyMap[name].date){
-          historicalBuyMap[name] = { price, date: invDate };
+          historicalBuyMap[name] = { perPiece, date: invDate };
         }
       });
     });
@@ -517,18 +549,28 @@ async function load(){
         const name = (item.name||"").trim();
         const qty = Number(item.qty)||0;
         const sellPrice = Number(item.price)||0;
+        const saleUnit = item.unitName || item.unit || "قطعة";
+        const factor = factorMap[name] || 1;
 
-        // الأولوية: سعر الشراء المسجل داخل بند الفاتورة نفسه (نادر) ← سعر الشراء التاريخي
-        // من فواتير الشراء حتى هذا التاريخ ← آخر سعر شراء حالي مسجل في المخزون
-        let buyPrice = extractBuyPrice(item);
-        if(buyPrice === 0) buyPrice = (historicalBuyMap[name] && historicalBuyMap[name].price) || 0;
-        if(buyPrice === 0) buyPrice = currentBuyMap[name] || 0;
+        // نجيب سعر الوحدة الواحدة (قطعة) من: بند الفاتورة نفسه (نادر) ← تاريخي من فواتير
+        // الشراء حتى هذا التاريخ ← آخر سعر شراء حالي بالمخزون. وبعدين نحوّله لنفس
+        // وحدة البيع (كرتونة/قطعة) بالظبط عشان الحساب يبقى مظبوط ١٠٠٪.
+        let perPieceBuy = extractBuyPrice(item); // لو موجود بيبقى مسجل بنفس وحدة البيع أصلاً
+        let buyPrice;
+        if(perPieceBuy > 0){
+          buyPrice = perPieceBuy; // مسجل جاهز بنفس وحدة البيع
+        } else if(historicalBuyMap[name]){
+          buyPrice = fromPerPiece(historicalBuyMap[name].perPiece, saleUnit, factor);
+        } else if(currentBuyMap[name]){
+          buyPrice = fromPerPiece(currentBuyMap[name], saleUnit, factor);
+        } else {
+          buyPrice = 0;
+        }
 
         if(!name || qty<=0) return;
 
         if(!D[name]) {
-          let u = (item.unitName || item.unit || "قطعة").trim();
-          if(u==="box") u="كرتونة";
+          let u = normUnit(saleUnit);
           D[name] = { qty:0, totalSales:0, totalCost:0, unitLabel:u };
         }
 
