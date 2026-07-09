@@ -99,6 +99,19 @@ body{
   font-size:.82rem;color:var(--s9);width:100%;
 }
 
+/* تنسيق كارت المصروفات التفاعلي الجديد */
+.exp-widget{
+  margin:10px;background:var(--wh);border-radius:12px;border:1px solid #fca5a5;padding:10px 12px;
+  cursor:pointer;transition: background 0.2s;
+}
+.exp-widget:hover{background:#fff8f8;}
+.exp-hdr{display:flex;align-items:center;justify-content:space-between;font-size:.76rem;font-weight:800;color:var(--r7);padding-bottom:2px;}
+.exp-hdr.active{border-bottom:1px dashed #fca5a5;padding-bottom:6px;margin-bottom:8px;}
+.exp-list{display:none;flex-wrap:wrap;gap:6px;transition: all 0.3s ease-in-out;}
+.exp-item{background:var(--r0);border:1px solid #fecaca;color:var(--r7);font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:6px;}
+.exp-toggle-icon{transition: transform 0.2s;}
+.exp-hdr.active .exp-toggle-icon{transform: rotate(180deg);}
+
 .kpi-row{
   display:grid;
   grid-template-columns:repeat(3,1fr);
@@ -130,16 +143,18 @@ body{
 .kpi-s .kpi-val{color:var(--g7)}
 .kpi-val.negative{color:var(--r7);}
 
-.exp-widget{margin:10px;background:var(--wh);border-radius:12px;border:1px solid #fca5a5;padding:10px 12px;}
-.exp-hdr{display:flex;align-items:center;justify-content:space-between;font-size:.76rem;font-weight:800;color:var(--r7);margin-bottom:8px;border-bottom:1px dashed #fca5a5;padding-bottom:6px;}
-.exp-list{display:flex;flex-wrap:wrap;gap:6px;}
-.exp-item{background:var(--r0);border:1px solid #fecaca;color:var(--r7);font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:6px;}
-
-.sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 12px 5px;}
-.sec-ttl{font-size:.76rem;font-weight:800;color:var(--s7);display:flex;align-items:center;gap:6px;}
+/* رأس قسم الجدول القابل للضغط */
+.sec-hdr{padding:10px 12px 5px;}
+.sec-ttl-btn{
+  background: none; border: none; padding: 0; width: 100%; text-align: right;
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:.76rem;font-weight:800;color:var(--s7);cursor: pointer;
+}
+.sec-ttl-right{display: flex; align-items: center; gap:6px;}
 .sec-dot{width:7px;height:7px;border-radius:50%;background:var(--g6)}
+.table-toggle-icon{font-size: 0.8rem; color: var(--s5); transition: transform 0.2s;}
+.table-toggle-icon.collapsed{transform: rotate(-90deg);}
 
-/* تنسيق الجدول المحسن والمضغوط لتفادي كسر الأسطر */
 .tbl-card{
   margin:0 8px 12px;
   background:var(--wh);
@@ -147,6 +162,7 @@ body{
   border:1px solid #d0ddd6;
   box-shadow:0 3px 12px rgba(0,0,0,.06);
   overflow-x:auto;
+  transition: max-height 0.3s ease-out;
 }
 table.inv{
   width: 100%;
@@ -154,8 +170,8 @@ table.inv{
   font-size:.78rem;
 }
 table.inv th, table.inv td {
-  white-space: nowrap; /* منع كسر الأسطر تماماً */
-  padding: 8px 10px;   /* تصغير الحواشي لضغط العرض */
+  white-space: nowrap;
+  padding: 8px 10px;
   text-align: center;
   vertical-align: middle;
 }
@@ -180,7 +196,7 @@ table.inv tbody td:first-child{
   color: var(--s9);
   font-weight: 800;
   background: var(--g0);
-  width: 1%; /* يجعل العمود ينكمش على قدر النص بالضبط دون زيادة */
+  width: 1%;
 }
 table.inv tbody tr:hover td{background:#f5faf7 !important}
 table.inv tfoot td{
@@ -243,10 +259,13 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
   </div>
 </div>
 
-<div class="exp-widget">
-  <div class="exp-hdr">
+<div class="exp-widget" onclick="toggleExpenses()">
+  <div class="exp-hdr" id="expHdr">
     <span><i class="fas fa-receipt"></i> المصروفات الثابتة اليومية</span>
-    <span id="totalExpDisplay">إجمالي: ١١٣٠ ج</span>
+    <div>
+      <span id="totalExpDisplay" class="me-2">إجمالي: ١١٣٠ ج</span>
+      <i class="fas fa-chevron-down exp-toggle-icon"></i>
+    </div>
   </div>
   <div class="exp-list" id="expList"></div>
 </div>
@@ -270,16 +289,23 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
 </div>
 
 <div class="sec-hdr">
-  <div class="sec-ttl"><span class="sec-dot"></span>تفصيل المبيعات والأرباح لكل صنف</div>
+  <button class="sec-ttl-btn" onclick="toggleTableGrid()">
+    <div class="sec-ttl-right">
+      <span class="sec-dot"></span>
+      <span>تفصيل المبيعات والأرباح لكل صنف</span>
+    </div>
+    <i class="fas fa-chevron-down table-toggle-icon" id="tableToggleIcon"></i>
+  </button>
 </div>
 
-<div class="tbl-card">
-  <table class="inv">
+<div class="tbl-card" id="tableCardContainer">
+  <table class="inv" id="mainInvoiceTable">
     <thead>
       <tr>
         <th rowspan="2" style="vertical-align:middle;">الصنف</th>
         <th colspan="2" class="sub-head">الكمية المباعة</th>
         <th colspan="2" class="sub-head">سعر الشراء الفعلي</th>
+        <th rowspan="2" style="vertical-align:middle;">إجمالي المشتريات</th>
         <th rowspan="2" style="vertical-align:middle;">إجمالي المبيعات</th>
         <th rowspan="2" style="vertical-align:middle;">ربح الصنف</th>
         <th rowspan="2" style="vertical-align:middle;">نسبة الربح</th>
@@ -292,23 +318,27 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
       </tr>
     </thead>
     <tbody id="tbody">
-      <tr><td colspan="8">
+      <tr><td colspan="9">
         <div class="spin-wrap"><div class="spin"></div><div class="spin-lbl">جار تجميع البيانات…</div></div>
       </td></tr>
     </tbody>
     <tfoot id="tfoot" style="display:none">
       <tr>
         <td colspan="5">الإجمالي الكلي للمبيعات والأرباح</td>
+        <td id="fTotalCost" style="color:var(--a7);">—</td>
         <td id="fTotalSales">—</td>
         <td id="fTotalProfit">—</td>
         <td id="fProfitMargin">—</td>
       </tr>
       <tr style="background:#fee2e2; color:#b91c1c; border-top: 1px solid #fecaca;">
-        <td colspan="6" style="text-align:right; padding-right:14px;">إجمالي المصروفات اليومية الثابتة</td>
+        <td colspan="7" style="text-align:right; padding-right:14px;">إجمالي المصروفات اليومية الثابتة</td>
         <td colspan="2" id="fTotalExpenses">—</td>
       </tr>
       <tr style="background:#dcfce7; color:#16a34a; font-size:1.05rem; border-top: 2px solid #b6d5c4;">
-        <td colspan="6" style="text-align:right; padding-right:14px;">صافي الربح النهائي (الربح الإجمالي مطروحاً منه المصروفات)</td>
+        <td colspan="7" style="text-align:right; padding-right:14px;">
+          <strong>الحساب النهائي للتقرير الداخلي:</strong> 
+          (إجمالي المبيعات <span id="eqSales">0</span> - إجمالي المشتريات <span id="eqCost">0</span> - المصروفات <span id="eqExp">0</span>) = صافي الربح النهائي
+        </td>
         <td id="fNetProfit">—</td>
         <td id="fNetProfitMargin">—</td>
       </tr>
@@ -317,6 +347,33 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
 </div>
 
 <div class="foot"><span>الزيادي لزيوت السيارات</span> · نظام إدارة المخزون والمبيعات</div>
+
+<script type="text/javascript">
+// دوال تحويل الواجهة التفاعلية للإخفاء والإظهار بدون الاعتماد على موديول خارجي
+function toggleExpenses() {
+  const list = document.getElementById("expList");
+  const hdr = document.getElementById("expHdr");
+  if (list.style.display === "flex") {
+    list.style.display = "none";
+    hdr.classList.remove("active");
+  } else {
+    list.style.display = "flex";
+    hdr.classList.add("active");
+  }
+}
+
+function toggleTableGrid() {
+  const table = document.getElementById("mainInvoiceTable");
+  const icon = document.getElementById("tableToggleIcon");
+  if (table.style.display === "none") {
+    table.style.display = "table";
+    icon.classList.remove("collapsed");
+  } else {
+    table.style.display = "none";
+    icon.classList.add("collapsed");
+  }
+}
+</script>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -382,7 +439,7 @@ function renderTable(filter){
   const list = f ? tableRowsData.filter(r=>r.name.toLowerCase().includes(f)) : tableRowsData;
 
   if(!list.length){
-    tbody.innerHTML = `<tr><td colspan="8"><div class="text-center p-4 text-muted">لا توجد مبيعات مطابقة لبحثك</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9"><div class="text-center p-4 text-muted">لا توجد مبيعات مطابقة لبحثك</div></td></tr>`;
     tfoot.style.display = "none";
     return;
   }
@@ -398,6 +455,7 @@ function renderTable(filter){
       <td>${r.qtyPiece}</td>
       <td>${r.buyBox > 0 ? r.buyBox.toFixed(1) + ' ج' : '—'}</td>
       <td>${r.buyPiece > 0 ? r.buyPiece.toFixed(1) + ' ج' : '—'}</td>
+      <td style="color:var(--a7); font-weight:700;">${r.totalCost.toFixed(2)} ج</td>
       <td style="color:var(--b7); font-weight:800;">${r.totalSales.toFixed(2)} ج</td>
       <td class="${profitCls}">${r.profit.toFixed(2)} ج</td>
       <td><span class="badge-pct ${pctCls}">${r.margin.toFixed(1)}%</span></td>
@@ -418,7 +476,7 @@ async function load(){
   if(!date) return;
 
   document.getElementById("dateLabel").textContent = `مبيعات يوم ${date}`;
-  document.getElementById("tbody").innerHTML = `<tr><td colspan="8"><div class="spin-wrap"><div class="spin"></div><div class="spin-lbl">جاري جلب وتحضير الجدول بدقة…</div></div></td></tr>`;
+  document.getElementById("tbody").innerHTML = `<tr><td colspan="9"><div class="spin-wrap"><div class="spin"></div><div class="spin-lbl">جاري جلب وتحضير الجدول بدقة…</div></div></td></tr>`;
   document.getElementById("tfoot").style.display = "none";
 
   tableRowsData = [];
@@ -442,6 +500,7 @@ async function load(){
 
     let totalGrossSales = 0;
     let totalGrossProfit = 0;
+    let totalGrossCost = 0;
 
     const sSnap = await getDocs(collection(db, "invoices"));
     sSnap.forEach(doc => {
@@ -492,6 +551,7 @@ async function load(){
       const profit = d.totalSales - d.totalCost;
       totalGrossSales += d.totalSales;
       totalGrossProfit += profit;
+      totalGrossCost += d.totalCost;
 
       const buyPiece = d.basePieceCost;
       const buyBox = d.basePieceCost * d.factor;
@@ -504,6 +564,7 @@ async function load(){
         qtyPiece: d.qtyPiece,
         buyBox: buyBox,
         buyPiece: buyPiece,
+        totalCost: d.totalCost,
         totalSales: d.totalSales,
         profit: profit,
         margin: margin
@@ -523,6 +584,7 @@ async function load(){
     if(netProfit < 0) kNet.classList.add("negative");
     else kNet.classList.remove("negative");
 
+    document.getElementById("fTotalCost").innerText = `${totalGrossCost.toFixed(2)} ج`;
     document.getElementById("fTotalSales").innerText = `${totalGrossSales.toFixed(2)} ج`;
     document.getElementById("fTotalProfit").innerText = `${totalGrossProfit.toFixed(2)} ج`;
     document.getElementById("fProfitMargin").innerHTML = `<span class="badge-pct">${totalProfitMargin.toFixed(1)}%</span>`;
@@ -531,11 +593,16 @@ async function load(){
     document.getElementById("fNetProfit").innerText = `${netProfit.toFixed(2)} ج`;
     document.getElementById("fNetProfitMargin").innerHTML = `<span class="badge-pct ${netProfit < 0 ? 'neg':''}">${netProfitMargin.toFixed(1)}%</span>`;
 
+    // تعبئة قيم المعادلة النصية في التذييل
+    document.getElementById("eqSales").innerText = `${totalGrossSales.toFixed(1)} ج`;
+    document.getElementById("eqCost").innerText = `${totalGrossCost.toFixed(1)} ج`;
+    document.getElementById("eqExp").innerText = `${TOTAL_FIXED_EXPENSES} ج`;
+
     renderTable("");
 
   } catch(e) {
     console.error(e);
-    document.getElementById("tbody").innerHTML = `<tr><td colspan="8"><div class="text-center p-4 text-danger">حدث خطأ أثناء معالجة البيانات وبناء الجدول.</div></td></tr>`;
+    document.getElementById("tbody").innerHTML = `<tr><td colspan="9"><div class="text-center p-4 text-danger">حدث خطأ أثناء معالجة البيانات وبناء الجدول.</div></td></tr>`;
   }
 }
 
