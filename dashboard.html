@@ -31,8 +31,8 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-height:100vh;overflow-x:hidden}
 
-/* SIDEBAR */
-.sidebar{position:fixed;top:0;right:0;width:230px;height:100vh;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:100}
+/* SIDEBAR & RESPONSIVE */
+.sidebar{position:fixed;top:0;right:0;width:230px;height:100vh;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:1000;transition:right 0.3s ease;}
 .sidebar-logo{padding:20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
 .logo-icon{width:42px;height:42px;background:linear-gradient(135deg,var(--green),var(--green-2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#fff;flex-shrink:0}
 .logo-text{font-size:.9rem;font-weight:800;line-height:1.3}
@@ -47,10 +47,11 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
 .sidebar-footer{margin-top:auto;padding:14px;border-top:1px solid var(--border);font-size:.7rem;color:var(--text-muted);text-align:center}
 
 /* MAIN */
-.main{margin-right:230px;min-height:100vh;display:flex;flex-direction:column}
+.main{margin-right:230px;min-height:100vh;display:flex;flex-direction:column;transition:margin-right 0.3s ease;}
 
 /* TOPBAR */
 .topbar{height:56px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:50}
+.menu-btn{display:none;background:none;border:none;color:var(--text);font-size:1.2rem;cursor:pointer;padding:5px;}
 .topbar-title{font-size:.95rem;font-weight:800;flex:1}
 .topbar-date{font-size:.72rem;color:var(--text-muted)}
 .btn-refresh{background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);width:34px;height:34px;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:.82rem}
@@ -100,10 +101,10 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
 .chart-subtitle{font-size:.68rem;color:var(--text-muted)}
 
 /* TABLE */
-.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px}
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;overflow-x:auto;}
 .table-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
 .table-title{font-size:.88rem;font-weight:700}
-.data-table{width:100%;border-collapse:collapse}
+.data-table{width:100%;border-collapse:collapse;white-space:nowrap;}
 .data-table th{padding:10px 14px;font-size:.68rem;font-weight:700;color:var(--text-muted);text-align:right;background:var(--surface2);border-bottom:1px solid var(--border)}
 .data-table td{padding:12px 14px;font-size:.8rem;border-bottom:1px solid rgba(31,47,36,.6);color:var(--text)}
 .data-table tr:last-child td{border-bottom:none}
@@ -141,7 +142,15 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
 .alert-error{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius-sm);background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--loss);font-size:.8rem;font-weight:600;margin-bottom:14px}
 
 /* RESPONSIVE */
-@media(max-width:768px){.sidebar{width:0;overflow:hidden}.main{margin-right:0}.charts-row{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,1fr)}.net-hero-value{font-size:2rem}}
+@media(max-width:768px){
+  .sidebar { right: -230px; }
+  .sidebar.active { right: 0; box-shadow: -5px 0 25px rgba(0,0,0,0.5); }
+  .main { margin-right: 0; }
+  .menu-btn { display: block; }
+  .charts-row { grid-template-columns: 1fr; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .net-hero-value { font-size: 2rem; }
+}
 
 /* PROGRESS */
 .progress-item{margin-bottom:12px}
@@ -152,15 +161,13 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
 </head>
 <body>
 
-<!-- LOADING -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loading-logo">الزيادي</div>
   <div class="loading-spinner"></div>
   <div class="loading-text">جاري تحميل البيانات المالية...</div>
 </div>
 
-<!-- SIDEBAR -->
-<nav class="sidebar">
+<nav class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="logo-icon">ز</div>
     <div class="logo-text">شركة الزيادي<span>النظام المحاسبي المتكامل</span></div>
@@ -204,9 +211,9 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
   <div class="sidebar-footer">نظام الزيادي المحاسبي v2.0</div>
 </nav>
 
-<!-- MAIN -->
 <div class="main">
   <div class="topbar">
+    <button class="menu-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
     <div class="status-dot"></div>
     <div class="topbar-title" id="viewTitle">لوحة التحكم</div>
     <div class="topbar-date" id="currentDate"></div>
@@ -218,16 +225,15 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
   <div class="content">
     <div id="errorBanner"></div>
 
-    <!-- ══════════════ DASHBOARD ══════════════ -->
     <div class="view active" id="view-dashboard">
       <div class="net-hero">
-        <div class="net-hero-label">◆ صافي الربح / الخسارة</div>
+        <div class="net-hero-label">◆ صافي التدفق النقدي المتوفر (الكاش)</div>
         <div class="net-hero-value" id="heroNet">—</div>
-        <div class="net-hero-eq">المبيعات (الفواتير) − المشتريات − المصاريف التشغيلية</div>
+        <div class="net-hero-eq">المبيعات الإجمالية − مدفوعات الموردين − المصاريف التشغيلية</div>
         <div class="mini-stats">
           <div class="mini-stat">
             <div class="mini-stat-val" id="heroMargin" style="color:var(--profit)">—</div>
-            <div class="mini-stat-lbl">هامش الربح</div>
+            <div class="mini-stat-lbl">مؤشر التدفق</div>
           </div>
           <div class="mini-stat">
             <div class="mini-stat-val" id="heroCount">—</div>
@@ -272,9 +278,9 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
           <i class="fas fa-truck kpi-icon"></i>
         </div>
         <div class="kpi-card gd">
-          <div class="kpi-label"><i class="fas fa-vault" style="color:var(--gold)"></i>صافي الصندوق</div>
+          <div class="kpi-label"><i class="fas fa-vault" style="color:var(--gold)"></i>صافي الصندوق الحقيقي</div>
           <div class="kpi-value" id="k-cash" style="color:var(--gold)">—</div>
-          <div class="kpi-sub">قبض − صرف</div>
+          <div class="kpi-sub">إجمالي القبض − الصرف</div>
           <i class="fas fa-vault kpi-icon"></i>
         </div>
       </div>
@@ -284,7 +290,7 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
           <div class="chart-header">
             <div>
               <div class="chart-title">التدفق المالي</div>
-              <div class="chart-subtitle">مقارنة المبيعات والمشتريات والمصاريف والأرباح</div>
+              <div class="chart-subtitle">مقارنة المبيعات والمشتريات والمصاريف والتدفق</div>
             </div>
           </div>
           <canvas id="flowChart" height="170"></canvas>
@@ -307,7 +313,6 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ SALES ══════════════ -->
     <div class="view" id="view-sales">
       <div class="section-title"><i class="fas fa-file-invoice" style="color:var(--profit)"></i>المبيعات</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
@@ -321,7 +326,6 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ PURCHASES ══════════════ -->
     <div class="view" id="view-purchases">
       <div class="section-title"><i class="fas fa-cart-shopping" style="color:var(--loss)"></i>المشتريات</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
@@ -335,7 +339,6 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ EXPENSES ══════════════ -->
     <div class="view" id="view-expenses">
       <div class="section-title"><i class="fas fa-receipt" style="color:var(--orange)"></i>المصاريف</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
@@ -349,7 +352,6 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ CASH ══════════════ -->
     <div class="view" id="view-cash">
       <div class="section-title"><i class="fas fa-vault" style="color:var(--gold)"></i>الصندوق</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
@@ -363,7 +365,6 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ CUSTOMERS ══════════════ -->
     <div class="view" id="view-customers">
       <div class="section-title"><i class="fas fa-users" style="color:var(--blue)"></i>العملاء</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
@@ -377,7 +378,6 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ SUPPLIERS ══════════════ -->
     <div class="view" id="view-suppliers">
       <div class="section-title"><i class="fas fa-truck" style="color:#a78bfa"></i>الموردين</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
@@ -391,16 +391,15 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ REPORTS ══════════════ -->
     <div class="view" id="view-reports">
       <div class="section-title"><i class="fas fa-file-chart-column" style="color:var(--gold)"></i>قائمة الأرباح والخسائر</div>
       <div class="net-hero" style="margin-bottom:20px">
-        <div class="net-hero-label">◆ صافي الدخل النهائي</div>
+        <div class="net-hero-label">◆ صافي التدفق النقدي</div>
         <div class="net-hero-value" id="rep-net">—</div>
         <div class="net-hero-eq">إجمالي المبيعات − إجمالي المشتريات − المصاريف التشغيلية</div>
       </div>
       <div class="table-card" style="margin-bottom:20px">
-        <div class="table-header"><div class="table-title">قائمة الأرباح والخسائر التفصيلية</div></div>
+        <div class="table-header"><div class="table-title">قائمة التدفق المالي التفصيلية</div></div>
         <table class="data-table">
           <thead><tr><th>البند المحاسبي</th><th>المبلغ (ج.م)</th><th>الطبيعة</th><th>% من المبيعات</th></tr></thead>
           <tbody id="plTable"><tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">جاري التحميل...</td></tr></tbody>
@@ -415,8 +414,7 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
 
 <script type="module">
 import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs, query, orderBy, limit }
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey:"AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -428,6 +426,21 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
+
+/* ── UI CONTROLS ── */
+window.toggleSidebar = function() {
+  document.getElementById('sidebar').classList.toggle('active');
+};
+
+const titles={dashboard:'لوحة التحكم',sales:'المبيعات',purchases:'المشتريات',expenses:'المصاريف',cash:'الصندوق',customers:'العملاء',suppliers:'الموردين',reports:'الأرباح والخسائر'};
+window.showView = function(name, el) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  if(el) el.classList.add('active');
+  document.getElementById('viewTitle').textContent = titles[name]||name;
+  document.getElementById('sidebar').classList.remove('active'); // الإغلاق التلقائي في الموبايل
+};
 
 /* ── UTILS ── */
 const fmt  = v => Number(v||0).toLocaleString('ar-EG',{minimumFractionDigits:2});
@@ -452,10 +465,17 @@ window.loadAllData = async function() {
   document.getElementById('errorBanner').innerHTML = '';
 
   try {
-    // ── 1. invoices (مبيعات) ──
-    const invSnap  = await getDocs(collection(db,'invoices'));
-    const invoices = invSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const [invSnap, purSnap, expSnap, transSnap, custSnap, supSnap] = await Promise.all([
+      getDocs(collection(db,'invoices')),
+      getDocs(collection(db,'supplier_transactions')),
+      getDocs(collection(db,'expenses')),
+      getDocs(collection(db,'transactions')),
+      getDocs(collection(db,'customers')),
+      getDocs(collection(db,'suppliers'))
+    ]);
 
+    // ── 1. invoices (مبيعات) ──
+    const invoices = invSnap.docs.map(d=>({id:d.id,...d.data()}));
     let totalSales = 0, totalRemaining = 0;
     invoices.forEach(inv => {
       totalSales     += Number(inv.total||0);
@@ -463,7 +483,6 @@ window.loadAllData = async function() {
     });
 
     // ── 2. supplier_transactions (مشتريات) ──
-    const purSnap   = await getDocs(collection(db,'supplier_transactions'));
     const purchases = purSnap.docs.map(d=>({id:d.id,...d.data()}));
     let totalPur = 0, totalPurRem = 0;
     purchases.forEach(p => {
@@ -473,14 +492,12 @@ window.loadAllData = async function() {
     });
 
     // ── 3. expenses (مصاريف) ──
-    const expSnap  = await getDocs(collection(db,'expenses'));
     const expenses = expSnap.docs.map(d=>({id:d.id,...d.data()}));
     let totalExp = 0;
     expenses.forEach(e => { totalExp += Number(e.amount||0); });
 
     // ── 4. transactions (صندوق) ──
-    const transSnap = await getDocs(collection(db,'transactions'));
-    const trans     = transSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const trans = transSnap.docs.map(d=>({id:d.id,...d.data()}));
     let cashIn = 0, cashOut = 0;
     trans.forEach(t => {
       const type = (t.type||'').trim();
@@ -490,10 +507,7 @@ window.loadAllData = async function() {
     const cashNet = cashIn - cashOut;
 
     // ── 5. customers ──
-    const custSnap = await getDocs(collection(db,'customers'));
     const customers = custSnap.docs.map(d=>({id:d.id,...d.data()}));
-
-    // حساب مجموع مبيعات لكل عميل من invoices
     const custMap = {};
     customers.forEach(c => { custMap[c.id] = {...c, salesTotal:0, debtTotal:0}; });
     invoices.forEach(inv => {
@@ -506,11 +520,10 @@ window.loadAllData = async function() {
     const custDebt = custList.reduce((s,c)=>s+(c.debtTotal||Number(c.currentBalance||0)),0);
 
     // ── 6. suppliers ──
-    const supSnap = await getDocs(collection(db,'suppliers'));
     const suppliers = supSnap.docs.map(d=>({id:d.id,...d.data()}));
     const supDebt = suppliers.reduce((s,sp)=>s+Number(sp.currentBalance||0),0);
 
-    // ── CALC ──
+    // ── CALC (التدفق النقدي الفعلي بدلاً من الربح الدفتري) ──
     const netIncome = totalSales - totalPur - totalExp;
     const margin    = totalSales ? ((netIncome/totalSales)*100).toFixed(1) : 0;
     const totalCount= invoices.length + purchases.length + expenses.length;
@@ -546,7 +559,7 @@ window.loadAllData = async function() {
     buildFlowChart(totalSales, totalPur, totalExp, netIncome);
     buildPieChart(totalPur, totalExp, netIncome);
 
-    // RECENT (mix invoices + purchases + expenses, sort by timestamp)
+    // RECENT
     const recentItems = [
       ...invoices.map(d=>({...d,_t:'بيع',_amt:Number(d.total||0)})),
       ...purchases.map(d=>({...d,_t:'شراء',_amt:Number(d.grossTotal||d.total||0)})),
@@ -663,15 +676,15 @@ window.loadAllData = async function() {
     const plRows = [
       {label:'إجمالي الإيرادات (المبيعات)',  val:totalSales,   cls:''},
       {label:'تكلفة البضاعة المباعة (المشتريات)', val:-totalPur, cls:''},
-      {label:'مجمل الربح', val:grossProfit, cls:'pl-row-gross', bold:true},
+      {label:'مجمل العائد النقدي', val:grossProfit, cls:'pl-row-gross', bold:true},
       {label:'المصاريف التشغيلية', val:-totalExp, cls:''},
-      {label:'صافي الربح / الخسارة', val:netIncome, cls:'pl-row-net', bold:true},
+      {label:'صافي التدفق النقدي', val:netIncome, cls:'pl-row-net', bold:true},
     ];
     document.getElementById('plTable').innerHTML = plRows.map(r=>`
       <tr class="${r.cls}" ${r.bold?'style="font-weight:800"':''}>
         <td>${r.label}</td>
         <td style="color:${r.val>=0?'var(--profit)':'var(--loss)'};">${fmtC(Math.abs(r.val))}</td>
-        <td><span class="badge ${r.val>=0?'bg':'br'}">${r.val>=0?'دائن':'مدين'}</span></td>
+        <td><span class="badge ${r.val>=0?'bg':'br'}">${r.val>=0?'موجب':'سالب'}</span></td>
         <td style="color:var(--text-muted)">${pct(Math.abs(r.val),totalSales)}</td>
       </tr>`).join('');
     buildReportChart(totalSales, totalPur, totalExp, grossProfit, netIncome);
@@ -717,7 +730,7 @@ function renderRecent(items) {
 
 /* ── CHARTS ── */
 const chartOpts = (extra={}) => ({
-  responsive:true, maintainAspectRatio:true,
+  responsive:true, maintainAspectRatio:false,
   plugins:{legend:{labels:{color:'#7a9982',font:{family:'Cairo',size:11}}}},
   scales:{
     x:{ticks:{color:'#7a9982',font:{family:'Cairo'}},grid:{color:'rgba(31,47,36,.5)'}},
@@ -729,7 +742,7 @@ function buildFlowChart(s,p,e,n){
   const ctx=document.getElementById('flowChart').getContext('2d');
   if(flowCh) flowCh.destroy();
   flowCh=new Chart(ctx,{type:'bar',data:{
-    labels:['المبيعات','المشتريات','المصاريف','صافي الربح'],
+    labels:['المبيعات','المشتريات','المصاريف','صافي التدفق'],
     datasets:[{data:[s,p,e,n],
       backgroundColor:['rgba(34,197,94,.65)','rgba(239,68,68,.65)','rgba(251,146,60,.65)','rgba(223,161,0,.65)'],
       borderColor:['#22c55e','#ef4444','#fb923c','#dfa100'],borderWidth:1.5,borderRadius:6}]
@@ -740,11 +753,11 @@ function buildPieChart(p,e,n){
   const ctx=document.getElementById('pieChart').getContext('2d');
   if(pieCh) pieCh.destroy();
   pieCh=new Chart(ctx,{type:'doughnut',data:{
-    labels:['المشتريات','المصاريف','صافي الربح'],
+    labels:['المشتريات','المصاريف','التدفق الإيجابي'],
     datasets:[{data:[p,e,Math.max(0,n)],
       backgroundColor:['rgba(239,68,68,.7)','rgba(251,146,60,.7)','rgba(34,197,94,.7)'],
       borderColor:['#ef4444','#fb923c','#22c55e'],borderWidth:1.5}]
-  },options:{responsive:true,maintainAspectRatio:true,cutout:'62%',
+  },options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
     plugins:{legend:{position:'bottom',labels:{color:'#7a9982',font:{family:'Cairo',size:10},padding:10}}}}});
 }
 
@@ -752,22 +765,12 @@ function buildReportChart(s,p,e,g,n){
   const ctx=document.getElementById('reportChart').getContext('2d');
   if(repCh) repCh.destroy();
   repCh=new Chart(ctx,{type:'bar',data:{
-    labels:['الإيرادات','تكلفة الشراء','المصاريف','مجمل الربح','صافي الربح'],
+    labels:['الإيرادات','تكلفة الشراء','المصاريف','مجمل العائد','صافي التدفق'],
     datasets:[{data:[s,p,e,g,n],
       backgroundColor:['rgba(34,197,94,.7)','rgba(239,68,68,.7)','rgba(251,146,60,.7)','rgba(56,189,248,.7)','rgba(223,161,0,.7)'],
       borderColor:['#22c55e','#ef4444','#fb923c','#38bdf8','#dfa100'],borderWidth:1,borderRadius:5}]
   },options:{...chartOpts(),plugins:{legend:{display:false}}}});
 }
-
-/* ── NAVIGATION ── */
-const titles={dashboard:'لوحة التحكم',sales:'المبيعات',purchases:'المشتريات',expenses:'المصاريف',cash:'الصندوق',customers:'العملاء',suppliers:'الموردين',reports:'الأرباح والخسائر'};
-window.showView = function(name, el) {
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  document.getElementById('view-'+name).classList.add('active');
-  if(el) el.classList.add('active');
-  document.getElementById('viewTitle').textContent = titles[name]||name;
-};
 
 /* ── INIT ── */
 document.getElementById('currentDate').textContent = today();
@@ -775,4 +778,3 @@ window.loadAllData();
 </script>
 </body>
 </html>
-ضبط الكود لانه لايعبر عن الحقيقه مع اعاده تنسيقه
