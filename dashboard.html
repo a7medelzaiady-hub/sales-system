@@ -145,7 +145,11 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
 .table-input:focus { border-color: var(--gold); background: rgba(0,0,0,0.4); }
 .lbl-date-saved { font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 4px; font-weight: normal; }
 
-/* RESPONSIVE */
+/* P&L TABLE */
+.pl-row-total{background:var(--surface2);font-weight:800}
+.pl-row-gross{background:rgba(11,94,61,.15)}
+.pl-row-net{background:rgba(223,161,0,.08);border-top:2px solid var(--gold)}
+
 @media(max-width:768px){
   .sidebar { right: -230px; }
   .sidebar.active { right: 0; box-shadow: -5px 0 25px rgba(0,0,0,0.5); }
@@ -228,6 +232,7 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
 
     <div class="view active" id="view-dashboard">
       
+      <!-- جدول الأرصدة الافتتاحية والمقارنة المطوّر -->
       <div class="table-card" style="border: 1px solid rgba(223,161,0,0.3); margin-bottom:25px;">
         <div class="table-header" style="background: rgba(223,161,0,0.04)">
           <div class="table-title" style="color: var(--gold); font-weight:800;">
@@ -290,6 +295,7 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
         </table>
       </div>
 
+      <!-- قسم التوصيات الذكية المولدة تلقائياً -->
       <div class="rec-card" id="recommendationsCard">
         <div class="table-title" style="color: var(--gold); margin-bottom: 12px; font-weight:800;">
           <i class="fas fa-wand-magic-sparkles"></i> توصيات ذكية وإجراءات مقترحة بناءً على التحليل المالي
@@ -572,7 +578,7 @@ window.saveInitialBalances = async function() {
   }
 };
 
-/* ── MAIN LOAD ── */
+/* ── MAIN LOAD (نسخة آمنة ومقاومة للتوقف تماماً) ── */
 window.loadAllData = async function() {
   const btn = document.getElementById('refreshBtn');
   const selectedDate = document.getElementById('filterDate').value; 
@@ -581,16 +587,32 @@ window.loadAllData = async function() {
   document.getElementById('errorBanner').innerHTML = '';
 
   try {
-    const [invSnap, purSnap, expSnap, transSnap, custSnap, supSnap, initDoc, prodSnap] = await Promise.all([
+    // جلب الوثائق الأساسية بشكل توازي
+    const [invSnap, purSnap, expSnap, transSnap, custSnap, supSnap, initDoc] = await Promise.all([
       getDocs(collection(db,'invoices')),
       getDocs(collection(db,'supplier_transactions')),
       getDocs(collection(db,'expenses')),
       getDocs(collection(db,'transactions')),
       getDocs(collection(db,'customers')),
       getDocs(collection(db,'suppliers')),
-      getDoc(doc(db, 'settings', 'initial_balances')),
-      getDocs(collection(db,'products')) // لجلب حركة رصيد المخزن الحالي كقيمة مالية
+      getDoc(doc(db, 'settings', 'initial_balances'))
     ]);
+
+    // جلب المنتجات في بلوك منفصل ومحمى تماماً لضمان عدم وقوف الصفحة بسبب حقل التكلفة
+    let currentInventoryValue = 0;
+    try {
+      const prodSnap = await getDocs(collection(db,'products'));
+      prodSnap.forEach(pDoc => {
+        const p = pDoc.data();
+        const qty = Number(p.quantity || p.stock || p.quantity_jarkan || p.quantity_carton || 0);
+        const cost = Number(p.purchasePrice || p.costPrice || p.cost || 0);
+        if (!isNaN(qty) && !isNaN(cost)) {
+          currentInventoryValue += (qty * cost);
+        }
+      });
+    } catch (e) {
+      console.warn("فشل جلب قيمة المخزن تفصيلياً، سيتم الاعتماد على المعادلة البديلة لحماية الواجهة:", e);
+    }
 
     // جلب بيانات الأرصدة الافتتاحية والتاريخ المسجلة به
     const initVals = initDoc.exists() ? initDoc.data() : { cash: 0, customers: 0, suppliers: 0, inventory: 0, savedAt: '—' };
@@ -668,22 +690,13 @@ window.loadAllData = async function() {
     const suppliers = supSnap.docs.map(d=>({id:d.id,...d.data()}));
     const periodSupDebt = suppliers.reduce((s,sp)=>s+Number(sp.currentBalance||0),0);
 
-    // ── 7. Products (Inventory Value Calculation) ──
-    let currentInventoryValue = 0;
-    prodSnap.forEach(pDoc => {
-      const p = pDoc.data();
-      const qty = Number(p.quantity || p.stock || 0);
-      const cost = Number(p.purchasePrice || p.costPrice || p.cost || 0);
-      currentInventoryValue += (qty * cost);
-    });
-
     // ==========================================
     // ── تطبيق المعادلات المالية ومقارنة الأرصدة ──
     // ==========================================
     const actualCashBalance  = (initVals.cash || 0) + cashIn - cashOut;
     const actualCustomerDebt = (initVals.customers || 0) + periodCustDebt;
     const actualSupplierDebt = (initVals.suppliers || 0) + periodSupDebt;
-    const actualInventoryVal = currentInventoryValue > 0 ? currentInventoryValue : (initVals.inventory || 0) + totalPur - totalSales; // حماية في حال غياب حقل التكلفة
+    const actualInventoryVal = currentInventoryValue > 0 ? currentInventoryValue : (initVals.inventory || 0) + totalPur - totalSales;
 
     // حساب الانحرافات والفروق
     const diffCash = actualCashBalance - (initVals.cash || 0);
@@ -691,7 +704,7 @@ window.loadAllData = async function() {
     const diffSup  = actualSupplierDebt - (initVals.suppliers || 0);
     const diffInv  = actualInventoryVal - (initVals.inventory || 0);
 
-    // عرض القيم داخل الجدول التفاعلي للمقارنة
+    // عرض القيم داخل جدول المقارنة التفاعلي
     document.getElementById('currCash').textContent = fmtC(actualCashBalance);
     document.getElementById('currCust').textContent = fmtC(actualCustomerDebt);
     document.getElementById('currSup').textContent  = fmtC(actualSupplierDebt);
@@ -703,12 +716,11 @@ window.loadAllData = async function() {
     document.getElementById('diffSup').innerHTML  = `<span style="color:${diffSup <= 0 ? 'var(--profit)' : 'var(--loss)'}">${diffSup >= 0 ? '▲ التزامات جديدة للموردين: ' : '▼ سداد مستحقات بـ: '} ${fmtC(Math.abs(diffSup))}</span>`;
     document.getElementById('diffInv').innerHTML  = `<span style="color:${clr(diffInv)}">${diffInv >= 0 ? '▲ تضخم بالمخزون: ' : '▼ سحب مبيعات من المخزون: '} ${fmtC(Math.abs(diffInv))}</span>`;
 
-    // حساب صافي التدفق المالي الحالي للعمليات
     const netIncome = totalSales - totalPur - totalExp;
     const margin    = totalSales ? ((netIncome/totalSales)*100).toFixed(1) : 0;
     const totalCount= invoices.length + purchases.length + expenses.length;
 
-    // ── 8. توليد التوصيات والتحليل المالي المتقدم ──
+    // توليد التوصيات والتحليل المالي المتقدم تلقائياً
     generateAiRecommendations(actualCashBalance, actualCustomerDebt, actualSupplierDebt, actualInventoryVal, totalSales, totalPur, totalExp, initVals);
 
     // ══════════ RENDER DASHBOARD ══════════
@@ -723,7 +735,6 @@ window.loadAllData = async function() {
     document.getElementById('heroCount').textContent = totalCount;
     document.getElementById('heroCash').textContent  = fmtC(actualCashBalance);
 
-    // تفعيل وتحديث الـ KPIs
     document.getElementById('k-sales').textContent  = fmtC(totalSales);
     document.getElementById('k-sales-c').textContent= invoices.length + ' فاتورة بيع';
     document.getElementById('k-pur').textContent    = fmtC(totalPur);
@@ -735,17 +746,15 @@ window.loadAllData = async function() {
     document.getElementById('k-cust-s').textContent = 'إجمالي الديون: ' + fmtC(actualCustomerDebt);
     
     document.getElementById('k-sup').textContent    = suppliers.length;
-    document.getElementById('k-sup-s').textContent  = 'إجمالي المستحقات: ' + fmtC(actualSupplierDebt);
+    document.getElementById('k-sup-s').textContent = 'إجمالي المستحقات: ' + fmtC(actualSupplierDebt);
     
     const cashEl = document.getElementById('k-cash');
     cashEl.textContent = fmtC(actualCashBalance); 
     cashEl.style.color = clr(actualCashBalance);
 
-    // بناء الرسوم البيانية
     buildFlowChart(totalSales, totalPur, totalExp, netIncome);
     buildPieChart(totalPur, totalExp, netIncome);
 
-    // آخر الحركات المالية
     const recentItems = [
       ...invoices.map(d=>({...d,_t:'بيع',_amt:Number(d.total||0)})),
       ...purchases.map(d=>({...d,_t:'شراء',_amt:Number(d.grossTotal||d.total||0)})),
@@ -753,131 +762,67 @@ window.loadAllData = async function() {
     ].sort((a,b)=>ts(b)-ts(a)).slice(0,10);
     renderRecent(recentItems);
 
-    // SALES VIEW
-    document.getElementById('s-tot').textContent = fmtC(totalSales);
-    document.getElementById('s-cnt').textContent = invoices.length;
-    document.getElementById('s-rem').textContent = fmtC(totalRemaining);
-    document.getElementById('salesTable').innerHTML = renderTable(
-      invoices.sort((a,b)=>ts(b)-ts(a)),
-      ['العميل','إجمالي الفاتورة','المدفوع','المتبقي','طريقة الدفع','التاريخ'],
-      d=>[
-        d.customerName||'—',
-        `<span style="color:var(--profit);font-weight:700">${fmtC(d.total)}</span>`,
-        fmtC(d.paid),
-        d.remaining>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.remaining)}</span>` : `<span class="badge bg">مسدد</span>`,
-        d.paymentMethod ? `<span class="badge bb">${d.paymentMethod}</span>` : '—',
-        dateStr(d)
-      ]
-    );
+    // تفعيل وجلب جداول العرض الأخرى بأمان
+    setTimeout(() => {
+      try {
+        // SALES VIEW
+        document.getElementById('s-tot').textContent = fmtC(totalSales);
+        document.getElementById('s-cnt').textContent = invoices.length;
+        document.getElementById('s-rem').textContent = fmtC(totalRemaining);
+        document.getElementById('salesTable').innerHTML = renderTable(invoices.sort((a,b)=>ts(b)-ts(a)), ['العميل','إجمالي الفاتورة','المدفوع','المتبقي','طريقة الدفع','التاريخ'], d=>[d.customerName||'—', `<span style="color:var(--profit);font-weight:700">${fmtC(d.total)}</span>`, fmtC(d.paid), d.remaining>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.remaining)}</span>` : `<span class="badge bg">مسدد</span>`, d.paymentMethod ? `<span class="badge bb">${d.paymentMethod}</span>` : '—', dateStr(d)]);
+        
+        // PURCHASES VIEW
+        document.getElementById('p-tot').textContent = fmtC(totalPur);
+        document.getElementById('p-cnt').textContent = purchases.length;
+        document.getElementById('p-rem').textContent = fmtC(totalPurRem);
+        const supNames = {}; suppliers.forEach(s=>supNames[s.id]=s.name);
+        document.getElementById('purchasesTable').innerHTML = renderTable(purchases.sort((a,b)=>ts(b)-ts(a)), ['المورد','إجمالي الفاتورة','المدفوع','المتبقي','نوع الدفع','التاريخ'], d=>[supNames[d.supplierId]||'—', `<span style="color:var(--loss);font-weight:700">${fmtC(d.grossTotal||d.total)}</span>`, fmtC(d.totalPaid||d.cashPaid), d.netTotal>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.netTotal)}</span>` : `<span class="badge bg">مسدد</span>`, d.paymentType ? `<span class="badge bb">${d.paymentType}</span>` : '—', dateStr(d)]);
 
-    // PURCHASES VIEW
-    document.getElementById('p-tot').textContent = fmtC(totalPur);
-    document.getElementById('p-cnt').textContent = purchases.length;
-    document.getElementById('p-rem').textContent = fmtC(totalPurRem);
-    const supNames = {};
-    suppliers.forEach(s=>supNames[s.id]=s.name);
-    document.getElementById('purchasesTable').innerHTML = renderTable(
-      purchases.sort((a,b)=>ts(b)-ts(a)),
-      ['المورد','إجمالي الفاتورة','المدفوع','المتبقي','نوع الدفع','التاريخ'],
-      d=>[
-        supNames[d.supplierId]||'—',
-        `<span style="color:var(--loss);font-weight:700">${fmtC(d.grossTotal||d.total)}</span>`,
-        fmtC(d.totalPaid||d.cashPaid),
-        d.netTotal>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.netTotal)}</span>` : `<span class="badge bg">مسدد</span>`,
-        d.paymentType ? `<span class="badge bb">${d.paymentType}</span>` : '—',
-        dateStr(d)
-      ]
-    );
+        // EXPENSES VIEW
+        const eAvg = expenses.length ? totalExp/expenses.length : 0;
+        document.getElementById('e-tot').textContent = fmtC(totalExp);
+        document.getElementById('e-cnt').textContent = expenses.length;
+        document.getElementById('e-avg').textContent = fmtC(eAvg);
+        document.getElementById('expensesTable').innerHTML = renderTable(expenses.sort((a,b)=>ts(b)-ts(a)), ['نوع المصروف','ملاحظة','المبلغ','التاريخ'], d=>[d.type||'—', d.note||'—', `<span style="color:var(--orange);font-weight:700">${fmtC(d.amount)}</span>`, dateStr(d)]);
 
-    // EXPENSES VIEW
-    const eAvg = expenses.length ? totalExp/expenses.length : 0;
-    document.getElementById('e-tot').textContent = fmtC(totalExp);
-    document.getElementById('e-cnt').textContent = expenses.length;
-    document.getElementById('e-avg').textContent = fmtC(eAvg);
-    document.getElementById('expensesTable').innerHTML = renderTable(
-      expenses.sort((a,b)=>ts(b)-ts(a)),
-      ['نوع المصروف','ملاحظة','المبلغ','التاريخ'],
-      d=>[
-        d.type||'—',
-        d.note||'—',
-        `<span style="color:var(--orange);font-weight:700">${fmtC(d.amount)}</span>`,
-        dateStr(d)
-      ]
-    );
+        // CASH VIEW
+        document.getElementById('c-in').textContent  = fmtC(cashIn);
+        document.getElementById('c-out').textContent = fmtC(cashOut);
+        document.getElementById('c-net').textContent = fmtC(actualCashBalance);
+        document.getElementById('cashTable').innerHTML = renderTable(trans.sort((a,b)=>ts(b)-ts(a)).slice(0,50), ['النوع','البيان','المبلغ','طريقة الدفع','التاريخ'], d=>[`<span class="badge ${d.type==='قبض'?'bg':'br'}">${d.type||'—'}</span>`, d.details||d.notes||d.actionType||'—', `<span style="color:${d.type==='قبض'?'var(--profit)':'var(--loss)'};font-weight:700">${fmtC(d.amount)}</span>`, d.paymentMethod ? `<span class="badge bb">${d.paymentMethod}</span>` : '—', dateStr(d)]);
 
-    // CASH VIEW
-    document.getElementById('c-in').textContent  = fmtC(cashIn);
-    document.getElementById('c-out').textContent = fmtC(cashOut);
-    const cnEl = document.getElementById('c-net');
-    cnEl.textContent = fmtC(actualCashBalance);
-    cnEl.style.color = clr(actualCashBalance);
-    document.getElementById('cashTable').innerHTML = renderTable(
-      trans.sort((a,b)=>ts(b)-ts(a)).slice(0,50),
-      ['النوع','البيان','المبلغ','طريقة الدفع','التاريخ'],
-      d=>[
-        `<span class="badge ${d.type==='قبض'?'bg':'br'}">${d.type||'—'}</span>`,
-        d.details||d.notes||d.actionType||'—',
-        `<span style="color:${d.type==='قبض'?'var(--profit)':'var(--loss)'};font-weight:700">${fmtC(d.amount)}</span>`,
-        d.paymentMethod ? `<span class="badge bb">${d.paymentMethod}</span>` : '—',
-        dateStr(d)
-      ]
-    );
+        // CUSTOMERS VIEW
+        document.getElementById('cu-cnt').textContent = custList.length;
+        document.getElementById('cu-tot').textContent = fmtC(custList.reduce((s,c)=>s+c.salesTotal,0));
+        document.getElementById('cu-dbt').textContent = fmtC(actualCustomerDebt);
+        document.getElementById('customersTable').innerHTML = renderTable(custList.sort((a,b)=>b.salesTotal-a.salesTotal), ['اسم العميل','إجمالي المشتريات','المديونية (الحالية)','الرصيد الافتراضي'], d=>[d.name||'—', `<span style="color:var(--profit);font-weight:700">${fmtC(d.salesTotal)}</span>`, d.debtTotal>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.debtTotal)}</span>` : `<span class="badge bg">مسدد</span>`, fmtC(d.initialBalance||0)]);
 
-    // CUSTOMERS VIEW
-    document.getElementById('cu-cnt').textContent = custList.length;
-    document.getElementById('cu-tot').textContent = fmtC(custList.reduce((s,c)=>s+c.salesTotal,0));
-    document.getElementById('cu-dbt').textContent = fmtC(actualCustomerDebt);
-    document.getElementById('customersTable').innerHTML = renderTable(
-      custList.sort((a,b)=>b.salesTotal-a.salesTotal),
-      ['اسم العميل','إجمالي المشتريات','المديونية (الحالية)','الرصيد الافتراضي'],
-      d=>[
-        d.name||'—',
-        `<span style="color:var(--profit);font-weight:700">${fmtC(d.salesTotal)}</span>`,
-        d.debtTotal>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.debtTotal)}</span>` : `<span class="badge bg">مسدد</span>`,
-        fmtC(d.initialBalance||0)
-      ]
-    );
+        // SUPPLIERS VIEW
+        document.getElementById('su-cnt').textContent = suppliers.length;
+        document.getElementById('su-tot').textContent = fmtC(totalPur);
+        document.getElementById('su-dbt').textContent = fmtC(actualSupplierDebt);
+        document.getElementById('suppliersTable').innerHTML = renderTable(suppliers.sort((a,b)=>Number(b.currentBalance||0)-Number(a.currentBalance||0)), ['اسم المورد','الرصيد الحالي (مستحقات)','تاريخ الإضافة'], d=>[d.name||'—', Number(d.currentBalance||0) > 0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.currentBalance)}</span>` : `<span class="badge bg">لا يوجد</span>`, d.createdAt?.toDate ? d.createdAt.toDate().toLocaleDateString('ar-EG') : '—']);
 
-    // SUPPLIERS VIEW
-    document.getElementById('su-cnt').textContent = suppliers.length;
-    document.getElementById('su-tot').textContent = fmtC(totalPur);
-    document.getElementById('su-dbt').textContent = fmtC(actualSupplierDebt);
-    document.getElementById('suppliersTable').innerHTML = renderTable(
-      suppliers.sort((a,b)=>Number(b.currentBalance||0)-Number(a.currentBalance||0)),
-      ['اسم المورد','الرصيد الحالي (مستحقات)','تاريخ الإضافة'],
-      d=>[
-        d.name||'—',
-        Number(d.currentBalance||0) > 0
-          ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.currentBalance)}</span>`
-          : `<span class="badge bg">لا يوجد</span>`,
-        d.createdAt?.toDate ? d.createdAt.toDate().toLocaleDateString('ar-EG') : '—'
-      ]
-    );
-
-    // REPORTS VIEW
-    const repEl = document.getElementById('rep-net');
-    repEl.textContent = fmtC(netIncome);
-    repEl.style.color = clr(netIncome);
-    const grossProfit = totalSales - totalPur;
-    const plRows = [
-      {label:'إجمالي الإيرادات (المبيعات)',  val:totalSales,   cls:''},
-      {label:'تكلفة البضاعة المباعة (المشتريات)', val:-totalPur, cls:''},
-      {label:'مجمل العائد النقدي', val:grossProfit, cls:'pl-row-gross', bold:true},
-      {label:'المصاريف التشغيلية', val:-totalExp, cls:''},
-      {label:'صافي التدفق النقدي', val:netIncome, cls:'pl-row-net', bold:true},
-    ];
-    document.getElementById('plTable').innerHTML = plRows.map(r=>`
-      <tr class="${r.cls}" ${r.bold?'style="font-weight:800"':''}>
-        <td>${r.label}</td>
-        <td style="color:${r.val>=0?'var(--profit)':'var(--loss)'};">${fmtC(Math.abs(r.val))}</td>
-        <td><span class="badge ${r.val>=0?'bg':'br'}">${r.val>=0?'موجب':'سالب'}</span></td>
-        <td style="color:var(--text-muted)">${pct(Math.abs(r.val),totalSales)}</td>
-      </tr>`).join('');
-    buildReportChart(totalSales, totalPur, totalExp, grossProfit, netIncome);
+        // REPORTS VIEW
+        document.getElementById('rep-net').textContent = fmtC(netIncome);
+        const grossProfit = totalSales - totalPur;
+        const plRows = [
+          {label:'إجمالي الإيرادات (المبيعات)',  val:totalSales,   cls:''},
+          {label:'تكلفة البضاعة المباعة (المشتريات)', val:-totalPur, cls:''},
+          {label:'مجمل العائد النقدي', val:grossProfit, cls:'pl-row-gross', bold:true},
+          {label:'المصاريف التشغيلية', val:-totalExp, cls:''},
+          {label:'صافي التدفق النقدي', val:netIncome, cls:'pl-row-net', bold:true},
+        ];
+        document.getElementById('plTable').innerHTML = plRows.map(r=>`<tr class="${r.cls}" ${r.bold?'style="font-weight:800"':''}><td>${r.label}</td><td style="color:${r.val>=0?'var(--profit)':'var(--loss)'};">${fmtC(Math.abs(r.val))}</td><td><span class="badge ${r.val>=0?'bg':'br'}">${r.val>=0?'موجب':'سالب'}</span></td><td style="color:var(--text-muted)">${pct(Math.abs(r.val),totalSales)}</td></tr>`).join('');
+        buildReportChart(totalSales, totalPur, totalExp, grossProfit, netIncome);
+      } catch (innerErr) {
+        console.error("خطأ فرعي أثناء تهيئة أحد جداول العرض المتقدمة:", innerErr);
+      }
+    }, 200);
 
   } catch(err) {
     document.getElementById('errorBanner').innerHTML =
-      `<div class="alert-error"><i class="fas fa-triangle-exclamation"></i>خطأ: ${err.message}</div>`;
+      `<div class="alert-error"><i class="fas fa-triangle-exclamation"></i> خطأ اتصال أو فهرسة بقاعدة البيانات: ${err.message}</div>`;
     console.error(err);
   } finally {
     btn.classList.remove('spinning');
@@ -997,3 +942,14 @@ function buildReportChart(s,p,e,g,n){
   if(repCh) repCh.destroy();
   repCh=new Chart(ctx,{type:'bar',data:{
     labels:['الإيرادات','تكلفة الشراء','المصاريف','مجمل العائد','صافي التدفق'],
+    datasets:[{data:[s,p,e,g,n],
+      backgroundColor:['rgba(34,197,94,.7)','rgba(239,68,68,.7)','rgba(251,146,60,.7)','rgba(56,189,248,.7)','rgba(223,161,0,.7)'],
+      borderColor:['#22c55e','#ef4444','#fb923c','#38bdf8','#dfa100'],borderWidth:1,borderRadius:5}]
+  },options:{...chartOpts(),plugins:{legend:{display:false}}}});
+}
+
+/* ── INIT ── */
+window.loadAllData();
+</script>
+</body>
+</html>
