@@ -3,420 +3,93 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>نظام الزيادي المحاسبي</title>
+<title>نظام الزيادي المالي المتطور</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
 :root {
-  --green:      #0b5e3d;
-  --green-lt:   #128256;
-  --green-2:    #1d8a5a;
-  --gold:       #dfa100;
-  --gold-lt:    #f5b800;
-  --bg:         #0b110e;
-  --surface:    #111a14;
-  --surface2:   #172012;
-  --surface3:   #1e2b1a;
-  --border:     #1f2f24;
-  --text:       #e8f0eb;
-  --text-muted: #7a9982;
-  --profit:     #22c55e;
-  --loss:       #ef4444;
-  --blue:       #38bdf8;
-  --orange:     #fb923c;
-  --radius:     14px;
-  --radius-sm:  8px;
+  --bg: #090e0b; --surface: #121814; --surface2: #1a221d; --border: #252f28;
+  --text: #e0e8e4; --text-muted: #8ca095;
+  --green: #10b981; --red: #ef4444; --gold: #f59e0b; --blue: #3b82f6;
+  --radius: 12px;
 }
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-height:100vh;overflow-x:hidden}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); font-family: 'Cairo', sans-serif; color: var(--text); min-height: 100vh; }
 
-/* SIDEBAR */
-.sidebar{position:fixed;top:0;right:0;width:230px;height:100vh;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:100}
-.sidebar-logo{padding:20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-.logo-icon{width:42px;height:42px;background:linear-gradient(135deg,var(--green),var(--green-2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#fff;flex-shrink:0}
-.logo-text{font-size:.9rem;font-weight:800;line-height:1.3}
-.logo-text span{color:var(--gold);font-size:.7rem;display:block;font-weight:400}
-.nav-section{padding:12px 10px 4px}
-.nav-label{font-size:.62rem;font-weight:700;color:var(--text-muted);letter-spacing:1px;padding:0 8px;margin-bottom:4px}
-.nav-item{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:2px}
-.nav-item:hover{background:var(--surface2);color:var(--text)}
-.nav-item.active{background:rgba(11,94,61,.35);color:var(--gold)}
-.nav-item.active i{color:var(--gold)}
-.nav-icon{width:16px;text-align:center}
-.sidebar-footer{margin-top:auto;padding:14px;border-top:1px solid var(--border);font-size:.7rem;color:var(--text-muted);text-align:center}
+/* LAYOUT */
+.sidebar { position: fixed; right: 0; top: 0; width: 240px; height: 100vh; background: var(--surface); border-left: 1px solid var(--border); z-index: 100; padding: 20px; }
+.main { margin-right: 240px; min-height: 100vh; display: flex; flex-direction: column; }
+.topbar { height: 60px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+.content { padding: 24px; }
 
-/* MAIN */
-.main{margin-right:230px;min-height:100vh;display:flex;flex-direction:column}
+/* CARDS & TABLES */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.table-wrapper { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 20px; }
+.data-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; padding: 0 16px; }
+.data-table th { color: var(--text-muted); font-size: 0.75rem; text-align: right; padding: 12px; }
+.data-table td { background: var(--surface2); padding: 16px; font-size: 0.85rem; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.data-table td:first-child { border-right: 1px solid var(--border); border-radius: 0 8px 8px 0; }
+.data-table td:last-child { border-left: 1px solid var(--border); border-radius: 8px 0 0 8px; }
 
-/* TOPBAR */
-.topbar{height:56px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:50}
-.topbar-title{font-size:.95rem;font-weight:800;flex:1}
-.topbar-date{font-size:.72rem;color:var(--text-muted)}
-.btn-refresh{background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);width:34px;height:34px;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:.82rem}
-.btn-refresh:hover{background:var(--surface3);color:var(--text)}
-.spinning i{animation:spin .7s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.status-dot{width:7px;height:7px;border-radius:50%;background:var(--profit);box-shadow:0 0 5px var(--profit);animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+/* UI ELEMENTS */
+.view { display: none; } .view.active { display: block; }
+.badge { padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; }
+.bg { background: rgba(16,185,129,0.1); color: var(--green); }
+.br { background: rgba(239,68,68,0.1); color: var(--red); }
 
-/* CONTENT */
-.content{padding:20px;flex:1}
-.view{display:none}
-.view.active{display:block}
+.spinning { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-/* KPI GRID */
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px}
-.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
-.kpi-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
-.kpi-card::before{content:'';position:absolute;top:0;right:0;width:3px;height:100%}
-.kpi-card.g::before{background:var(--profit)}
-.kpi-card.r::before{background:var(--loss)}
-.kpi-card.b::before{background:var(--blue)}
-.kpi-card.o::before{background:var(--orange)}
-.kpi-card.gd::before{background:var(--gold)}
-.kpi-card.p::before{background:#a78bfa}
-.kpi-label{font-size:.68rem;font-weight:700;color:var(--text-muted);margin-bottom:8px;display:flex;align-items:center;gap:5px}
-.kpi-value{font-size:1.4rem;font-weight:900;margin-bottom:4px;line-height:1}
-.kpi-sub{font-size:.68rem;color:var(--text-muted)}
-.kpi-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:1.8rem;opacity:.06}
-
-/* NET HERO */
-.net-hero{background:linear-gradient(135deg,#060e08,var(--surface));border:1px solid var(--border);border-radius:var(--radius);padding:28px;text-align:center;position:relative;overflow:hidden;margin-bottom:20px}
-.net-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(11,94,61,.12) 0%,transparent 70%)}
-.net-hero-label{font-size:.72rem;color:var(--text-muted);font-weight:700;margin-bottom:8px;letter-spacing:1px}
-.net-hero-value{font-size:2.8rem;font-weight:900;margin-bottom:6px}
-.net-hero-eq{font-size:.72rem;color:var(--text-muted)}
-.mini-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border-radius:var(--radius-sm);overflow:hidden;margin:14px auto 0;max-width:380px}
-.mini-stat{background:var(--surface2);padding:10px;text-align:center}
-.mini-stat-val{font-size:.95rem;font-weight:800}
-.mini-stat-lbl{font-size:.62rem;color:var(--text-muted);font-weight:600;margin-top:2px}
-
-/* CHARTS */
-.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:20px}
-.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
-.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.chart-title{font-size:.82rem;font-weight:700}
-.chart-subtitle{font-size:.68rem;color:var(--text-muted)}
-
-/* TABLE */
-.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px}
-.table-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
-.table-title{font-size:.88rem;font-weight:700}
-.data-table{width:100%;border-collapse:collapse}
-.data-table th{padding:10px 14px;font-size:.68rem;font-weight:700;color:var(--text-muted);text-align:right;background:var(--surface2);border-bottom:1px solid var(--border)}
-.data-table td{padding:12px 14px;font-size:.8rem;border-bottom:1px solid rgba(31,47,36,.6);color:var(--text)}
-.data-table tr:last-child td{border-bottom:none}
-.data-table tr:hover td{background:rgba(255,255,255,.015)}
-
-/* BADGES */
-.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:.65rem;font-weight:700}
-.bg{background:rgba(34,197,94,.14);color:var(--profit)}
-.br{background:rgba(239,68,68,.14);color:var(--loss)}
-.bb{background:rgba(56,189,248,.14);color:var(--blue)}
-.bo{background:rgba(251,146,60,.14);color:var(--orange)}
-.bgd{background:rgba(223,161,0,.14);color:var(--gold)}
-
-/* SECTION TITLE */
-.section-title{font-size:1rem;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px;color:var(--text)}
-.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
-
-/* LOADING */
-.loading-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
-.loading-logo{font-size:2.5rem;font-weight:900;background:linear-gradient(135deg,var(--green-2),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.loading-spinner{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
-.loading-text{font-size:.8rem;color:var(--text-muted);font-weight:600}
-
-/* EMPTY */
-.empty-state{padding:50px 20px;text-align:center;color:var(--text-muted)}
-.empty-state i{font-size:2.5rem;margin-bottom:10px;opacity:.25;display:block}
-.empty-state p{font-size:.82rem}
-
-/* P&L TABLE */
-.pl-row-total{background:var(--surface2);font-weight:800}
-.pl-row-gross{background:rgba(11,94,61,.15)}
-.pl-row-net{background:rgba(223,161,0,.08);border-top:2px solid var(--gold)}
-
-/* ALERT */
-.alert-error{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius-sm);background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--loss);font-size:.8rem;font-weight:600;margin-bottom:14px}
-
-/* RESPONSIVE */
-@media(max-width:768px){.sidebar{width:0;overflow:hidden}.main{margin-right:0}.charts-row{grid-template-columns:1fr}.kpi-grid{grid-template-columns:repeat(2,1fr)}.net-hero-value{font-size:2rem}}
-
-/* PROGRESS */
-.progress-item{margin-bottom:12px}
-.progress-row{display:flex;justify-content:space-between;margin-bottom:4px;font-size:.75rem;font-weight:600}
-.progress-bar{height:5px;background:var(--surface3);border-radius:3px;overflow:hidden}
-.progress-fill{height:100%;border-radius:3px;transition:width .9s ease}
+.nav-item { padding: 12px; cursor: pointer; color: var(--text-muted); transition: 0.2s; border-radius: 8px; font-size: 0.9rem; }
+.nav-item:hover, .nav-item.active { background: var(--surface2); color: var(--text); }
 </style>
 </head>
 <body>
 
-<!-- LOADING -->
-<div class="loading-overlay" id="loadingOverlay">
-  <div class="loading-logo">الزيادي</div>
-  <div class="loading-spinner"></div>
-  <div class="loading-text">جاري تحميل البيانات المالية...</div>
-</div>
-
-<!-- SIDEBAR -->
 <nav class="sidebar">
-  <div class="sidebar-logo">
-    <div class="logo-icon">ز</div>
-    <div class="logo-text">شركة الزيادي<span>النظام المحاسبي المتكامل</span></div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">الرئيسية</div>
-    <div class="nav-item active" onclick="showView('dashboard',this)">
-      <i class="fas fa-chart-pie nav-icon"></i>لوحة التحكم
-    </div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">المعاملات</div>
-    <div class="nav-item" onclick="showView('sales',this)">
-      <i class="fas fa-file-invoice nav-icon"></i>المبيعات
-    </div>
-    <div class="nav-item" onclick="showView('purchases',this)">
-      <i class="fas fa-cart-shopping nav-icon"></i>المشتريات
-    </div>
-    <div class="nav-item" onclick="showView('expenses',this)">
-      <i class="fas fa-receipt nav-icon"></i>المصاريف
-    </div>
-    <div class="nav-item" onclick="showView('cash',this)">
-      <i class="fas fa-vault nav-icon"></i>الصندوق
-    </div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">الأطراف</div>
-    <div class="nav-item" onclick="showView('customers',this)">
-      <i class="fas fa-users nav-icon"></i>العملاء
-    </div>
-    <div class="nav-item" onclick="showView('suppliers',this)">
-      <i class="fas fa-truck nav-icon"></i>الموردين
-    </div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">التقارير</div>
-    <div class="nav-item" onclick="showView('reports',this)">
-      <i class="fas fa-file-chart-column nav-icon"></i>الأرباح والخسائر
-    </div>
-  </div>
-  <div class="sidebar-footer">نظام الزيادي المحاسبي v2.0</div>
+  <div style="font-weight:900; font-size:1.2rem; margin-bottom:30px; color:var(--green)">نظام الزيادي</div>
+  <div class="nav-item active" onclick="showView('dashboard', this)">لوحة التحكم</div>
+  <div class="nav-item" onclick="showView('sales', this)">المبيعات</div>
+  <div class="nav-item" onclick="showView('purchases', this)">المشتريات</div>
+  <div class="nav-item" onclick="showView('expenses', this)">المصاريف</div>
 </nav>
 
-<!-- MAIN -->
 <div class="main">
   <div class="topbar">
-    <div class="status-dot"></div>
-    <div class="topbar-title" id="viewTitle">لوحة التحكم</div>
-    <div class="topbar-date" id="currentDate"></div>
-    <button class="btn-refresh" id="refreshBtn" onclick="loadAllData()" title="تحديث">
-      <i class="fas fa-arrows-rotate"></i>
+    <div id="viewTitle" style="font-weight:800">لوحة التحكم</div>
+    <button id="refreshBtn" onclick="loadAllData()" style="background:var(--surface2); border:none; padding:8px 16px; border-radius:8px; color:var(--text); cursor:pointer">
+      <i class="fas fa-sync-alt"></i> تحديث البيانات
     </button>
   </div>
 
   <div class="content">
-    <div id="errorBanner"></div>
-
-    <!-- ══════════════ DASHBOARD ══════════════ -->
     <div class="view active" id="view-dashboard">
-      <div class="net-hero">
-        <div class="net-hero-label">◆ صافي الربح / الخسارة</div>
-        <div class="net-hero-value" id="heroNet">—</div>
-        <div class="net-hero-eq">المبيعات (الفواتير) − المشتريات − المصاريف التشغيلية</div>
-        <div class="mini-stats">
-          <div class="mini-stat">
-            <div class="mini-stat-val" id="heroMargin" style="color:var(--profit)">—</div>
-            <div class="mini-stat-lbl">هامش الربح</div>
-          </div>
-          <div class="mini-stat">
-            <div class="mini-stat-val" id="heroCount">—</div>
-            <div class="mini-stat-lbl">إجمالي الحركات</div>
-          </div>
-          <div class="mini-stat">
-            <div class="mini-stat-val" id="heroCash" style="color:var(--gold)">—</div>
-            <div class="mini-stat-lbl">رصيد الصندوق</div>
-          </div>
-        </div>
-      </div>
-
       <div class="kpi-grid">
-        <div class="kpi-card g">
-          <div class="kpi-label"><i class="fas fa-file-invoice" style="color:var(--profit)"></i>إجمالي المبيعات</div>
-          <div class="kpi-value" id="k-sales" style="color:var(--profit)">—</div>
-          <div class="kpi-sub" id="k-sales-c">—</div>
-          <i class="fas fa-file-invoice kpi-icon"></i>
-        </div>
-        <div class="kpi-card r">
-          <div class="kpi-label"><i class="fas fa-cart-shopping" style="color:var(--loss)"></i>إجمالي المشتريات</div>
-          <div class="kpi-value" id="k-pur" style="color:var(--loss)">—</div>
-          <div class="kpi-sub" id="k-pur-c">—</div>
-          <i class="fas fa-cart-shopping kpi-icon"></i>
-        </div>
-        <div class="kpi-card o">
-          <div class="kpi-label"><i class="fas fa-receipt" style="color:var(--orange)"></i>المصاريف التشغيلية</div>
-          <div class="kpi-value" id="k-exp" style="color:var(--orange)">—</div>
-          <div class="kpi-sub" id="k-exp-c">—</div>
-          <i class="fas fa-receipt kpi-icon"></i>
-        </div>
-        <div class="kpi-card b">
-          <div class="kpi-label"><i class="fas fa-users" style="color:var(--blue)"></i>العملاء</div>
-          <div class="kpi-value" id="k-cust" style="color:var(--blue)">—</div>
-          <div class="kpi-sub" id="k-cust-s">—</div>
-          <i class="fas fa-users kpi-icon"></i>
-        </div>
-        <div class="kpi-card p">
-          <div class="kpi-label"><i class="fas fa-truck" style="color:#a78bfa"></i>الموردين</div>
-          <div class="kpi-value" id="k-sup" style="color:#a78bfa">—</div>
-          <div class="kpi-sub" id="k-sup-s">—</div>
-          <i class="fas fa-truck kpi-icon"></i>
-        </div>
-        <div class="kpi-card gd">
-          <div class="kpi-label"><i class="fas fa-vault" style="color:var(--gold)"></i>صافي الصندوق</div>
-          <div class="kpi-value" id="k-cash" style="color:var(--gold)">—</div>
-          <div class="kpi-sub">قبض − صرف</div>
-          <i class="fas fa-vault kpi-icon"></i>
-        </div>
+        <div class="card"><div style="color:var(--text-muted); font-size:0.8rem">التدفق النقدي (المبيعات)</div><div id="k-sales" style="font-size:1.5rem; font-weight:900">...</div></div>
+        <div class="card"><div style="color:var(--text-muted); font-size:0.8rem">المشتريات</div><div id="k-pur" style="font-size:1.5rem; font-weight:900">...</div></div>
+        <div class="card"><div style="color:var(--text-muted); font-size:0.8rem">المصاريف</div><div id="k-exp" style="font-size:1.5rem; font-weight:900">...</div></div>
+        <div class="card"><div style="color:var(--text-muted); font-size:0.8rem">صافي التدفق النقدي</div><div id="k-net" style="font-size:1.5rem; font-weight:900">...</div></div>
       </div>
-
-      <div class="charts-row">
-        <div class="chart-card">
-          <div class="chart-header">
-            <div>
-              <div class="chart-title">التدفق المالي</div>
-              <div class="chart-subtitle">مقارنة المبيعات والمشتريات والمصاريف والأرباح</div>
-            </div>
-          </div>
-          <canvas id="flowChart" height="170"></canvas>
-        </div>
-        <div class="chart-card">
-          <div class="chart-header">
-            <div>
-              <div class="chart-title">توزيع التكاليف</div>
-              <div class="chart-subtitle">نسبة كل بند</div>
-            </div>
-          </div>
-          <canvas id="pieChart" height="170"></canvas>
-        </div>
-      </div>
-
-      <div class="section-title"><i class="fas fa-clock" style="color:var(--gold)"></i>آخر الحركات</div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">آخر 10 حركات مالية</div></div>
-        <div id="recentTrans"><div class="empty-state"><i class="fas fa-database"></i><p>جاري التحميل...</p></div></div>
-      </div>
-    </div>
-
-    <!-- ══════════════ SALES ══════════════ -->
-    <div class="view" id="view-sales">
-      <div class="section-title"><i class="fas fa-file-invoice" style="color:var(--profit)"></i>المبيعات</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card g"><div class="kpi-label">إجمالي المبيعات</div><div class="kpi-value" id="s-tot" style="color:var(--profit)">—</div></div>
-        <div class="kpi-card b"><div class="kpi-label">عدد الفواتير</div><div class="kpi-value" id="s-cnt" style="color:var(--blue)">—</div></div>
-        <div class="kpi-card o"><div class="kpi-label">إجمالي المتبقي (آجل)</div><div class="kpi-value" id="s-rem" style="color:var(--orange)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">سجل فواتير المبيعات</div></div>
-        <div id="salesTable"></div>
-      </div>
-    </div>
-
-    <!-- ══════════════ PURCHASES ══════════════ -->
-    <div class="view" id="view-purchases">
-      <div class="section-title"><i class="fas fa-cart-shopping" style="color:var(--loss)"></i>المشتريات</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card r"><div class="kpi-label">إجمالي المشتريات</div><div class="kpi-value" id="p-tot" style="color:var(--loss)">—</div></div>
-        <div class="kpi-card b"><div class="kpi-label">عدد فواتير الشراء</div><div class="kpi-value" id="p-cnt" style="color:var(--blue)">—</div></div>
-        <div class="kpi-card o"><div class="kpi-label">مستحقات موردين</div><div class="kpi-value" id="p-rem" style="color:var(--orange)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">سجل فواتير المشتريات</div></div>
-        <div id="purchasesTable"></div>
-      </div>
-    </div>
-
-    <!-- ══════════════ EXPENSES ══════════════ -->
-    <div class="view" id="view-expenses">
-      <div class="section-title"><i class="fas fa-receipt" style="color:var(--orange)"></i>المصاريف</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card o"><div class="kpi-label">إجمالي المصاريف</div><div class="kpi-value" id="e-tot" style="color:var(--orange)">—</div></div>
-        <div class="kpi-card b"><div class="kpi-label">عدد المصاريف</div><div class="kpi-value" id="e-cnt" style="color:var(--blue)">—</div></div>
-        <div class="kpi-card r"><div class="kpi-label">متوسط المصروف</div><div class="kpi-value" id="e-avg" style="color:var(--loss)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">سجل المصاريف التشغيلية</div></div>
-        <div id="expensesTable"></div>
-      </div>
-    </div>
-
-    <!-- ══════════════ CASH ══════════════ -->
-    <div class="view" id="view-cash">
-      <div class="section-title"><i class="fas fa-vault" style="color:var(--gold)"></i>الصندوق</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card g"><div class="kpi-label">إجمالي القبض (وارد)</div><div class="kpi-value" id="c-in" style="color:var(--profit)">—</div></div>
-        <div class="kpi-card r"><div class="kpi-label">إجمالي الصرف (صادر)</div><div class="kpi-value" id="c-out" style="color:var(--loss)">—</div></div>
-        <div class="kpi-card gd"><div class="kpi-label">صافي الصندوق</div><div class="kpi-value" id="c-net" style="color:var(--gold)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">حركة الصندوق (transactions)</div></div>
-        <div id="cashTable"></div>
-      </div>
-    </div>
-
-    <!-- ══════════════ CUSTOMERS ══════════════ -->
-    <div class="view" id="view-customers">
-      <div class="section-title"><i class="fas fa-users" style="color:var(--blue)"></i>العملاء</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card b"><div class="kpi-label">عدد العملاء</div><div class="kpi-value" id="cu-cnt" style="color:var(--blue)">—</div></div>
-        <div class="kpi-card g"><div class="kpi-label">إجمالي مبيعات للعملاء</div><div class="kpi-value" id="cu-tot" style="color:var(--profit)">—</div></div>
-        <div class="kpi-card o"><div class="kpi-label">مديونيات العملاء</div><div class="kpi-value" id="cu-dbt" style="color:var(--orange)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">قائمة العملاء وأرصدتهم</div></div>
-        <div id="customersTable"></div>
-      </div>
-    </div>
-
-    <!-- ══════════════ SUPPLIERS ══════════════ -->
-    <div class="view" id="view-suppliers">
-      <div class="section-title"><i class="fas fa-truck" style="color:#a78bfa"></i>الموردين</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card p"><div class="kpi-label">عدد الموردين</div><div class="kpi-value" id="su-cnt" style="color:#a78bfa">—</div></div>
-        <div class="kpi-card r"><div class="kpi-label">إجمالي المشتريات من الموردين</div><div class="kpi-value" id="su-tot" style="color:var(--loss)">—</div></div>
-        <div class="kpi-card o"><div class="kpi-label">مستحقات الموردين</div><div class="kpi-value" id="su-dbt" style="color:var(--orange)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">قائمة الموردين وأرصدتهم</div></div>
-        <div id="suppliersTable"></div>
-      </div>
-    </div>
-
-    <!-- ══════════════ REPORTS ══════════════ -->
-    <div class="view" id="view-reports">
-      <div class="section-title"><i class="fas fa-file-chart-column" style="color:var(--gold)"></i>قائمة الأرباح والخسائر</div>
-      <div class="net-hero" style="margin-bottom:20px">
-        <div class="net-hero-label">◆ صافي الدخل النهائي</div>
-        <div class="net-hero-value" id="rep-net">—</div>
-        <div class="net-hero-eq">إجمالي المبيعات − إجمالي المشتريات − المصاريف التشغيلية</div>
-      </div>
-      <div class="table-card" style="margin-bottom:20px">
-        <div class="table-header"><div class="table-title">قائمة الأرباح والخسائر التفصيلية</div></div>
-        <table class="data-table">
-          <thead><tr><th>البند المحاسبي</th><th>المبلغ (ج.م)</th><th>الطبيعة</th><th>% من المبيعات</th></tr></thead>
-          <tbody id="plTable"><tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">جاري التحميل...</td></tr></tbody>
+      
+      <div class="table-wrapper">
+        <table class="data-table" id="recentTable">
+          <thead><tr><th>النوع</th><th>المبلغ</th><th>التاريخ</th></tr></thead>
+          <tbody><tr><td colspan="3" style="text-align:center">جاري تحميل البيانات...</td></tr></tbody>
         </table>
       </div>
-      <div class="section-title"><i class="fas fa-chart-bar" style="color:var(--blue)"></i>المقارنة البيانية</div>
-      <div class="chart-card"><canvas id="reportChart" height="130"></canvas></div>
     </div>
-
+    
+    <div class="view" id="view-sales"><h1>المبيعات</h1><div id="salesList"></div></div>
+    <div class="view" id="view-purchases"><h1>المشتريات</h1><div id="purList"></div></div>
+    <div class="view" id="view-expenses"><h1>المصاريف</h1><div id="expList"></div></div>
   </div>
 </div>
 
 <script type="module">
-import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs, query, orderBy, limit }
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey:"AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -427,351 +100,62 @@ const firebaseConfig = {
   appId:"1:300306825071:web:0426ddde56280fa090329a"
 };
 const app = initializeApp(firebaseConfig);
-const db  = getFirestore(app);
+const db = getFirestore(app);
 
-/* ── UTILS ── */
-const fmt  = v => Number(v||0).toLocaleString('ar-EG',{minimumFractionDigits:2});
-const fmtC = v => fmt(v) + ' ج.م';
-const clr  = v => v >= 0 ? 'var(--profit)' : 'var(--loss)';
-const pct  = (v,t) => t ? ((v/t)*100).toFixed(1)+'%' : '—';
-const today = () => new Date().toLocaleDateString('ar-EG',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
-const ts   = d => d?.timestamp?.seconds || d?.createdAt?.seconds || 0;
-const dateStr = d => {
-  if (d.date) return d.date;
-  if (d.timestamp?.toDate) return d.timestamp.toDate().toLocaleDateString('ar-EG');
-  if (d.createdAt?.toDate) return d.createdAt.toDate().toLocaleDateString('ar-EG');
-  return '—';
+const fmt = v => Number(v || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2 }) + ' ج.م';
+
+window.showView = function(view, el) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  el.classList.add('active');
+  document.getElementById('viewTitle').textContent = el.textContent;
 };
 
-let flowCh, pieCh, repCh;
-
-/* ── MAIN LOAD ── */
 window.loadAllData = async function() {
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('spinning');
-  document.getElementById('errorBanner').innerHTML = '';
 
   try {
-    // ── 1. invoices (مبيعات) ──
-    const invSnap  = await getDocs(collection(db,'invoices'));
-    const invoices = invSnap.docs.map(d=>({id:d.id,...d.data()}));
+    const [inv, pur, exp] = await Promise.all([
+      getDocs(collection(db, 'invoices')),
+      getDocs(collection(db, 'supplier_transactions')),
+      getDocs(collection(db, 'expenses'))
+    ]);
 
-    let totalSales = 0, totalRemaining = 0;
-    invoices.forEach(inv => {
-      totalSales     += Number(inv.total||0);
-      totalRemaining += Number(inv.remaining||0);
-    });
+    let s = 0, p = 0, e = 0;
+    let recent = [];
 
-    // ── 2. supplier_transactions (مشتريات) ──
-    const purSnap   = await getDocs(collection(db,'supplier_transactions'));
-    const purchases = purSnap.docs.map(d=>({id:d.id,...d.data()}));
-    let totalPur = 0, totalPurRem = 0;
-    purchases.forEach(p => {
-      if(p.type === 'مرتجع شراء') return;
-      totalPur    += Number(p.grossTotal||p.total||0);
-      totalPurRem += Number(p.netTotal||0);
-    });
+    inv.forEach(d => { const v = Number(d.data().total || 0); s += v; recent.push({t:'بيع', val:v, d:new Date()}); });
+    pur.forEach(d => { const v = Number(d.data().grossTotal || 0); p += v; recent.push({t:'شراء', val:v, d:new Date()}); });
+    exp.forEach(d => { const v = Number(d.data().amount || 0); e += v; recent.push({t:'مصروف', val:v, d:new Date()}); });
 
-    // ── 3. expenses (مصاريف) ──
-    const expSnap  = await getDocs(collection(db,'expenses'));
-    const expenses = expSnap.docs.map(d=>({id:d.id,...d.data()}));
-    let totalExp = 0;
-    expenses.forEach(e => { totalExp += Number(e.amount||0); });
+    document.getElementById('k-sales').textContent = fmt(s);
+    document.getElementById('k-pur').textContent = fmt(p);
+    document.getElementById('k-exp').textContent = fmt(e);
+    
+    const net = s - p - e;
+    const netEl = document.getElementById('k-net');
+    netEl.textContent = fmt(net);
+    netEl.style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
 
-    // ── 4. transactions (صندوق) ──
-    const transSnap = await getDocs(collection(db,'transactions'));
-    const trans     = transSnap.docs.map(d=>({id:d.id,...d.data()}));
-    let cashIn = 0, cashOut = 0;
-    trans.forEach(t => {
-      const type = (t.type||'').trim();
-      if(type === 'قبض')  cashIn  += Number(t.amount||0);
-      if(type === 'صرف')  cashOut += Number(t.amount||0);
-    });
-    const cashNet = cashIn - cashOut;
-
-    // ── 5. customers ──
-    const custSnap = await getDocs(collection(db,'customers'));
-    const customers = custSnap.docs.map(d=>({id:d.id,...d.data()}));
-
-    // حساب مجموع مبيعات لكل عميل من invoices
-    const custMap = {};
-    customers.forEach(c => { custMap[c.id] = {...c, salesTotal:0, debtTotal:0}; });
-    invoices.forEach(inv => {
-      if(inv.customerId && custMap[inv.customerId]) {
-        custMap[inv.customerId].salesTotal += Number(inv.total||0);
-        custMap[inv.customerId].debtTotal  += Number(inv.remaining||0);
-      }
-    });
-    const custList = Object.values(custMap);
-    const custDebt = custList.reduce((s,c)=>s+(c.debtTotal||Number(c.currentBalance||0)),0);
-
-    // ── 6. suppliers ──
-    const supSnap = await getDocs(collection(db,'suppliers'));
-    const suppliers = supSnap.docs.map(d=>({id:d.id,...d.data()}));
-    const supDebt = suppliers.reduce((s,sp)=>s+Number(sp.currentBalance||0),0);
-
-    // ── CALC ──
-    const netIncome = totalSales - totalPur - totalExp;
-    const margin    = totalSales ? ((netIncome/totalSales)*100).toFixed(1) : 0;
-    const totalCount= invoices.length + purchases.length + expenses.length;
-
-    // ══════════ RENDER ══════════
-
-    // HERO
-    const heroEl = document.getElementById('heroNet');
-    heroEl.textContent = fmtC(netIncome);
-    heroEl.style.color = clr(netIncome);
-    const mgEl = document.getElementById('heroMargin');
-    mgEl.textContent = margin + '%';
-    mgEl.style.color = clr(netIncome);
-    document.getElementById('heroCount').textContent = totalCount;
-    document.getElementById('heroCash').textContent  = fmtC(cashNet);
-
-    // KPIs
-    document.getElementById('k-sales').textContent  = fmtC(totalSales);
-    document.getElementById('k-sales-c').textContent= invoices.length + ' فاتورة بيع';
-    document.getElementById('k-pur').textContent    = fmtC(totalPur);
-    document.getElementById('k-pur-c').textContent  = purchases.length + ' فاتورة شراء';
-    document.getElementById('k-exp').textContent    = fmtC(totalExp);
-    document.getElementById('k-exp-c').textContent  = expenses.length + ' مصروف';
-    document.getElementById('k-cust').textContent   = custList.length;
-    document.getElementById('k-cust-s').textContent = 'ديون: ' + fmtC(custDebt);
-    document.getElementById('k-sup').textContent    = suppliers.length;
-    document.getElementById('k-sup-s').textContent  = 'مستحقات: ' + fmtC(supDebt);
-    const cashEl = document.getElementById('k-cash');
-    cashEl.textContent = fmtC(cashNet);
-    cashEl.style.color = clr(cashNet);
-
-    // CHARTS
-    buildFlowChart(totalSales, totalPur, totalExp, netIncome);
-    buildPieChart(totalPur, totalExp, netIncome);
-
-    // RECENT (mix invoices + purchases + expenses, sort by timestamp)
-    const recentItems = [
-      ...invoices.map(d=>({...d,_t:'بيع',_amt:Number(d.total||0)})),
-      ...purchases.map(d=>({...d,_t:'شراء',_amt:Number(d.grossTotal||d.total||0)})),
-      ...expenses.map(d=>({...d,_t:'مصروف',_amt:Number(d.amount||0)}))
-    ].sort((a,b)=>ts(b)-ts(a)).slice(0,10);
-    renderRecent(recentItems);
-
-    // SALES VIEW
-    document.getElementById('s-tot').textContent = fmtC(totalSales);
-    document.getElementById('s-cnt').textContent = invoices.length;
-    document.getElementById('s-rem').textContent = fmtC(totalRemaining);
-    document.getElementById('salesTable').innerHTML = renderTable(
-      invoices.sort((a,b)=>ts(b)-ts(a)),
-      ['العميل','إجمالي الفاتورة','المدفوع','المتبقي','طريقة الدفع','التاريخ'],
-      d=>[
-        d.customerName||'—',
-        `<span style="color:var(--profit);font-weight:700">${fmtC(d.total)}</span>`,
-        fmtC(d.paid),
-        d.remaining>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.remaining)}</span>` : `<span class="badge bg">مسدد</span>`,
-        d.paymentMethod ? `<span class="badge bb">${d.paymentMethod}</span>` : '—',
-        dateStr(d)
-      ]
-    );
-
-    // PURCHASES VIEW
-    document.getElementById('p-tot').textContent = fmtC(totalPur);
-    document.getElementById('p-cnt').textContent = purchases.length;
-    document.getElementById('p-rem').textContent = fmtC(totalPurRem);
-    const supNames = {};
-    suppliers.forEach(s=>supNames[s.id]=s.name);
-    document.getElementById('purchasesTable').innerHTML = renderTable(
-      purchases.sort((a,b)=>ts(b)-ts(a)),
-      ['المورد','إجمالي الفاتورة','المدفوع','المتبقي','نوع الدفع','التاريخ'],
-      d=>[
-        supNames[d.supplierId]||'—',
-        `<span style="color:var(--loss);font-weight:700">${fmtC(d.grossTotal||d.total)}</span>`,
-        fmtC(d.totalPaid||d.cashPaid),
-        d.netTotal>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.netTotal)}</span>` : `<span class="badge bg">مسدد</span>`,
-        d.paymentType ? `<span class="badge bb">${d.paymentType}</span>` : '—',
-        dateStr(d)
-      ]
-    );
-
-    // EXPENSES VIEW
-    const eAvg = expenses.length ? totalExp/expenses.length : 0;
-    document.getElementById('e-tot').textContent = fmtC(totalExp);
-    document.getElementById('e-cnt').textContent = expenses.length;
-    document.getElementById('e-avg').textContent = fmtC(eAvg);
-    document.getElementById('expensesTable').innerHTML = renderTable(
-      expenses.sort((a,b)=>ts(b)-ts(a)),
-      ['نوع المصروف','ملاحظة','المبلغ','التاريخ'],
-      d=>[
-        d.type||'—',
-        d.note||'—',
-        `<span style="color:var(--orange);font-weight:700">${fmtC(d.amount)}</span>`,
-        dateStr(d)
-      ]
-    );
-
-    // CASH VIEW
-    document.getElementById('c-in').textContent  = fmtC(cashIn);
-    document.getElementById('c-out').textContent = fmtC(cashOut);
-    const cnEl = document.getElementById('c-net');
-    cnEl.textContent = fmtC(cashNet);
-    cnEl.style.color = clr(cashNet);
-    document.getElementById('cashTable').innerHTML = renderTable(
-      trans.sort((a,b)=>ts(b)-ts(a)).slice(0,50),
-      ['النوع','البيان','المبلغ','طريقة الدفع','التاريخ'],
-      d=>[
-        `<span class="badge ${d.type==='قبض'?'bg':'br'}">${d.type||'—'}</span>`,
-        d.details||d.notes||d.actionType||'—',
-        `<span style="color:${d.type==='قبض'?'var(--profit)':'var(--loss)'};font-weight:700">${fmtC(d.amount)}</span>`,
-        d.paymentMethod ? `<span class="badge bb">${d.paymentMethod}</span>` : '—',
-        dateStr(d)
-      ]
-    );
-
-    // CUSTOMERS VIEW
-    document.getElementById('cu-cnt').textContent = custList.length;
-    document.getElementById('cu-tot').textContent = fmtC(custList.reduce((s,c)=>s+c.salesTotal,0));
-    document.getElementById('cu-dbt').textContent = fmtC(custDebt);
-    document.getElementById('customersTable').innerHTML = renderTable(
-      custList.sort((a,b)=>b.salesTotal-a.salesTotal),
-      ['اسم العميل','إجمالي المشتريات','المديونية','الرصيد الافتراضي'],
-      d=>[
-        d.name||'—',
-        `<span style="color:var(--profit);font-weight:700">${fmtC(d.salesTotal)}</span>`,
-        d.debtTotal>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.debtTotal)}</span>` : `<span class="badge bg">مسدد</span>`,
-        fmtC(d.initialBalance||0)
-      ]
-    );
-
-    // SUPPLIERS VIEW
-    document.getElementById('su-cnt').textContent = suppliers.length;
-    document.getElementById('su-tot').textContent = fmtC(totalPur);
-    document.getElementById('su-dbt').textContent = fmtC(supDebt);
-    document.getElementById('suppliersTable').innerHTML = renderTable(
-      suppliers.sort((a,b)=>Number(b.currentBalance||0)-Number(a.currentBalance||0)),
-      ['اسم المورد','الرصيد الحالي (مستحقات)','تاريخ الإضافة'],
-      d=>[
-        d.name||'—',
-        Number(d.currentBalance||0) > 0
-          ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.currentBalance)}</span>`
-          : `<span class="badge bg">لا يوجد</span>`,
-        d.createdAt?.toDate ? d.createdAt.toDate().toLocaleDateString('ar-EG') : '—'
-      ]
-    );
-
-    // REPORTS VIEW
-    const repEl = document.getElementById('rep-net');
-    repEl.textContent = fmtC(netIncome);
-    repEl.style.color = clr(netIncome);
-    const grossProfit = totalSales - totalPur;
-    const plRows = [
-      {label:'إجمالي الإيرادات (المبيعات)',  val:totalSales,   cls:''},
-      {label:'تكلفة البضاعة المباعة (المشتريات)', val:-totalPur, cls:''},
-      {label:'مجمل الربح', val:grossProfit, cls:'pl-row-gross', bold:true},
-      {label:'المصاريف التشغيلية', val:-totalExp, cls:''},
-      {label:'صافي الربح / الخسارة', val:netIncome, cls:'pl-row-net', bold:true},
-    ];
-    document.getElementById('plTable').innerHTML = plRows.map(r=>`
-      <tr class="${r.cls}" ${r.bold?'style="font-weight:800"':''}>
-        <td>${r.label}</td>
-        <td style="color:${r.val>=0?'var(--profit)':'var(--loss)'};">${fmtC(Math.abs(r.val))}</td>
-        <td><span class="badge ${r.val>=0?'bg':'br'}">${r.val>=0?'دائن':'مدين'}</span></td>
-        <td style="color:var(--text-muted)">${pct(Math.abs(r.val),totalSales)}</td>
+    // Update table
+    const tbody = document.querySelector('#recentTable tbody');
+    tbody.innerHTML = recent.slice(0, 5).map(r => `
+      <tr>
+        <td><span class="badge ${r.t=='بيع'?'bg':'br'}">${r.t}</span></td>
+        <td style="font-weight:700">${fmt(r.val)}</td>
+        <td style="color:var(--text-muted)">اليوم</td>
       </tr>`).join('');
-    buildReportChart(totalSales, totalPur, totalExp, grossProfit, netIncome);
 
-  } catch(err) {
-    document.getElementById('errorBanner').innerHTML =
-      `<div class="alert-error"><i class="fas fa-triangle-exclamation"></i>خطأ: ${err.message}</div>`;
-    console.error(err);
+  } catch (err) {
+    alert("خطأ في الاتصال بقاعدة البيانات");
   } finally {
     btn.classList.remove('spinning');
-    document.getElementById('loadingOverlay').style.display = 'none';
   }
 };
 
-/* ── TABLE HELPER ── */
-function renderTable(rows, headers, rowFn) {
-  if(!rows?.length)
-    return '<div class="empty-state"><i class="fas fa-inbox"></i><p>لا توجد بيانات</p></div>';
-  return `<table class="data-table">
-    <thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r=>`<tr>${rowFn(r).map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
-  </table>`;
-}
-
-/* ── RECENT ── */
-function renderRecent(items) {
-  const typeLabel = {بيع:'بيع',شراء:'شراء',مصروف:'مصروف'};
-  const typeCls   = {بيع:'bg',شراء:'br',مصروف:'bo'};
-  const typeClr   = {بيع:'var(--profit)',شراء:'var(--loss)',مصروف:'var(--orange)'};
-  if(!items.length){
-    document.getElementById('recentTrans').innerHTML='<div class="empty-state"><i class="fas fa-inbox"></i><p>لا توجد حركات</p></div>';
-    return;
-  }
-  document.getElementById('recentTrans').innerHTML = `<table class="data-table">
-    <thead><tr><th>النوع</th><th>البيان</th><th>المبلغ</th><th>التاريخ</th></tr></thead>
-    <tbody>${items.map(d=>`<tr>
-      <td><span class="badge ${typeCls[d._t]||'bb'}">${d._t}</span></td>
-      <td>${d.customerName||d.note||d.type||'—'}</td>
-      <td style="font-weight:700;color:${typeClr[d._t]||'var(--text)'}">${fmtC(d._amt)}</td>
-      <td style="color:var(--text-muted)">${dateStr(d)}</td>
-    </tr>`).join('')}</tbody></table>`;
-}
-
-/* ── CHARTS ── */
-const chartOpts = (extra={}) => ({
-  responsive:true, maintainAspectRatio:true,
-  plugins:{legend:{labels:{color:'#7a9982',font:{family:'Cairo',size:11}}}},
-  scales:{
-    x:{ticks:{color:'#7a9982',font:{family:'Cairo'}},grid:{color:'rgba(31,47,36,.5)'}},
-    y:{ticks:{color:'#7a9982',font:{family:'Cairo'},callback:v=>Number(v).toLocaleString('ar-EG')},grid:{color:'rgba(31,47,36,.5)'}}
-  },...extra
-});
-
-function buildFlowChart(s,p,e,n){
-  const ctx=document.getElementById('flowChart').getContext('2d');
-  if(flowCh) flowCh.destroy();
-  flowCh=new Chart(ctx,{type:'bar',data:{
-    labels:['المبيعات','المشتريات','المصاريف','صافي الربح'],
-    datasets:[{data:[s,p,e,n],
-      backgroundColor:['rgba(34,197,94,.65)','rgba(239,68,68,.65)','rgba(251,146,60,.65)','rgba(223,161,0,.65)'],
-      borderColor:['#22c55e','#ef4444','#fb923c','#dfa100'],borderWidth:1.5,borderRadius:6}]
-  },options:{...chartOpts(),plugins:{legend:{display:false}}}});
-}
-
-function buildPieChart(p,e,n){
-  const ctx=document.getElementById('pieChart').getContext('2d');
-  if(pieCh) pieCh.destroy();
-  pieCh=new Chart(ctx,{type:'doughnut',data:{
-    labels:['المشتريات','المصاريف','صافي الربح'],
-    datasets:[{data:[p,e,Math.max(0,n)],
-      backgroundColor:['rgba(239,68,68,.7)','rgba(251,146,60,.7)','rgba(34,197,94,.7)'],
-      borderColor:['#ef4444','#fb923c','#22c55e'],borderWidth:1.5}]
-  },options:{responsive:true,maintainAspectRatio:true,cutout:'62%',
-    plugins:{legend:{position:'bottom',labels:{color:'#7a9982',font:{family:'Cairo',size:10},padding:10}}}}});
-}
-
-function buildReportChart(s,p,e,g,n){
-  const ctx=document.getElementById('reportChart').getContext('2d');
-  if(repCh) repCh.destroy();
-  repCh=new Chart(ctx,{type:'bar',data:{
-    labels:['الإيرادات','تكلفة الشراء','المصاريف','مجمل الربح','صافي الربح'],
-    datasets:[{data:[s,p,e,g,n],
-      backgroundColor:['rgba(34,197,94,.7)','rgba(239,68,68,.7)','rgba(251,146,60,.7)','rgba(56,189,248,.7)','rgba(223,161,0,.7)'],
-      borderColor:['#22c55e','#ef4444','#fb923c','#38bdf8','#dfa100'],borderWidth:1,borderRadius:5}]
-  },options:{...chartOpts(),plugins:{legend:{display:false}}}});
-}
-
-/* ── NAVIGATION ── */
-const titles={dashboard:'لوحة التحكم',sales:'المبيعات',purchases:'المشتريات',expenses:'المصاريف',cash:'الصندوق',customers:'العملاء',suppliers:'الموردين',reports:'الأرباح والخسائر'};
-window.showView = function(name, el) {
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  document.getElementById('view-'+name).classList.add('active');
-  if(el) el.classList.add('active');
-  document.getElementById('viewTitle').textContent = titles[name]||name;
-};
-
-/* ── INIT ── */
-document.getElementById('currentDate').textContent = today();
-window.loadAllData();
+loadAllData();
 </script>
 </body>
 </html>
