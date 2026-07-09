@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>نظام الزيادي المحاسبي</title>
+<title>نظام الزيادي المحاسبي لزيوت السيارات</title>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -154,22 +154,26 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .net-hero-value { font-size: 2rem; }
 }
+
+.init-balances-card { background:var(--surface2); border: 1px dashed var(--gold); border-radius: var(--radius); padding: 20px; margin-bottom: 20px;}
+.init-input-group { display: flex; flex-direction: column; gap: 5px; }
+.init-input-group label { font-size: 0.75rem; color: var(--text-muted); font-weight: 700; }
+.init-input-group input { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: var(--radius-sm); font-family: 'Cairo'; font-weight: bold; outline: none; transition: border-color 0.2s;}
+.init-input-group input:focus { border-color: var(--gold); }
 </style>
 </head>
 <body>
 
-<!-- LOADING -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loading-logo">الزيادي</div>
   <div class="loading-spinner"></div>
   <div class="loading-text">جاري تحميل البيانات المالية...</div>
 </div>
 
-<!-- SIDEBAR -->
 <nav class="sidebar" id="sidebar">
   <div class="sidebar-logo">
     <div class="logo-icon">ز</div>
-    <div class="logo-text">شركة الزيادي<span>النظام المحاسبي المتكامل</span></div>
+    <div class="logo-text">الزيادي لزيوت السيارات<span>النظام المحاسبي المتكامل</span></div>
   </div>
   <div class="nav-section">
     <div class="nav-label">الرئيسية</div>
@@ -207,10 +211,9 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       <i class="fas fa-file-chart-column nav-icon"></i>الأرباح والخسائر
     </div>
   </div>
-  <div class="sidebar-footer">نظام الزيادي المحاسبي v2.0</div>
+  <div class="sidebar-footer">الزيادي لزيوت السيارات v2.1</div>
 </nav>
 
-<!-- MAIN -->
 <div class="main">
   <div class="topbar">
     <button class="menu-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
@@ -218,7 +221,6 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
     <div class="topbar-title" id="viewTitle">لوحة التحكم</div>
     
     <div class="topbar-actions">
-      <!-- خانة التاريخ للفلترة -->
       <input type="date" id="filterDate" class="date-filter-input" onchange="loadAllData()" title="تصفية حسب التاريخ (اتركه فارغاً للكل)">
       <button class="btn-refresh" id="refreshBtn" onclick="loadAllData()" title="تحديث">
         <i class="fas fa-arrows-rotate"></i>
@@ -229,8 +231,34 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
   <div class="content">
     <div id="errorBanner"></div>
 
-    <!-- ══════════════ DASHBOARD ══════════════ -->
     <div class="view active" id="view-dashboard">
+      
+      <div class="init-balances-card">
+        <div class="section-title" style="margin-top:0"><i class="fas fa-play" style="color:var(--gold)"></i> الأرصدة الافتتاحية (تُدخل لمرة واحدة)</div>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px,1fr)); gap:15px; margin-bottom:15px;">
+          <div class="init-input-group">
+            <label>رصيد النقدية السابق بالصندوق</label>
+            <input type="number" id="initCash" placeholder="0">
+          </div>
+          <div class="init-input-group">
+            <label>ديون العملاء السابقة</label>
+            <input type="number" id="initCust" placeholder="0">
+          </div>
+          <div class="init-input-group">
+            <label>مستحقات الموردين السابقة</label>
+            <input type="number" id="initSup" placeholder="0">
+          </div>
+          <div class="init-input-group">
+            <label>قيمة المخزون السابق</label>
+            <input type="number" id="initInv" placeholder="0">
+          </div>
+        </div>
+        <button onclick="saveInitialBalances()" style="background:var(--gold); color:#000; border:none; padding:8px 20px; border-radius:8px; cursor:pointer; font-weight:800; transition: background 0.2s;">
+          <i class="fas fa-save"></i> حفظ الأرصدة وتطبيقها
+        </button>
+        <span id="initSaveMsg" style="color:var(--profit); margin-right:15px; font-size:0.8rem; font-weight:bold;"></span>
+      </div>
+
       <div class="net-hero">
         <div class="net-hero-label">◆ صافي التدفق النقدي المتوفر (الكاش)</div>
         <div class="net-hero-value" id="heroNet">—</div>
@@ -246,7 +274,7 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
           </div>
           <div class="mini-stat">
             <div class="mini-stat-val" id="heroCash" style="color:var(--gold)">—</div>
-            <div class="mini-stat-lbl">رصيد الصندوق</div>
+            <div class="mini-stat-lbl">رصيد الصندوق الفعلي</div>
           </div>
         </div>
       </div>
@@ -283,9 +311,9 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
           <i class="fas fa-truck kpi-icon"></i>
         </div>
         <div class="kpi-card gd">
-          <div class="kpi-label"><i class="fas fa-vault" style="color:var(--gold)"></i>صافي الصندوق الحقيقي</div>
+          <div class="kpi-label"><i class="fas fa-vault" style="color:var(--gold)"></i>صافي الصندوق الفعلي</div>
           <div class="kpi-value" id="k-cash" style="color:var(--gold)">—</div>
-          <div class="kpi-sub">إجمالي القبض − الصرف</div>
+          <div class="kpi-sub">الرصيد السابق + القبض − الصرف</div>
           <i class="fas fa-vault kpi-icon"></i>
         </div>
       </div>
@@ -318,7 +346,6 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ SALES ══════════════ -->
     <div class="view" id="view-sales">
       <div class="section-title"><i class="fas fa-file-invoice" style="color:var(--profit)"></i>المبيعات</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
@@ -332,7 +359,6 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ PURCHASES ══════════════ -->
     <div class="view" id="view-purchases">
       <div class="section-title"><i class="fas fa-cart-shopping" style="color:var(--loss)"></i>المشتريات</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
@@ -346,7 +372,6 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ EXPENSES ══════════════ -->
     <div class="view" id="view-expenses">
       <div class="section-title"><i class="fas fa-receipt" style="color:var(--orange)"></i>المصاريف</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
@@ -360,13 +385,12 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ CASH ══════════════ -->
     <div class="view" id="view-cash">
       <div class="section-title"><i class="fas fa-vault" style="color:var(--gold)"></i>الصندوق</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
         <div class="kpi-card g"><div class="kpi-label">إجمالي القبض (وارد)</div><div class="kpi-value" id="c-in" style="color:var(--profit)">—</div></div>
         <div class="kpi-card r"><div class="kpi-label">إجمالي الصرف (صادر)</div><div class="kpi-value" id="c-out" style="color:var(--loss)">—</div></div>
-        <div class="kpi-card gd"><div class="kpi-label">صافي الصندوق</div><div class="kpi-value" id="c-net" style="color:var(--gold)">—</div></div>
+        <div class="kpi-card gd"><div class="kpi-label">صافي الصندوق الفعلي</div><div class="kpi-value" id="c-net" style="color:var(--gold)">—</div></div>
       </div>
       <div class="table-card">
         <div class="table-header"><div class="table-title">حركة الصندوق (transactions)</div></div>
@@ -374,13 +398,12 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ CUSTOMERS ══════════════ -->
     <div class="view" id="view-customers">
       <div class="section-title"><i class="fas fa-users" style="color:var(--blue)"></i>العملاء</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
         <div class="kpi-card b"><div class="kpi-label">عدد العملاء</div><div class="kpi-value" id="cu-cnt" style="color:var(--blue)">—</div></div>
         <div class="kpi-card g"><div class="kpi-label">إجمالي مبيعات للعملاء</div><div class="kpi-value" id="cu-tot" style="color:var(--profit)">—</div></div>
-        <div class="kpi-card o"><div class="kpi-label">مديونيات العملاء</div><div class="kpi-value" id="cu-dbt" style="color:var(--orange)">—</div></div>
+        <div class="kpi-card o"><div class="kpi-label">إجمالي ديون العملاء الفعلي</div><div class="kpi-value" id="cu-dbt" style="color:var(--orange)">—</div></div>
       </div>
       <div class="table-card">
         <div class="table-header"><div class="table-title">قائمة العملاء وأرصدتهم</div></div>
@@ -388,13 +411,12 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ SUPPLIERS ══════════════ -->
     <div class="view" id="view-suppliers">
       <div class="section-title"><i class="fas fa-truck" style="color:#a78bfa"></i>الموردين</div>
       <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
         <div class="kpi-card p"><div class="kpi-label">عدد الموردين</div><div class="kpi-value" id="su-cnt" style="color:#a78bfa">—</div></div>
         <div class="kpi-card r"><div class="kpi-label">إجمالي المشتريات من الموردين</div><div class="kpi-value" id="su-tot" style="color:var(--loss)">—</div></div>
-        <div class="kpi-card o"><div class="kpi-label">مستحقات الموردين</div><div class="kpi-value" id="su-dbt" style="color:var(--orange)">—</div></div>
+        <div class="kpi-card o"><div class="kpi-label">إجمالي مستحقات الموردين الفعلي</div><div class="kpi-value" id="su-dbt" style="color:var(--orange)">—</div></div>
       </div>
       <div class="table-card">
         <div class="table-header"><div class="table-title">قائمة الموردين وأرصدتهم</div></div>
@@ -402,7 +424,6 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
       </div>
     </div>
 
-    <!-- ══════════════ REPORTS ══════════════ -->
     <div class="view" id="view-reports">
       <div class="section-title"><i class="fas fa-file-chart-column" style="color:var(--gold)"></i>قائمة الأرباح والخسائر</div>
       <div class="net-hero" style="margin-bottom:20px">
@@ -426,7 +447,7 @@ body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-h
 
 <script type="module">
 import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey:"AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -451,7 +472,7 @@ window.showView = function(name, el) {
   document.getElementById('view-'+name).classList.add('active');
   if(el) el.classList.add('active');
   document.getElementById('viewTitle').textContent = titles[name]||name;
-  document.getElementById('sidebar').classList.remove('active'); // الإغلاق التلقائي في الموبايل
+  document.getElementById('sidebar').classList.remove('active');
 };
 
 /* ── DATE UTILS ── */
@@ -485,25 +506,56 @@ const dateStr = d => d.date || (d.timestamp?.toDate ? d.timestamp.toDate().toLoc
 
 let flowCh, pieCh, repCh;
 
+/* ── SAVE INITIAL BALANCES ── */
+window.saveInitialBalances = async function() {
+  try {
+    const data = {
+      cash: Number(document.getElementById('initCash').value || 0),
+      customers: Number(document.getElementById('initCust').value || 0),
+      suppliers: Number(document.getElementById('initSup').value || 0),
+      inventory: Number(document.getElementById('initInv').value || 0),
+      timestamp: new Date()
+    };
+    
+    await setDoc(doc(db, 'settings', 'initial_balances'), data);
+    
+    document.getElementById('initSaveMsg').innerText = "تم حفظ الأرصدة بنجاح!";
+    setTimeout(() => document.getElementById('initSaveMsg').innerText = "", 3000);
+    
+    // Refresh to apply new formulas
+    loadAllData();
+  } catch (error) {
+    alert("حدث خطأ أثناء الحفظ: " + error.message);
+  }
+};
+
 /* ── MAIN LOAD ── */
 window.loadAllData = async function() {
   const btn = document.getElementById('refreshBtn');
-  const selectedDate = document.getElementById('filterDate').value; // 'YYYY-MM-DD' or ''
+  const selectedDate = document.getElementById('filterDate').value; 
   
   btn.classList.add('spinning');
   document.getElementById('errorBanner').innerHTML = '';
 
   try {
-    const [invSnap, purSnap, expSnap, transSnap, custSnap, supSnap] = await Promise.all([
+    const [invSnap, purSnap, expSnap, transSnap, custSnap, supSnap, initDoc] = await Promise.all([
       getDocs(collection(db,'invoices')),
       getDocs(collection(db,'supplier_transactions')),
       getDocs(collection(db,'expenses')),
       getDocs(collection(db,'transactions')),
       getDocs(collection(db,'customers')),
-      getDocs(collection(db,'suppliers'))
+      getDocs(collection(db,'suppliers')),
+      getDoc(doc(db, 'settings', 'initial_balances')) // جلب الأرصدة السابقة
     ]);
 
-    // ── 1. invoices (مبيعات) - مفلترة ──
+    // Populate Initial Balances fields
+    const initVals = initDoc.exists() ? initDoc.data() : { cash: 0, customers: 0, suppliers: 0, inventory: 0 };
+    document.getElementById('initCash').value = initVals.cash || 0;
+    document.getElementById('initCust').value = initVals.customers || 0;
+    document.getElementById('initSup').value = initVals.suppliers || 0;
+    document.getElementById('initInv').value = initVals.inventory || 0;
+
+    // ── 1. invoices ──
     const invoices = invSnap.docs.map(d=>({id:d.id,...d.data()})).filter(d => {
       if(!selectedDate) return true;
       return parseStandardDate(d.date, d.timestamp || d.createdAt) === selectedDate;
@@ -515,7 +567,7 @@ window.loadAllData = async function() {
       totalRemaining += Number(inv.remaining||0);
     });
 
-    // ── 2. supplier_transactions (مشتريات) - مفلترة ──
+    // ── 2. supplier_transactions ──
     const purchases = purSnap.docs.map(d=>({id:d.id,...d.data()})).filter(d => {
       if(!selectedDate) return true;
       return parseStandardDate(d.date, d.timestamp || d.createdAt) === selectedDate;
@@ -528,7 +580,7 @@ window.loadAllData = async function() {
       totalPurRem += Number(p.netTotal||0);
     });
 
-    // ── 3. expenses (مصاريف) - مفلترة ──
+    // ── 3. expenses ──
     const expenses = expSnap.docs.map(d=>({id:d.id,...d.data()})).filter(d => {
       if(!selectedDate) return true;
       return parseStandardDate(d.date, d.timestamp || d.createdAt) === selectedDate;
@@ -537,7 +589,7 @@ window.loadAllData = async function() {
     let totalExp = 0;
     expenses.forEach(e => { totalExp += Number(e.amount||0); });
 
-    // ── 4. transactions (صندوق) - مفلترة ──
+    // ── 4. transactions (Cash) ──
     const trans = transSnap.docs.map(d=>({id:d.id,...d.data()})).filter(d => {
       if(!selectedDate) return true;
       return parseStandardDate(d.date, d.timestamp || d.createdAt) === selectedDate;
@@ -549,9 +601,10 @@ window.loadAllData = async function() {
       if(type === 'قبض')  cashIn  += Number(t.amount||0);
       if(type === 'صرف')  cashOut += Number(t.amount||0);
     });
-    const cashNet = cashIn - cashOut;
+    // Current period net cash
+    const periodCashNet = cashIn - cashOut;
 
-    // ── 5. customers ──
+    // ── 5. Customers ──
     const customers = custSnap.docs.map(d=>({id:d.id,...d.data()}));
     const custMap = {};
     customers.forEach(c => { custMap[c.id] = {...c, salesTotal:0, debtTotal:0}; });
@@ -562,45 +615,58 @@ window.loadAllData = async function() {
       }
     });
     const custList = Object.values(custMap);
-    // أرصدة العملاء تحسب إجمالي الديون (الديون الخاصة بالفترة المختارة + الرصيد الافتتاحي إن وجد)
-    const custDebt = custList.reduce((s,c)=>s+(c.debtTotal||Number(c.currentBalance||0)),0);
+    const periodCustDebt = custList.reduce((s,c)=>s+(c.debtTotal||Number(c.currentBalance||0)),0);
 
-    // ── 6. suppliers ──
-    // أرصدة الموردين هي دائمًا الأرصدة الحالية المستحقة بالكامل، فلترة التاريخ لا تؤثر على الرصيد الكلي
+    // ── 6. Suppliers ──
     const suppliers = supSnap.docs.map(d=>({id:d.id,...d.data()}));
-    const supDebt = suppliers.reduce((s,sp)=>s+Number(sp.currentBalance||0),0);
+    const periodSupDebt = suppliers.reduce((s,sp)=>s+Number(sp.currentBalance||0),0);
 
-    // ── CALC (التدفق النقدي الفعلي بدلاً من الربح الدفتري) ──
+
+    // ==========================================
+    // ── تطبيق معادلات الأرصدة الافتتاحية ──
+    // ==========================================
+    const actualCashBalance = (initVals.cash || 0) + cashIn - cashOut;
+    const actualCustomerDebt = (initVals.customers || 0) + periodCustDebt;
+    const actualSupplierDebt = (initVals.suppliers || 0) + periodSupDebt;
+
+    // Net Income (Cash Flow focus)
     const netIncome = totalSales - totalPur - totalExp;
     const margin    = totalSales ? ((netIncome/totalSales)*100).toFixed(1) : 0;
     const totalCount= invoices.length + purchases.length + expenses.length;
 
+
     // ══════════ RENDER ══════════
 
-    // HERO
+    // HERO Dashboard
     const heroEl = document.getElementById('heroNet');
     heroEl.textContent = fmtC(netIncome);
     heroEl.style.color = clr(netIncome);
+    
     const mgEl = document.getElementById('heroMargin');
     mgEl.textContent = margin + '%';
     mgEl.style.color = clr(netIncome);
+    
     document.getElementById('heroCount').textContent = totalCount;
-    document.getElementById('heroCash').textContent  = fmtC(cashNet);
+    // Show Actual Cash Balance in Hero
+    document.getElementById('heroCash').textContent  = fmtC(actualCashBalance);
 
-    // KPIs
+    // KPIs Dashboard
     document.getElementById('k-sales').textContent  = fmtC(totalSales);
     document.getElementById('k-sales-c').textContent= invoices.length + ' فاتورة بيع';
     document.getElementById('k-pur').textContent    = fmtC(totalPur);
     document.getElementById('k-pur-c').textContent  = purchases.length + ' فاتورة شراء';
     document.getElementById('k-exp').textContent    = fmtC(totalExp);
     document.getElementById('k-exp-c').textContent  = expenses.length + ' مصروف';
+    
     document.getElementById('k-cust').textContent   = custList.length;
-    document.getElementById('k-cust-s').textContent = 'ديون: ' + fmtC(custDebt);
+    document.getElementById('k-cust-s').textContent = 'إجمالي الديون: ' + fmtC(actualCustomerDebt);
+    
     document.getElementById('k-sup').textContent    = suppliers.length;
-    document.getElementById('k-sup-s').textContent  = 'مستحقات: ' + fmtC(supDebt);
+    document.getElementById('k-sup-s').textContent  = 'إجمالي المستحقات: ' + fmtC(actualSupplierDebt);
+    
     const cashEl = document.getElementById('k-cash');
-    cashEl.textContent = fmtC(cashNet);
-    cashEl.style.color = clr(cashNet);
+    cashEl.textContent = fmtC(actualCashBalance); // Actual Balance
+    cashEl.style.color = clr(actualCashBalance);
 
     // CHARTS
     buildFlowChart(totalSales, totalPur, totalExp, netIncome);
@@ -670,8 +736,8 @@ window.loadAllData = async function() {
     document.getElementById('c-in').textContent  = fmtC(cashIn);
     document.getElementById('c-out').textContent = fmtC(cashOut);
     const cnEl = document.getElementById('c-net');
-    cnEl.textContent = fmtC(cashNet);
-    cnEl.style.color = clr(cashNet);
+    cnEl.textContent = fmtC(actualCashBalance); // Actual Balance
+    cnEl.style.color = clr(actualCashBalance);
     document.getElementById('cashTable').innerHTML = renderTable(
       trans.sort((a,b)=>ts(b)-ts(a)).slice(0,50),
       ['النوع','البيان','المبلغ','طريقة الدفع','التاريخ'],
@@ -687,10 +753,10 @@ window.loadAllData = async function() {
     // CUSTOMERS VIEW
     document.getElementById('cu-cnt').textContent = custList.length;
     document.getElementById('cu-tot').textContent = fmtC(custList.reduce((s,c)=>s+c.salesTotal,0));
-    document.getElementById('cu-dbt').textContent = fmtC(custDebt);
+    document.getElementById('cu-dbt').textContent = fmtC(actualCustomerDebt); // Actual Balance
     document.getElementById('customersTable').innerHTML = renderTable(
       custList.sort((a,b)=>b.salesTotal-a.salesTotal),
-      ['اسم العميل','إجمالي المشتريات','المديونية','الرصيد الافتراضي'],
+      ['اسم العميل','إجمالي المشتريات','المديونية (الحالية)','الرصيد الافتراضي'],
       d=>[
         d.name||'—',
         `<span style="color:var(--profit);font-weight:700">${fmtC(d.salesTotal)}</span>`,
@@ -702,7 +768,7 @@ window.loadAllData = async function() {
     // SUPPLIERS VIEW
     document.getElementById('su-cnt').textContent = suppliers.length;
     document.getElementById('su-tot').textContent = fmtC(totalPur);
-    document.getElementById('su-dbt').textContent = fmtC(supDebt);
+    document.getElementById('su-dbt').textContent = fmtC(actualSupplierDebt); // Actual Balance
     document.getElementById('suppliersTable').innerHTML = renderTable(
       suppliers.sort((a,b)=>Number(b.currentBalance||0)-Number(a.currentBalance||0)),
       ['اسم المورد','الرصيد الحالي (مستحقات)','تاريخ الإضافة'],
