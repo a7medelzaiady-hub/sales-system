@@ -194,7 +194,6 @@ body{
 table.inv{
   width:100%;
   min-width:360px;
-  /* التعديل: تحسين سلوك دمج الحدود مع التثبيت Sticky لتجنب تداخل أو اختفاء الخطوط */
   border-collapse:separate;
   border-spacing:0;
   font-size:.78rem;
@@ -208,7 +207,7 @@ table.inv thead th{
   text-align:center;
   white-space:nowrap;
   position:sticky;
-  top:0; /* ◄ التعديل الرئيسي: جعل الـ top صفر ليثبت بشكل صحيح داخل الحاوية دون حجب أول صف */
+  top:0;
   z-index:10;
 }
 table.inv thead th:first-child{
@@ -327,7 +326,6 @@ table.inv tfoot td.cr{color:var(--r7)}
 </head>
 <body>
 
-<!-- TOPBAR -->
 <nav class="topbar">
   <div class="tb-brand">
     <div class="tb-logo"><i class="fas fa-oil-can"></i></div>
@@ -342,11 +340,10 @@ table.inv tfoot td.cr{color:var(--r7)}
   </div>
 </nav>
 
-<!-- DATE BAR -->
 <div class="datebar">
   <div>
     <div class="datebar-title"><i class="fas fa-chart-bar"></i> تقرير حركة كميات الأصناف</div>
-    <div class="datebar-sub" id="dateLabel">اختر تاريخاً لعرض الحركة</div>
+    <div class="datebar-sub" id="dateLabel">جاري تحميل البيانات...</div>
   </div>
   <div class="date-pick">
     <i class="fas fa-calendar-day" style="color:var(--g7);font-size:.8rem"></i>
@@ -355,7 +352,6 @@ table.inv tfoot td.cr{color:var(--r7)}
   </div>
 </div>
 
-<!-- SEARCH BAR -->
 <div class="searchbar">
   <div class="search-box">
     <i class="fas fa-magnifying-glass"></i>
@@ -364,7 +360,6 @@ table.inv tfoot td.cr{color:var(--r7)}
   </div>
 </div>
 
-<!-- KPI -->
 <div class="kpi-row">
   <div class="kpi kpi-s">
     <div class="kpi-ico"><i class="fas fa-arrow-trend-up"></i></div>
@@ -383,13 +378,11 @@ table.inv tfoot td.cr{color:var(--r7)}
   </div>
 </div>
 
-<!-- SECTION HDR -->
 <div class="sec-hdr">
   <div class="sec-ttl"><span class="sec-dot"></span>تفصيل حركة كل صنف</div>
   <span class="cnt-pill" id="cntBadge" style="display:none">—</span>
 </div>
 
-<!-- TABLE -->
 <div class="tbl-card">
   <table class="inv">
     <thead>
@@ -419,7 +412,6 @@ table.inv tfoot td.cr{color:var(--r7)}
   </table>
 </div>
 
-<!-- LEGEND -->
 <div class="legend">
   <strong>الرموز:</strong>
   <span class="lc lc-g"><i class="fas fa-circle" style="font-size:.35rem"></i>جركن</span>
@@ -444,7 +436,6 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-/* ─── date helpers ─── */
 function toEn(s){
   if(!s)return"";
   const a=[/٠/g,/١/g,/٢/g,/٣/g,/٤/g,/٥/g,/٦/g,/٧/g,/٨/g,/٩/g];
@@ -469,7 +460,6 @@ function arDate(iso){
   return`${+d} ${mn[+m-1]} ${y}`;
 }
 
-/* ─── unit detection ─── */
 function isCarton(item){
   const u=(item.unit||"").trim();
   if(u==="box")return true;
@@ -478,7 +468,6 @@ function isCarton(item){
   return un==="كرتونة"||un==="كرتونه";
 }
 
-/* ─── badge builders ─── */
 const bj=n=>`<span class="bj"><i class="fas fa-circle"></i>${n} جركن</span>`;
 const bc=n=>`<span class="bc"><i class="fas fa-box"></i>${n} كرتونة</span>`;
 const brb=(j,c)=>{
@@ -489,7 +478,6 @@ const brb=(j,c)=>{
 };
 const cell=(j,c)=>(j>0||c>0)?((j>0?bj(j):"")+(c>0?bc(c):"")):`<span class="dash">—</span>`;
 
-/* KPI: كل وحدة في سطر منفصل واضح */
 function kpiHtml(j,c,cls){
   if(!j&&!c)return`<span class="kv-zero">لا يوجد</span>`;
   let h="";
@@ -498,11 +486,9 @@ function kpiHtml(j,c,cls){
   return h;
 }
 
-/* ─── global state للبحث ─── */
-let rowsData=[]; // [{name, d}]
+let rowsData=[]; 
 let totals={sJ:0,sC:0,pJ:0,pC:0,rJ:0,rC:0};
 
-/* ─── بناء صفوف الجدول مع دعم الفلترة ─── */
 function renderRows(filter){
   const tbody=document.getElementById("tbody");
   const tfoot=document.getElementById("tfoot");
@@ -516,8 +502,8 @@ function renderRows(filter){
   if(!list.length){
     tbody.innerHTML=`<tr><td colspan="4"><div class="state-box">
       <div class="state-ico ico-def"><i class="fas fa-box-open"></i></div>
-      <div class="state-p">${f ? "لا توجد أصناف مطابقة للبحث" : "لا توجد حركة بضاعة في هذا اليوم"}</div>
-      <div class="state-s">${f ? "جرّب كلمة بحث أخرى" : "جرّب تاريخاً آخر أو تحقق من الفواتير"}</div>
+      <div class="state-p">${f ? "لا توجد أصناف مطابقة للبحث" : "لا توجد بيانات حالياً"}</div>
+      <div class="state-s">${f ? "جرّب كلمة بحث أخرى" : "تحقق من قاعدة البيانات"}</div>
     </div></td></tr>`;
     tfoot.style.display="none";
     badge.style.display = rowsData.length ? "inline-block" : "none";
@@ -561,7 +547,6 @@ window.clearSearch=function(){
   input.focus();
 };
 
-/* ─── main ─── */
 async function load(){
   const date=document.getElementById("dateIn").value;
   const tbody=document.getElementById("tbody");
@@ -569,7 +554,7 @@ async function load(){
   const badge=document.getElementById("cntBadge");
 
   document.getElementById("dateLabel").textContent=
-    date?`حركة يوم ${arDate(date)}`:"اختر تاريخاً لعرض الحركة";
+    date?`حركة يوم ${arDate(date)}`:"عرض جميع الحركات";
 
   tfoot.style.display="none";
   badge.style.display="none";
@@ -580,15 +565,12 @@ async function load(){
     <div class="spin"></div><div class="spin-lbl">جار تجميع البيانات…</div>
   </div></td></tr>`;
 
-  // إعادة تصفير البحث عند تغيير التاريخ
   const searchInput=document.getElementById("searchIn");
   if(searchInput){
     searchInput.value="";
     document.getElementById("searchClear").classList.remove("show");
   }
   rowsData=[];
-
-  if(!date)return;
 
   const D={};
   const G={sJ:0,sC:0,pJ:0,pC:0,rJ:0,rC:0};
@@ -601,30 +583,23 @@ async function load(){
   }
 
   try{
-    /* ══ المبيعات: invoices ══ */
-    /* مراجعة: المرتجعات داخل الفواتير (isReturn) تُحتسب في عمود "مرتجع"
-       ولا تُحتسب ضمن "مبيعات" — وهذا صحيح منطقياً لأنها ترجع للمخزون. */
     const sSnap=await getDocs(collection(db,"invoices"));
     sSnap.forEach(doc=>{
       const inv=doc.data();
-      if(parseDate(inv.date,inv.timestamp)!==date)return;
+      if(date && parseDate(inv.date,inv.timestamp)!==date)return;
       if(!Array.isArray(inv.items))return;
       inv.items.forEach(item=>{
         const name=(item.name||"").trim();
         const qty=Number(item.qty)||0;
-        if(!name||qty<=0)return; // تجاهل أي كمية سالبة أو صفرية أو بدون اسم صنف
+        if(!name||qty<=0)return;
         add(name,isCarton(item),qty,!!item.isReturn?"r":"s");
       });
     });
 
-    /* ══ المشتريات: supplier_transactions ══ */
-    /* مراجعة: تم التأكد من معالجة qty و returnQty بشكل منفصل لكل صنف،
-       مع تجاهل القيم السالبة أو غير الرقمية باستخدام Number(...)||0،
-       وفصل المرتجع (r) عن المشتريات (p) لكل وحدة (جركن/كرتونة) بشكل صحيح. */
     const pSnap=await getDocs(collection(db,"supplier_transactions"));
     pSnap.forEach(doc=>{
       const pur=doc.data();
-      if(parseDate(pur.date,pur.timestamp)!==date)return;
+      if(date && parseDate(pur.date,pur.timestamp)!==date)return;
       if(!Array.isArray(pur.items))return;
       pur.items.forEach(item=>{
         const name=(item.name||"").trim();
@@ -637,14 +612,11 @@ async function load(){
       });
     });
 
-    /* ══ KPI ══ */
     document.getElementById("kSales").innerHTML=kpiHtml(G.sJ,G.sC,"kpi-s .kpi-val .kv-line");
     document.getElementById("kPurch").innerHTML=kpiHtml(G.pJ,G.pC,"kpi-p .kpi-val .kv-line");
     document.getElementById("kRet").innerHTML  =kpiHtml(G.rJ,G.rC,"kpi-r .kpi-val .kv-line");
 
-    /* ══ تجهيز بيانات الجدول للعرض والبحث ══ */
     const sorted=Object.keys(D).sort((a,b)=>a.localeCompare(b,"ar"));
-    rowsData=[];
     sorted.forEach(name=>{
       const d=D[name];
       if(!d.sJ&&!d.sC&&!d.pJ&&!d.pC&&!d.rJ&&!d.rC)return;
@@ -665,9 +637,6 @@ async function load(){
 }
 
 document.addEventListener("DOMContentLoaded",()=>{
-  const t=new Date();
-  document.getElementById("dateIn").value=
-    `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
   load();
 });
 window.load=load;
