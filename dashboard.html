@@ -17,38 +17,39 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { background: var(--bg); font-family: 'Cairo', sans-serif; color: var(--text); min-height: 100vh; }
 
-/* LAYOUT */
-.sidebar { position: fixed; right: 0; top: 0; width: 240px; height: 100vh; background: var(--surface); border-left: 1px solid var(--border); z-index: 100; padding: 20px; }
-.main { margin-right: 240px; min-height: 100vh; display: flex; flex-direction: column; }
+/* SIDEBAR RESPONSIVE */
+.sidebar { position: fixed; right: -240px; top: 0; width: 240px; height: 100vh; background: var(--surface); border-left: 1px solid var(--border); z-index: 1000; padding: 20px; transition: 0.3s; }
+.sidebar.active { right: 0; }
+.main { margin-right: 0; min-height: 100vh; display: flex; flex-direction: column; transition: 0.3s; }
+
+/* Media Query for Desktop */
+@media (min-width: 768px) {
+  .sidebar { right: 0; }
+  .main { margin-right: 240px; }
+  .menu-btn { display: none; }
+}
+
+/* UI ELEMENTS */
 .topbar { height: 60px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 24px; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
 .content { padding: 24px; }
-
-/* CARDS & TABLES */
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
 .table-wrapper { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-bottom: 20px; }
 .data-table { width: 100%; border-collapse: separate; border-spacing: 0 8px; padding: 0 16px; }
 .data-table th { color: var(--text-muted); font-size: 0.75rem; text-align: right; padding: 12px; }
 .data-table td { background: var(--surface2); padding: 16px; font-size: 0.85rem; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-.data-table td:first-child { border-right: 1px solid var(--border); border-radius: 0 8px 8px 0; }
-.data-table td:last-child { border-left: 1px solid var(--border); border-radius: 8px 0 0 8px; }
-
-/* UI ELEMENTS */
-.view { display: none; } .view.active { display: block; }
 .badge { padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; }
 .bg { background: rgba(16,185,129,0.1); color: var(--green); }
 .br { background: rgba(239,68,68,0.1); color: var(--red); }
-
 .spinning { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
 .nav-item { padding: 12px; cursor: pointer; color: var(--text-muted); transition: 0.2s; border-radius: 8px; font-size: 0.9rem; }
 .nav-item:hover, .nav-item.active { background: var(--surface2); color: var(--text); }
 </style>
 </head>
 <body>
 
-<nav class="sidebar">
+<nav class="sidebar" id="sidebar">
   <div style="font-weight:900; font-size:1.2rem; margin-bottom:30px; color:var(--green)">نظام الزيادي</div>
   <div class="nav-item active" onclick="showView('dashboard', this)">لوحة التحكم</div>
   <div class="nav-item" onclick="showView('sales', this)">المبيعات</div>
@@ -58,21 +59,23 @@ body { background: var(--bg); font-family: 'Cairo', sans-serif; color: var(--tex
 
 <div class="main">
   <div class="topbar">
+    <button class="menu-btn" onclick="toggleSidebar()" style="background:none; border:none; color:var(--text); font-size:1.5rem; cursor:pointer">
+      <i class="fas fa-bars"></i>
+    </button>
     <div id="viewTitle" style="font-weight:800">لوحة التحكم</div>
     <button id="refreshBtn" onclick="loadAllData()" style="background:var(--surface2); border:none; padding:8px 16px; border-radius:8px; color:var(--text); cursor:pointer">
-      <i class="fas fa-sync-alt"></i> تحديث البيانات
+      <i class="fas fa-sync-alt"></i>
     </button>
   </div>
 
   <div class="content">
     <div class="view active" id="view-dashboard">
       <div class="kpi-grid">
-        <div class="card"><div style="color:var(--text-muted); font-size:0.8rem">التدفق النقدي (المبيعات)</div><div id="k-sales" style="font-size:1.5rem; font-weight:900">...</div></div>
+        <div class="card"><div style="color:var(--text-muted); font-size:0.8rem">التدفق النقدي</div><div id="k-sales" style="font-size:1.5rem; font-weight:900">...</div></div>
         <div class="card"><div style="color:var(--text-muted); font-size:0.8rem">المشتريات</div><div id="k-pur" style="font-size:1.5rem; font-weight:900">...</div></div>
         <div class="card"><div style="color:var(--text-muted); font-size:0.8rem">المصاريف</div><div id="k-exp" style="font-size:1.5rem; font-weight:900">...</div></div>
-        <div class="card"><div style="color:var(--text-muted); font-size:0.8rem">صافي التدفق النقدي</div><div id="k-net" style="font-size:1.5rem; font-weight:900">...</div></div>
+        <div class="card"><div style="color:var(--text-muted); font-size:0.8rem">صافي التدفق</div><div id="k-net" style="font-size:1.5rem; font-weight:900">...</div></div>
       </div>
-      
       <div class="table-wrapper">
         <table class="data-table" id="recentTable">
           <thead><tr><th>النوع</th><th>المبلغ</th><th>التاريخ</th></tr></thead>
@@ -80,10 +83,6 @@ body { background: var(--bg); font-family: 'Cairo', sans-serif; color: var(--tex
         </table>
       </div>
     </div>
-    
-    <div class="view" id="view-sales"><h1>المبيعات</h1><div id="salesList"></div></div>
-    <div class="view" id="view-purchases"><h1>المشتريات</h1><div id="purList"></div></div>
-    <div class="view" id="view-expenses"><h1>المصاريف</h1><div id="expList"></div></div>
   </div>
 </div>
 
@@ -102,59 +101,38 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const fmt = v => Number(v || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2 }) + ' ج.م';
-
-window.showView = function(view, el) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('view-' + view).classList.add('active');
-  el.classList.add('active');
-  document.getElementById('viewTitle').textContent = el.textContent;
+window.toggleSidebar = () => {
+    document.getElementById('sidebar').classList.toggle('active');
 };
+
+window.showView = (view, el) => {
+    document.getElementById('sidebar').classList.remove('active'); // أغلق القائمة عند الاختيار
+    document.getElementById('viewTitle').textContent = el.textContent;
+};
+
+const fmt = v => Number(v || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2 }) + ' ج.م';
 
 window.loadAllData = async function() {
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('spinning');
-
   try {
     const [inv, pur, exp] = await Promise.all([
       getDocs(collection(db, 'invoices')),
       getDocs(collection(db, 'supplier_transactions')),
       getDocs(collection(db, 'expenses'))
     ]);
-
     let s = 0, p = 0, e = 0;
-    let recent = [];
-
-    inv.forEach(d => { const v = Number(d.data().total || 0); s += v; recent.push({t:'بيع', val:v, d:new Date()}); });
-    pur.forEach(d => { const v = Number(d.data().grossTotal || 0); p += v; recent.push({t:'شراء', val:v, d:new Date()}); });
-    exp.forEach(d => { const v = Number(d.data().amount || 0); e += v; recent.push({t:'مصروف', val:v, d:new Date()}); });
-
+    inv.forEach(d => s += Number(d.data().total || 0));
+    pur.forEach(d => p += Number(d.data().grossTotal || 0));
+    exp.forEach(d => e += Number(d.data().amount || 0));
+    
     document.getElementById('k-sales').textContent = fmt(s);
     document.getElementById('k-pur').textContent = fmt(p);
     document.getElementById('k-exp').textContent = fmt(e);
-    
     const net = s - p - e;
-    const netEl = document.getElementById('k-net');
-    netEl.textContent = fmt(net);
-    netEl.style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
-
-    // Update table
-    const tbody = document.querySelector('#recentTable tbody');
-    tbody.innerHTML = recent.slice(0, 5).map(r => `
-      <tr>
-        <td><span class="badge ${r.t=='بيع'?'bg':'br'}">${r.t}</span></td>
-        <td style="font-weight:700">${fmt(r.val)}</td>
-        <td style="color:var(--text-muted)">اليوم</td>
-      </tr>`).join('');
-
-  } catch (err) {
-    alert("خطأ في الاتصال بقاعدة البيانات");
-  } finally {
-    btn.classList.remove('spinning');
-  }
+    document.getElementById('k-net').textContent = fmt(net);
+  } catch (err) { console.error(err); } finally { btn.classList.remove('spinning'); }
 };
-
 loadAllData();
 </script>
 </body>
