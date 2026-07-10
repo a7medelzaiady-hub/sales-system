@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>بوابة التقارير - شركة الزيادي</title>
+    <title>التقارير — شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -66,7 +66,7 @@
             cursor: pointer;
             width: 100%;
             height: 100%;
-            min-height: 190px;
+            min-height: 180px;
         }
 
         .hub-card::before {
@@ -84,7 +84,7 @@
         .card-vouchers::before { background: var(--info); }
         .card-portal::before { background: var(--purple); }
         .card-stock::before { background: var(--orange); }
-        .card-van::before { background: #0284c7; }
+        .card-profit::before { background: #0284c7; }
         .card-dashboard::before { background: var(--teal); }
 
         .hub-card:hover {
@@ -110,7 +110,7 @@
         .card-vouchers .icon-wrapper { background: #e0f7fa; color: var(--info); }
         .card-portal .icon-wrapper { background: #f3e5f5; color: var(--purple); }
         .card-stock .icon-wrapper { background: #fff3e0; color: var(--orange); }
-        .card-van .icon-wrapper { background: #e0f2fe; color: #0284c7; }
+        .card-profit .icon-wrapper { background: #e0f2fe; color: #0284c7; }
         .card-dashboard .icon-wrapper { background: #ccfbf1; color: var(--teal); }
 
         .hub-card:hover .icon-wrapper {
@@ -124,11 +124,11 @@
         .card-vouchers:hover .icon-wrapper { background: var(--info); }
         .card-portal:hover .icon-wrapper { background: var(--purple); }
         .card-stock:hover .icon-wrapper { background: var(--orange); }
-        .card-van:hover .icon-wrapper { background: #0284c7; }
+        .card-profit:hover .icon-wrapper { background: #0284c7; }
         .card-dashboard:hover .icon-wrapper { background: var(--teal); }
 
         .hub-card h3 {
-            font-size: 1.05rem;
+            font-size: 1.02rem;
             font-weight: 800;
             margin-bottom: 6px;
         }
@@ -153,7 +153,7 @@
         <div class="header-container container">
             <div style="width: 38px;"></div>
             <div class="title-area text-center flex-grow-1">
-                <h5 class="fw-bold m-0">بوابة التقارير الشاملة والخدمات الرقمية</h5>
+                <h5 class="fw-bold m-0">التقارير</h5>
             </div>
             <a href="javascript:history.back()" class="btn-action d-flex align-items-center justify-content-center text-decoration-none">
                 <i class="fas fa-arrow-right"></i>
@@ -164,6 +164,7 @@
     <div class="hub-container container">
         <div class="row g-3 justify-content-center row-cols-2 row-cols-md-4">
             
+            <!-- زر التصدير الشامل الموحد -->
             <div class="col-12 col-md-8 mb-2">
                 <div class="hub-card card-all" id="combinedCard" onclick="exportComprehensiveToExcel()">
                     <div class="icon-wrapper" id="combinedIcon">
@@ -225,22 +226,12 @@
             </div>
             
             <div class="col">
-                <a href="reports3.html" class="hub-card card-van">
+                <a href="profit.html" class="hub-card card-profit">
                     <div class="icon-wrapper">
-                        <i class="fas fa-truck-moving"></i>
+                        <i class="fa-solid fa-chart-line"></i>
                     </div>
-                    <h3>جرد العربية</h3>
-                    <p>التقرير الذكي لمتابعة كميات جرد حركة الزيوت والبضاعة الخاصة بسيارة التوزيع.</p>
-                </a>
-            </div>
-            
-            <div class="col">
-                <a href="profit.html" class="hub-card card-van">
-                    <div class="icon-wrapper">
-                        <i class="fas fa-truck-moving"></i>
-                    </div>
-                    <h3> تقرير الارباح باليوم</h3>
-                    <p>تقرير الارباح اليومة</p>
+                    <h3>تقرير الأرباح باليوم</h3>
+                    <p>تقرير الأرباح اليومية الإجمالية والصافية للمحل.</p>
                 </a>
             </div>
 
@@ -295,6 +286,7 @@
         "سعر كرتونه"
     ];
 
+    // جلب بيانات المبيعات
     async function fetchSalesData() {
         let rows = [excelHeader];
         try {
@@ -316,7 +308,10 @@
                 }
 
                 itemsFound.forEach(item => {
-                    const isBox = item.unit === "box";
+                    const u = (item.unit || "").trim();
+                    const un = (item.unitName || "").trim();
+                    const isBox = u === "box" || un === "كرتونة" || un === "كرتونه";
+                    
                     rows.push([
                         dateStr, "بيع", name, item.name || "صنف مبيعات",
                         !isBox ? (item.qty || 0) : 0,
@@ -336,10 +331,11 @@
                     ]);
                 }
             });
-        } catch(err) { console.error("Error in sales fetch:", err); }
+        } catch(err) { console.error("Sales Error:", err); }
         return rows;
     }
 
+    // جلب بيانات المشتريات
     async function fetchPurchasesData() {
         let rows = [excelHeader];
         try {
@@ -388,10 +384,11 @@
                     }
                 }
             });
-        } catch(err) { console.error("Error in purchases fetch:", err); }
+        } catch(err) { console.error("Purchases Error:", err); }
         return rows;
     }
 
+    // جلب بيانات السندات المالية
     async function fetchVouchersData() {
         let rows = [excelHeader];
         try {
@@ -400,28 +397,20 @@
                 const d = doc.data();
                 if (d.type === 'قبض' || d.type === 'صرف') {
                     const dateStr = getCleanDate(d);
+                    const name = d.partyName || d.customerName || d.supplierName || d.name || d.clientName || 'حساب غير معروف';
                     
-                    const name = d.partyName || 
-                                 d.customerName || 
-                                 d.supplierName || 
-                                 d.name || 
-                                 d.clientName || 
-                                 'حساب غير معروف';
-                    
-                    let movementText = "سداد نقدى";
-                    if (d.type === 'قبض') movementText = "سداد منه نقدى";
-                    else if (d.type === 'صرف') movementText = "سداد له نقدى";
+                    let movementText = d.type === 'قبض' ? "سداد منه نقدى" : "سداد له نقدى";
 
                     rows.push([
                         dateStr, movementText, name, d.note || "سداد نقدي", "", 1, "", Math.round(Number(d.amount || 0)) 
                     ]);
                 }
             });
-        } catch(err) { console.error("Error in vouchers fetch:", err); }
+        } catch(err) { console.error("Vouchers Error:", err); }
         return rows;
     }
 
-    // التصدير الشامل المدمج المحدث بالكامل لمنع توقف التصدير
+    // التصدير الشامل المدمج (3 تابات داخل ملف واحد)
     window.exportComprehensiveToExcel = async () => {
         const card = document.getElementById('combinedCard');
         const iconWrapper = document.getElementById('combinedIcon');
@@ -429,31 +418,26 @@
         iconWrapper.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
         try {
-            // جلب البيانات بشكل منفصل تماماً ومحمي من الانهيار مفصلاً لكل تبويب
             const salesRows = await fetchSalesData();
             const purchasesRows = await fetchPurchasesData();
             const vouchersRows = await fetchVouchersData();
 
             const wb = XLSX.utils.book_new();
 
-            // 1. إضافة المبيعات
             const wsSales = XLSX.utils.aoa_to_sheet(salesRows);
             XLSX.utils.book_append_sheet(wb, wsSales, "المبيعات");
 
-            // 2. إضافة المشتريات
             const wsPurchases = XLSX.utils.aoa_to_sheet(purchasesRows);
             XLSX.utils.book_append_sheet(wb, wsPurchases, "المشتريات");
 
-            // 3. إضافة السندات المالية
             const wsVouchers = XLSX.utils.aoa_to_sheet(vouchersRows);
             XLSX.utils.book_append_sheet(wb, wsVouchers, "السندات المالية");
 
-            // إنشاء وتحميل الملف المكتمل الأركان
             XLSX.writeFile(wb, `التقرير_الشامل_شركة_الزيادي_${new Date().toISOString().split('T')[0]}.xlsx`);
 
         } catch (e) {
             console.error(e);
-            alert("حدث خطأ أثناء معالجة وحفظ التقرير الشامل.");
+            alert("حدث خطأ أثناء تحميل التقارير.");
         } finally {
             card.style.pointerEvents = "auto";
             iconWrapper.innerHTML = '<i class="fas fa-file-excel"></i>';
@@ -467,15 +451,12 @@
         iconWrapper.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         try {
             const rows = await fetchSalesData();
-            if (rows.length <= 1) { alert("لم يتم العثور على أي سجلات مبيعات!"); return; }
+            if (rows.length <= 1) { alert("لم يتم العثور على سجلات!"); return; }
             const ws = XLSX.utils.aoa_to_sheet(rows);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "المبيعات");
             XLSX.writeFile(wb, `تقرير_كارت_المبيعات_${new Date().toISOString().split('T')[0]}.xlsx`);
-        } catch (e) {
-            console.error(e);
-            alert("حدث خطأ أثناء تحميل بيانات المبيعات.");
-        } finally {
+        } catch (e) { alert("خطأ في التحميل."); } finally {
             card.style.pointerEvents = "auto";
             iconWrapper.innerHTML = '<i class="fas fa-shopping-cart"></i>';
         }
@@ -487,4 +468,36 @@
         card.style.pointerEvents = "none";
         iconWrapper.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         try {
-            const rows = await fetchPurchasesData
+            const rows = await fetchPurchasesData();
+            if (rows.length <= 1) { alert("لم يتم العثور على سجلات!"); return; }
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "المشتريات");
+            XLSX.writeFile(wb, `تقرير_كارت_المشتريات_${new Date().toISOString().split('T')[0]}.xlsx`);
+        } catch (e) { alert("خطأ في التحميل."); } finally {
+            card.style.pointerEvents = "auto";
+            iconWrapper.innerHTML = '<i class="fas fa-truck"></i>';
+        }
+    };
+
+    window.exportVouchersToExcel = async () => {
+        const card = document.getElementById('vouchersCard');
+        const iconWrapper = document.getElementById('vouchersIcon');
+        card.style.pointerEvents = "none";
+        iconWrapper.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        try {
+            const rows = await fetchVouchersData();
+            if (rows.length <= 1) { alert("لم يتم العثور على سجلات!"); return; }
+            const ws = XLSX.utils.aoa_to_sheet(rows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "السندات المالية");
+            XLSX.writeFile(wb, `تقرير_كارت_السندات_${new Date().toISOString().split('T')[0]}.xlsx`);
+        } catch (e) { alert("خطأ في التحميل."); } finally {
+            card.style.pointerEvents = "auto";
+            iconWrapper.innerHTML = '<i class="fas fa-money-check-alt"></i>';
+        }
+    };
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
