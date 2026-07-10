@@ -1223,22 +1223,21 @@
                     const movementType = isRet ? "مرتجع" : "بيع";
                     
                     const itemName = (itm.name || "");
-                    const unitName = (itm.unit || "").toLowerCase();
+                    const rawUnit = (itm.unit || "").trim().toLowerCase();
                     
                     const rawQty = Number(itm.qty) || 0;
                     const rawPrice = Number(itm.price) || 0;
 
-                    // فحص ذكي وموسع لاسم الصنف والوحدة لضمان توجيه كراتين الشحم والبترومين لعمود الكرتونة فوراً
-                    if (
-                        unitName === 'carton' || 
-                        unitName === 'كرتونة' || 
-                        unitName === 'كرتونه' || 
-                        itemName.includes('كرتونة') || 
-                        itemName.includes('كرتونه') || 
-                        itemName.includes('شحم') || 
-                        itemName.includes('بريفيكس') || 
-                        itemName.includes('بترومين')
-                    ) {
+                    let isCarton = false;
+                    let excelUnitDisplay = "جركن";
+
+                    // الفصل الحاسم بناءً على حقل الوحدة المحفوظ في قاعدة البيانات كما اقترحت
+                    if (rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه') {
+                        isCarton = true;
+                        excelUnitDisplay = "كرتونة";
+                    }
+
+                    if (isCarton) {
                         qtyCarton = rawQty;
                         priceCarton = rawPrice;
                     } else {
@@ -1254,7 +1253,8 @@
                         "عدد الجركن": qtyJarkan,
                         "عدد الكرتونة": qtyCarton,
                         "سعر الجركن": priceJarkan,
-                        "سعر الكرتونة": priceCarton
+                        "سعر الكرتونة": priceCarton,
+                        "نوع الصنف": excelUnitDisplay
                     });
                 });
             }
@@ -1268,7 +1268,8 @@
                     "عدد الجركن": 0,
                     "عدد الكرتونة": 1,
                     "سعر الجركن": 0,
-                    "سعر الكرتونة": inv.calculatedCash
+                    "سعر الكرتونة": inv.calculatedCash,
+                    "نوع الصنف": "سداد"
                 });
             }
 
@@ -1281,7 +1282,8 @@
                     "عدد الجركن": 0,
                     "عدد الكرتونة": 1,
                     "سعر الجركن": 0,
-                    "سعر الكرتونة": inv.calculatedWallet
+                    "سعر الكرتونة": inv.calculatedWallet,
+                    "نوع الصنف": "سداد"
                 });
             }
 
@@ -1294,7 +1296,8 @@
                     "عدد الجركن": 0,
                     "عدد الكرتونة": -1,
                     "سعر الجركن": 0,
-                    "سعر الكرتونة": discountAmount
+                    "سعر الكرتونة": discountAmount,
+                    "نوع الصنف": "خصم"
                 });
             }
         });
