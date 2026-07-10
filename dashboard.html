@@ -1,955 +1,462 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>نظام الزيادي المحاسبي لزيوت السيارات</title>
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<style>
-:root {
-  --green:      #0b5e3d;
-  --green-lt:   #128256;
-  --green-2:    #1d8a5a;
-  --gold:       #dfa100;
-  --gold-lt:    #f5b800;
-  --bg:         #0b110e;
-  --surface:    #111a14;
-  --surface2:   #172012;
-  --surface3:   #1e2b1a;
-  --border:     #1f2f24;
-  --text:       #e8f0eb;
-  --text-muted: #7a9982;
-  --profit:     #22c55e;
-  --loss:       #ef4444;
-  --blue:       #38bdf8;
-  --orange:     #fb923c;
-  --radius:     14px;
-  --radius-sm:  8px;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);font-family:'Cairo',sans-serif;color:var(--text);min-height:100vh;overflow-x:hidden}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام الزيادي المحاسبي - إدارة أرصدة أول المدة</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg: #0b110e;
+            --surface: #111a14;
+            --surface2: #172012;
+            --border: #1f2f24;
+            --gold: #dfa100;
+            --text: #e8f0eb;
+            --text-muted: #7a9982;
+            --profit: #22c55e;
+            --loss: #ef4444;
+            --blue: #38bdf8;
+            --purple: #a78bfa;
+            --orange: #fb923c;
+            --radius: 12px;
+        }
 
-/* SIDEBAR & RESPONSIVE */
-.sidebar{position:fixed;top:0;right:0;width:230px;height:100vh;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:1000;transition:right 0.3s ease;}
-.sidebar-logo{padding:20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-.logo-icon{width:42px;height:42px;background:linear-gradient(135deg,var(--green),var(--green-2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#fff;flex-shrink:0}
-.logo-text{font-size:.9rem;font-weight:800;line-height:1.3}
-.logo-text span{color:var(--gold);font-size:.7rem;display:block;font-weight:400}
-.nav-section{padding:12px 10px 4px}
-.nav-label{font-size:.62rem;font-weight:700;color:var(--text-muted);letter-spacing:1px;padding:0 8px;margin-bottom:4px}
-.nav-item{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:all .2s;font-size:.82rem;font-weight:600;color:var(--text-muted);margin-bottom:2px}
-.nav-item:hover{background:var(--surface2);color:var(--text)}
-.nav-item.active{background:rgba(11,94,61,.35);color:var(--gold)}
-.nav-item.active i{color:var(--gold)}
-.nav-icon{width:16px;text-align:center}
-.sidebar-footer{margin-top:auto;padding:14px;border-top:1px solid var(--border);font-size:.7rem;color:var(--text-muted);text-align:center}
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
 
-/* MAIN */
-.main{margin-right:230px;min-height:100vh;display:flex;flex-direction:column;transition:margin-right 0.3s ease;}
+        body {
+            background: var(--bg);
+            font-family: 'Cairo', sans-serif;
+            color: var(--text);
+            padding: 30px 15px;
+            min-height: 100vh;
+        }
 
-/* TOPBAR */
-.topbar{height:56px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;position:sticky;top:0;z-index:50}
-.menu-btn{display:none;background:none;border:none;color:var(--text);font-size:1.2rem;cursor:pointer;padding:5px;}
-.topbar-title{font-size:.95rem;font-weight:800;flex:1}
-.topbar-actions{display:flex;align-items:center;gap:8px;}
-.date-filter-input{background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 10px;border-radius:var(--radius-sm);font-family:'Cairo';font-size:0.8rem;outline:none;cursor:pointer;transition:all 0.2s;}
-.date-filter-input:focus{border-color:var(--gold);}
-.date-filter-input::-webkit-calendar-picker-indicator{filter: invert(1); cursor:pointer;}
-.btn-refresh{background:var(--surface2);border:1px solid var(--border);color:var(--text-muted);width:34px;height:34px;border-radius:var(--radius-sm);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;font-size:.82rem}
-.btn-refresh:hover{background:var(--surface3);color:var(--text)}
-.spinning i{animation:spin .7s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.status-dot{width:7px;height:7px;border-radius:50%;background:var(--profit);box-shadow:0 0 5px var(--profit);animation:pulse 2s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
 
-/* CONTENT */
-.content{padding:20px;flex:1}
-.view{display:none}
-.view.active{display:block}
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 20px;
+        }
 
-/* KPI GRID */
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px}
-.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
-.kpi-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
-.kpi-card::before{content:'';position:absolute;top:0;right:0;width:3px;height:100%}
-.kpi-card.g::before{background:var(--profit)}
-.kpi-card.r::before{background:var(--loss)}
-.kpi-card.b::before{background:var(--blue)}
-.kpi-card.o::before{background:var(--orange)}
-.kpi-card.gd::before{background:var(--gold)}
-.kpi-card.p::before{background:#a78bfa}
-.kpi-label{font-size:.68rem;font-weight:700;color:var(--text-muted);margin-bottom:8px;display:flex;align-items:center;gap:5px}
-.kpi-value{font-size:1.4rem;font-weight:900;margin-bottom:4px;line-height:1}
-.kpi-sub{font-size:.68rem;color:var(--text-muted)}
-.kpi-icon{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:1.8rem;opacity:.06}
+        header h1 {
+            font-size: 1.8rem;
+            color: var(--text);
+            font-weight: 900;
+            margin-bottom: 5px;
+        }
 
-/* NET HERO */
-.net-hero{background:linear-gradient(135deg,#060e08,var(--surface));border:1px solid var(--border);border-radius:var(--radius);padding:28px;text-align:center;position:relative;overflow:hidden;margin-bottom:20px}
-.net-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(11,94,61,.12) 0%,transparent 70%)}
-.net-hero-label{font-size:.72rem;color:var(--text-muted);font-weight:700;margin-bottom:8px;letter-spacing:1px}
-.net-hero-value{font-size:2.8rem;font-weight:900;margin-bottom:6px}
-.net-hero-eq{font-size:.72rem;color:var(--text-muted)}
-.mini-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border-radius:var(--radius-sm);overflow:hidden;margin:14px auto 0;max-width:380px}
-.mini-stat{background:var(--surface2);padding:10px;text-align:center}
-.mini-stat-val{font-size:.95rem;font-weight:800}
-.mini-stat-lbl{font-size:.62rem;color:var(--text-muted);font-weight:600;margin-top:2px}
+        header p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
 
-/* CHARTS */
-.charts-row{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:20px}
-.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
-.chart-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.chart-title{font-size:.82rem;font-weight:700}
-.chart-subtitle{font-size:.68rem;color:var(--text-muted)}
+        /* كارت الجدول الرئيسي */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
 
-/* TABLE */
-.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;overflow-x:auto;}
-.table-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
-.table-title{font-size:.88rem;font-weight:700}
-.data-table{width:100%;border-collapse:collapse;white-space:nowrap;}
-.data-table th{padding:10px 14px;font-size:.68rem;font-weight:700;color:var(--text-muted);text-align:right;background:var(--surface2);border-bottom:1px solid var(--border)}
-.data-table td{padding:12px 14px;font-size:.8rem;border-bottom:1px solid rgba(31,47,36,.6);color:var(--text)}
-.data-table tr:last-child td{border-bottom:none}
-.data-table tr:hover td{background:rgba(255,255,255,.015)}
+        .card-header {
+            background: rgba(223, 161, 0, 0.05);
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
 
-/* BADGES */
-.badge{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:.65rem;font-weight:700}
-.bg{background:rgba(34,197,94,.14);color:var(--profit)}
-.br{background:rgba(239,68,68,.14);color:var(--loss)}
-.bb{background:rgba(56,189,248,.14);color:var(--blue)}
-.bo{background:rgba(251,146,60,.14);color:var(--orange)}
-.bgd{background:rgba(223,161,0,.14);color:var(--gold)}
+        .card-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--gold);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
 
-/* SECTION TITLE */
-.section-title{font-size:1rem;font-weight:800;margin-bottom:14px;display:flex;align-items:center;gap:8px;color:var(--text)}
-.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
+        .btn-save {
+            background: var(--gold);
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.85rem;
+            font-family: 'Cairo';
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
 
-/* LOADING */
-.loading-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
-.loading-logo{font-size:2.5rem;font-weight:900;background:linear-gradient(135deg,var(--green-2),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.loading-spinner{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
-.loading-text{font-size:.8rem;color:var(--text-muted);font-weight:600}
+        .btn-save:hover {
+            background: #f5b800;
+            transform: translateY(-1px);
+        }
 
-/* ALERT */
-.alert-error{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:var(--radius-sm);background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--loss);font-size:.8rem;font-weight:600;margin-bottom:14px}
+        /* الجدول */
+        .responsive-table {
+            overflow-x: auto;
+        }
 
-/* RECOMMENDATIONS STYLING */
-.rec-card { background: linear-gradient(135deg, #111a14, #122218); border: 1px solid var(--border); border-right: 4px solid var(--gold); border-radius: var(--radius); padding: 20px; margin-bottom: 20px; }
-.rec-list { list-style: none; padding: 0; }
-.rec-item { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 0.85rem; line-height: 1.6; }
-.rec-item i { margin-top: 4px; font-size: 0.9rem; }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: right;
+            white-space: nowrap;
+        }
 
-/* INITIAL BALANCE TABLE INPUTS */
-.table-input { background: rgba(0,0,0,0.2); border: 1px solid var(--border); color: #fff; padding: 6px 10px; border-radius: 6px; width: 100%; max-width: 140px; text-align: center; font-family: 'Cairo'; font-weight: bold; outline: none; }
-.table-input:focus { border-color: var(--gold); background: rgba(0,0,0,0.4); }
-.lbl-date-saved { font-size: 0.7rem; color: var(--text-muted); display: block; margin-top: 4px; font-weight: normal; }
+        .data-table th {
+            background: var(--surface2);
+            padding: 15px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+        }
 
-/* P&L TABLE */
-.pl-row-total{background:var(--surface2);font-weight:800}
-.pl-row-gross{background:rgba(11,94,61,.15)}
-.pl-row-net{background:rgba(223,161,0,.08);border-top:2px solid var(--gold)}
+        .data-table td {
+            padding: 15px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
 
-@media(max-width:768px){
-  .sidebar { right: -230px; }
-  .sidebar.active { right: 0; box-shadow: -5px 0 25px rgba(0,0,0,0.5); }
-  .main { margin-right: 0; }
-  .menu-btn { display: block; }
-  .charts-row { grid-template-columns: 1fr; }
-  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-  .net-hero-value { font-size: 2rem; }
-}
-</style>
+        .data-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* حقول الإدخال اليدوي */
+        .table-input-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .table-input {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            width: 160px;
+            text-align: center;
+            font-family: 'Cairo';
+            font-weight: 700;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .table-input:focus {
+            border-color: var(--gold);
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .lbl-date {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        /* الفروقات والانحرافات */
+        .val-current {
+            font-weight: 700;
+        }
+
+        .deviation-badge {
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+
+        /* إشعارات الحفظ والتحميل */
+        .status-msg {
+            text-align: center;
+            padding: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .success { color: var(--profit); }
+        .error { color: var(--loss); }
+
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: var(--bg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 9999;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--gold);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            .card-header { flex-direction: column; text-align: center; }
+            .table-input { width: 100%; }
+        }
+    </style>
 </head>
 <body>
 
-<div class="loading-overlay" id="loadingOverlay">
-  <div class="loading-logo">الزيادي</div>
-  <div class="loading-spinner"></div>
-  <div class="loading-text">جاري تحميل البيانات المالية...</div>
-</div>
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p style="color: var(--text-muted); font-size: 0.85rem;">جاري جلب ومقارنة الأرصدة المالية...</p>
+    </div>
 
-<nav class="sidebar" id="sidebar">
-  <div class="sidebar-logo">
-    <div class="logo-icon">ز</div>
-    <div class="logo-text">الزيادي لزيوت السيارات<span>النظام المحاسبي المتكامل</span></div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">الرئيسية</div>
-    <div class="nav-item active" onclick="showView('dashboard',this)">
-      <i class="fas fa-chart-pie nav-icon"></i>لوحة التحكم
-    </div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">المعاملات</div>
-    <div class="nav-item" onclick="showView('sales',this)">
-      <i class="fas fa-file-invoice nav-icon"></i>المبيعات
-    </div>
-    <div class="nav-item" onclick="showView('purchases',this)">
-      <i class="fas fa-cart-shopping nav-icon"></i>المشتريات
-    </div>
-    <div class="nav-item" onclick="showView('expenses',this)">
-      <i class="fas fa-receipt nav-icon"></i>المصاريف
-    </div>
-    <div class="nav-item" onclick="showView('cash',this)">
-      <i class="fas fa-vault nav-icon"></i>الصندوق
-    </div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">الأطراف</div>
-    <div class="nav-item" onclick="showView('customers',this)">
-      <i class="fas fa-users nav-icon"></i>العملاء
-    </div>
-    <div class="nav-item" onclick="showView('suppliers',this)">
-      <i class="fas fa-truck nav-icon"></i>الموردين
-    </div>
-  </div>
-  <div class="nav-section">
-    <div class="nav-label">التقارير</div>
-    <div class="nav-item" onclick="showView('reports',this)">
-      <i class="fas fa-file-chart-column nav-icon"></i>الأرباح والخسائر
-    </div>
-  </div>
-  <div class="sidebar-footer">الزيادي لزيوت السيارات v2.1</div>
-</nav>
+    <div class="container">
+        <header>
+            <h1>نظام الزيادي لزيوت السيارات</h1>
+            <p>منظومة مطابقة أرصدة أول المدة بالأرصدة الحالية لدفاتر الحركات</p>
+        </header>
 
-<div class="main">
-  <div class="topbar">
-    <button class="menu-btn" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
-    <div class="status-dot"></div>
-    <div class="topbar-title" id="viewTitle">لوحة التحكم</div>
-    
-    <div class="topbar-actions">
-      <input type="date" id="filterDate" class="date-filter-input" onchange="loadAllData()" title="تصفية حسب التاريخ">
-      <button class="btn-refresh" id="refreshBtn" onclick="loadAllData()" title="تحديث">
-        <i class="fas fa-arrows-rotate"></i>
-      </button>
-    </div>
-  </div>
+        <div id="statusAlert"></div>
 
-  <div class="content">
-    <div id="errorBanner"></div>
-
-    <div class="view active" id="view-dashboard">
-      
-      <!-- جدول الأرصدة الافتتاحية والمقارنة المطوّر -->
-      <div class="table-card" style="border: 1px solid rgba(223,161,0,0.3); margin-bottom:25px;">
-        <div class="table-header" style="background: rgba(223,161,0,0.04)">
-          <div class="table-title" style="color: var(--gold); font-weight:800;">
-            <i class="fas fa-scale-balanced"></i> جدول رصيد أول المدة والمقارنة بالأرصدة الحالية
-          </div>
-          <div>
-            <button onclick="saveInitialBalances()" style="background:var(--gold); color:#000; border:none; padding:6px 16px; border-radius:6px; cursor:pointer; font-weight:800; font-size:0.75rem; transition: background 0.2s;">
-              <i class="fas fa-save"></i> حفظ وتطبيق الأرصدة الافتتاحية
-            </button>
-            <span id="initSaveMsg" style="color:var(--profit); margin-right:10px; font-size:0.75rem; font-weight:bold;"></span>
-          </div>
-        </div>
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>البند المالي</th>
-              <th style="text-align: center; width: 250px;">رصيد أول المدة (إدخال يدوّي)</th>
-              <th>الرصيد الحالي من واقع الحركات</th>
-              <th>حالة الحساب / الانحراف</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><i class="fas fa-vault" style="color:var(--gold); margin-left:6px;"></i> رصيد النقدية بالصندوق</td>
-              <td style="text-align: center;">
-                <input type="number" id="initCash" class="table-input" placeholder="0.00">
-                <span class="lbl-date-saved" id="dateCash">—</span>
-              </td>
-              <td id="currCash" style="font-weight:700;">—</td>
-              <td id="diffCash">—</td>
-            </tr>
-            <tr>
-              <td><i class="fas fa-users" style="color:var(--blue); margin-left:6px;"></i> ديون العملاء (الآجل النشط)</td>
-              <td style="text-align: center;">
-                <input type="number" id="initCust" class="table-input" placeholder="0.00">
-                <span class="lbl-date-saved" id="dateCust">—</span>
-              </td>
-              <td id="currCust" style="font-weight:700;">—</td>
-              <td id="diffCust">—</td>
-            </tr>
-            <tr>
-              <td><i class="fas fa-truck" style="color:#a78bfa; margin-left:6px;"></i> مستحقات الموردين</td>
-              <td style="text-align: center;">
-                <input type="number" id="initSup" class="table-input" placeholder="0.00">
-                <span class="lbl-date-saved" id="dateSup">—</span>
-              </td>
-              <td id="currSup" style="font-weight:700;">—</td>
-              <td id="diffSup">—</td>
-            </tr>
-            <tr>
-              <td><i class="fas fa-boxes-stacked" style="color:var(--orange); margin-left:6px;"></i> قيمة المخزن الباقية</td>
-              <td style="text-align: center;">
-                <input type="number" id="initInv" class="table-input" placeholder="0.00">
-                <span class="lbl-date-saved" id="dateInv">—</span>
-              </td>
-              <td id="currInv" style="font-weight:700;">—</td>
-              <td id="diffInv">—</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- قسم التوصيات الذكية المولدة تلقائياً -->
-      <div class="rec-card" id="recommendationsCard">
-        <div class="table-title" style="color: var(--gold); margin-bottom: 12px; font-weight:800;">
-          <i class="fas fa-wand-magic-sparkles"></i> توصيات ذكية وإجراءات مقترحة بناءً على التحليل المالي
-        </div>
-        <ul class="rec-list" id="recList">
-          <li class="rec-item"><i class="fas fa-circle-notch fa-spin" style="color:var(--gold)"></i> جاري تحليل البيانات وصياغة التوصيات الحالية...</li>
-        </ul>
-      </div>
-
-      <div class="net-hero">
-        <div class="net-hero-label">◆ صافي التدفق النقدي المتوفر (الكاش)</div>
-        <div class="net-hero-value" id="heroNet">—</div>
-        <div class="net-hero-eq">المبيعات الإجمالية − مدفوعات الموردين − المصاريف التشغيلية</div>
-        <div class="mini-stats">
-          <div class="mini-stat">
-            <div class="mini-stat-val" id="heroMargin" style="color:var(--profit)">—</div>
-            <div class="mini-stat-lbl">مؤشر التدفق</div>
-          </div>
-          <div class="mini-stat">
-            <div class="mini-stat-val" id="heroCount">—</div>
-            <div class="mini-stat-lbl">إجمالي الحركات</div>
-          </div>
-          <div class="mini-stat">
-            <div class="mini-stat-val" id="heroCash" style="color:var(--gold)">—</div>
-            <div class="mini-stat-lbl">رصيد الصندوق الفعلي</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="kpi-grid">
-        <div class="kpi-card g">
-          <div class="kpi-label"><i class="fas fa-file-invoice" style="color:var(--profit)"></i>إجمالي المبيعات</div>
-          <div class="kpi-value" id="k-sales" style="color:var(--profit)">—</div>
-          <div class="kpi-sub" id="k-sales-c">—</div>
-          <i class="fas fa-file-invoice kpi-icon"></i>
-        </div>
-        <div class="kpi-card r">
-          <div class="kpi-label"><i class="fas fa-cart-shopping" style="color:var(--loss)"></i>إجمالي المشتريات</div>
-          <div class="kpi-value" id="k-pur" style="color:var(--loss)">—</div>
-          <div class="kpi-sub" id="k-pur-c">—</div>
-          <i class="fas fa-cart-shopping kpi-icon"></i>
-        </div>
-        <div class="kpi-card o">
-          <div class="kpi-label"><i class="fas fa-receipt" style="color:var(--orange)"></i>المصاريف التشغيلية</div>
-          <div class="kpi-value" id="k-exp" style="color:var(--orange)">—</div>
-          <div class="kpi-sub" id="k-exp-c">—</div>
-          <i class="fas fa-receipt kpi-icon"></i>
-        </div>
-        <div class="kpi-card b">
-          <div class="kpi-label"><i class="fas fa-users" style="color:var(--blue)"></i>العملاء</div>
-          <div class="kpi-value" id="k-cust" style="color:var(--blue)">—</div>
-          <div class="kpi-sub" id="k-cust-s">—</div>
-          <i class="fas fa-users kpi-icon"></i>
-        </div>
-        <div class="kpi-card p">
-          <div class="kpi-label"><i class="fas fa-truck" style="color:#a78bfa"></i>الموردين</div>
-          <div class="kpi-value" id="k-sup" style="color:#a78bfa">—</div>
-          <div class="kpi-sub" id="k-sup-s">—</div>
-          <i class="fas fa-truck kpi-icon"></i>
-        </div>
-        <div class="kpi-card gd">
-          <div class="kpi-label"><i class="fas fa-vault" style="color:var(--gold)"></i>صافي الصندوق الفعلي</div>
-          <div class="kpi-value" id="k-cash" style="color:var(--gold)">—</div>
-          <div class="kpi-sub">الرصيد السابق + القبض − الصرف</div>
-          <i class="fas fa-vault kpi-icon"></i>
-        </div>
-      </div>
-
-      <div class="charts-row">
-        <div class="chart-card">
-          <div class="chart-header">
-            <div>
-              <div class="chart-title">التدفق المالي</div>
-              <div class="chart-subtitle">مقارنة المبيعات والمشتريات والمصاريف والتدفق</div>
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">
+                    <i class="fas fa-scale-balanced"></i>
+                    جدول أرصدة أول المدة والمقارنة الفورية
+                </div>
+                <button class="btn-save" onclick="saveInitialBalances()">
+                    <i class="fas fa-floppy-disk"></i>
+                    حفظ وتطبيق الأرصدة اليدوية
+                </button>
             </div>
-          </div>
-          <canvas id="flowChart" height="170"></canvas>
-        </div>
-        <div class="chart-card">
-          <div class="chart-header">
-            <div>
-              <div class="chart-title">توزيع التكاليف</div>
-              <div class="chart-subtitle">نسبة كل بند</div>
+
+            <div class="responsive-table">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>الحساب المالي</th>
+                            <th style="text-align: center; width: 220px;">رصيد أول المدة (إدخال يدوّي)</th>
+                            <th>الرصيد الحالي (من واقع الحركات)</th>
+                            <th>الانحراف / التغير في الحساب</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><i class="fas fa-vault" style="color: var(--gold); margin-left: 8px;"></i> رصيد النقدية بالصندوق</td>
+                            <td>
+                                <div class="table-input-wrapper">
+                                    <input type="number" id="initCash" class="table-input" placeholder="0.00">
+                                    <span class="lbl-date" id="dateCash">لم يُحفظ بعد</span>
+                                </div>
+                            </td>
+                            <td id="currCash" class="val-current">—</td>
+                            <td id="diffCash">—</td>
+                        </tr>
+                        <tr>
+                            <td><i class="fas fa-boxes-stacked" style="color: var(--orange); margin-left: 8px;"></i> قيمة بضاعة المخزن</td>
+                            <td>
+                                <div class="table-input-wrapper">
+                                    <input type="number" id="initInv" class="table-input" placeholder="0.00">
+                                    <span class="lbl-date" id="dateInv">لم يُحفظ بعد</span>
+                                </div>
+                            </td>
+                            <td id="currInv" class="val-current">—</td>
+                            <td id="diffInv">—</td>
+                        </tr>
+                        <tr>
+                            <td><i class="fas fa-users" style="color: var(--blue); margin-left: 8px;"></i> ديون العملاء (الآجل)</td>
+                            <td>
+                                <div class="table-input-wrapper">
+                                    <input type="number" id="initCust" class="table-input" placeholder="0.00">
+                                    <span class="lbl-date" id="dateCust">لم يُحفظ بعد</span>
+                                </div>
+                            </td>
+                            <td id="currCust" class="val-current">—</td>
+                            <td id="diffCust">—</td>
+                        </tr>
+                        <tr>
+                            <td><i class="fas fa-truck" style="color: var(--purple); margin-left: 8px;"></i> مستحقات الموردين</td>
+                            <td>
+                                <div class="table-input-wrapper">
+                                    <input type="number" id="initSup" class="table-input" placeholder="0.00">
+                                    <span class="lbl-date" id="dateSup">لم يُحفظ بعد</span>
+                                </div>
+                            </td>
+                            <td id="currSup" class="val-current">—</td>
+                            <td id="diffSup">—</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
-          </div>
-          <canvas id="pieChart" height="170"></canvas>
         </div>
-      </div>
-
-      <div class="section-title"><i class="fas fa-clock" style="color:var(--gold)"></i>آخر الحركات</div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">آخر 10 حركات مالية</div></div>
-        <div id="recentTrans"><div class="empty-state"><i class="fas fa-database"></i><p>جاري التحميل...</p></div></div>
-      </div>
     </div>
 
-    <div class="view" id="view-sales">
-      <div class="section-title"><i class="fas fa-file-invoice" style="color:var(--profit)"></i>المبيعات</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card g"><div class="kpi-label">إجمالي المبيعات</div><div class="kpi-value" id="s-tot" style="color:var(--profit)">—</div></div>
-        <div class="kpi-card b"><div class="kpi-label">عدد الفواتير</div><div class="kpi-value" id="s-cnt" style="color:var(--blue)">—</div></div>
-        <div class="kpi-card o"><div class="kpi-label">إجمالي المتبقي (آجل)</div><div class="kpi-value" id="s-rem" style="color:var(--orange)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">سجل فواتير المبيعات</div></div>
-        <div id="salesTable"></div>
-      </div>
-    </div>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    <div class="view" id="view-purchases">
-      <div class="section-title"><i class="fas fa-cart-shopping" style="color:var(--loss)"></i>المشتريات</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card r"><div class="kpi-label">إجمالي المشتريات</div><div class="kpi-value" id="p-tot" style="color:var(--loss)">—</div></div>
-        <div class="kpi-card b"><div class="kpi-label">عدد فواتير الشراء</div><div class="kpi-value" id="p-cnt" style="color:var(--blue)">—</div></div>
-        <div class="kpi-card o"><div class="kpi-label">مستحقات موردين</div><div class="kpi-value" id="p-rem" style="color:var(--orange)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">سجل فواتير المشتريات</div></div>
-        <div id="purchasesTable"></div>
-      </div>
-    </div>
+        // إعدادات قاعدة البيانات الخاصة بك
+        const firebaseConfig = {
+            apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+            authDomain: "ahmedelzaiady.firebaseapp.com",
+            projectId: "ahmedelzaiady",
+            storageBucket: "ahmedelzaiady.firebasestorage.app",
+            messagingSenderId: "300306825071",
+            appId: "1:300306825071:web:0426ddde56280fa090329a"
+        };
 
-    <div class="view" id="view-expenses">
-      <div class="section-title"><i class="fas fa-receipt" style="color:var(--orange)"></i>المصاريف</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card o"><div class="kpi-label">إجمالي المصاريف</div><div class="kpi-value" id="e-tot" style="color:var(--orange)">—</div></div>
-        <div class="kpi-card b"><div class="kpi-label">عدد المصاريف</div><div class="kpi-value" id="e-cnt" style="color:var(--blue)">—</div></div>
-        <div class="kpi-card r"><div class="kpi-label">متوسط المصروف</div><div class="kpi-value" id="e-avg" style="color:var(--loss)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">سجل المصاريف التشغيلية</div></div>
-        <div id="expensesTable"></div>
-      </div>
-    </div>
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
-    <div class="view" id="view-cash">
-      <div class="section-title"><i class="fas fa-vault" style="color:var(--gold)"></i>الصندوق</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card g"><div class="kpi-label">إجمالي القبض (وارد)</div><div class="kpi-value" id="c-in" style="color:var(--profit)">—</div></div>
-        <div class="kpi-card r"><div class="kpi-label">إجمالي الصرف (صادر)</div><div class="kpi-value" id="c-out" style="color:var(--loss)">—</div></div>
-        <div class="kpi-card gd"><div class="kpi-label">صافي الصندوق الفعلي</div><div class="kpi-value" id="c-net" style="color:var(--gold)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">حركة الصندوق (transactions)</div></div>
-        <div id="cashTable"></div>
-      </div>
-    </div>
+        // تنسيق العملة
+        const fmtC = v => Number(v || 0).toLocaleString('ar-EG', { minimumFractionDigits: 2 }) + ' ج.م';
 
-    <div class="view" id="view-customers">
-      <div class="section-title"><i class="fas fa-users" style="color:var(--blue)"></i>العملاء</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card b"><div class="kpi-label">عدد العملاء</div><div class="kpi-value" id="cu-cnt" style="color:var(--blue)">—</div></div>
-        <div class="kpi-card g"><div class="kpi-label">إجمالي مبيعات للعملاء</div><div class="kpi-value" id="cu-tot" style="color:var(--profit)">—</div></div>
-        <div class="kpi-card o"><div class="kpi-label">إجمالي ديون العملاء الفعلي</div><div class="kpi-value" id="cu-dbt" style="color:var(--orange)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">قائمة العملاء وأرصدتهم</div></div>
-        <div id="customersTable"></div>
-      </div>
-    </div>
+        // دالة جلب كافة البيانات وحساب المقارنات
+        window.loadAllData = async function() {
+            try {
+                // 1. جلب الأرصدة الافتتاحية المحفوظة في الإدخال اليدوي
+                const initDoc = await getDoc(doc(db, 'settings', 'initial_balances'));
+                const initVals = initDoc.exists() ? initDoc.data() : { cash: 0, inventory: 0, customers: 0, suppliers: 0, savedAt: '—' };
 
-    <div class="view" id="view-suppliers">
-      <div class="section-title"><i class="fas fa-truck" style="color:#a78bfa"></i>الموردين</div>
-      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr)">
-        <div class="kpi-card p"><div class="kpi-label">عدد الموردين</div><div class="kpi-value" id="su-cnt" style="color:#a78bfa">—</div></div>
-        <div class="kpi-card r"><div class="kpi-label">إجمالي المشتريات من الموردين</div><div class="kpi-value" id="su-tot" style="color:var(--loss)">—</div></div>
-        <div class="kpi-card o"><div class="kpi-label">إجمالي مستحقات الموردين الفعلي</div><div class="kpi-value" id="su-dbt" style="color:var(--orange)">—</div></div>
-      </div>
-      <div class="table-card">
-        <div class="table-header"><div class="table-title">قائمة الموردين وأرصدتهم</div></div>
-        <div id="suppliersTable"></div>
-      </div>
-    </div>
+                // تعبئة الحقول والتواريخ
+                document.getElementById('initCash').value = initVals.cash || 0;
+                document.getElementById('initInv').value = initVals.inventory || 0;
+                document.getElementById('initCust').value = initVals.customers || 0;
+                document.getElementById('initSup').value = initVals.suppliers || 0;
 
-    <div class="view" id="view-reports">
-      <div class="section-title"><i class="fas fa-file-chart-column" style="color:var(--gold)"></i>قائمة الأرباح والخسائر</div>
-      <div class="net-hero" style="margin-bottom:20px">
-        <div class="net-hero-label">◆ صافي التدفق النقدي</div>
-        <div class="net-hero-value" id="rep-net">—</div>
-        <div class="net-hero-eq">إجمالي المبيعات − إجمالي المشتريات − المصاريف التشغيلية</div>
-      </div>
-      <div class="table-card" style="margin-bottom:20px">
-        <div class="table-header"><div class="table-title">قائمة التدفق المالي التفصيلية</div></div>
-        <table class="data-table">
-          <thead><tr><th>البند المحاسبي</th><th>المبلغ (ج.م)</th><th>الطبيعة</th><th>% من المبيعات</th></tr></thead>
-          <tbody id="plTable"><tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text-muted)">جاري التحميل...</td></tr></tbody>
-        </table>
-      </div>
-      <div class="section-title"><i class="fas fa-chart-bar" style="color:var(--blue)"></i>المقارنة البيانية</div>
-      <div class="chart-card"><canvas id="reportChart" height="130"></canvas></div>
-    </div>
+                const dateLabels = ['dateCash', 'dateInv', 'dateCust', 'dateSup'];
+                dateLabels.forEach(id => {
+                    document.getElementById(id).innerText = "حُفظ في: " + (initVals.savedAt || '—');
+                });
 
-  </div>
-</div>
+                // 2. جلب الحركات الحالية من المجموعات المختلفة لحساب الأرصدة التراكمية الفردية
+                const [transSnap, invSnap, purSnap, custSnap, supSnap] = await Promise.all([
+                    getDocs(collection(db, 'transactions')),
+                    getDocs(collection(db, 'invoices')),
+                    getDocs(collection(db, 'supplier_transactions')),
+                    getDocs(collection(db, 'customers')),
+                    getDocs(collection(db, 'suppliers'))
+                ]);
 
-<script type="module">
-import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+                // حساب نقدية الصندوق الفعلي الحالي (قبض - صرف)
+                let cashIn = 0, cashOut = 0;
+                transSnap.forEach(t => {
+                    const type = (t.data().type || '').trim();
+                    const amt = Number(t.data().amount || 0);
+                    if (type === 'قبض') cashIn += amt;
+                    if (type === 'صرف') cashOut += amt;
+                });
+                const actualCash = cashIn - cashOut;
 
-const firebaseConfig = {
-  apiKey:"AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain:"ahmedelzaiady.firebaseapp.com",
-  projectId:"ahmedelzaiady",
-  storageBucket:"ahmedelzaiady.firebasestorage.app",
-  messagingSenderId:"300306825071",
-  appId:"1:300306825071:web:0426ddde56280fa090329a"
-};
-const app = initializeApp(firebaseConfig);
-const db  = getFirestore(app);
+                // حساب قيمة المخزن (مشتريات - مبيعات) كمعادلة تراكمية حركية مضافة على أول المدة
+                let totalSales = 0, totalPur = 0;
+                invSnap.forEach(d => totalSales += Number(d.data().total || 0));
+                purSnap.forEach(p => {
+                    if(p.data().type !== 'مرتجع شراء') {
+                        totalPur += Number(p.data().grossTotal || p.data().total || 0);
+                    }
+                });
+                const actualInv = totalPur - totalSales;
 
-/* ── UI CONTROLS ── */
-window.toggleSidebar = function() {
-  document.getElementById('sidebar').classList.toggle('active');
-};
+                // حساب ديون العملاء الحالية (إجمالي متبقي فواتير الآجل أو أرصدة الحسابات)
+                let actualCustDebt = 0;
+                custSnap.forEach(c => actualCustDebt += Number(c.data().currentBalance || 0));
+                if(actualCustDebt === 0) {
+                    invSnap.forEach(inv => actualCustDebt += Number(inv.data().remaining || 0));
+                }
 
-const titles={dashboard:'لوحة التحكم',sales:'المبيعات',purchases:'المشتريات',expenses:'المصاريف',cash:'الصندوق',customers:'العملاء',suppliers:'الموردين',reports:'الأرباح والخسائر'};
-window.showView = function(name, el) {
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  document.getElementById('view-'+name).classList.add('active');
-  if(el) el.classList.add('active');
-  document.getElementById('viewTitle').textContent = titles[name]||name;
-  document.getElementById('sidebar').classList.remove('active');
-};
+                // حساب مستحقات الموردين الحالية
+                let actualSupDebt = 0;
+                supSnap.forEach(s => actualSupDebt += Number(s.data().currentBalance || 0));
 
-/* ── DATE UTILS ── */
-function toEn(s){
-  if(!s)return"";
-  const a=[/٠/g,/١/g,/٢/g,/٣/g,/٤/g,/٥/g,/٦/g,/٧/g,/٨/g,/٩/g];
-  let r=s.toString();a.forEach((p,i)=>r=r.replace(p,i));return r;
-}
-function parseStandardDate(df, ts){
-  if(df){
-    const s = toEn(df);
-    let m = s.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
-    if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
-    m = s.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
-    if(m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
-  }
-  if(ts?.toDate){
-    const d = ts.toDate();
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  }
-  return null;
-}
+                // 3. عرض الأرصدة الحالية في الجدول
+                document.getElementById('currCash').textContent = fmtC(actualCash);
+                document.getElementById('currInv').textContent = fmtC(actualInv);
+                document.getElementById('currCust').textContent = fmtC(actualCustDebt);
+                document.getElementById('currSup').textContent = fmtC(actualSupDebt);
 
-/* ── UTILS ── */
-const fmt  = v => Number(v||0).toLocaleString('ar-EG',{minimumFractionDigits:2});
-const fmtC = v => fmt(v) + ' ج.م';
-const clr  = v => v >= 0 ? 'var(--profit)' : 'var(--loss)';
-const pct  = (v,t) => t ? ((v/t)*100).toFixed(1)+'%' : '—';
-const ts   = d => d?.timestamp?.seconds || d?.createdAt?.seconds || 0;
-const dateStr = d => d.date || (d.timestamp?.toDate ? d.timestamp.toDate().toLocaleDateString('ar-EG') : (d.createdAt?.toDate ? d.createdAt.toDate().toLocaleDateString('ar-EG') : '—'));
+                // 4. حساب الانحرافات والمطابقة (الحالي مقارنة بالافتتاحي المُدخل يدوياً)
+                const diffCash = actualCash - (initVals.cash || 0);
+                const diffInv = actualInv - (initVals.inventory || 0);
+                const diffCust = actualCustDebt - (initVals.customers || 0);
+                const diffSup = actualSupDebt - (initVals.suppliers || 0);
 
-let flowCh, pieCh, repCh;
+                // عرض الانحرافات بالألوان والدلالات المحاسبية المناسبة
+                renderDeviation('diffCash', diffCash, 'صعود نقدي', 'عجز/انخفاض نقدي');
+                renderDeviation('diffInv', diffInv, 'تضخم بالمخزون', 'سحب من بضاعة أول المدة');
+                renderDeviation('diffCust', diffCust, 'ارتفاع الديون الآجلة', 'تحصيل صافي من العملاء', true);
+                renderDeviation('diffSup', diffSup, 'التزامات جديدة للموردين', 'صافي سداد للموردين', true);
 
-/* ── SAVE INITIAL BALANCES WITH TIMESTAMP ── */
-window.saveInitialBalances = async function() {
-  try {
-    const now = new Date();
-    const formattedDate = now.toLocaleDateString('ar-EG') + " " + now.toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'});
-    
-    const data = {
-      cash: Number(document.getElementById('initCash').value || 0),
-      customers: Number(document.getElementById('initCust').value || 0),
-      suppliers: Number(document.getElementById('initSup').value || 0),
-      inventory: Number(document.getElementById('initInv').value || 0),
-      savedAt: formattedDate,
-      timestamp: now
-    };
-    
-    await setDoc(doc(db, 'settings', 'initial_balances'), data);
-    
-    document.getElementById('initSaveMsg').innerText = "تم حفظ وتطبيق الأرصدة الافتتاحية!";
-    setTimeout(() => document.getElementById('initSaveMsg').innerText = "", 3000);
-    
-    loadAllData();
-  } catch (error) {
-    alert("حدث خطأ أثناء الحفظ: " + error.message);
-  }
-};
+            } catch (err) {
+                document.getElementById('statusAlert').innerHTML = `<div class="status-msg error"><i class="fas fa-exclamation-triangle"></i> حدث خطأ أثناء تحميل البيانات: ${err.message}</div>`;
+            } finally {
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        };
 
-/* ── MAIN LOAD (نسخة آمنة ومقاومة للتوقف تماماً) ── */
-window.loadAllData = async function() {
-  const btn = document.getElementById('refreshBtn');
-  const selectedDate = document.getElementById('filterDate').value; 
-  
-  btn.classList.add('spinning');
-  document.getElementById('errorBanner').innerHTML = '';
-
-  try {
-    // جلب الوثائق الأساسية بشكل توازي
-    const [invSnap, purSnap, expSnap, transSnap, custSnap, supSnap, initDoc] = await Promise.all([
-      getDocs(collection(db,'invoices')),
-      getDocs(collection(db,'supplier_transactions')),
-      getDocs(collection(db,'expenses')),
-      getDocs(collection(db,'transactions')),
-      getDocs(collection(db,'customers')),
-      getDocs(collection(db,'suppliers')),
-      getDoc(doc(db, 'settings', 'initial_balances'))
-    ]);
-
-    // جلب المنتجات في بلوك منفصل ومحمى تماماً لضمان عدم وقوف الصفحة بسبب حقل التكلفة
-    let currentInventoryValue = 0;
-    try {
-      const prodSnap = await getDocs(collection(db,'products'));
-      prodSnap.forEach(pDoc => {
-        const p = pDoc.data();
-        const qty = Number(p.quantity || p.stock || p.quantity_jarkan || p.quantity_carton || 0);
-        const cost = Number(p.purchasePrice || p.costPrice || p.cost || 0);
-        if (!isNaN(qty) && !isNaN(cost)) {
-          currentInventoryValue += (qty * cost);
+        // دالة مساعدة لصياغة الانحراف
+        function renderDeviation(elementId, val, positiveTxt, negativeTxt, isDebt = false) {
+            const el = document.getElementById(elementId);
+            if (val === 0) {
+                el.innerHTML = `<span class="deviation-badge" style="color: var(--text-muted)">✔ متطابق تماماً</span>`;
+            } else if (val > 0) {
+                el.innerHTML = `<span class="deviation-badge" style="color: ${isDebt ? 'var(--orange)' : 'var(--profit)'}">▲ ${positiveTxt}: ${fmtC(val)}</span>`;
+            } else {
+                el.innerHTML = `<span class="deviation-badge" style="color: ${isDebt ? 'var(--profit)' : 'var(--loss)'}">▼ ${negativeTxt}: ${fmtC(Math.abs(val))}</span>`;
+            }
         }
-      });
-    } catch (e) {
-      console.warn("فشل جلب قيمة المخزن تفصيلياً، سيتم الاعتماد على المعادلة البديلة لحماية الواجهة:", e);
-    }
 
-    // جلب بيانات الأرصدة الافتتاحية والتاريخ المسجلة به
-    const initVals = initDoc.exists() ? initDoc.data() : { cash: 0, customers: 0, suppliers: 0, inventory: 0, savedAt: '—' };
-    document.getElementById('initCash').value = initVals.cash || 0;
-    document.getElementById('initCust').value = initVals.customers || 0;
-    document.getElementById('initSup').value = initVals.suppliers || 0;
-    document.getElementById('initInv').value = initVals.inventory || 0;
-    
-    document.getElementById('dateCash').innerText = "حُفظ في: " + (initVals.savedAt || '—');
-    document.getElementById('dateCust').innerText = "حُفظ في: " + (initVals.savedAt || '—');
-    document.getElementById('dateSup').innerText = "حُفظ في: " + (initVals.savedAt || '—');
-    document.getElementById('dateInv').innerText = "حُفظ في: " + (initVals.savedAt || '—');
+        // دالة حفظ الأرصدة الافتتاحية يدوياً بالتاريخ والوقت الحالي
+        window.saveInitialBalances = async function() {
+            try {
+                const now = new Date();
+                // صياغة التاريخ والوقت بالكامل بشكل عربي دقيق
+                const formattedDate = now.toLocaleDateString('ar-EG') + " " + now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
 
-    // ── 1. invoices ──
-    const invoices = invSnap.docs.map(d=>({id:d.id,...d.data()})).filter(d => {
-      if(!selectedDate) return true;
-      return parseStandardDate(d.date, d.timestamp || d.createdAt) === selectedDate;
-    });
-    
-    let totalSales = 0, totalRemaining = 0;
-    invoices.forEach(inv => {
-      totalSales     += Number(inv.total||0);
-      totalRemaining += Number(inv.remaining||0);
-    });
+                const data = {
+                    cash: Number(document.getElementById('initCash').value || 0),
+                    inventory: Number(document.getElementById('initInv').value || 0),
+                    customers: Number(document.getElementById('initCust').value || 0),
+                    suppliers: Number(document.getElementById('initSup').value || 0),
+                    savedAt: formattedDate,
+                    timestamp: now
+                };
 
-    // ── 2. supplier_transactions ──
-    const purchases = purSnap.docs.map(d=>({id:d.id,...d.data()})).filter(d => {
-      if(!selectedDate) return true;
-      return parseStandardDate(d.date, d.timestamp || d.createdAt) === selectedDate;
-    });
-    
-    let totalPur = 0, totalPurRem = 0;
-    purchases.forEach(p => {
-      if(p.type === 'مرتجع شراء') return;
-      totalPur    += Number(p.grossTotal||p.total||0);
-      totalPurRem += Number(p.netTotal||0);
-    });
+                await setDoc(doc(db, 'settings', 'initial_balances'), data);
+                
+                document.getElementById('statusAlert').innerHTML = `<div class="status-msg success"><i class="fas fa-circle-check"></i> تم حفظ وتطبيق أرصدة أول المدة بنجاح بتاريخ اليوم!</div>`;
+                setTimeout(() => document.getElementById('statusAlert').innerHTML = '', 4000);
+                
+                // إعادة تحميل لمطابقة الحسابات فوراً بعد التحديث
+                loadAllData();
+            } catch (error) {
+                document.getElementById('statusAlert').innerHTML = `<div class="status-msg error"><i class="fas fa-triangle-exclamation"></i> فشل الحفظ: ${error.message}</div>`;
+            }
+        };
 
-    // ── 3. expenses ──
-    const expenses = expSnap.docs.map(d=>({id:d.id,...d.data()})).filter(d => {
-      if(!selectedDate) return true;
-      return parseStandardDate(d.date, d.timestamp || d.createdAt) === selectedDate;
-    });
-    
-    let totalExp = 0;
-    expenses.forEach(e => { totalExp += Number(e.amount||0); });
-
-    // ── 4. transactions (Cash) ──
-    const trans = transSnap.docs.map(d=>({id:d.id,...d.data()})).filter(d => {
-      if(!selectedDate) return true;
-      return parseStandardDate(d.date, d.timestamp || d.createdAt) === selectedDate;
-    });
-    
-    let cashIn = 0, cashOut = 0;
-    trans.forEach(t => {
-      const type = (t.type||'').trim();
-      if(type === 'قبض')  cashIn  += Number(t.amount||0);
-      if(type === 'صرف')  cashOut += Number(t.amount||0);
-    });
-
-    // ── 5. Customers ──
-    const customers = custSnap.docs.map(d=>({id:d.id,...d.data()}));
-    const custMap = {};
-    customers.forEach(c => { custMap[c.id] = {...c, salesTotal:0, debtTotal:0}; });
-    invoices.forEach(inv => {
-      if(inv.customerId && custMap[inv.customerId]) {
-        custMap[inv.customerId].salesTotal += Number(inv.total||0);
-        custMap[inv.customerId].debtTotal  += Number(inv.remaining||0);
-      }
-    });
-    const custList = Object.values(custMap);
-    const periodCustDebt = custList.reduce((s,c)=>s+(c.debtTotal||Number(c.currentBalance||0)),0);
-
-    // ── 6. Suppliers ──
-    const suppliers = supSnap.docs.map(d=>({id:d.id,...d.data()}));
-    const periodSupDebt = suppliers.reduce((s,sp)=>s+Number(sp.currentBalance||0),0);
-
-    // ==========================================
-    // ── تطبيق المعادلات المالية ومقارنة الأرصدة ──
-    // ==========================================
-    const actualCashBalance  = (initVals.cash || 0) + cashIn - cashOut;
-    const actualCustomerDebt = (initVals.customers || 0) + periodCustDebt;
-    const actualSupplierDebt = (initVals.suppliers || 0) + periodSupDebt;
-    const actualInventoryVal = currentInventoryValue > 0 ? currentInventoryValue : (initVals.inventory || 0) + totalPur - totalSales;
-
-    // حساب الانحرافات والفروق
-    const diffCash = actualCashBalance - (initVals.cash || 0);
-    const diffCust = actualCustomerDebt - (initVals.customers || 0);
-    const diffSup  = actualSupplierDebt - (initVals.suppliers || 0);
-    const diffInv  = actualInventoryVal - (initVals.inventory || 0);
-
-    // عرض القيم داخل جدول المقارنة التفاعلي
-    document.getElementById('currCash').textContent = fmtC(actualCashBalance);
-    document.getElementById('currCust').textContent = fmtC(actualCustomerDebt);
-    document.getElementById('currSup').textContent  = fmtC(actualSupplierDebt);
-    document.getElementById('currInv').textContent  = fmtC(actualInventoryVal);
-
-    // صياغة وعرض حقل الانحراف
-    document.getElementById('diffCash').innerHTML = `<span style="color:${clr(diffCash)}">${diffCash >= 0 ? '▲ زاد بمعدل: ' : '▼ انخفض بمعدل: '} ${fmtC(Math.abs(diffCash))}</span>`;
-    document.getElementById('diffCust').innerHTML = `<span style="color:${diffCust <= 0 ? 'var(--profit)' : 'var(--orange)'}">${diffCust >= 0 ? '▲ مبيعات آجل متراكمة: ' : '▼ تم تحصيل ديون بـ: '} ${fmtC(Math.abs(diffCust))}</span>`;
-    document.getElementById('diffSup').innerHTML  = `<span style="color:${diffSup <= 0 ? 'var(--profit)' : 'var(--loss)'}">${diffSup >= 0 ? '▲ التزامات جديدة للموردين: ' : '▼ سداد مستحقات بـ: '} ${fmtC(Math.abs(diffSup))}</span>`;
-    document.getElementById('diffInv').innerHTML  = `<span style="color:${clr(diffInv)}">${diffInv >= 0 ? '▲ تضخم بالمخزون: ' : '▼ سحب مبيعات من المخزون: '} ${fmtC(Math.abs(diffInv))}</span>`;
-
-    const netIncome = totalSales - totalPur - totalExp;
-    const margin    = totalSales ? ((netIncome/totalSales)*100).toFixed(1) : 0;
-    const totalCount= invoices.length + purchases.length + expenses.length;
-
-    // توليد التوصيات والتحليل المالي المتقدم تلقائياً
-    generateAiRecommendations(actualCashBalance, actualCustomerDebt, actualSupplierDebt, actualInventoryVal, totalSales, totalPur, totalExp, initVals);
-
-    // ══════════ RENDER DASHBOARD ══════════
-    const heroEl = document.getElementById('heroNet');
-    heroEl.textContent = fmtC(netIncome);
-    heroEl.style.color = clr(netIncome);
-    
-    const mgEl = document.getElementById('heroMargin');
-    mgEl.textContent = margin + '%';
-    mgEl.style.color = clr(netIncome);
-    
-    document.getElementById('heroCount').textContent = totalCount;
-    document.getElementById('heroCash').textContent  = fmtC(actualCashBalance);
-
-    document.getElementById('k-sales').textContent  = fmtC(totalSales);
-    document.getElementById('k-sales-c').textContent= invoices.length + ' فاتورة بيع';
-    document.getElementById('k-pur').textContent    = fmtC(totalPur);
-    document.getElementById('k-pur-c').textContent  = purchases.length + ' فاتورة شراء';
-    document.getElementById('k-exp').textContent    = fmtC(totalExp);
-    document.getElementById('k-exp-c').textContent  = expenses.length + ' مصروف';
-    
-    document.getElementById('k-cust').textContent   = custList.length;
-    document.getElementById('k-cust-s').textContent = 'إجمالي الديون: ' + fmtC(actualCustomerDebt);
-    
-    document.getElementById('k-sup').textContent    = suppliers.length;
-    document.getElementById('k-sup-s').textContent = 'إجمالي المستحقات: ' + fmtC(actualSupplierDebt);
-    
-    const cashEl = document.getElementById('k-cash');
-    cashEl.textContent = fmtC(actualCashBalance); 
-    cashEl.style.color = clr(actualCashBalance);
-
-    buildFlowChart(totalSales, totalPur, totalExp, netIncome);
-    buildPieChart(totalPur, totalExp, netIncome);
-
-    const recentItems = [
-      ...invoices.map(d=>({...d,_t:'بيع',_amt:Number(d.total||0)})),
-      ...purchases.map(d=>({...d,_t:'شراء',_amt:Number(d.grossTotal||d.total||0)})),
-      ...expenses.map(d=>({...d,_t:'مصروف',_amt:Number(d.amount||0)}))
-    ].sort((a,b)=>ts(b)-ts(a)).slice(0,10);
-    renderRecent(recentItems);
-
-    // تفعيل وجلب جداول العرض الأخرى بأمان
-    setTimeout(() => {
-      try {
-        // SALES VIEW
-        document.getElementById('s-tot').textContent = fmtC(totalSales);
-        document.getElementById('s-cnt').textContent = invoices.length;
-        document.getElementById('s-rem').textContent = fmtC(totalRemaining);
-        document.getElementById('salesTable').innerHTML = renderTable(invoices.sort((a,b)=>ts(b)-ts(a)), ['العميل','إجمالي الفاتورة','المدفوع','المتبقي','طريقة الدفع','التاريخ'], d=>[d.customerName||'—', `<span style="color:var(--profit);font-weight:700">${fmtC(d.total)}</span>`, fmtC(d.paid), d.remaining>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.remaining)}</span>` : `<span class="badge bg">مسدد</span>`, d.paymentMethod ? `<span class="badge bb">${d.paymentMethod}</span>` : '—', dateStr(d)]);
-        
-        // PURCHASES VIEW
-        document.getElementById('p-tot').textContent = fmtC(totalPur);
-        document.getElementById('p-cnt').textContent = purchases.length;
-        document.getElementById('p-rem').textContent = fmtC(totalPurRem);
-        const supNames = {}; suppliers.forEach(s=>supNames[s.id]=s.name);
-        document.getElementById('purchasesTable').innerHTML = renderTable(purchases.sort((a,b)=>ts(b)-ts(a)), ['المورد','إجمالي الفاتورة','المدفوع','المتبقي','نوع الدفع','التاريخ'], d=>[supNames[d.supplierId]||'—', `<span style="color:var(--loss);font-weight:700">${fmtC(d.grossTotal||d.total)}</span>`, fmtC(d.totalPaid||d.cashPaid), d.netTotal>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.netTotal)}</span>` : `<span class="badge bg">مسدد</span>`, d.paymentType ? `<span class="badge bb">${d.paymentType}</span>` : '—', dateStr(d)]);
-
-        // EXPENSES VIEW
-        const eAvg = expenses.length ? totalExp/expenses.length : 0;
-        document.getElementById('e-tot').textContent = fmtC(totalExp);
-        document.getElementById('e-cnt').textContent = expenses.length;
-        document.getElementById('e-avg').textContent = fmtC(eAvg);
-        document.getElementById('expensesTable').innerHTML = renderTable(expenses.sort((a,b)=>ts(b)-ts(a)), ['نوع المصروف','ملاحظة','المبلغ','التاريخ'], d=>[d.type||'—', d.note||'—', `<span style="color:var(--orange);font-weight:700">${fmtC(d.amount)}</span>`, dateStr(d)]);
-
-        // CASH VIEW
-        document.getElementById('c-in').textContent  = fmtC(cashIn);
-        document.getElementById('c-out').textContent = fmtC(cashOut);
-        document.getElementById('c-net').textContent = fmtC(actualCashBalance);
-        document.getElementById('cashTable').innerHTML = renderTable(trans.sort((a,b)=>ts(b)-ts(a)).slice(0,50), ['النوع','البيان','المبلغ','طريقة الدفع','التاريخ'], d=>[`<span class="badge ${d.type==='قبض'?'bg':'br'}">${d.type||'—'}</span>`, d.details||d.notes||d.actionType||'—', `<span style="color:${d.type==='قبض'?'var(--profit)':'var(--loss)'};font-weight:700">${fmtC(d.amount)}</span>`, d.paymentMethod ? `<span class="badge bb">${d.paymentMethod}</span>` : '—', dateStr(d)]);
-
-        // CUSTOMERS VIEW
-        document.getElementById('cu-cnt').textContent = custList.length;
-        document.getElementById('cu-tot').textContent = fmtC(custList.reduce((s,c)=>s+c.salesTotal,0));
-        document.getElementById('cu-dbt').textContent = fmtC(actualCustomerDebt);
-        document.getElementById('customersTable').innerHTML = renderTable(custList.sort((a,b)=>b.salesTotal-a.salesTotal), ['اسم العميل','إجمالي المشتريات','المديونية (الحالية)','الرصيد الافتراضي'], d=>[d.name||'—', `<span style="color:var(--profit);font-weight:700">${fmtC(d.salesTotal)}</span>`, d.debtTotal>0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.debtTotal)}</span>` : `<span class="badge bg">مسدد</span>`, fmtC(d.initialBalance||0)]);
-
-        // SUPPLIERS VIEW
-        document.getElementById('su-cnt').textContent = suppliers.length;
-        document.getElementById('su-tot').textContent = fmtC(totalPur);
-        document.getElementById('su-dbt').textContent = fmtC(actualSupplierDebt);
-        document.getElementById('suppliersTable').innerHTML = renderTable(suppliers.sort((a,b)=>Number(b.currentBalance||0)-Number(a.currentBalance||0)), ['اسم المورد','الرصيد الحالي (مستحقات)','تاريخ الإضافة'], d=>[d.name||'—', Number(d.currentBalance||0) > 0 ? `<span style="color:var(--orange);font-weight:700">${fmtC(d.currentBalance)}</span>` : `<span class="badge bg">لا يوجد</span>`, d.createdAt?.toDate ? d.createdAt.toDate().toLocaleDateString('ar-EG') : '—']);
-
-        // REPORTS VIEW
-        document.getElementById('rep-net').textContent = fmtC(netIncome);
-        const grossProfit = totalSales - totalPur;
-        const plRows = [
-          {label:'إجمالي الإيرادات (المبيعات)',  val:totalSales,   cls:''},
-          {label:'تكلفة البضاعة المباعة (المشتريات)', val:-totalPur, cls:''},
-          {label:'مجمل العائد النقدي', val:grossProfit, cls:'pl-row-gross', bold:true},
-          {label:'المصاريف التشغيلية', val:-totalExp, cls:''},
-          {label:'صافي التدفق النقدي', val:netIncome, cls:'pl-row-net', bold:true},
-        ];
-        document.getElementById('plTable').innerHTML = plRows.map(r=>`<tr class="${r.cls}" ${r.bold?'style="font-weight:800"':''}><td>${r.label}</td><td style="color:${r.val>=0?'var(--profit)':'var(--loss)'};">${fmtC(Math.abs(r.val))}</td><td><span class="badge ${r.val>=0?'bg':'br'}">${r.val>=0?'موجب':'سالب'}</span></td><td style="color:var(--text-muted)">${pct(Math.abs(r.val),totalSales)}</td></tr>`).join('');
-        buildReportChart(totalSales, totalPur, totalExp, grossProfit, netIncome);
-      } catch (innerErr) {
-        console.error("خطأ فرعي أثناء تهيئة أحد جداول العرض المتقدمة:", innerErr);
-      }
-    }, 200);
-
-  } catch(err) {
-    document.getElementById('errorBanner').innerHTML =
-      `<div class="alert-error"><i class="fas fa-triangle-exclamation"></i> خطأ اتصال أو فهرسة بقاعدة البيانات: ${err.message}</div>`;
-    console.error(err);
-  } finally {
-    btn.classList.remove('spinning');
-    document.getElementById('loadingOverlay').style.display = 'none';
-  }
-};
-
-/* ── دالة توليد التوصيات والتحليل المحاسبي التلقائي ── */
-function generateAiRecommendations(cash, customers, suppliers, inventory, sales, purchases, expenses, initVals) {
-  const listEl = document.getElementById('recList');
-  let html = '';
-
-  // 1. تحليل السيولة النقدية والصندوق
-  if (cash < 0) {
-    html += `<li class="rec-item" style="color:var(--loss)"><i class="fas fa-exclamation-triangle"></i> <strong>خطر سيولة:</strong> رصيد الصندوق الفعلي بالسالب (${fmtC(cash)}). يوجد خلل في تسجيل المقبوضات أو أن حركة صرف التوريدات تجاوزت النقدية المتوفرة بشكل حاد.</li>`;
-  } else if (cash < (initVals.cash || 0) * 0.5) {
-    html += `<li class="rec-item" style="color:var(--orange)"><i class="fas fa-triangle-exclamation"></i> <strong>تحذير انخفاض سيولة:</strong> نقدية الصندوق انخفضت بأكثر من 50% مقارنة بأول المدة. يُنصح بتقييد عمليات الصرف غير الضرورية فوراً.</li>`;
-  } else {
-    html += `<li class="rec-item" style="color:var(--profit)"><i class="fas fa-circle-check"></i> <strong>موقف السيولة مستقر:</strong> رصيد النقدية الحالي بالصندوق يغطي حركة النشاط التشغيلي ومصروفات المحل الحالية بشكل آمن.</li>`;
-  }
-
-  // 2. تحليل ديون العملاء (البيع الآجل)
-  if (customers > sales * 0.4 && sales > 0) {
-    html += `<li class="rec-item" style="color:var(--loss)"><i class="fas fa-hand-holding-dollar"></i> <strong>تراكم الديون (خطر ائتماني):</strong> ديون العملاء الحالية تمثل نسبة كبيرة جدًا من مبيعاتك المحققة. يجب تفعيل خطة تحصيل صارمة ووقف البيع الآجل للعملاء غير الملتزمين بالسداد.</li>`;
-  } else if (customers > 0) {
-    html += `<li class="rec-item" style="color:var(--blue)"><i class="fas fa-info-circle"></i> <strong>متابعة الديون:</strong> إجمالي ديون العملاء بلغت ${fmtC(customers)}. تأكد من مراجعة كشوف حسابات العملاء دورياً لتفادي تحولها لديون معدومة.</li>`;
-  }
-
-  // 3. تحليل الموردين والتزامات التوريد
-  if (suppliers > cash) {
-    html += `<li class="rec-item" style="color:var(--loss)"><i class="fas fa-truck-ramp-box"></i> <strong>عجز التغطية للموردين:</strong> مستحقات الموردين الحالية تجاوزت كامل النقدية المتاحة بالصندوق. يُنصح بجدولة المدفوعات مع الموردين بناءً على التدفقات النقدية القادمة من التحصيل.</li>`;
-  } else if (suppliers > 0) {
-    html += `<li class="rec-item" style="color:var(--text)"><i class="fas fa-arrow-left-right"></i> <strong>التزامات الموردين:</strong> مديونيتك لصالح شركات الزيوت تبلغ ${fmtC(suppliers)}. الحفاظ على سدادها بانتظام يضمن لك استمرار الحصول على بونص الخصومات النقدية والتسهيلات.</li>`;
-  }
-
-  // 4. تحليل حركة وحجم المخزن
-  if (inventory > (initVals.inventory || 0) * 1.3) {
-    html += `<li class="rec-item" style="color:var(--orange)"><i class="fas fa-boxes-packing"></i> <strong>تضخم في رأس المال العامل بالمخزن:</strong> قيمة بضاعة المخزن ارتفعت ملحوظاً. تأكد من أن هذا التضخم ناتج عن شراء أصناف سريعة الدوران (مثل مقاسات الزيوت الأكثر طلباً) وليس ركوداً في بضاعة بطيئة الحركة.</li>`;
-  } else if (inventory < (initVals.inventory || 0) * 0.7 && inventory > 0) {
-    html += `<li class="rec-item" style="color:var(--blue)"><i class="fas fa-warehouse"></i> <strong>مستوى المخزن منخفض:</strong> يوجد سحب قوي ومبيعات من البضاعة المتاحة. يُوصى ببدء طلب شواحن جديدة لتفادي نفاد مخزون الأصناف الحيوية.</li>`;
-  }
-
-  // 5. كفاءة الأداء التشغيلي العام
-  if (sales > purchases + expenses && sales > 0) {
-    html += `<li class="rec-item" style="color:var(--profit)"><i class="fas fa-chart-line"></i> <strong>أداء تشغيلي ممتاز:</strong> النشاط يحقق تدفقاً نقدياً موجباً ومعدل ربحية تشغيلية ممتاز بمعدل ${margin}%.</li>`;
-  } else if (sales > 0) {
-    html += `<li class="rec-item" style="color:var(--loss)"><i class="fas fa-chart-line-down"></i> <strong>انكماش تشغيلي:</strong> المصاريف والمشتريات خلال الفترة الحالية تتخطى الإيرادات المحققة. راجع هامش ربح المنتجات وتكلفة المصاريف الثابتة فوراً.</li>`;
-  }
-
-  listEl.innerHTML = html;
-}
-
-/* ── TABLE HELPER ── */
-function renderTable(rows, headers, rowFn) {
-  if(!rows?.length)
-    return '<div class="empty-state"><i class="fas fa-inbox"></i><p>لا توجد بيانات</p></div>';
-  return `<table class="data-table">
-    <thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
-    <tbody>${rows.map(r=>`<tr>${rowFn(r).map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
-  </table>`;
-}
-
-/* ── RECENT ── */
-function renderRecent(items) {
-  const typeLabel = {بيع:'بيع',شراء:'شراء',مصروف:'مصروف'};
-  const typeCls   = {بيع:'bg',شراء:'br',مصروف:'bo'};
-  const typeClr   = {بيع:'var(--profit)',شراء:'var(--loss)',مصروف:'var(--orange)'};
-  if(!items.length){
-    document.getElementById('recentTrans').innerHTML='<div class="empty-state"><i class="fas fa-inbox"></i><p>لا توجد حركات</p></div>';
-    return;
-  }
-  document.getElementById('recentTrans').innerHTML = `<table class="data-table">
-    <thead><tr><th>النوع</th><th>البيان</th><th>المبلغ</th><th>التاريخ</th></tr></thead>
-    <tbody>${items.map(d=>`<tr>
-      <td><span class="badge ${typeCls[d._t]||'bb'}">${d._t}</span></td>
-      <td>${d.customerName||d.note||d.type||'—'}</td>
-      <td style="font-weight:700;color:${typeClr[d._t]||'var(--text)'}">${fmtC(d._amt)}</td>
-      <td style="color:var(--text-muted)">${dateStr(d)}</td>
-    </tr>`).join('')}</tbody></table>`;
-}
-
-/* ── CHARTS ── */
-const chartOpts = (extra={}) => ({
-  responsive:true, maintainAspectRatio:false,
-  plugins:{legend:{labels:{color:'#7a9982',font:{family:'Cairo',size:11}}}},
-  scales:{
-    x:{ticks:{color:'#7a9982',font:{family:'Cairo'}},grid:{color:'rgba(31,47,36,.5)'}},
-    y:{ticks:{color:'#7a9982',font:{family:'Cairo'},callback:v=>Number(v).toLocaleString('ar-EG')},grid:{color:'rgba(31,47,36,.5)'}}
-  },...extra
-});
-
-function buildFlowChart(s,p,e,n){
-  const ctx=document.getElementById('flowChart').getContext('2d');
-  if(flowCh) flowCh.destroy();
-  flowCh=new Chart(ctx,{type:'bar',data:{
-    labels:['المبيعات','المشتريات','المصاريف','صافي التدفق'],
-    datasets:[{data:[s,p,e,n],
-      backgroundColor:['rgba(34,197,94,.65)','rgba(239,68,68,.65)','rgba(251,146,60,.65)','rgba(223,161,0,.65)'],
-      borderColor:['#22c55e','#ef4444','#fb923c','#dfa100'],borderWidth:1.5,borderRadius:6}]
-  },options:{...chartOpts(),plugins:{legend:{display:false}}}});
-}
-
-function buildPieChart(p,e,n){
-  const ctx=document.getElementById('pieChart').getContext('2d');
-  if(pieCh) pieCh.destroy();
-  pieCh=new Chart(ctx,{type:'doughnut',data:{
-    labels:['المشتريات','المصاريف','التدفق الإيجابي'],
-    datasets:[{data:[p,e,Math.max(0,n)],
-      backgroundColor:['rgba(239,68,68,.7)','rgba(251,146,60,.7)','rgba(34,197,94,.7)'],
-      borderColor:['#ef4444','#fb923c','#22c55e'],borderWidth:1.5}]
-  },options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
-    plugins:{legend:{position:'bottom',labels:{color:'#7a9982',font:{family:'Cairo',size:10},padding:10}}}}});
-}
-
-function buildReportChart(s,p,e,g,n){
-  const ctx=document.getElementById('reportChart').getContext('2d');
-  if(repCh) repCh.destroy();
-  repCh=new Chart(ctx,{type:'bar',data:{
-    labels:['الإيرادات','تكلفة الشراء','المصاريف','مجمل العائد','صافي التدفق'],
-    datasets:[{data:[s,p,e,g,n],
-      backgroundColor:['rgba(34,197,94,.7)','rgba(239,68,68,.7)','rgba(251,146,60,.7)','rgba(56,189,248,.7)','rgba(223,161,0,.7)'],
-      borderColor:['#22c55e','#ef4444','#fb923c','#38bdf8','#dfa100'],borderWidth:1,borderRadius:5}]
-  },options:{...chartOpts(),plugins:{legend:{display:false}}}});
-}
-
-/* ── INIT ── */
-window.loadAllData();
-</script>
+        // تشغيل التحميل التلقائي فور فتح الصفحة
+        loadAllData();
+    </script>
 </body>
 </html>
