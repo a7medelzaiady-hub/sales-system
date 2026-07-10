@@ -12,7 +12,7 @@
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:#e8edea;font-family:'Cairo',sans-serif;color:var(--s9);font-size:.88rem;padding-bottom:60px;-webkit-font-smoothing:antialiased;}
 
-/* ══ CSS (محدث بنفس التصميم) ══ */
+/* ══ CSS ══ */
 .topbar{background:var(--g8);height:56px;padding:0 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:300;box-shadow:0 2px 12px rgba(5,46,22,.4);}
 .tb-brand{display:flex;align-items:center;gap:9px}
 .tb-logo{width:34px;height:34px;border-radius:8px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:.95rem;color:#fff;flex-shrink:0;}
@@ -31,7 +31,7 @@ body{background:#e8edea;font-family:'Cairo',sans-serif;color:var(--s9);font-size
 table.inv{width:100%;border-collapse:separate;border-spacing:0;font-size:.75rem;}
 table.inv thead th{background:var(--g8);color:#fff;padding:10px 6px;text-align:center;white-space:nowrap;position:sticky;top:0;}
 table.inv tbody td{padding:10px 6px;text-align:center;border-bottom:1px solid #eef3f0;}
-table.inv tbody tr:hover td{background:#f5faf7 !important;cursor:pointer;} /* إشارة للضغط */
+table.inv tbody tr:hover td{background:#f5faf7 !important;cursor:pointer;}
 
 .nm-cell{display:flex;align-items:center;font-weight:700;color:var(--g8)}
 .badge-det{padding:2px 8px;border-radius:4px;font-size:.65rem;font-weight:700;}
@@ -54,13 +54,16 @@ table.inv tbody tr:hover td{background:#f5faf7 !important;cursor:pointer;} /* إ
       <div class="tb-sub">تقرير حركة المخزون التفصيلي</div>
     </div>
   </div>
-  <button class="tb-btn" onclick="window.print()"><i class="fas fa-print"></i></button>
+  <div class="tb-btns">
+    <a href="index.html" class="tb-btn" title="الصفحة الرئيسية"><i class="fas fa-home"></i></a>
+    <button class="tb-btn" onclick="window.print()" title="طباعة"><i class="fas fa-print"></i></button>
+  </div>
 </nav>
 
 <div class="datebar">
   <div class="datebar-title"><i class="fas fa-chart-bar"></i> تفاصيل الحركات</div>
   <div class="date-pick">
-    <input type="date" id="dateIn" onchange="load()">
+    <input type="date" id="dateIn" onchange="window.loadData()">
   </div>
 </div>
 
@@ -109,7 +112,6 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-// تخزين بيانات الأصناف
 let inventoryData = {}; 
 
 function toEn(s){
@@ -145,7 +147,6 @@ function add(name, cart, qty, type, date) {
   inventoryData[name][k] += qty;
 }
 
-// فتح النافذة
 window.showDetails = function(name){
   const item = inventoryData[name];
   document.getElementById("modalTitle").textContent = name;
@@ -164,7 +165,7 @@ window.showDetails = function(name){
   new bootstrap.Modal(document.getElementById('detailModal')).show();
 };
 
-async function load(){
+window.loadData = async function(){
   const date = document.getElementById("dateIn").value;
   inventoryData = {};
   const tbody = document.getElementById("tbody");
@@ -199,7 +200,13 @@ async function load(){
 
   // عرض الجدول
   tbody.innerHTML = "";
-  Object.keys(inventoryData).sort().forEach(name => {
+  const keys = Object.keys(inventoryData).sort();
+  if(keys.length === 0){
+    tbody.innerHTML = "<tr><td colspan='4' class='text-muted text-center p-3'>لا توجد حركات في هذا التاريخ</td></tr>";
+    return;
+  }
+  
+  keys.forEach(name => {
     const d = inventoryData[name];
     tbody.innerHTML += `
       <tr onclick="showDetails('${name}')">
@@ -212,7 +219,12 @@ async function load(){
   });
 }
 
-document.addEventListener("DOMContentLoaded", load);
+// تعيين تاريخ اليوم كقيمة افتراضية عند فتح الصفحة لأول مرة
+document.addEventListener("DOMContentLoaded", () => {
+  const today = new Date().toISOString().slice(0, 10);
+  document.getElementById("dateIn").value = today;
+  window.loadData();
+});
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
