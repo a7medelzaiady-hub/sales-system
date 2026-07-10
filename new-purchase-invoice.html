@@ -164,7 +164,6 @@
             margin: 20px 0;
         }
 
-        /* مصفوفة الترتيب الثنائي الاحترافية */
         .summary-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -186,18 +185,17 @@
         .grid-cell .cell-title { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; margin-bottom: 2px; }
         .grid-cell .cell-val { font-size: 1.05rem; font-weight: 800; color: var(--text-dark); }
         
-        /* تلوين الخلايا الخاصة بحسب نوع الحساب */
-        .cell-gross { background: #f0fdf4 !important; border-color: #bbf7d0 !important; }
-        .cell-gross .cell-val { color: var(--primary) !important; font-size: 1.15rem; }
-        .cell-cash { background: #f0fdf4 !important; border-color: #bbf7d0 !important; }
-        .cell-cash .cell-val { color: var(--success) !important; }
-        .cell-wallet { background: #f0f9ff !important; border-color: #bae6fd !important; }
-        .cell-wallet .cell-val { color: var(--wallet-color) !important; }
-        .cell-pending { background: #fef2f2 !important; border-color: #fca5a5 !important; }
-        .cell-pending .cell-val { color: var(--danger) !important; font-size: 1.25rem; }
-        .cell-final { background: var(--primary-gradient) !important; border: none !important; color: white !important; }
-        .cell-final .cell-title { color: rgba(255,255,255,0.7) !important; }
-        .cell-final .cell-val { color: white !important; font-size: 1.3rem; }
+        .summary-grid .cell-gross { background: #f0fdf4 !important; border-color: #bbf7d0 !important; }
+        .summary-grid .cell-gross .cell-val { color: var(--primary) !important; font-size: 1.15rem; }
+        .summary-grid .cell-cash { background: #f0fdf4 !important; border-color: #bbf7d0 !important; }
+        .summary-grid .cell-cash .cell-val { color: var(--success) !important; }
+        .summary-grid .cell-wallet { background: #f0f9ff !important; border-color: #bae6fd !important; }
+        .summary-grid .cell-wallet .cell-val { color: var(--wallet-color) !important; }
+        .summary-grid .cell-pending { background: #fef2f2 !important; border-color: #fca5a5 !important; }
+        .summary-grid .cell-pending .cell-val { color: var(--danger) !important; font-size: 1.25rem; }
+        .summary-grid .cell-final { background: var(--primary-gradient) !important; border: none !important; color: white !important; }
+        .summary-grid .cell-final .cell-title { color: rgba(255,255,255,0.7) !important; }
+        .summary-grid .cell-final .cell-val { color: white !important; font-size: 1.3rem; }
 
         .btn-save {
             background: var(--primary-gradient);
@@ -222,6 +220,7 @@
 </head>
 <body>
 
+<!-- القائمة المنسدلة الموحدة التي ستحتوي على مقترحات مخزون الأصناف -->
 <datalist id="productsData"></datalist>
 
 <div class="header">
@@ -234,7 +233,6 @@
 </div>
 
 <div class="container-fluid px-2">
-    <!-- كارت البيانات المالي المباشر -->
     <div class="data-card">
         <div class="row g-2">
             <div class="col-6">
@@ -265,7 +263,6 @@
         <i class="fas fa-plus me-1"></i> إضافة صنف جديد للفاتورة
     </button>
 
-    <!-- الهيكل الثنائي المرتب والمنسق الجديد للحسابات والإجماليات -->
     <div class="invoice-footer" id="invoiceSummaryCard">
         <div class="summary-grid">
             <div class="grid-cell">
@@ -397,6 +394,7 @@
             invSnap.forEach(d => {
                 const data = d.data();
                 allInventory.push({ id: d.id, ...data });
+                // ربط الأصناف بالـ datalist الموحدة لتظهر كقائمة منسدلة خيارات
                 prodDataList.innerHTML += `<option value="${data.name}">`;
             });
 
@@ -491,8 +489,9 @@
                 <div class="btn-remove" onclick="this.parentElement.remove(); window.calculateTotal();"><i class="fas fa-times"></i></div>
                 <div class="row g-2">
                     <div class="col-12">
-                        <label><i class="fas fa-tag"></i> اسم الصنف (إكمال تلقائي فوري)</label>
-                        <input type="text" class="form-control item-name" value="${itemData ? itemData.name : ''}" placeholder="اكتب أول حرف للبحث والإكمال السريع...">
+                        <label><i class="fas fa-tag"></i> اسم الصنف (قائمة منسدلة خيارات)</label>
+                        <!-- تم إضافة الـ list لترتبط بالقائمة المنسدلة مباشرة بمتصفحات الموبايل والكمبيوتر -->
+                        <input type="text" list="productsData" class="form-control item-name" value="${itemData ? itemData.name : ''}" placeholder="اكتب أول حرف لتظهر قائمة الأصناف فوراً...">
                     </div>
                     <div class="col-6">
                         <label><i class="fas fa-boxes-stacked"></i> نوع الوحدة</label>
@@ -549,29 +548,7 @@
             window.calculateTotal();
         });
 
-        // محرك البحث والإكمال التلقائي الفوري والمضمون بمجرد كتابة أول حرف
-        nameInput.addEventListener('input', (e) => {
-            const inputVal = e.target.value;
-            if (!inputVal || inputVal.trim() === "") return;
-
-            // البحث والمطابقة مع مخزن الأصناف الكلي النشط
-            const match = allInventory.find(p => p.name.toLowerCase().startsWith(inputVal.toLowerCase()));
-
-            if (match && match.name !== inputVal) {
-                const startSelection = inputVal.length;
-                e.target.value = match.name;
-
-                // تظليل الحروف المكملة تلقائياً ليسهل الكتابة فوقها أو مسحها
-                e.target.setSelectionRange(startSelection, match.name.length);
-
-                row.querySelector('.item-buy').value = match.buy || 0;
-                unitSelect.value = "كرتونة";
-                document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (كرتونة)`;
-                document.getElementById(`label_price_${id}`).innerText = `سعر الـ (كرتونة)`;
-                window.calculateTotal();
-            }
-        });
-
+        // آلية تعبئة البيانات التلقائية عند اختيار صنف من القائمة المنسدلة المنبثقة
         nameInput.addEventListener('change', (e) => {
             const found = allInventory.find(p => p.name === e.target.value);
             if(found) {
@@ -579,7 +556,7 @@
                 unitSelect.value = "كرتونة";
                 unitSelect.dispatchEvent(new Event('change'));
             } else if (e.target.value !== "") {
-                alert("الصنف غير مسجل بالنظام! يرجى اختيار صنف صحيح.");
+                alert("الصنف غير مسجل بالنظام! يرجى اختيار صنف صحيح من القائمة المنسدلة.");
                 e.target.value = "";
             }
             window.calculateTotal();
