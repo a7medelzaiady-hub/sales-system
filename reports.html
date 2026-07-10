@@ -160,7 +160,7 @@
     <div class="hub-container container">
         <div class="row g-3 justify-content-center row-cols-2 row-cols-md-4">
             
-            <!-- زر التصدير الشامل -->
+            <!-- التصدير الشامل الموحد -->
             <div class="col-12 col-md-8 mb-1">
                 <div class="hub-card card-all" id="combinedCard" onclick="exportComprehensiveToExcel()">
                     <div class="icon-wrapper" id="combinedIcon">
@@ -282,7 +282,6 @@
         "سعر كرتونه"
     ];
 
-    // جلب ومعالجة المبيعات من الفايرستور سناب شوت مباشرة
     function processSales(snap) {
         let rows = [excelHeader];
         snap.forEach(doc => {
@@ -328,7 +327,6 @@
         return rows;
     }
 
-    // جلب ومعالجة المشتريات
     function processPurchases(purchasesSnap, suppliersSnap) {
         let rows = [excelHeader];
         let suppliersNames = {};
@@ -376,7 +374,6 @@
         return rows;
     }
 
-    // جلب ومعالجة السندات
     function processVouchers(transSnap) {
         let rows = [excelHeader];
         transSnap.forEach(doc => {
@@ -394,7 +391,7 @@
         return rows;
     }
 
-    // التصدير الشامل الحقيقي والآمن بواسطة Promise.all الموحد لضمان تحميل كافة الجداول معاً
+    // التصدير الشامل الحقيقي والآمن بمزامنة كاملة ومحمية من الانهيار
     window.exportComprehensiveToExcel = async () => {
         const card = document.getElementById('combinedCard');
         const iconWrapper = document.getElementById('combinedIcon');
@@ -402,7 +399,7 @@
         iconWrapper.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
         try {
-            // جلب البيانات كلها معاً دفعة واحدة والانتظار حتى اكتمالها بالكامل
+            // جلب البيانات كلها بالتوازي والانتظار حتى اكتمالها بالكامل قبل معالجة الإكسيل
             const [salesSnap, purchasesSnap, suppliersSnap, transSnap] = await Promise.all([
                 getDocs(collection(db, "invoices")),
                 getDocs(collection(db, "supplier_transactions")),
@@ -429,7 +426,7 @@
 
         } catch (e) {
             console.error(e);
-            alert("حدث خطأ في استدعاء قاعدة البيانات الموحدة.");
+            alert("حدث خطأ في جلب بيانات التقارير من السيرفر.");
         } finally {
             card.style.pointerEvents = "auto";
             iconWrapper.innerHTML = '<i class="fas fa-file-excel"></i>';
