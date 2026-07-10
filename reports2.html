@@ -141,7 +141,7 @@ function add(name, cart, qty, type, date) {
     inventoryData[name] = { sJ:0, sC:0, pJ:0, pC:0, rJ:0, rC:0, details: [] };
   }
   const unitStr = cart ? "كرتونة" : "جركن";
-  inventoryData[name].details.push({ date, type, qty, unit: unitStr });
+  inventoryData[name].details.push({ date: date || "غير محدد", type, qty, unit: unitStr });
 
   const k = type + (cart ? "C" : "J");
   inventoryData[name][k] += qty;
@@ -153,7 +153,10 @@ window.showDetails = function(name){
   const tbody = document.getElementById("modalBody");
   tbody.innerHTML = "";
   
-  item.details.forEach(d => {
+  // ترتيب التفاصيل داخل المودال من الأحدث للأقدم
+  const sortedDetails = [...item.details].sort((a,b) => b.date.localeCompare(a.date));
+
+  sortedDetails.forEach(d => {
     const colorClass = d.type==='s'?'b-sales':(d.type==='p'?'b-purch':'b-ret');
     const typeText = d.type==='s'?'مبيعات':(d.type==='p'?'مشتريات':'مرتجع');
     tbody.innerHTML += `<tr>
@@ -166,7 +169,7 @@ window.showDetails = function(name){
 };
 
 window.loadData = async function(){
-  const date = document.getElementById("dateIn").value;
+  const date = document.getElementById("dateIn").value; // ستكون فارغة "" إذا قام المستخدم بمسحها
   inventoryData = {};
   const tbody = document.getElementById("tbody");
   tbody.innerHTML = "<tr><td colspan='4'>جاري التحميل...</td></tr>";
@@ -175,10 +178,13 @@ window.loadData = async function(){
   const sSnap = await getDocs(collection(db,"invoices"));
   sSnap.forEach(doc => {
     const inv = doc.data();
-    if(date && parseDate(inv.date, inv.timestamp) !== date) return;
+    const dStr = parseDate(inv.date, inv.timestamp);
+    
+    // شرط الفلترة: إذا كان حقل التاريخ فارغاً، أو يتطابق تماماً مع تاريخ الفاتورة
+    if(date && dStr !== date) return;
+    
     if(!Array.isArray(inv.items)) return;
     inv.items.forEach(item => {
-      const dStr = parseDate(inv.date, inv.timestamp);
       add(item.name, isCarton(item), Number(item.qty)||0, !!item.isReturn ? "r" : "s", dStr);
     });
   });
@@ -187,10 +193,13 @@ window.loadData = async function(){
   const pSnap = await getDocs(collection(db,"supplier_transactions"));
   pSnap.forEach(doc => {
     const pur = doc.data();
-    if(date && parseDate(pur.date, pur.timestamp) !== date) return;
+    const dStr = parseDate(pur.date, pur.timestamp);
+    
+    // شرط الفلترة للمشتريات
+    if(date && dStr !== date) return;
+    
     if(!Array.isArray(pur.items)) return;
     pur.items.forEach(item => {
-      const dStr = parseDate(pur.date, pur.timestamp);
       const qty = Number(item.qty)||0;
       const ret = Number(item.returnQty)||0;
       if(qty > 0) add(item.name, isCarton(item), qty, "p", dStr);
@@ -202,7 +211,7 @@ window.loadData = async function(){
   tbody.innerHTML = "";
   const keys = Object.keys(inventoryData).sort();
   if(keys.length === 0){
-    tbody.innerHTML = "<tr><td colspan='4' class='text-muted text-center p-3'>لا توجد حركات في هذا التاريخ</td></tr>";
+    tbody.innerHTML = "<tr><td colspan='4' class='text-muted text-center p-3'>لا توجد حركات لعرضها</td></tr>";
     return;
   }
   
@@ -219,10 +228,10 @@ window.loadData = async function(){
   });
 }
 
-// تعيين تاريخ اليوم كقيمة افتراضية عند فتح الصفحة لأول مرة
+// التشغيل التلقائي عند فتح الصفحة
 document.addEventListener("DOMContentLoaded", () => {
   const today = new Date().toISOString().slice(0, 10);
-  document.getElementById("dateIn").value = today;
+  document.getElementById("dateIn").value = today; // يفتح افتراضياً على اليوم، ويمكن مسحه لرؤية الكل
   window.loadData();
 });
 </script>
