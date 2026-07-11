@@ -77,7 +77,7 @@
             background: var(--white);
             border: 1px solid var(--emerald-700);
             border-radius: 12px;
-            max-height: 220px;
+            max-height: 250px;
             overflow-y: auto;
             z-index: 1100;
             box-shadow: 0 8px 24px rgba(11, 94, 61, 0.12);
@@ -92,6 +92,11 @@
         }
         .dropdown-search-item:last-child { border-bottom: none; }
         .dropdown-search-item:hover { background: #f0f6f3; color: var(--emerald-700); }
+        
+        .dropdown-suggestion-header {
+            background-color: #fff8e1; color: #b78103; font-size: 0.8rem;
+            font-weight: 800; padding: 8px 16px; border-bottom: 1px solid #ffe082;
+        }
 
         .shortage-item-card {
             background: var(--white); border: 1px solid var(--border-subtle); border-radius: 16px;
@@ -208,11 +213,27 @@
                 return;
             }
 
-            const matchedItems = inventoryItems.filter(item => item.toLowerCase().includes(textValue));
+            let matchedItems = inventoryItems.filter(item => item.toLowerCase().includes(textValue));
+
+            if (matchedItems.length === 0) {
+                const searchWords = textValue.split(/\s+/).filter(w => w.length > 2);
+                if (searchWords.length > 0) {
+                    matchedItems = inventoryItems.filter(item => {
+                        return searchWords.some(word => item.toLowerCase().includes(word));
+                    });
+                }
+            }
 
             if (matchedItems.length === 0) {
                 menu.innerHTML = `<div class="dropdown-search-item text-muted text-center" style="font-size:0.85rem;">⚠️ هذا الصنف غير مسجل بالمخزن</div>`;
             } else {
+                if (!inventoryItems.some(item => item.toLowerCase().includes(textValue))) {
+                    const header = document.createElement('div');
+                    header.className = 'dropdown-suggestion-header';
+                    header.innerHTML = `<i class="fas fa-lightbulb me-1"></i> هل تقصد أحد هذه الأصناف من المخزن؟`;
+                    menu.appendChild(header);
+                }
+
                 matchedItems.forEach(item => {
                     const div = document.createElement('div');
                     div.className = 'dropdown-search-item';
@@ -235,73 +256,8 @@
         });
     }
 
-    // حساب المسافة بدقة شديدة بين الكلمات
-    function levDistance(a, b) {
-        const matrix = Array(b.length + 1).fill(null).map(() => Array(a.length + 1).fill(null));
-        for (let i = 0; i <= a.length; i++) matrix[0][i] = i;
-        for (let j = 0; j <= b.length; j++) matrix[j][0] = j;
-        for (let j = 1; j <= b.length; j++) {
-            for (let i = 1; i <= a.length; i++) {
-                const indicator = a[i - 1] === b[j - 1] ? 0 : 1;
-                matrix[j][i] = Math.min(
-                    matrix[j - 1][i] + 1, 
-                    matrix[j][i - 1] + 1, 
-                    matrix[j - 1][i - 1] + indicator
-                );
-            }
-        }
-        return matrix[b.length][a.length];
-    }
-
     // ══════════════════════════════
-    // محرك الفحص فائق المرونة والمطابقة الكلية للجمل
-    // ══════════════════════════════
-    function findSmartClosestMatch(spokenText) {
-        spokenText = spokenText.trim().toLowerCase().replace(/[^\u0621-\u064A0-9\s]/g, ''); // تنظيف النص
-        if (!spokenText || inventoryItems.length === 0) return null;
-
-        // 1. لو المتصفح كتب نص مالي المحل كجزء كامل، رجعه فوراً
-        let exactMatches = inventoryItems.filter(item => item.toLowerCase().includes(spokenText) || spokenText.includes(item.toLowerCase()));
-        if (exactMatches.length > 0) return exactMatches[0];
-
-        let bestMatchItem = null;
-        let minOverallDistance = Infinity;
-
-        // 2. فحص تقاطع الكلمات لتغطية خرافات الترجمة (زي ليلتك وديلفاك)
-        const spokenWords = spokenText.split(/\s+/);
-
-        for (const item of inventoryItems) {
-            const itemClean = item.toLowerCase();
-            const itemWords = itemClean.split(/\s+/);
-            
-            // حساب المسافة الكلية بين الجملة المنطوقة واسم الصنف بالمخزن
-            let currentDistance = levDistance(spokenText, itemClean);
-
-            // فحص تقارب الكلمات الفردية (كلمة ضد كلمة)
-            for(const sWord of spokenWords) {
-                if(sWord.length < 3) continue; // تخطي الروابط الصغيرة
-                for(const iWord of itemWords) {
-                    let wordDist = levDistance(sWord, iWord);
-                    // لو الكلمة متقاربة جداً، نقلل المسافة الكلية للصنف ده كأولوية
-                    if (wordDist <= 2) currentDistance -= 4; 
-                }
-            }
-
-            if (currentDistance < minOverallDistance) {
-                minOverallDistance = currentDistance;
-                bestMatchItem = item;
-            }
-        }
-
-        // تم رفع المدى لـ 5 عشان يقبل تصليح الكلمات الممسوخة بالكامل
-        if (minOverallDistance <= 5 || bestMatchItem !== null) {
-            return bestMatchItem;
-        }
-        return null;
-    }
-
-    // ══════════════════════════════
-    // الإدخال الصوتي مع ميزة التصحيح السريع
+    // الإدخال الصوتي مع قاموس التصحيح الفوري عالي الكفاءة
     // ══════════════════════════════
     window.startVoiceInput = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -323,32 +279,28 @@
         recognition.onend = () => { micBtn.classList.remove('listening'); };
 
         recognition.onresult = (event) => {
-            let interimTranscript = "";
-            let finalTranscript = "";
-
+            let currentTranscript = "";
             for (let i = event.resultIndex; i < event.results.length; ++i) {
-                if (event.results[i].isFinal) {
-                    finalTranscript += event.results[i][0].transcript;
-                } else {
-                    interimTranscript += event.results[i][0].transcript;
-                }
+                currentTranscript += event.results[i][0].transcript;
             }
 
-            if (interimTranscript) {
-                input.value = interimTranscript;
-                input.dispatchEvent(new Event('input'));
-            }
+            // 💡 قاموس البدائل الإجباري لمنع تهريف محرك البحث في المحل
+            const voiceDictionary = {
+                "ليبي": "بترومين",
+                "ليبتك": "بترومين",
+                "ليلتك": "ديلفاك",
+                "ديلفك": "ديلفاك",
+                "شيل": "شل"
+            };
 
-            if (finalTranscript) {
-                // استدعاء محرك الفحص فائق المرونة لتعديل الجملة كاملة
-                const closestMatch = findSmartClosestMatch(finalTranscript);
-                if (closestMatch) {
-                    input.value = closestMatch; // التبديل السحري الفوري
-                } else {
-                    input.value = finalTranscript;
-                }
-                input.dispatchEvent(new Event('input'));
-            }
+            let modifiedText = currentTranscript;
+            Object.keys(voiceDictionary).forEach(wrongWord => {
+                const regex = new RegExp(wrongWord, "g");
+                modifiedText = modifiedText.replace(regex, voiceDictionary[wrongWord]);
+            });
+
+            input.value = modifiedText; 
+            input.dispatchEvent(new Event('input')); 
         };
 
         recognition.start();
@@ -435,7 +387,7 @@
 
         if (!inventoryItems.includes(enteredName)) {
             window.playWarningSound();
-            alert("⛔ خطأ تحذيري: هذا الصنف غير مسجل بالمخزن! يرجى اختيار صنف صحيح.");
+            alert("⛔ خطأ تحذيري: هذا الصنف غير مسجل بالمخزن! يرجى اختيار صنف صحيح من القائمة المنسدلة.");
             return;
         }
 
