@@ -443,7 +443,7 @@
             <i class="fas fa-boxes"></i> الأصناف المطلوبة
         </div>
 
-        <!-- خانة الإدخال الصوتي والتحليل المحدثة بالكامل -->
+        <!-- خانة الإدخال الصوتي والتحليل الذكي -->
         <div class="voice-box-container">
             <label class="sub-lbl text-success mb-2"><i class="fas fa-magic me-1"></i> خانة الإدخال الصوتي والتحليل الذكي</label>
             <div class="d-flex align-items-center gap-2">
@@ -679,7 +679,8 @@
         recalc();
     };
 
-    window.filterProducts = (input, rowId) => {
+    // ------------------ دالة الفلترة والبحث الذكي المحدثة بالكامل ------------------
+    window.filterProducts = (input, rowId, isVoiceMode = false) => {
         const term = input.value.trim().toLowerCase();
         const row = document.getElementById(rowId);
         const dd = row.querySelector('.p-dropdown');
@@ -688,14 +689,60 @@
 
         if (!term) { dd.style.display = 'none'; return; }
 
-        const filtered = inventory.filter(i => i.name.toLowerCase().includes(term)).slice(0, 15);
-        if (!filtered.length) {
+        // 1. فحص وجود تطابق تام 100% مع أي صنف مسجل لمنع إظهار أي اقتراحات
+        const exactMatch = inventory.find(i => i.name.trim().toLowerCase() === term);
+        if (exactMatch) {
+            dd.style.display = 'none';
+            if (isVoiceMode) {
+                // إذا كنا في وضع الإدخال الصوتي، نختار الصنف المتطابق مباشرة
+                window.selectProduct(rowId, exactMatch.id, exactMatch.name);
+            }
+            return;
+        }
+
+        // 2. فحص ذكي بالكلمات المتفرقة وحساب وزن التشابه لتقريب النتائج
+        const searchWords = term.split(/\s+/).filter(w => w.length > 0);
+        
+        let scoredItems = [];
+
+        inventory.forEach(item => {
+            const itemNameLower = item.name.toLowerCase();
+            let matchedWordsCount = 0;
+
+            searchWords.forEach(word => {
+                if (itemNameLower.includes(word)) {
+                    matchedWordsCount++;
+                }
+            });
+
+            // لحساب الأولوية: الأصناف التي تبدأ بنفس الكلمة الأولى تأخذ ترتيباً أعلى
+            let bonus = 0;
+            if (searchWords.length > 0 && itemNameLower.startsWith(searchWords[0])) {
+                bonus = 0.5;
+            }
+
+            if (matchedWordsCount > 0) {
+                scoredItems.push({
+                    item: item,
+                    score: matchedWordsCount + bonus
+                });
+            }
+        });
+
+        // ترتيب الأصناف تنازلياً حسب الأعلى تشابهاً
+        scoredItems.sort((a, b) => b.score - a.score);
+
+        // جلب أقرب 3 أصناف متشابهة فقط بناءً على طلبك
+        const finalSuggestions = scoredItems.slice(0, 3).map(si => si.item);
+
+        if (!finalSuggestions.length) {
             dd.innerHTML = `<div class="dropdown-item-row" style="color:#94a3b8; cursor:default;">لا يوجد صنف بهذا الاسم</div>`;
             dd.style.display = 'block';
             return;
         }
 
-        dd.innerHTML = filtered.map(p => `
+        // 3. بناء وعرض قائمة الاقتراحات (أقرب 3 أصناف)
+        dd.innerHTML = finalSuggestions.map(p => `
             <div class="dropdown-item-row" onclick="selectProduct('${rowId}', '${p.id}', '${p.name}')">
                 <i class="fas fa-box" style="color: var(--accent); font-size: 0.75rem;"></i>
                 ${p.name}
@@ -756,7 +803,7 @@
     };
 
 
-    // ------------------ محرك الإدخال الصوتي والتحليل الذكي (تم التحديث الفائق) ------------------
+    // ------------------ محرك الإدخال الصوتي والتحليل الذكي المرن ------------------
     window.handleVoiceInput = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -796,7 +843,6 @@
     function parseFlexibleVoiceInput(text) {
         let originalText = text;
         
-        // 1. تحويل الأرقام المكتوبة بكلمات إلى أرقام فعلية ومسحها من النص فوراً
         const textNumbersMap = {
             'واحد': 1, 'اتنين': 2, 'إثنين': 2, 'تلاتة': 3, 'تلاته': 3, 'ثلاثة': 3, 
             'اربعة': 4, 'اربعه': 4, 'أربعة': 4, 'خمسة': 5, 'خمسه': 5, 'ستة': 6, 
@@ -808,11 +854,10 @@
         Object.keys(textNumbersMap).forEach(word => {
             if (text.startsWith(word) || text.includes(' ' + word + ' ')) {
                 voiceQty = textNumbersMap[word];
-                text = text.replace(word, '').trim(); // حذف الكلمة لتنظيف اسم الصنف
+                text = text.replace(word, '').trim();
             }
         });
 
-        // 2. استخراج الأرقام الحسابية العادية المتواجدة في النص
         const numbers = text.match(/\d+/g);
         let qty = voiceQty || 1;
         let price = 0;
@@ -821,7 +866,6 @@
             if (numbers.length >= 2) {
                 const num1 = parseFloat(numbers[0]);
                 const num2 = parseFloat(numbers[1]);
-                // الرقم الأكبر هو السعر دائماً، والأصغر هو الكمية (إذا لم تكن حددت نصياً)
                 if (num1 > num2) {
                     price = num1;
                     if (!voiceQty) qty = num2;
@@ -830,11 +874,9 @@
                     if (!voiceQty) qty = num1;
                 }
             } else if (numbers.length === 1) {
-                // إذا وجدنا رقماً واحداً والكمية تم تحديدها بكلمة (مثل: واحد ... بـ 560)
                 if (voiceQty) {
                     price = parseFloat(numbers[0]);
                 } else {
-                    // إذا لم نحدد كلمة، الرقم الوحيد يعتبر سعراً لو كبير أو كمية لو صغير
                     const singleNum = parseFloat(numbers[0]);
                     if (singleNum > 50) {
                         price = singleNum;
@@ -846,21 +888,16 @@
             }
         }
 
-        // 3. تحديد نوع الوحدة (كرتونة أو قطعة) ومسحها
         let unitValue = 'box';
         if (originalText.includes('قطعة') || originalText.includes('قطعه') || originalText.includes('حتة') || originalText.includes('حته') || originalText.includes('ق')) {
             unitValue = 'pcs';
         }
 
-        // 4. استخلاص وتنظيف اسم المنتج كاملاً من كل الشوائب
         let productName = text;
-        
-        // إزالة الأرقام العادية من الاسم
         if (numbers) {
             numbers.forEach(num => { productName = productName.replace(num, ''); });
         }
         
-        // مصفوفة الكلمات الدارجة المطلوب إزالتها نهائياً ليبقى الاسم نقي
         const scrapWords = [
             'كرتونة', 'كرتونه', 'علبة', 'علبه', 'قطعة', 'قطعه', 'حتة', 'حته', 
             'بكام', 'بسعر', 'بـ', 'جنيه', 'ج م', ' من ', 'عدد', ' سعر '
@@ -870,18 +907,14 @@
             productName = productName.split(word).join(' ');
         });
 
-        // تنظيف حروف الجر والربط الملتصقة (مثل حرف ب الصريح المنفصل أو في نهاية الكلمات)
         productName = productName.replace(/\s+ب\s+/g, ' '); 
         productName = productName.replace(/\s+ب$/g, ' '); 
-
         productName = productName.replace(/\s+/g, ' ').trim();
 
-        // حماية أخيرة للاسم
         if (!productName || productName.length < 2) {
             productName = originalText;
         }
 
-        // 5. إسقاط وتوزيع البيانات في السطور
         const rows = document.querySelectorAll('.item-row');
         let targetRowId;
         
@@ -902,17 +935,19 @@
         const nameInput = targetRow.querySelector('.p-name');
         nameInput.value = productName;
 
-        // تشغيل البحث التلقائي بالمخزن فوراً
-        window.filterProducts(nameInput, targetRowId);
+        // استدعاء دالة الفلترة الذكية الجديدة مع تفعيل وضع الإدخال الصوتي
+        window.filterProducts(nameInput, targetRowId, true);
 
-        // اختيار النتيجة الأولى الصحيحة بشكل فوري
+        // محاولة محاكاة النقر على النتيجة المقترحة الأولى إذا لم يتوفر تطابق كامل فوراً
         setTimeout(() => {
             const dd = targetRow.querySelector('.p-dropdown');
-            const firstOption = dd.querySelector('.dropdown-item-row');
-            if (firstOption && !firstOption.innerText.includes('لا يوجد صنف')) {
-                firstOption.click();
+            if (dd.style.display !== 'none') {
+                const firstOption = dd.querySelector('.dropdown-item-row');
+                if (firstOption && !firstOption.innerText.includes('لا يوجد صنف')) {
+                    firstOption.click();
+                }
             }
-        }, 250);
+        }, 300);
 
         window.recalc();
     }
