@@ -108,37 +108,47 @@
         }
         .form-control::placeholder { color: #b0bec5; font-weight: 600; }
 
-        /* Voice Input Box Style */
+        /* Voice Box Style Updated */
         .voice-box-container {
             background: #fdfdfd;
             border: 1.5px dashed #b7dfc7;
             border-radius: var(--input-radius);
-            padding: 12px;
+            padding: 14px;
             margin-bottom: 15px;
         }
-        .btn-voice-trigger {
+        
+        .bulk-textarea {
+            resize: none;
+            font-size: 0.85rem !important;
+            background-color: #fafdfb !important;
+            border-color: #b7dfc7 !important;
+        }
+
+        .btn-voice-toggle {
             background: var(--accent);
             color: white;
             border: none;
-            border-radius: 50%;
-            width: 44px;
-            height: 44px;
+            border-radius: var(--input-radius);
+            padding: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.1rem;
+            font-size: 0.9rem;
+            font-weight: 700;
             cursor: pointer;
             transition: all 0.2s ease;
             box-shadow: 0 3px 8px rgba(11,94,61,0.2);
+            width: 100%;
+            margin-top: 10px;
         }
-        .btn-voice-trigger.listening {
+        .btn-voice-toggle.listening {
             background: var(--danger);
-            animation: voice-pulse 1.2s infinite;
+            animation: pulse-danger 1.5s infinite;
             box-shadow: 0 3px 10px rgba(217,4,41,0.3);
         }
-        @keyframes voice-pulse {
+        @keyframes pulse-danger {
             0% { transform: scale(1); }
-            50% { transform: scale(1.08); }
+            50% { transform: scale(1.02); }
             100% { transform: scale(1); }
         }
 
@@ -265,12 +275,6 @@
         .summary-bar .s-val {
             font-size: 1rem;
             font-weight: 800;
-        }
-
-        /* Notes */
-        .notes-input {
-            resize: none;
-            font-size: 0.85rem !important;
         }
 
         /* Submit button */
@@ -405,7 +409,6 @@
         </div>
 
         <div class="row g-2 mb-3">
-            <!-- Customer -->
             <div class="col-7">
                 <label class="sub-lbl"><i class="fas fa-user me-1"></i> اسم العميل</label>
                 <div class="autocomplete-wrap">
@@ -422,18 +425,15 @@
                     <span id="customerBadgeName"></span>
                 </div>
             </div>
-
-            <!-- Date -->
             <div class="col-5">
                 <label class="sub-lbl"><i class="fas fa-calendar-alt me-1"></i> التاريخ</label>
                 <input type="date" id="orderDate" class="form-control" style="font-size: 0.78rem;">
             </div>
         </div>
 
-        <!-- Notes -->
         <div>
             <label class="sub-lbl"><i class="fas fa-sticky-note me-1"></i> ملاحظات (اختياري)</label>
-            <textarea id="orderNotes" class="form-control notes-input" rows="2" placeholder="أي ملاحظات على الطلبية..."></textarea>
+            <textarea id="orderNotes" class="form-control" rows="2" placeholder="أي ملاحظات على الطلبية..." style="resize: none;"></textarea>
         </div>
     </div>
 
@@ -443,16 +443,23 @@
             <i class="fas fa-boxes"></i> الأصناف المطلوبة
         </div>
 
-        <!-- خانة الإدخال الصوتي والتحليل الذكي -->
+        <!-- مستطيل الإدخال الصوتي المستمر الذكي -->
         <div class="voice-box-container">
-            <label class="sub-lbl text-success mb-2"><i class="fas fa-magic me-1"></i> الإدخال الصوتي المتطور</label>
-            <div class="d-flex align-items-center gap-2">
-                <button type="button" id="voiceTriggerBtn" class="btn-voice-trigger" onclick="handleVoiceInput()">
-                    <i class="fas fa-microphone"></i>
+            <label class="sub-lbl text-success mb-2 d-flex justify-content-between align-items-center">
+                <span><i class="fas fa-microphone-alt me-1"></i> صندوق الإملاء المستمر</span>
+                <span class="badge bg-success" style="font-size: 0.65rem;">ذكي وتلقائي</span>
+            </label>
+            
+            <textarea id="bulkVoiceInput" class="form-control bulk-textarea" rows="3" 
+                placeholder="اضغط (ابدأ التسجيل) وتحدث بكل الأصناف مرة واحدة...&#10;مثال: عايز 5 كرتونة دلفك و 3 جركن زيت موبيل ونص كرتونة بوجيهات..."></textarea>
+            
+            <div class="d-flex gap-2">
+                <button type="button" id="voiceToggleBtn" class="btn-voice-toggle" onclick="toggleBulkVoice()">
+                    <i class="fas fa-microphone me-2"></i> ابدأ التسجيل
                 </button>
-                <input type="text" id="voiceStatusInput" class="form-control" readonly 
-                    placeholder="مثال: نص جركن كذا، أو 5 كرتونة دلفك" 
-                    style="font-size: 0.82rem; background-color: #fafdfb !important;">
+                <button type="button" class="btn-voice-toggle" style="background:#f1f5f9; color: var(--accent); border: 1.5px solid var(--accent); width: 45px; flex: none;" onclick="manualProcessBulk()" title="تحليل النص المكتوب يدوياً">
+                    <i class="fas fa-magic"></i>
+                </button>
             </div>
         </div>
 
@@ -507,7 +514,7 @@
         </p>
         <div class="d-flex gap-2">
             <button class="btn btn-success w-100 fw-bold py-2" style="border-radius: 10px; font-size: 0.9rem;" onclick="goToOrders()">
-                <i class="fas fa-list me-1"></i> عرض كل الطلبات
+                <i class="fas fa-list me-1"></i> عرض الطلبات
             </button>
             <button class="btn btn-light w-100 fw-bold py-2 text-success" style="border-radius: 10px; border: 1.5px solid #c3e6cb; font-size: 0.9rem;" onclick="resetForm()">
                 <i class="fas fa-plus me-1"></i> طلبية جديدة
@@ -546,6 +553,9 @@
     let rowCounter = 0;
     let editOrderId = null;
 
+    let recognition = null;
+    let isListening = false;
+
     // ---------- init ----------
     async function init() {
         document.getElementById('orderDate').value = new Date().toISOString().split('T')[0];
@@ -573,21 +583,16 @@
         const dd = document.getElementById('customerDropdown');
         document.getElementById('customerId').value = '';
         hideBadge();
-
         if (!term) { dd.style.display = 'none'; return; }
-
         const filtered = customers.filter(c => c.name.toLowerCase().includes(term));
-
         if (!filtered.length) {
             dd.innerHTML = `<div class="dropdown-item-row" style="color:#94a3b8; cursor:default;"><i class="fas fa-exclamation-circle me-1"></i> لا يوجد عميل بهذا الاسم</div>`;
             dd.style.display = 'block';
             return;
         }
-
         dd.innerHTML = filtered.map(c => `
             <div class="dropdown-item-row" onclick="selectCustomer('${c.id}', '${c.name}')">
-                <i class="fas fa-user-circle" style="color: var(--accent);"></i>
-                ${c.name}
+                <i class="fas fa-user-circle" style="color: var(--accent);"></i> ${c.name}
             </div>
         `).join('');
         dd.style.display = 'block';
@@ -597,19 +602,16 @@
         document.getElementById('customerInput').value = name;
         document.getElementById('customerId').value = id;
         document.getElementById('customerDropdown').style.display = 'none';
-        document.getElementById('customerError').style.display = 'none';
         document.getElementById('customerInput').classList.remove('field-error');
+        document.getElementById('customerError').style.display = 'none';
         showBadge(name);
     };
 
     function showBadge(name) {
-        const badge = document.getElementById('customerBadge');
         document.getElementById('customerBadgeName').innerText = name;
-        badge.style.display = 'flex';
+        document.getElementById('customerBadge').style.display = 'flex';
     }
-    function hideBadge() {
-        document.getElementById('customerBadge').style.display = 'none';
-    }
+    function hideBadge() { document.getElementById('customerBadge').style.display = 'none'; }
 
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.autocomplete-wrap')) {
@@ -623,23 +625,17 @@
         const id = 'itemrow_' + rowCounter;
         const html = `
             <div class="item-row" id="${id}">
-                <button type="button" class="remove-row-btn" onclick="removeRow('${id}')">
-                    <i class="fas fa-times"></i>
-                </button>
-
+                <button type="button" class="remove-row-btn" onclick="removeRow('${id}')"><i class="fas fa-times"></i></button>
                 <div class="row g-2 mb-2">
-                    <!-- Product -->
                     <div class="col-8">
                         <label class="sub-lbl">اسم الصنف</label>
                         <div class="autocomplete-wrap">
-                            <input type="text" class="form-control p-name" placeholder="ابحث عن صنف..."
-                                oninput="filterProducts(this, '${id}')" autocomplete="off">
+                            <input type="text" class="form-control p-name" placeholder="ابحث عن صنف..." oninput="filterProducts(this, '${id}')" autocomplete="off">
                             <input type="hidden" class="p-id">
                             <div class="dropdown-list p-dropdown"></div>
                         </div>
                         <div class="stock-hint p-stock"><i class="fas fa-warehouse me-1"></i><span></span></div>
                     </div>
-                    <!-- Unit -->
                     <div class="col-4">
                         <label class="sub-lbl">الوحدة</label>
                         <select class="form-select p-unit" onchange="onUnitChange(this, '${id}')">
@@ -649,7 +645,6 @@
                         </select>
                     </div>
                 </div>
-
                 <div class="row g-2">
                     <div class="col-4">
                         <label class="sub-lbl">الكمية</label>
@@ -661,8 +656,7 @@
                     </div>
                     <div class="col-4">
                         <label class="sub-lbl">الإجمالي</label>
-                        <input type="text" class="form-control p-sub" readonly
-                            style="background:#f0f4f2!important; font-weight:800; color: var(--accent)!important;">
+                        <input type="text" class="form-control p-sub" readonly style="background:#f0f4f2!important; font-weight:800; color: var(--accent)!important;">
                     </div>
                 </div>
             </div>
@@ -677,8 +671,7 @@
         recalc();
     };
 
-    // ------------------ دالة الفلترة والبحث الذكي الاحترافية ------------------
-    window.filterProducts = (input, rowId, isVoiceMode = false) => {
+    window.filterProducts = (input, rowId) => {
         const term = input.value.trim().toLowerCase();
         const row = document.getElementById(rowId);
         const dd = row.querySelector('.p-dropdown');
@@ -687,15 +680,6 @@
 
         if (!term) { dd.style.display = 'none'; return; }
 
-        // 1. فحص وجود تطابق تام 100% 
-        const exactMatch = inventory.find(i => i.name.trim().toLowerCase() === term);
-        if (exactMatch) {
-            dd.style.display = 'none';
-            window.selectProduct(rowId, exactMatch.id, exactMatch.name); 
-            return;
-        }
-
-        // 2. فحص ذكي للكلمات المتفرقة وحساب دقة التشابه
         const searchWords = term.split(/\s+/).filter(w => w.length > 0);
         let scoredItems = [];
 
@@ -705,36 +689,22 @@
             let consecutiveBonus = 0;
 
             searchWords.forEach(word => {
-                if (itemNameLower.includes(word)) {
-                    matchedWordsCount++;
-                }
+                if (itemNameLower.includes(word)) matchedWordsCount++;
             });
 
-            if (searchWords.length > 0 && itemNameLower.startsWith(searchWords[0])) {
-                consecutiveBonus += 0.5;
-            }
-            if (itemNameLower.includes(term)) {
-                consecutiveBonus += 2; 
-            }
+            if (searchWords.length > 0 && itemNameLower.startsWith(searchWords[0])) consecutiveBonus += 0.5;
+            if (itemNameLower.includes(term)) consecutiveBonus += 2; 
 
             if (matchedWordsCount > 0) {
-                scoredItems.push({
-                    item: item,
-                    score: matchedWordsCount + consecutiveBonus,
-                    nameLength: itemNameLower.length
-                });
+                scoredItems.push({ item: item, score: matchedWordsCount + consecutiveBonus, nameLength: itemNameLower.length });
             }
         });
 
-        // الترتيب حسب أعلى دقة تطابق
         scoredItems.sort((a, b) => {
-            if (b.score !== a.score) {
-                return b.score - a.score;
-            }
+            if (b.score !== a.score) return b.score - a.score;
             return a.nameLength - b.nameLength; 
         });
 
-        // اختيار أقرب 3 أصناف فقط وعرضهم
         const finalSuggestions = scoredItems.slice(0, 3).map(si => si.item);
 
         if (!finalSuggestions.length) {
@@ -745,12 +715,10 @@
 
         dd.innerHTML = finalSuggestions.map(p => `
             <div class="dropdown-item-row" onclick="selectProduct('${rowId}', '${p.id}', '${p.name}')">
-                <i class="fas fa-box" style="color: var(--accent); font-size: 0.75rem;"></i>
-                ${p.name}
+                <i class="fas fa-box" style="color: var(--accent); font-size: 0.75rem;"></i> ${p.name}
                 <span class="item-stock">${p.totalPcs || 0} ق</span>
             </div>
         `).join('');
-        
         dd.style.display = 'block';
     };
 
@@ -766,11 +734,8 @@
             stockHint.querySelector('span').innerText = `رصيد المخزن: ${p.totalPcs || 0} قطعة`;
             stockHint.style.display = 'block';
             
-            // إذا كان حقل السعر فارغاً، يتم جلب السعر التلقائي من المخزن
             const currentPrice = row.querySelector('.p-price').value;
-            if (!currentPrice || parseFloat(currentPrice) === 0) {
-                setRowPrice(row, p);
-            }
+            if (!currentPrice || parseFloat(currentPrice) === 0) setRowPrice(row, p);
         }
         recalc();
     };
@@ -780,16 +745,13 @@
         const pid = row.querySelector('.p-id').value;
         if (!pid) { recalc(); return; }
         const p = inventory.find(i => i.id === pid);
-        if (p) {
-            setRowPrice(row, p);
-        }
+        if (p) setRowPrice(row, p);
         recalc();
     };
 
     function setRowPrice(row, p) {
         const unit = row.querySelector('.p-unit').value;
         const factor = Number(p.unitFactor) || 1;
-        // الجركن يعامل معاملة الكرتونة في السعر (لأنه وحدة أساسية)
         const price = (unit === 'box' || unit === 'jerrican') ? (p.sell || 0) : ((p.sell || 0) / factor);
         row.querySelector('.p-price').value = price.toFixed(2);
     }
@@ -801,11 +763,8 @@
             const price = parseFloat(row.querySelector('.p-price').value) || 0;
             const sub = qty * price;
             row.querySelector('.p-sub').value = sub.toFixed(2);
-            totalItems++;
-            totalQty += qty;
-            totalVal += sub;
+            totalItems++; totalQty += qty; totalVal += sub;
         });
-
         document.getElementById('summaryItems').innerText = totalItems;
         document.getElementById('summaryQty').innerText = totalQty;
         document.getElementById('summaryTotal').innerText = totalVal.toFixed(2) + ' ج.م';
@@ -813,57 +772,72 @@
     };
 
 
-    // ------------------ الإدخال الصوتي الاحترافي ------------------
-    window.handleVoiceInput = () => {
+    // ------------------ محرك الإملاء الصوتي المستمر الذكي ------------------
+    window.toggleBulkVoice = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert("ميزة الإدخال الصوتي غير مدعومة في متصفحك الحالي. يرجى استخدام متصفح Google Chrome.");
+            alert("عذراً، الإدخال الصوتي غير مدعوم في متصفحك الحالي.");
             return;
         }
 
-        const recognition = new SpeechRecognition();
+        const btn = document.getElementById('voiceToggleBtn');
+        const textArea = document.getElementById('bulkVoiceInput');
+
+        if (isListening && recognition) {
+            // إيقاف التسجيل وبدء التحليل
+            recognition.stop();
+            return;
+        }
+
+        recognition = new SpeechRecognition();
         recognition.lang = 'ar-EG'; 
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
+        recognition.continuous = true;  // استماع مستمر
+        recognition.interimResults = true; 
 
-        const voiceBtn = document.getElementById('voiceTriggerBtn');
-        const statusInput = document.getElementById('voiceStatusInput');
-
-        voiceBtn.classList.add('listening');
-        statusInput.value = "جاري الاستماع... تحدث الآن";
-
-        recognition.start();
+        recognition.onstart = () => {
+            isListening = true;
+            btn.classList.add('listening');
+            btn.innerHTML = '<i class="fas fa-stop-circle me-2"></i> إيقاف وتحليل الطلبية';
+            textArea.value = ""; // تفريغ الصندوق للبدء من جديد
+        };
 
         recognition.onresult = (event) => {
-            const speechResult = event.results[0][0].transcript;
-            statusInput.value = speechResult; 
-            parseFlexibleVoiceInput(speechResult);
+            let fullText = '';
+            for (let i = 0; i < event.results.length; ++i) {
+                fullText += event.results[i][0].transcript + ' ';
+            }
+            textArea.value = fullText;
+            textArea.scrollTop = textArea.scrollHeight; // تمرير لأسفل تلقائيا
         };
 
         recognition.onerror = (err) => {
             console.error(err);
-            statusInput.value = "فشل التعرف على الصوت، حاول مرة أخرى.";
         };
 
         recognition.onend = () => {
-            voiceBtn.classList.remove('listening');
+            isListening = false;
+            btn.classList.remove('listening');
+            btn.innerHTML = '<i class="fas fa-microphone me-2"></i> ابدأ التسجيل المستمر';
+            // بمجرد التوقف، نبدأ التحليل
+            if (textArea.value.trim() !== '') {
+                parseBulkVoiceText(textArea.value);
+            }
         };
+
+        recognition.start();
     };
 
-    function parseFlexibleVoiceInput(text) {
-        let originalText = text;
-        let qty = 1;
-        let price = ''; 
-
-        // 1. استخراج السعر بذكاء
-        const priceRegex = /(?:ب|بسعر|سعر|بـ)\s*(\d+(\.\d+)?)/;
-        const priceMatch = text.match(priceRegex);
-        if (priceMatch) {
-            price = parseFloat(priceMatch[1]);
-            text = text.replace(priceMatch[0], ' '); 
+    window.manualProcessBulk = () => {
+        const textArea = document.getElementById('bulkVoiceInput');
+        if (textArea.value.trim() !== '') {
+            parseBulkVoiceText(textArea.value);
         }
+    }
 
-        // 2. استخراج الكميات النصية مع دعم (نص، ربع) وضمان سحب الكلمة الصحيحة
+    function parseBulkVoiceText(rawText) {
+        let text = rawText;
+
+        // 1. تحويل الأرقام النصية (نص، ربع، واحد...) إلى أرقام فعلية
         const textNumbersMap = {
             'نص': 0.5, 'نصف': 0.5, 'ربع': 0.25,
             'واحد': 1, 'اتنين': 2, 'إثنين': 2, 'تلاتة': 3, 'تلاته': 3, 'ثلاثة': 3, 
@@ -872,89 +846,138 @@
             'تسعة': 9, 'تسعه': 9, 'عشرة': 10, 'عشره': 10
         };
 
-        let voiceQtyFound = false;
-        let firstWordMatch = null;
-        let matchIndex = -1;
-
-        // نبحث عن أول كلمة تعبر عن رقم بتظهر في الجملة 
         for (let word in textNumbersMap) {
-            let reg = new RegExp(`(^|\\s)${word}(\\s|$)`);
-            let match = text.match(reg);
-            if (match) {
-                if (matchIndex === -1 || match.index < matchIndex) {
-                    matchIndex = match.index;
-                    firstWordMatch = word;
-                }
+            let reg = new RegExp(`(^|\\s)${word}(\\s|$)`, 'g');
+            text = text.replace(reg, `$1${textNumbersMap[word]}$2`);
+        }
+
+        // 2. إذا نطق وحدة بدون رقم، نفترض أن الرقم 1 (مثل: كرتونة دلفك -> 1 كرتونة دلفك)
+        text = text.replace(/(^|\s)(كرتونة|كرتونه|جركن|جراكن|قطعة|قطعه|ق|حتة|حته)(\s|$)/g, function(match, p1, p2, p3, offset, string) {
+            let precedingText = string.substring(0, offset).trim();
+            let lastWord = precedingText.split(/\s+/).pop();
+            if (!isNaN(parseFloat(lastWord))) {
+                return match; 
+            } else {
+                return p1 + "1 " + p2 + p3;
             }
-        }
-
-        if (firstWordMatch) {
-            qty = textNumbersMap[firstWordMatch];
-            let reg = new RegExp(`(^|\\s)${firstWordMatch}(\\s|$)`);
-            text = text.replace(reg, ' ').trim(); // يمسح الرقم من الجملة
-            voiceQtyFound = true;
-        }
-
-        // لو ملأناش كلام مكتوب، ندور على أرقام حسابية للكمية
-        if (!voiceQtyFound) {
-            const digits = text.match(/\d+(\.\d+)?/);
-            if (digits) {
-                qty = parseFloat(digits[0]);
-                text = text.replace(digits[0], ' ');
-            }
-        }
-
-        // 3. استخراج نوع الوحدة (دعم جركن)
-        let unitValue = 'box';
-        if (/جركن|جراكن/.test(originalText)) {
-            unitValue = 'jerrican';
-        } else if (/قطعة|قطعه|حتة|حته|\sق\s/.test(originalText)) {
-            unitValue = 'pcs';
-        } else if (/كرتونة|كرتونه/.test(originalText)) {
-            unitValue = 'box';
-        }
-
-        // 4. تنظيف اسم الصنف
-        let productName = text;
-        const scrapWords = [
-            'كرتونة', 'كرتونه', 'علبة', 'علبه', 'قطعة', 'قطعه', 'حتة', 'حته', 
-            'جركن', 'جراكن',
-            'جنيه', 'ج م', ' من ', 'عدد'
-        ];
-        
-        scrapWords.forEach(word => {
-            let reg = new RegExp(word, 'g');
-            productName = productName.replace(reg, ' ');
         });
 
-        productName = productName.replace(/\s+/g, ' ').trim();
-        if (!productName || productName.length < 2) {
-            productName = originalText.replace(/\d+/g, '').trim(); 
+        // 3. إخفاء الأسعار مؤقتاً كي لا تتداخل مع الكميات أثناء التقطيع
+        text = text.replace(/(?:ب|بسعر|سعر|بـ)\s*(\d+(?:\.\d+)?)/g, ' __PRICE_$1__ ');
+
+        // 4. تقطيع النص المستمر إلى قطع، كل قطعة تمثل (صنف واحد) بناء على الأرقام
+        const chunkRegex = /(\d+(?:\.\d+)?)\s*(كرتونة|كرتونه|جركن|جراكن|قطعة|قطعه|ق|حتة|حته)?\s*([\s\S]*?)(?=(?:\s\d+(?:\.\d+)?\s*(?:كرتونة|كرتونه|جركن|جراكن|قطعة|قطعه|ق|حتة|حته)?)|$)/g;
+
+        let match;
+        let addedCount = 0;
+
+        while ((match = chunkRegex.exec(text)) !== null) {
+            const qty = parseFloat(match[1]);
+            const unitWord = match[2] || '';
+            let rawName = match[3] || '';
+
+            // استخراج السعر لو موجود في القطعة
+            let price = '';
+            const priceMatch = rawName.match(/__PRICE_(\d+(?:\.\d+)?)__/);
+            if (priceMatch) {
+                price = parseFloat(priceMatch[1]);
+                rawName = rawName.replace(priceMatch[0], ' ');
+            }
+
+            // تحديد الوحدة بناء على ما قيل
+            let unitValue = 'box';
+            if (/جركن|جراكن/.test(unitWord) || /جركن|جراكن/.test(rawName)) {
+                unitValue = 'jerrican';
+            } else if (/قطعة|قطعه|حتة|حته|\sق\s/.test(unitWord) || /قطعة|قطعه|حتة|حته|\sق\s/.test(rawName)) {
+                unitValue = 'pcs';
+            }
+
+            // إزالة أي كلمات حشو من الاسم ليتبقى الصافي للمخزن
+            const scrapWords = [
+                'كرتونة', 'كرتونه', 'علبة', 'علبه', 'قطعة', 'قطعه', 'حتة', 'حته',
+                'جركن', 'جراكن', 'جنيه', 'ج م', ' من ', 'عدد', 'عايز', 'هات', 'لو سمحت', 'و'
+            ];
+            scrapWords.forEach(word => {
+                let reg = new RegExp(word, 'g');
+                rawName = rawName.replace(reg, ' ');
+            });
+            rawName = rawName.replace(/\s+/g, ' ').trim();
+
+            // تطبيق البحث الفائق الذكاء، نتجاهل كل ما ليس بالمخزن
+            const bestMatch = findBestMatchInInventory(rawName);
+
+            // لو لقينا الصنف بالمخزن (Score > 0)، نضيفه فوراً بصف جديد!
+            if (bestMatch && bestMatch.score > 0) {
+                const newRowId = window.addItemRow();
+                const targetRow = document.getElementById(newRowId);
+
+                targetRow.querySelector('.p-qty').value = qty;
+                targetRow.querySelector('.p-unit').value = unitValue;
+                if (price !== '') {
+                    targetRow.querySelector('.p-price').value = price;
+                }
+
+                // نختار الصنف المتطابق 100% بناء على أفضل نتيجة بدون تدخل بشري
+                window.selectProduct(newRowId, bestMatch.item.id, bestMatch.item.name);
+                addedCount++;
+            }
         }
 
-        // 5. إسقاط البيانات في سطر
+        // مسح الصفوف الفارغة الافتراضية لو تم إضافة أصناف بنجاح
+        cleanupEmptyRows();
+
+        if (addedCount === 0) {
+            alert("لم يتم التعرف على أي أصناف مطابقة للمخزن من النص المكتوب. يرجى التحدث بوضوح أكثر.");
+        }
+    }
+
+    function findBestMatchInInventory(rawSearchText) {
+        const searchWords = rawSearchText.split(/\s+/).filter(w => w.length > 0);
+        let bestItem = null;
+        let maxScore = 0;
+
+        inventory.forEach(item => {
+            const itemNameLower = item.name.toLowerCase();
+            let score = 0;
+            searchWords.forEach(word => {
+                // استبعاد الحروف الفردية العشوائية من التقييم
+                if (word.length > 1 && itemNameLower.includes(word)) {
+                    score += 1;
+                }
+            });
+            
+            // بونص للتطابق المتسلسل
+            if (itemNameLower.includes(rawSearchText.trim()) && rawSearchText.trim().length > 2) {
+                score += 2;
+            }
+
+            if (score > maxScore) {
+                maxScore = score;
+                bestItem = item;
+            } else if (score === maxScore && score > 0) {
+                // لو تساووا نفضل الاسم الأقصر (لأنه بيكون أدق)
+                if (bestItem && itemNameLower.length < bestItem.name.length) {
+                    bestItem = item;
+                }
+            }
+        });
+        
+        return { item: bestItem, score: maxScore };
+    }
+
+    function cleanupEmptyRows() {
         const rows = document.querySelectorAll('.item-row');
-        let targetRowId;
-        
-        if (rows.length === 1 && rows[0].querySelector('.p-id').value === '' && rows[0].querySelector('.p-name').value === '') {
-            targetRowId = rows[0].id;
-        } else {
-            targetRowId = window.addItemRow();
+        // إذا كان هناك أكثر من صف، نمسح أي صف صنف فيه فارغ
+        if (rows.length > 1) {
+            rows.forEach(row => {
+                const pid = row.querySelector('.p-id').value;
+                const pname = row.querySelector('.p-name').value;
+                if (!pid && !pname) {
+                    row.remove();
+                }
+            });
         }
-
-        const targetRow = document.getElementById(targetRowId);
-
-        targetRow.querySelector('.p-qty').value = qty;
-        if (price !== '') {
-            targetRow.querySelector('.p-price').value = price;
-        }
-        targetRow.querySelector('.p-unit').value = unitValue;
-        
-        const nameInput = targetRow.querySelector('.p-name');
-        nameInput.value = productName;
-
-        window.filterProducts(nameInput, targetRowId, true);
-        window.recalc();
+        recalc();
     }
 
 
@@ -1029,16 +1052,14 @@
         }
     };
 
-    window.goToOrders = () => {
-        window.location.href = 'all-orders.html';
-    };
+    window.goToOrders = () => { window.location.href = 'all-orders.html'; };
 
     window.resetForm = () => {
         document.getElementById('successModal').style.display = 'none';
         document.getElementById('customerInput').value = '';
         document.getElementById('customerId').value = '';
         document.getElementById('orderNotes').value = '';
-        document.getElementById('voiceStatusInput').value = '';
+        document.getElementById('bulkVoiceInput').value = '';
         document.getElementById('orderDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('itemsContainer').innerHTML = '';
         hideBadge();
@@ -1049,56 +1070,37 @@
         document.getElementById('submitBtn').innerHTML = '<i class="fas fa-paper-plane"></i> تسجيل الطلبية';
     };
 
-    // ------------------ تحميل الطلبية للتعديل ------------------
     async function loadOrderForEdit() {
         const params = new URLSearchParams(window.location.search);
         editOrderId = params.get("editOrderId");
-
         if (!editOrderId) return;
-
         try {
             const orderRef = doc(db, "orders", editOrderId);
             const orderSnap = await getDoc(orderRef);
-
-            if (!orderSnap.exists()) {
-                alert("الطلبية غير موجودة");
-                return;
-            }
-
+            if (!orderSnap.exists()) return;
             const order = orderSnap.data();
-
             document.getElementById("customerInput").value = order.customerName || "";
             document.getElementById("customerId").value = order.customerId || "";
             document.getElementById("orderDate").value = order.date || "";
             document.getElementById("orderNotes").value = order.notes || "";
-
             showBadge(order.customerName);
-
             document.getElementById("itemsContainer").innerHTML = "";
             rowCounter = 0;
-
             order.items.forEach(item => {
                 addItemRow();
-
                 const rowsNow = document.querySelectorAll(".item-row");
                 const currentRow = rowsNow[rowsNow.length - 1];
-
                 currentRow.querySelector(".p-name").value = item.name;
                 currentRow.querySelector(".p-id").value = item.stockId;
                 currentRow.querySelector(".p-unit").value = item.unit;
                 currentRow.querySelector(".p-qty").value = item.qty;
                 currentRow.querySelector(".p-price").value = item.price;
             });
-
             recalc();
             document.getElementById("submitBtn").innerHTML = '<i class="fas fa-save"></i> حفظ التعديلات';
-
-        } catch (err) {
-            console.error(err);
-        }
+        } catch (err) { console.error(err); }
     }
 
-    // ------------------ تشغيل التهيئة ------------------
     await init();
     await loadOrderForEdit();
 </script>
