@@ -451,7 +451,7 @@
                     <i class="fas fa-microphone"></i>
                 </button>
                 <input type="text" id="voiceStatusInput" class="form-control" readonly 
-                    placeholder="مثال: 5 كرتونة دلفك (السعر اختياري)" 
+                    placeholder="مثال: نص جركن كذا، أو 5 كرتونة دلفك" 
                     style="font-size: 0.82rem; background-color: #fafdfb !important;">
             </div>
         </div>
@@ -644,6 +644,7 @@
                         <label class="sub-lbl">الوحدة</label>
                         <select class="form-select p-unit" onchange="onUnitChange(this, '${id}')">
                             <option value="box">كرتونة</option>
+                            <option value="jerrican">جركن</option>
                             <option value="pcs">قطعة</option>
                         </select>
                     </div>
@@ -652,7 +653,7 @@
                 <div class="row g-2">
                     <div class="col-4">
                         <label class="sub-lbl">الكمية</label>
-                        <input type="number" class="form-control p-qty" value="1" min="1" oninput="recalc()">
+                        <input type="number" class="form-control p-qty" value="1" min="0" step="0.01" oninput="recalc()">
                     </div>
                     <div class="col-4">
                         <label class="sub-lbl">السعر</label>
@@ -690,7 +691,6 @@
         const exactMatch = inventory.find(i => i.name.trim().toLowerCase() === term);
         if (exactMatch) {
             dd.style.display = 'none';
-            // نختار الصنف المتطابق 100% فوراً
             window.selectProduct(rowId, exactMatch.id, exactMatch.name); 
             return;
         }
@@ -710,7 +710,6 @@
                 }
             });
 
-            // إعطاء أولوية للصنف الذي يبدأ بنفس الكلمة أو يحتوي على النص متصل
             if (searchWords.length > 0 && itemNameLower.startsWith(searchWords[0])) {
                 consecutiveBonus += 0.5;
             }
@@ -722,12 +721,12 @@
                 scoredItems.push({
                     item: item,
                     score: matchedWordsCount + consecutiveBonus,
-                    nameLength: itemNameLower.length // للمفاضلة بين الأسماء الطويلة والقصيرة
+                    nameLength: itemNameLower.length
                 });
             }
         });
 
-        // الترتيب حسب أعلى دقة تطابق، وإذا تساوت الدقة نفضل الاسم الأقصر
+        // الترتيب حسب أعلى دقة تطابق
         scoredItems.sort((a, b) => {
             if (b.score !== a.score) {
                 return b.score - a.score;
@@ -752,7 +751,6 @@
             </div>
         `).join('');
         
-        // إظهار القائمة وترك الاختيار للمستخدم (لن يقوم البرنامج بالاختيار العشوائي)
         dd.style.display = 'block';
     };
 
@@ -783,7 +781,6 @@
         if (!pid) { recalc(); return; }
         const p = inventory.find(i => i.id === pid);
         if (p) {
-            // تحديث السعر التلقائي بناء على الوحدة فقط إذا لم يقم المستخدم بكتابة سعر مخصص
             setRowPrice(row, p);
         }
         recalc();
@@ -792,7 +789,8 @@
     function setRowPrice(row, p) {
         const unit = row.querySelector('.p-unit').value;
         const factor = Number(p.unitFactor) || 1;
-        const price = unit === 'box' ? (p.sell || 0) : ((p.sell || 0) / factor);
+        // الجركن يعامل معاملة الكرتونة في السعر (لأنه وحدة أساسية)
+        const price = (unit === 'box' || unit === 'jerrican') ? (p.sell || 0) : ((p.sell || 0) / factor);
         row.querySelector('.p-price').value = price.toFixed(2);
     }
 
@@ -815,7 +813,7 @@
     };
 
 
-    // ------------------ الإدخال الصوتي الاحترافي (السعر ليس إجبارياً) ------------------
+    // ------------------ الإدخال الصوتي الاحترافي ------------------
     window.handleVoiceInput = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -855,19 +853,19 @@
     function parseFlexibleVoiceInput(text) {
         let originalText = text;
         let qty = 1;
-        let price = ''; // نترك السعر فارغاً ليعتمد على سعر المخزن الافتراضي إذا لم يتم ذكره
+        let price = ''; 
 
-        // 1. استخراج السعر بذكاء إذا تم ذكر كلمة (ب، بسعر، بـ) قبل الرقم
+        // 1. استخراج السعر بذكاء
         const priceRegex = /(?:ب|بسعر|سعر|بـ)\s*(\d+(\.\d+)?)/;
         const priceMatch = text.match(priceRegex);
         if (priceMatch) {
             price = parseFloat(priceMatch[1]);
-            // إزالة السعر والكلمة المرتبطة به من النص تماماً لعدم التشويش على اسم الصنف
             text = text.replace(priceMatch[0], ' '); 
         }
 
-        // 2. استخراج الكمية إذا كانت نصوص (واحد، اتنين، إلخ)
+        // 2. استخراج الكميات النصية مع دعم (نص، ربع) وضمان سحب الكلمة الصحيحة
         const textNumbersMap = {
+            'نص': 0.5, 'نصف': 0.5, 'ربع': 0.25,
             'واحد': 1, 'اتنين': 2, 'إثنين': 2, 'تلاتة': 3, 'تلاته': 3, 'ثلاثة': 3, 
             'اربعة': 4, 'اربعه': 4, 'أربعة': 4, 'خمسة': 5, 'خمسه': 5, 'ستة': 6, 
             'سته': 6, 'سبعة': 7, 'سبعه': 7, 'ثمانية': 8, 'تمانية': 8, 'تمانيه': 8, 
@@ -875,35 +873,52 @@
         };
 
         let voiceQtyFound = false;
+        let firstWordMatch = null;
+        let matchIndex = -1;
+
+        // نبحث عن أول كلمة تعبر عن رقم بتظهر في الجملة 
         for (let word in textNumbersMap) {
             let reg = new RegExp(`(^|\\s)${word}(\\s|$)`);
-            if (reg.test(text)) {
-                qty = textNumbersMap[word];
-                text = text.replace(reg, ' ').trim();
-                voiceQtyFound = true;
-                break;
+            let match = text.match(reg);
+            if (match) {
+                if (matchIndex === -1 || match.index < matchIndex) {
+                    matchIndex = match.index;
+                    firstWordMatch = word;
+                }
             }
         }
 
-        // إذا لم تكن الكمية نصية، نبحث عن أول رقم متبقي في الجملة ليكون الكمية
+        if (firstWordMatch) {
+            qty = textNumbersMap[firstWordMatch];
+            let reg = new RegExp(`(^|\\s)${firstWordMatch}(\\s|$)`);
+            text = text.replace(reg, ' ').trim(); // يمسح الرقم من الجملة
+            voiceQtyFound = true;
+        }
+
+        // لو ملأناش كلام مكتوب، ندور على أرقام حسابية للكمية
         if (!voiceQtyFound) {
-            const digits = text.match(/\d+/);
+            const digits = text.match(/\d+(\.\d+)?/);
             if (digits) {
                 qty = parseFloat(digits[0]);
                 text = text.replace(digits[0], ' ');
             }
         }
 
-        // 3. استخراج نوع الوحدة
+        // 3. استخراج نوع الوحدة (دعم جركن)
         let unitValue = 'box';
-        if (/قطعة|قطعه|حتة|حته|\sق\s/.test(originalText)) {
+        if (/جركن|جراكن/.test(originalText)) {
+            unitValue = 'jerrican';
+        } else if (/قطعة|قطعه|حتة|حته|\sق\s/.test(originalText)) {
             unitValue = 'pcs';
+        } else if (/كرتونة|كرتونه/.test(originalText)) {
+            unitValue = 'box';
         }
 
-        // 4. تنظيف الكلمات الزائدة للحصول على اسم الصنف الصافي
+        // 4. تنظيف اسم الصنف
         let productName = text;
         const scrapWords = [
             'كرتونة', 'كرتونه', 'علبة', 'علبه', 'قطعة', 'قطعه', 'حتة', 'حته', 
+            'جركن', 'جراكن',
             'جنيه', 'ج م', ' من ', 'عدد'
         ];
         
@@ -914,11 +929,10 @@
 
         productName = productName.replace(/\s+/g, ' ').trim();
         if (!productName || productName.length < 2) {
-            // محاولة أخيرة لو الاسم اختفى
             productName = originalText.replace(/\d+/g, '').trim(); 
         }
 
-        // 5. إسقاط البيانات في سطر جديد
+        // 5. إسقاط البيانات في سطر
         const rows = document.querySelectorAll('.item-row');
         let targetRowId;
         
@@ -939,7 +953,6 @@
         const nameInput = targetRow.querySelector('.p-name');
         nameInput.value = productName;
 
-        // استدعاء دالة الفلترة الذكية لعرض أقرب 3 أصناف فقط وترك حرية الاختيار للمستخدم
         window.filterProducts(nameInput, targetRowId, true);
         window.recalc();
     }
