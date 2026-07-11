@@ -108,6 +108,40 @@
         }
         .form-control::placeholder { color: #b0bec5; font-weight: 600; }
 
+        /* Voice Input Box Style */
+        .voice-box-container {
+            background: #fdfdfd;
+            border: 1.5px dashed #b7dfc7;
+            border-radius: var(--input-radius);
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+        .btn-voice-trigger {
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 3px 8px rgba(11,94,61,0.2);
+        }
+        .btn-voice-trigger.listening {
+            background: var(--danger);
+            animation: voice-pulse 1.2s infinite;
+            box-shadow: 0 3px 10px rgba(217,4,41,0.3);
+        }
+        @keyframes voice-pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+            100% { transform: scale(1); }
+        }
+
         /* Autocomplete dropdown */
         .autocomplete-wrap { position: relative; }
         .dropdown-list {
@@ -210,32 +244,9 @@
             font-size: 0.88rem;
             cursor: pointer;
             transition: all 0.2s;
+            margin-bottom: 6px;
         }
         .btn-add-row:hover { background: rgba(11,94,61,0.05); }
-
-        .btn-voice {
-            border: 1.5px solid var(--accent);
-            background: transparent;
-            color: var(--accent);
-            font-weight: 700;
-            border-radius: var(--input-radius);
-            width: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-        .btn-voice.listening {
-            border-color: var(--danger) !important;
-            color: var(--danger) !important;
-            animation: pulse-border 1.5s infinite;
-        }
-
-        @keyframes pulse-border {
-            0% { box-shadow: 0 0 0 0 rgba(217,4,41,0.4); }
-            70% { box-shadow: 0 0 0 6px rgba(217,4,41,0); }
-            100% { box-shadow: 0 0 0 0 rgba(217,4,41,0); }
-        }
 
         /* Summary bar */
         .summary-bar {
@@ -432,19 +443,26 @@
             <i class="fas fa-boxes"></i> الأصناف المطلوبة
         </div>
 
+        <!-- قسم الإدخال الصوتي الذكي الجديد -->
+        <div class="voice-box-container">
+            <label class="sub-lbl text-success mb-2"><i class="fas fa-magic me-1"></i> خانة الإدخال الصوتي والتحليل التلقائي</label>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" id="voiceTriggerBtn" class="btn-voice-trigger" onclick="handleVoiceInput()">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <input type="text" id="voiceStatusInput" class="form-control" readonly 
+                    placeholder="اضغط على المايك وتحدث (مثال: 5 كرتونة بترومين توك توك ب 1660)" 
+                    style="font-size: 0.82rem; background-color: #fafdfb !important;">
+            </div>
+        </div>
+
         <div id="itemsContainer">
             <!-- rows injected here -->
         </div>
 
-        <!-- مجمع أزرار التحكم في الإضافة -->
-        <div class="d-flex gap-2 mb-3">
-            <button class="btn-add-row" onclick="addItemRow()">
-                <i class="fas fa-plus-circle me-1"></i> إضافة صنف
-            </button>
-            <button id="voiceBtn" class="btn-voice" onclick="startVoiceRecognition()" title="إدخال صوتی ذكی">
-                <i class="fas fa-microphone"></i>
-            </button>
-        </div>
+        <button class="btn-add-row" onclick="addItemRow()">
+            <i class="fas fa-plus-circle me-1"></i> إضافة صنف يدوي
+        </button>
 
         <div class="error-msg" id="itemsError" style="display: none; margin-top: -4px; margin-bottom: 8px;">
             الرجاء إضافة صنف واحد على الأقل
@@ -653,6 +671,7 @@
         `;
         document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', html);
         recalc();
+        return id; // إرجاع المعرف للاستخدام التلقائي
     };
 
     window.removeRow = (id) => {
@@ -736,94 +755,103 @@
         document.getElementById('badgeCount').innerText = totalItems;
     };
 
-    // ---------- الإدخال الصوتي الذكي وتحليل النص ----------
-    window.startVoiceRecognition = () => {
+
+    // ------------------ محرك الإدخال الصوتي والتحليل الذكي ------------------
+    window.handleVoiceInput = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert("عذراً، الإدخال الصوتي غير مدعوم على متصفحك الحالي. يرجى استخدام تطبيق Google Chrome لضمان عمل الخدمة.");
+            alert("ميزة الإدخال الصوتي غير مدعومة في متصفحك الحالي. يرجى استخدام متصفح Google Chrome.");
             return;
         }
 
         const recognition = new SpeechRecognition();
-        recognition.lang = 'ar-EG'; 
+        recognition.lang = 'ar-EG'; // لهجة مصرية
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
 
-        const voiceBtn = document.getElementById('voiceBtn');
-        voiceBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        const voiceBtn = document.getElementById('voiceTriggerBtn');
+        const statusInput = document.getElementById('voiceStatusInput');
+
         voiceBtn.classList.add('listening');
+        statusInput.value = "جاري الاستماع... تحدث الآن";
 
         recognition.start();
 
         recognition.onresult = (event) => {
-            const text = event.results[0][0].transcript;
-            parseAndFillVoiceInput(text);
+            const speechResult = event.results[0][0].transcript;
+            statusInput.value = speechResult; // إظهار النص المنطوق بالخانة
+            parseAndDistribute(speechResult);
         };
 
-        recognition.onerror = (event) => {
-            console.error("Voice Error: ", event.error);
-            alert("لم يتم التقاط الصوت بوضوح، يرجى المحاولة مرة أخرى.");
+        recognition.onerror = (err) => {
+            console.error(err);
+            statusInput.value = "فشل التعرف على الصوت، حاول مرة أخرى.";
         };
 
         recognition.onend = () => {
-            voiceBtn.innerHTML = '<i class="fas fa-microphone"></i>';
             voiceBtn.classList.remove('listening');
         };
     };
 
-    function parseAndFillVoiceInput(text) {
-        text = text.replace(/بكام|بسعر|بـ/g, 'ب').trim();
-        
-        // التعبير النمطي لالتقاط الصيغة المطلوبة
+    function parseAndDistribute(text) {
+        // تنظيف الكلمات الشائعة لتبسيط التحليل
+        let cleanText = text.replace(/بكام|بسعر|بـ/g, 'ب').trim();
+
+        // التعبير النمطي: (رقم) (كلمة الوحدة اختيارياً) (اسم الصنف) (حرف ب) (رقم السعر)
         const regex = /^(\d+)\s+(كرتونة|كرتونه|علبة|علبه|قطعة|قطعه|ق)?\s*(.*?)\s+ب\s*(\d+)$/;
-        const match = text.match(regex);
+        const match = cleanText.match(regex);
 
         if (!match) {
-            alert(`لم نتمكن من تحليل النص.\nيرجى النطق بالصيغة التالية:\n"5 كرتونة بترومين توك توك ب 1660"`);
+            alert("عذراً، لم يتم تحليل الجملة بشكل سليم.\nيرجى النطق هكذا: [5 كرتونة بترومين توك توك ب 1660]");
             return;
         }
 
         const qty = match[1];
-        let unitWord = match[2] || '';
+        const unitWord = match[2] || '';
         const productName = match[3].trim();
         const price = match[4];
 
-        let unitValue = 'box'; 
+        // تحديد نوع الوحدة
+        let unitValue = 'box';
         if (unitWord.includes('قطعة') || unitWord.includes('قطعه') || unitWord.includes('ق')) {
             unitValue = 'pcs';
         }
 
-        // تفقد إذا كان السطر الحالي بالصفحة فارغاً تماماً لاستغلاله أو نفتح سطر جديد
-        const rowsNow = document.querySelectorAll(".item-row");
-        let targetRow = rowsNow[rowsNow.length - 1];
+        // تفقد السطر الحالي بالأسفل، لو كان السطر الأول فارغاً تماماً استخدمه، وإلا افتح سطر جديد
+        const rows = document.querySelectorAll('.item-row');
+        let targetRowId;
         
-        if (targetRow && targetRow.querySelector('.p-id').value !== '') {
-            window.addItemRow();
-            const updatedRows = document.querySelectorAll(".item-row");
-            targetRow = updatedRows[updatedRows.length - 1];
+        if (rows.length === 1 && rows[0].querySelector('.p-id').value === '' && rows[0].querySelector('.p-name').value === '') {
+            targetRowId = rows[0].id;
+        } else {
+            targetRowId = window.addItemRow();
         }
 
-        const rowId = targetRow.id;
+        const targetRow = document.getElementById(targetRowId);
+
+        // تعبئة البيانات المكتشفة في السطر المختار
         targetRow.querySelector('.p-qty').value = qty;
         targetRow.querySelector('.p-price').value = price;
         targetRow.querySelector('.p-unit').value = unitValue;
-
+        
         const nameInput = targetRow.querySelector('.p-name');
         nameInput.value = productName;
 
-        window.filterProducts(nameInput, rowId);
+        // تشغيل الفلترة والبحث الفوري عن الصنف بالمخزن
+        window.filterProducts(nameInput, targetRowId);
 
-        // محاولة جلب واختيار الخيار الأول من نتائج الفلترة تلقائياً
+        // محاكاة اختيار النتيجة الأولى الصحيحة إن وجدت تلقائياً خلال أجزاء من الثانية
         setTimeout(() => {
             const dd = targetRow.querySelector('.p-dropdown');
-            const firstItem = dd.querySelector('.dropdown-item-row');
-            if (firstItem && !firstItem.innerText.includes('لا يوجد صنف')) {
-                firstItem.click();
+            const firstOption = dd.querySelector('.dropdown-item-row');
+            if (firstOption && !firstOption.innerText.includes('لا يوجد صنف')) {
+                firstOption.click();
             }
-        }, 300);
+        }, 250);
 
         window.recalc();
     }
+
 
     // ---------- submit ----------
     window.submitOrder = async () => {
@@ -905,6 +933,7 @@
         document.getElementById('customerInput').value = '';
         document.getElementById('customerId').value = '';
         document.getElementById('orderNotes').value = '';
+        document.getElementById('voiceStatusInput').value = '';
         document.getElementById('orderDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('itemsContainer').innerHTML = '';
         hideBadge();
