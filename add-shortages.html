@@ -52,9 +52,34 @@
         .btn-add:active { transform: scale(0.98); }
 
         /* ══════════════════════════════
-           تنسيق القائمة المنسدلة الذكية الجديدة
+           تنسيق خانة البحث والمايك الصوتي
         ══════════════════════════════ */
         .dropdown-container { position: relative; }
+        
+        /* زر المايك داخل الخانة (جهة اليسار في الـ RTL) */
+        .voice-mic-btn {
+            position: absolute;
+            top: 50%;
+            left: 12px;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--emerald-700);
+            font-size: 1.25rem;
+            cursor: pointer;
+            z-index: 10;
+            padding: 4px;
+            transition: color 0.2s, transform 0.2s;
+        }
+        /* تأثير الوميض واللون الأحمر أثناء الاستماع */
+        .voice-mic-btn.listening {
+            color: var(--rose-dark);
+            animation: micPulse 1s infinite alternate;
+        }
+        @keyframes micPulse {
+            from { transform: translateY(-50%) scale(1); }
+            to { transform: translateY(-50%) scale(1.2); }
+        }
         
         .custom-dropdown-menu {
             position: absolute;
@@ -66,7 +91,7 @@
             overflow-y: auto;
             z-index: 1100;
             box-shadow: 0 8px 24px rgba(11, 94, 61, 0.12);
-            display: none; /* مخفية افتراضياً */
+            display: none;
         }
         .custom-dropdown-menu.show { display: block; }
         
@@ -83,7 +108,7 @@
         .dropdown-search-item:last-child { border-bottom: none; }
         .dropdown-search-item:hover { background: #f0f6f3; color: var(--emerald-700); }
 
-        /* ستايل كروت النواقص للموبايل */
+        /* كروت النواقص للموبايل */
         .shortage-item-card {
             background: var(--white); border: 1px solid var(--border-subtle); border-radius: 16px;
             padding: 14px 16px; margin-bottom: 10px; border-right: 5px solid var(--rose-dark);
@@ -113,7 +138,7 @@
 </div>
 
 <div class="container mt-3">
-    <!-- كارت الإدخل -->
+    <!-- كارت الإدخال -->
     <div class="glass-card">
         <h6 class="mb-3 fw-bold text-success" style="font-size: 1rem;"><i class="fas fa-plus-circle me-1"></i> تسجيل صنف ناقص جديد</h6>
         <form id="shortageForm" onsubmit="event.preventDefault(); window.saveShortage();">
@@ -121,9 +146,12 @@
                 <div class="col-12 mb-2">
                     <label>اسم صنف الزيت / الفلتر</label>
                     <div class="dropdown-container">
-                        <!-- تم تحويل المدخل إلى حقل بحث ذكي مع إيقاف الإكمال التلقائي للمتصفح -->
-                        <input type="text" id="itemName" class="form-control" placeholder="اكتب أول حرف للبحث في المخزن..." autocomplete="off" required>
-                        <!-- القائمة المنسدلة المخصصة -->
+                        <!-- إضافة pe-5 لترك مساحة لزر المايك جهة اليسار -->
+                        <input type="text" id="itemName" class="form-control pe-5" placeholder="اكتب أو اضغط على المايك للتحدث..." autocomplete="off" required>
+                        <!-- زر الإدخال الصوتي الجديد -->
+                        <button type="button" id="micBtn" class="voice-mic-btn" onclick="window.startVoiceInput()" title="اضغط للتحدث">
+                            <i class="fas fa-microphone"></i>
+                        </button>
                         <div id="dropdownMenu" class="custom-dropdown-menu"></div>
                     </div>
                 </div>
@@ -168,9 +196,8 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    let inventoryItems = []; // مصفوفة لتخزين أسماء بضاعة المخزن بالكامل
+    let inventoryItems = [];
 
-    // جلب البضاعة من الـ Firebase وتخزينها محلياً للبحث السريع
     async function loadInventory() {
         try {
             const invSnap = await getDocs(collection(db, "inventory"));
@@ -180,13 +207,12 @@
                 const name = data.name || data.itemName;
                 if(name) inventoryItems.push(name);
             });
-            initAutocomplete(); // تشغيل نظام المحرك الذكي بعد سحب البيانات
+            initAutocomplete();
         } catch (e) {
             console.error("خطأ في جلب أصناف المخزن:", e);
         }
     }
 
-    // بناء محرك البحث المنسدل عند كتابة أول حرف
     function initAutocomplete() {
         const input = document.getElementById('itemName');
         const menu = document.getElementById('dropdownMenu');
@@ -195,13 +221,11 @@
             const textValue = this.value.trim().toLowerCase();
             menu.innerHTML = "";
 
-            // لو الخانة فاضية، اخفي القائمة فوراً
             if (!textValue) {
                 menu.classList.remove('show');
                 return;
             }
 
-            // فلترة الأصناف التي تبدأ أو تحتوي على النص المكتوب
             const matchedItems = inventoryItems.filter(item => item.toLowerCase().includes(textValue));
 
             if (matchedItems.length === 0) {
@@ -212,18 +236,16 @@
                     div.className = 'dropdown-search-item';
                     div.textContent = item;
                     
-                    // عند الضغط على صنف من القائمة المنسدلة
                     div.addEventListener('click', () => {
                         input.value = item;
-                        menu.classList.remove('show'); // اخفي القائمة
+                        menu.classList.remove('show');
                     });
                     menu.appendChild(div);
                 });
             }
-            menu.classList.add('show'); // اظهر القائمة المنسدلة
+            menu.classList.add('show');
         });
 
-        // إغلاق القائمة المنسدلة تلقائياً لو المستخدم ضغط في أي مكان برا الخانة
         document.addEventListener('click', function(e) {
             if (!input.contains(e.target) && !menu.contains(e.target)) {
                 menu.classList.remove('show');
@@ -231,7 +253,51 @@
         });
     }
 
-    // الاستماع المباشر للنواقص الحالية
+    // ══════════════════════════════
+    // دالة الإدخال الصوتي الذكية
+    // ══════════════════════════════
+    window.startVoiceInput = () => {
+        // التحقق من دعم المتصفح للتعرف على الصوت
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("ميزة الإدخال الصوتي غير مدعومة في متصفحك الحالي، يرجى استخدام تطبيق Google Chrome لتعمل الميزة بنجاح.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ar-EG'; // ضبط اللغة على العربية (اللهجة المصرية)
+        recognition.interimResults = false; // جلب النتيجة النهائية فقط
+        recognition.maxAlternatives = 1;
+
+        const micBtn = document.getElementById('micBtn');
+        const input = document.getElementById('itemName');
+
+        recognition.onstart = () => {
+            micBtn.classList.add('listening'); // تشغيل وميض المايك الأحمر
+        };
+
+        recognition.onerror = (e) => {
+            console.error("خطأ صوتي:", e);
+            micBtn.classList.remove('listening');
+            alert("لم يتم سماع الصوت بوضوح، يرجى المحاولة مرة أخرى وتأكيد صلاحية المايك.");
+        };
+
+        recognition.onend = () => {
+            micBtn.classList.remove('listening'); // إطفاء الوميض عند الانتهاء
+        };
+
+        recognition.onresult = (event) => {
+            const speechToText = event.results[0][0].transcript;
+            input.value = speechToText; // كتابة النص المنطوق في الخانة
+            
+            // إطلاق حدث 'input' يدوياً لتشغيل الفلترة والقائمة المنسدلة فوراً بناءً على الكلمة المقروءة صوتاً
+            input.dispatchEvent(new Event('input'));
+        };
+
+        recognition.start(); // بدء الاستماع للمايك
+    };
+
+    // الاستماع المباشر للنواقص
     function listenToShortages() {
         const q = query(collection(db, "shortages"), orderBy("createdAt", "desc"));
         onSnapshot(q, (snapshot) => {
