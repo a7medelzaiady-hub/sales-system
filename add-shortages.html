@@ -51,48 +51,60 @@
         }
         .btn-add:active { transform: scale(0.98); }
 
-        /* ستايل كروت النواقص الجديد للموبايل */
-        .shortage-item-card {
+        /* ══════════════════════════════
+           تنسيق القائمة المنسدلة الذكية الجديدة
+        ══════════════════════════════ */
+        .dropdown-container { position: relative; }
+        
+        .custom-dropdown-menu {
+            position: absolute;
+            top: 100%; left: 0; right: 0;
             background: var(--white);
-            border: 1px solid var(--border-subtle);
-            border-radius: 16px;
-            padding: 14px 16px;
-            margin-bottom: 10px;
-            border-right: 5px solid var(--rose-dark);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            border: 1px solid var(--emerald-700);
+            border-radius: 12px;
+            max-height: 220px;
+            overflow-y: auto;
+            z-index: 1100;
+            box-shadow: 0 8px 24px rgba(11, 94, 61, 0.12);
+            display: none; /* مخفية افتراضياً */
+        }
+        .custom-dropdown-menu.show { display: block; }
+        
+        .dropdown-search-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 0.95rem;
+            border-bottom: 1px solid #f8faf9;
+            text-align: right;
+            color: var(--text-deep);
+            transition: background 0.2s;
+        }
+        .dropdown-search-item:last-child { border-bottom: none; }
+        .dropdown-search-item:hover { background: #f0f6f3; color: var(--emerald-700); }
+
+        /* ستايل كروت النواقص للموبايل */
+        .shortage-item-card {
+            background: var(--white); border: 1px solid var(--border-subtle); border-radius: 16px;
+            padding: 14px 16px; margin-bottom: 10px; border-right: 5px solid var(--rose-dark);
+            display: flex; justify-content: space-between; align-items: center;
             box-shadow: 0 2px 8px rgba(0,0,0,0.02);
         }
         
         .qty-badge {
-            background-color: var(--rose-light);
-            color: var(--rose-dark);
-            border: 1px solid #fbcdd5;
-            padding: 6px 12px;
-            font-size: 1rem;
-            font-weight: 800;
-            border-radius: 10px;
-            min-width: 42px;
-            text-align: center;
+            background-color: var(--rose-light); color: var(--rose-dark); border: 1px solid #fbcdd5;
+            padding: 6px 12px; font-size: 1rem; font-weight: 800; border-radius: 10px;
+            min-width: 42px; text-align: center;
         }
 
         .btn-done {
-            background-color: #e6f7ef;
-            color: var(--emerald-700);
-            border: 1px solid #c3edd9;
-            font-weight: 700;
-            border-radius: 10px;
-            padding: 6px 12px;
-            font-size: 0.85rem;
-            transition: 0.2s;
+            background-color: #e6f7ef; color: var(--emerald-700); border: 1px solid #c3edd9;
+            font-weight: 700; border-radius: 10px; padding: 6px 12px; font-size: 0.85rem; transition: 0.2s;
         }
         .btn-done:active { background-color: var(--emerald-700); color: white; }
     </style>
 </head>
 <body>
-
-<datalist id="inventoryList"></datalist>
 
 <div class="header">
     <a href="index.html" class="text-white text-decoration-none"><i class="fas fa-arrow-right fs-5"></i></a>
@@ -101,16 +113,20 @@
 </div>
 
 <div class="container mt-3">
-    <!-- كارت الإدخال -->
+    <!-- كارت الإدخل -->
     <div class="glass-card">
         <h6 class="mb-3 fw-bold text-success" style="font-size: 1rem;"><i class="fas fa-plus-circle me-1"></i> تسجيل صنف ناقص جديد</h6>
         <form id="shortageForm" onsubmit="event.preventDefault(); window.saveShortage();">
             <div class="row">
                 <div class="col-12 mb-2">
                     <label>اسم صنف الزيت / الفلتر</label>
-                    <input type="text" id="itemName" class="form-control" list="inventoryList" placeholder="ابحث أو اكتب اسم الصنف هنا..." required>
+                    <div class="dropdown-container">
+                        <!-- تم تحويل المدخل إلى حقل بحث ذكي مع إيقاف الإكمال التلقائي للمتصفح -->
+                        <input type="text" id="itemName" class="form-control" placeholder="اكتب أول حرف للبحث في المخزن..." autocomplete="off" required>
+                        <!-- القائمة المنسدلة المخصصة -->
+                        <div id="dropdownMenu" class="custom-dropdown-menu"></div>
+                    </div>
                 </div>
-                <!-- جعلنا الكمية والملاحظة في صف واحد متناسق شاشات الموبايل -->
                 <div class="col-4">
                     <label>الكمية</label>
                     <input type="number" id="itemQty" class="form-control text-center" placeholder="0" min="1" required>
@@ -126,11 +142,9 @@
         </form>
     </div>
 
-    <!-- كارت العرض المطور -->
+    <!-- كارت العرض -->
     <div class="glass-card border-0 bg-transparent p-0 shadow-none">
         <h6 class="mb-3 fw-bold text-danger ps-2" style="font-size: 1rem;"><i class="fas fa-exclamation-triangle me-1"></i> قائمة النواقص الحالية بالمحل</h6>
-        
-        <!-- هنا سيتم حقن الكروت الذكية بدلاً من الجدول القديم -->
         <div id="shortagesListContainer">
             <div class="text-center p-4 text-muted bg-white rounded-4 border">جاري تحميل النواقص الحالية...</div>
         </div>
@@ -154,22 +168,70 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    let inventoryItems = []; // مصفوفة لتخزين أسماء بضاعة المخزن بالكامل
+
+    // جلب البضاعة من الـ Firebase وتخزينها محلياً للبحث السريع
     async function loadInventory() {
         try {
-            const datalist = document.getElementById('inventoryList');
             const invSnap = await getDocs(collection(db, "inventory"));
-            let options = "";
+            inventoryItems = [];
             invSnap.forEach(doc => {
                 const data = doc.data();
                 const name = data.name || data.itemName;
-                if(name) options += `<option value="${name}">`;
+                if(name) inventoryItems.push(name);
             });
-            datalist.innerHTML = options;
+            initAutocomplete(); // تشغيل نظام المحرك الذكي بعد سحب البيانات
         } catch (e) {
-            console.error(e);
+            console.error("خطأ في جلب أصناف المخزن:", e);
         }
     }
 
+    // بناء محرك البحث المنسدل عند كتابة أول حرف
+    function initAutocomplete() {
+        const input = document.getElementById('itemName');
+        const menu = document.getElementById('dropdownMenu');
+
+        input.addEventListener('input', function() {
+            const textValue = this.value.trim().toLowerCase();
+            menu.innerHTML = "";
+
+            // لو الخانة فاضية، اخفي القائمة فوراً
+            if (!textValue) {
+                menu.classList.remove('show');
+                return;
+            }
+
+            // فلترة الأصناف التي تبدأ أو تحتوي على النص المكتوب
+            const matchedItems = inventoryItems.filter(item => item.toLowerCase().includes(textValue));
+
+            if (matchedItems.length === 0) {
+                menu.innerHTML = `<div class="dropdown-search-item text-muted text-center" style="font-size:0.85rem;">لا توجد أصناف مطابقة للبحث</div>`;
+            } else {
+                matchedItems.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = 'dropdown-search-item';
+                    div.textContent = item;
+                    
+                    // عند الضغط على صنف من القائمة المنسدلة
+                    div.addEventListener('click', () => {
+                        input.value = item;
+                        menu.classList.remove('show'); // اخفي القائمة
+                    });
+                    menu.appendChild(div);
+                });
+            }
+            menu.classList.add('show'); // اظهر القائمة المنسدلة
+        });
+
+        // إغلاق القائمة المنسدلة تلقائياً لو المستخدم ضغط في أي مكان برا الخانة
+        document.addEventListener('click', function(e) {
+            if (!input.contains(e.target) && !menu.contains(e.target)) {
+                menu.classList.remove('show');
+            }
+        });
+    }
+
+    // الاستماع المباشر للنواقص الحالية
     function listenToShortages() {
         const q = query(collection(db, "shortages"), orderBy("createdAt", "desc"));
         onSnapshot(q, (snapshot) => {
@@ -190,7 +252,6 @@
                 const id = docSnap.id;
                 const dateStr = data.date ? data.date : "غير محدد";
                 
-                // بناء كارت مرن مخصص للموبايل يمنع التفاف النص المزعج ويظهر زر الحذف بوضوح
                 html += `
                     <div class="shortage-item-card" id="row_${id}">
                         <div class="flex-grow-1 pe-2">
