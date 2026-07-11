@@ -443,15 +443,15 @@
             <i class="fas fa-boxes"></i> الأصناف المطلوبة
         </div>
 
-        <!-- خانة الإدخال الصوتي الذكي المصممة بطريقة ملف النواقص المرنة -->
+        <!-- خانة الإدخال الصوتي والتحليل المحدثة بالكامل -->
         <div class="voice-box-container">
-            <label class="sub-lbl text-success mb-2"><i class="fas fa-magic me-1"></i> خانة الإدخال الصوتي والتحليل (طريقة النواقص)</label>
+            <label class="sub-lbl text-success mb-2"><i class="fas fa-magic me-1"></i> خانة الإدخال الصوتي والتحليل الذكي</label>
             <div class="d-flex align-items-center gap-2">
                 <button type="button" id="voiceTriggerBtn" class="btn-voice-trigger" onclick="handleVoiceInput()">
                     <i class="fas fa-microphone"></i>
                 </button>
                 <input type="text" id="voiceStatusInput" class="form-control" readonly 
-                    placeholder="اضغط على المايك وتحدث بحرية بأي ترتيب..." 
+                    placeholder="اضغط على المايك وتحدث (مثال: واحد كرتونة بترومين توك توك ب 560)" 
                     style="font-size: 0.82rem; background-color: #fafdfb !important;">
             </div>
         </div>
@@ -756,7 +756,7 @@
     };
 
 
-    // ------------------ محرك الإدخال الصوتي المرن (أسلوب ملف النواقص) ------------------
+    // ------------------ محرك الإدخال الصوتي والتحليل الذكي (تم التحديث الفائق) ------------------
     window.handleVoiceInput = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -794,62 +794,97 @@
     };
 
     function parseFlexibleVoiceInput(text) {
-        // 1. استخراج الأرقام بالكامل من الجملة أياً كان موقعها
-        const numbers = text.match(/\d+/g);
+        let originalText = text;
         
-        let qty = 1;
+        // 1. تحويل الأرقام المكتوبة بكلمات إلى أرقام فعلية ومسحها من النص فوراً
+        const textNumbersMap = {
+            'واحد': 1, 'اتنين': 2, 'إثنين': 2, 'تلاتة': 3, 'تلاته': 3, 'ثلاثة': 3, 
+            'اربعة': 4, 'اربعه': 4, 'أربعة': 4, 'خمسة': 5, 'خمسه': 5, 'ستة': 6, 
+            'سته': 6, 'سبعة': 7, 'سبعه': 7, 'ثمانية': 8, 'تمانية': 8, 'تمانيه': 8, 
+            'تسعة': 9, 'تسعه': 9, 'عشرة': 10, 'عشره': 10
+        };
+
+        let voiceQty = null;
+        Object.keys(textNumbersMap).forEach(word => {
+            if (text.startsWith(word) || text.includes(' ' + word + ' ')) {
+                voiceQty = textNumbersMap[word];
+                text = text.replace(word, '').trim(); // حذف الكلمة لتنظيف اسم الصنف
+            }
+        });
+
+        // 2. استخراج الأرقام الحسابية العادية المتواجدة في النص
+        const numbers = text.match(/\d+/g);
+        let qty = voiceQty || 1;
         let price = 0;
 
-        // إذا وجدنا رقمين أو أكثر (مثال: 5 و 1660)
-        if (numbers && numbers.length >= 2) {
-            // الرقم الأكبر غالباً هو السعر، والأصغر هو الكمية
-            const num1 = parseFloat(numbers[0]);
-            const num2 = parseFloat(numbers[1]);
-            
-            if (num1 > num2) {
-                price = num1;
-                qty = num2;
-            } else {
-                price = num2;
-                qty = num1;
+        if (numbers) {
+            if (numbers.length >= 2) {
+                const num1 = parseFloat(numbers[0]);
+                const num2 = parseFloat(numbers[1]);
+                // الرقم الأكبر هو السعر دائماً، والأصغر هو الكمية (إذا لم تكن حددت نصياً)
+                if (num1 > num2) {
+                    price = num1;
+                    if (!voiceQty) qty = num2;
+                } else {
+                    price = num2;
+                    if (!voiceQty) qty = num1;
+                }
+            } else if (numbers.length === 1) {
+                // إذا وجدنا رقماً واحداً والكمية تم تحديدها بكلمة (مثل: واحد ... بـ 560)
+                if (voiceQty) {
+                    price = parseFloat(numbers[0]);
+                } else {
+                    // إذا لم نحدد كلمة، الرقم الوحيد يعتبر سعراً لو كبير أو كمية لو صغير
+                    const singleNum = parseFloat(numbers[0]);
+                    if (singleNum > 50) {
+                        price = singleNum;
+                        qty = 1;
+                    } else {
+                        qty = singleNum;
+                    }
+                }
             }
-        } else if (numbers && numbers.length === 1) {
-            // لو وجدنا رقم واحد، نتحقق من السياق أو نعتبره كمية
-            qty = parseFloat(numbers[0]);
         }
 
-        // 2. استخلاص الكلمات وتحديد الوحدة (كرتونة أو قطعة)
-        let unitValue = 'box'; // الافتراضي كرتونة
-        if (text.includes('قطعة') || text.includes('قطعه') || text.includes('حتة') || text.includes('حته') || text.includes('ق')) {
+        // 3. تحديد نوع الوحدة (كرتونة أو قطعة) ومسحها
+        let unitValue = 'box';
+        if (originalText.includes('قطعة') || originalText.includes('قطعه') || originalText.includes('حتة') || originalText.includes('حته') || originalText.includes('ق')) {
             unitValue = 'pcs';
         }
 
-        // 3. استخلاص اسم المنتج عن طريق تنظيف النص من الأرقام والوحدات وكلمات الربط
+        // 4. استخلاص وتنظيف اسم المنتج كاملاً من كل الشوائب
         let productName = text;
         
-        // حذف الأرقام
+        // إزالة الأرقام العادية من الاسم
         if (numbers) {
             numbers.forEach(num => { productName = productName.replace(num, ''); });
         }
         
-        // تنظيف مصطلحات السوق والوحدات والأسعار ليبقى اسم الصنف صافي
-        const scrapWords = ['كرتونة', 'كرتونه', 'علبة', 'علبه', 'قطعة', 'قطعه', 'حتة', 'حته', 'بكام', 'بسعر', 'بـ', 'جنيه', 'ج م', ' من ', 'عدد'];
+        // مصفوفة الكلمات الدارجة المطلوب إزالتها نهائياً ليبقى الاسم نقي
+        const scrapWords = [
+            'كرتونة', 'كرتونه', 'علبة', 'علبه', 'قطعة', 'قطعه', 'حتة', 'حته', 
+            'بكام', 'بسعر', 'بـ', 'جنيه', 'ج م', ' من ', 'عدد', ' سعر '
+        ];
+        
         scrapWords.forEach(word => {
             productName = productName.split(word).join(' ');
         });
-        
+
+        // تنظيف حروف الجر والربط الملتصقة (مثل حرف ب الصريح المنفصل أو في نهاية الكلمات)
+        productName = productName.replace(/\s+ب\s+/g, ' '); 
+        productName = productName.replace(/\s+ب$/g, ' '); 
+
         productName = productName.replace(/\s+/g, ' ').trim();
 
-        // حماية: إذا لم يستطع استخراج اسم صنف واضح
+        // حماية أخيرة للاسم
         if (!productName || productName.length < 2) {
-            productName = text; // العودة للنص الأصلي كمحاولة أخيرة
+            productName = originalText;
         }
 
-        // 4. تعبئة البيانات في سطر بالجدول
+        // 5. إسقاط وتوزيع البيانات في السطور
         const rows = document.querySelectorAll('.item-row');
         let targetRowId;
         
-        // استغلال السطر الحالي إذا كان فارغاً تماماً وإلا فتح سطر جديد
         if (rows.length === 1 && rows[0].querySelector('.p-id').value === '' && rows[0].querySelector('.p-name').value === '') {
             targetRowId = rows[0].id;
         } else {
@@ -859,7 +894,7 @@
         const targetRow = document.getElementById(targetRowId);
 
         targetRow.querySelector('.p-qty').value = qty;
-        if(price > 0) {
+        if (price > 0) {
             targetRow.querySelector('.p-price').value = price;
         }
         targetRow.querySelector('.p-unit').value = unitValue;
@@ -870,7 +905,7 @@
         // تشغيل البحث التلقائي بالمخزن فوراً
         window.filterProducts(nameInput, targetRowId);
 
-        // اختيار النتيجة الأولى من الـ Autocomplete تلقائياً إن وجدت
+        // اختيار النتيجة الأولى الصحيحة بشكل فوري
         setTimeout(() => {
             const dd = targetRow.querySelector('.p-dropdown');
             const firstOption = dd.querySelector('.dropdown-item-row');
