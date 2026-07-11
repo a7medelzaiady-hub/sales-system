@@ -191,7 +191,7 @@
     let inventoryItems = [];
     // نسخة معالجة مسبقاً (Normalized) من أسماء المخزن لتسريع كل عملية بحث لاحقة
     let normalizedInventory = [];
-    const MAX_SUGGESTIONS = 4;
+    const MAX_SUGGESTIONS = 3;
 
     async function loadInventory() {
         try {
@@ -360,6 +360,68 @@
     }
 
     // ══════════════════════════════
+    // تحويل الأعداد المنطوقة/الشرقية إلى أرقام (لخانة الكمية)
+    // ══════════════════════════════
+    const arabicNumberWords = {
+        'صفر': 0,
+        'واحد': 1, 'واحده': 1,
+        'اتنين': 2, 'اثنين': 2, 'اثنان': 2,
+        'تلاته': 3, 'ثلاثه': 3,
+        'اربعه': 4,
+        'خمسه': 5,
+        'سته': 6,
+        'سبعه': 7,
+        'تمانيه': 8, 'ثمانيه': 8,
+        'تسعه': 9,
+        'عشره': 10,
+        'حداشر': 11, 'احد عشر': 11,
+        'اتناشر': 12, 'اثنا عشر': 12,
+        'تلتاشر': 13, 'ثلاثه عشر': 13,
+        'اربعتاشر': 14, 'اربعه عشر': 14,
+        'خمستاشر': 15, 'خمسه عشر': 15,
+        'ستاشر': 16, 'سته عشر': 16,
+        'سبعتاشر': 17, 'سبعه عشر': 17,
+        'تمنتاشر': 18, 'تمانيه عشر': 18,
+        'تسعتاشر': 19, 'تسعه عشر': 19,
+        'عشرين': 20
+    };
+
+    function easternToWesternDigits(str) {
+        const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+        return str.replace(/[٠-٩]/g, d => map[d]);
+    }
+
+    // بيدور على عدد (رقم أو كلمة) في بداية الجملة المنطوقة ويفصله عن اسم الصنف
+    function extractLeadingQuantity(text) {
+        const trimmed = text.trim();
+        if (!trimmed) return { qty: null, rest: text };
+        const tokens = trimmed.split(/\s+/);
+
+        // جرب أول كلمتين مع بعض (أعداد زي "احد عشر")
+        if (tokens.length >= 2) {
+            const twoWord = normalizeArabic(tokens[0] + ' ' + tokens[1]);
+            if (arabicNumberWords.hasOwnProperty(twoWord)) {
+                return { qty: arabicNumberWords[twoWord], rest: tokens.slice(2).join(' ').trim() };
+            }
+        }
+
+        const first = tokens[0];
+
+        // رقم مكتوب بالفعل كأرقام
+        if (/^\d+$/.test(first)) {
+            return { qty: parseInt(first, 10), rest: tokens.slice(1).join(' ').trim() };
+        }
+
+        // كلمة عدد عربية منطوقة
+        const normFirst = normalizeArabic(first);
+        if (arabicNumberWords.hasOwnProperty(normFirst)) {
+            return { qty: arabicNumberWords[normFirst], rest: tokens.slice(1).join(' ').trim() };
+        }
+
+        return { qty: null, rest: text };
+    }
+
+    // ══════════════════════════════
     // الإدخال الصوتي مع قاموس التصحيح الفوري عالي الكفاءة
     // ══════════════════════════════
     window.startVoiceInput = () => {
@@ -404,7 +466,22 @@
                 modifiedText = modifiedText.replace(regex, voiceDictionary[wrongWord]);
             });
 
-            input.value = modifiedText; 
+            // تحويل أي أرقام شرقية (١٢٣) لأرقام غربية (123)
+            modifiedText = easternToWesternDigits(modifiedText);
+
+            // لو الجملة بدأت بعدد (رقم أو كلمة زي "اتنين")، يتحط في خانة الكمية
+            // ويفضل باقي الجملة لخانة اسم الصنف. مثال: "٢ ديلفاك ٥لتر اصلى"
+            // => الكمية: 2 ، الصنف: "ديلفاك 5لتر اصلى"
+            const qtyInput = document.getElementById('itemQty');
+            const { qty, rest } = extractLeadingQuantity(modifiedText);
+
+            if (qty !== null) {
+                qtyInput.value = qty;
+                input.value = rest;
+            } else {
+                input.value = modifiedText;
+            }
+
             input.dispatchEvent(new Event('input')); 
         };
 
