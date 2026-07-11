@@ -443,15 +443,15 @@
             <i class="fas fa-boxes"></i> الأصناف المطلوبة
         </div>
 
-        <!-- قسم الإدخال الصوتي الذكي الجديد -->
+        <!-- خانة الإدخال الصوتي الذكي المصممة بطريقة ملف النواقص المرنة -->
         <div class="voice-box-container">
-            <label class="sub-lbl text-success mb-2"><i class="fas fa-magic me-1"></i> خانة الإدخال الصوتي والتحليل التلقائي</label>
+            <label class="sub-lbl text-success mb-2"><i class="fas fa-magic me-1"></i> خانة الإدخال الصوتي والتحليل (طريقة النواقص)</label>
             <div class="d-flex align-items-center gap-2">
                 <button type="button" id="voiceTriggerBtn" class="btn-voice-trigger" onclick="handleVoiceInput()">
                     <i class="fas fa-microphone"></i>
                 </button>
                 <input type="text" id="voiceStatusInput" class="form-control" readonly 
-                    placeholder="اضغط على المايك وتحدث (مثال: 5 كرتونة بترومين توك توك ب 1660)" 
+                    placeholder="اضغط على المايك وتحدث بحرية بأي ترتيب..." 
                     style="font-size: 0.82rem; background-color: #fafdfb !important;">
             </div>
         </div>
@@ -671,7 +671,7 @@
         `;
         document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', html);
         recalc();
-        return id; // إرجاع المعرف للاستخدام التلقائي
+        return id;
     };
 
     window.removeRow = (id) => {
@@ -756,7 +756,7 @@
     };
 
 
-    // ------------------ محرك الإدخال الصوتي والتحليل الذكي ------------------
+    // ------------------ محرك الإدخال الصوتي المرن (أسلوب ملف النواقص) ------------------
     window.handleVoiceInput = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -765,7 +765,7 @@
         }
 
         const recognition = new SpeechRecognition();
-        recognition.lang = 'ar-EG'; // لهجة مصرية
+        recognition.lang = 'ar-EG'; 
         recognition.interimResults = false;
         recognition.maxAlternatives = 1;
 
@@ -779,8 +779,8 @@
 
         recognition.onresult = (event) => {
             const speechResult = event.results[0][0].transcript;
-            statusInput.value = speechResult; // إظهار النص المنطوق بالخانة
-            parseAndDistribute(speechResult);
+            statusInput.value = speechResult; 
+            parseFlexibleVoiceInput(speechResult);
         };
 
         recognition.onerror = (err) => {
@@ -793,34 +793,63 @@
         };
     };
 
-    function parseAndDistribute(text) {
-        // تنظيف الكلمات الشائعة لتبسيط التحليل
-        let cleanText = text.replace(/بكام|بسعر|بـ/g, 'ب').trim();
+    function parseFlexibleVoiceInput(text) {
+        // 1. استخراج الأرقام بالكامل من الجملة أياً كان موقعها
+        const numbers = text.match(/\d+/g);
+        
+        let qty = 1;
+        let price = 0;
 
-        // التعبير النمطي: (رقم) (كلمة الوحدة اختيارياً) (اسم الصنف) (حرف ب) (رقم السعر)
-        const regex = /^(\d+)\s+(كرتونة|كرتونه|علبة|علبه|قطعة|قطعه|ق)?\s*(.*?)\s+ب\s*(\d+)$/;
-        const match = cleanText.match(regex);
-
-        if (!match) {
-            alert("عذراً، لم يتم تحليل الجملة بشكل سليم.\nيرجى النطق هكذا: [5 كرتونة بترومين توك توك ب 1660]");
-            return;
+        // إذا وجدنا رقمين أو أكثر (مثال: 5 و 1660)
+        if (numbers && numbers.length >= 2) {
+            // الرقم الأكبر غالباً هو السعر، والأصغر هو الكمية
+            const num1 = parseFloat(numbers[0]);
+            const num2 = parseFloat(numbers[1]);
+            
+            if (num1 > num2) {
+                price = num1;
+                qty = num2;
+            } else {
+                price = num2;
+                qty = num1;
+            }
+        } else if (numbers && numbers.length === 1) {
+            // لو وجدنا رقم واحد، نتحقق من السياق أو نعتبره كمية
+            qty = parseFloat(numbers[0]);
         }
 
-        const qty = match[1];
-        const unitWord = match[2] || '';
-        const productName = match[3].trim();
-        const price = match[4];
-
-        // تحديد نوع الوحدة
-        let unitValue = 'box';
-        if (unitWord.includes('قطعة') || unitWord.includes('قطعه') || unitWord.includes('ق')) {
+        // 2. استخلاص الكلمات وتحديد الوحدة (كرتونة أو قطعة)
+        let unitValue = 'box'; // الافتراضي كرتونة
+        if (text.includes('قطعة') || text.includes('قطعه') || text.includes('حتة') || text.includes('حته') || text.includes('ق')) {
             unitValue = 'pcs';
         }
 
-        // تفقد السطر الحالي بالأسفل، لو كان السطر الأول فارغاً تماماً استخدمه، وإلا افتح سطر جديد
+        // 3. استخلاص اسم المنتج عن طريق تنظيف النص من الأرقام والوحدات وكلمات الربط
+        let productName = text;
+        
+        // حذف الأرقام
+        if (numbers) {
+            numbers.forEach(num => { productName = productName.replace(num, ''); });
+        }
+        
+        // تنظيف مصطلحات السوق والوحدات والأسعار ليبقى اسم الصنف صافي
+        const scrapWords = ['كرتونة', 'كرتونه', 'علبة', 'علبه', 'قطعة', 'قطعه', 'حتة', 'حته', 'بكام', 'بسعر', 'بـ', 'جنيه', 'ج م', ' من ', 'عدد'];
+        scrapWords.forEach(word => {
+            productName = productName.split(word).join(' ');
+        });
+        
+        productName = productName.replace(/\s+/g, ' ').trim();
+
+        // حماية: إذا لم يستطع استخراج اسم صنف واضح
+        if (!productName || productName.length < 2) {
+            productName = text; // العودة للنص الأصلي كمحاولة أخيرة
+        }
+
+        // 4. تعبئة البيانات في سطر بالجدول
         const rows = document.querySelectorAll('.item-row');
         let targetRowId;
         
+        // استغلال السطر الحالي إذا كان فارغاً تماماً وإلا فتح سطر جديد
         if (rows.length === 1 && rows[0].querySelector('.p-id').value === '' && rows[0].querySelector('.p-name').value === '') {
             targetRowId = rows[0].id;
         } else {
@@ -829,18 +858,19 @@
 
         const targetRow = document.getElementById(targetRowId);
 
-        // تعبئة البيانات المكتشفة في السطر المختار
         targetRow.querySelector('.p-qty').value = qty;
-        targetRow.querySelector('.p-price').value = price;
+        if(price > 0) {
+            targetRow.querySelector('.p-price').value = price;
+        }
         targetRow.querySelector('.p-unit').value = unitValue;
         
         const nameInput = targetRow.querySelector('.p-name');
         nameInput.value = productName;
 
-        // تشغيل الفلترة والبحث الفوري عن الصنف بالمخزن
+        // تشغيل البحث التلقائي بالمخزن فوراً
         window.filterProducts(nameInput, targetRowId);
 
-        // محاكاة اختيار النتيجة الأولى الصحيحة إن وجدت تلقائياً خلال أجزاء من الثانية
+        // اختيار النتيجة الأولى من الـ Autocomplete تلقائياً إن وجدت
         setTimeout(() => {
             const dd = targetRow.querySelector('.p-dropdown');
             const firstOption = dd.querySelector('.dropdown-item-row');
