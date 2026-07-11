@@ -51,34 +51,25 @@
         }
         .btn-add:active { transform: scale(0.98); }
 
-        /* ══════════════════════════════
-           تنسيق خانة البحث والمايك الصوتي
-        ══════════════════════════════ */
+        /* خانة البحث والمايك الصوتي */
         .dropdown-container { position: relative; }
         
-        /* زر المايك داخل الخانة (جهة اليسار في الـ RTL) */
         .voice-mic-btn {
             position: absolute;
-            top: 50%;
-            left: 12px;
+            top: 50%; left: 12px;
             transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: var(--emerald-700);
-            font-size: 1.25rem;
-            cursor: pointer;
-            z-index: 10;
-            padding: 4px;
+            background: none; border: none;
+            color: var(--emerald-700); font-size: 1.25rem;
+            cursor: pointer; z-index: 10; padding: 4px;
             transition: color 0.2s, transform 0.2s;
         }
-        /* تأثير الوميض واللون الأحمر أثناء الاستماع */
         .voice-mic-btn.listening {
             color: var(--rose-dark);
-            animation: micPulse 1s infinite alternate;
+            animation: micPulse 0.8s infinite alternate;
         }
         @keyframes micPulse {
             from { transform: translateY(-50%) scale(1); }
-            to { transform: translateY(-50%) scale(1.2); }
+            to { transform: translateY(-50%) scale(1.25); }
         }
         
         .custom-dropdown-menu {
@@ -96,13 +87,8 @@
         .custom-dropdown-menu.show { display: block; }
         
         .dropdown-search-item {
-            padding: 12px 16px;
-            cursor: pointer;
-            font-weight: 700;
-            font-size: 0.95rem;
-            border-bottom: 1px solid #f8faf9;
-            text-align: right;
-            color: var(--text-deep);
+            padding: 12px 16px; cursor: pointer; font-weight: 700; font-size: 0.95rem;
+            border-bottom: 1px solid #f8faf9; text-align: right; color: var(--text-deep);
             transition: background 0.2s;
         }
         .dropdown-search-item:last-child { border-bottom: none; }
@@ -146,9 +132,7 @@
                 <div class="col-12 mb-2">
                     <label>اسم صنف الزيت / الفلتر</label>
                     <div class="dropdown-container">
-                        <!-- إضافة pe-5 لترك مساحة لزر المايك جهة اليسار -->
                         <input type="text" id="itemName" class="form-control pe-5" placeholder="اكتب أو اضغط على المايك للتحدث..." autocomplete="off" required>
-                        <!-- زر الإدخال الصوتي الجديد -->
                         <button type="button" id="micBtn" class="voice-mic-btn" onclick="window.startVoiceInput()" title="اضغط للتحدث">
                             <i class="fas fa-microphone"></i>
                         </button>
@@ -205,7 +189,7 @@
             invSnap.forEach(doc => {
                 const data = doc.data();
                 const name = data.name || data.itemName;
-                if(name) inventoryItems.push(name);
+                if(name) inventoryItems.push(name.trim());
             });
             initAutocomplete();
         } catch (e) {
@@ -229,7 +213,7 @@
             const matchedItems = inventoryItems.filter(item => item.toLowerCase().includes(textValue));
 
             if (matchedItems.length === 0) {
-                menu.innerHTML = `<div class="dropdown-search-item text-muted text-center" style="font-size:0.85rem;">لا توجد أصناف مطابقة للبحث</div>`;
+                menu.innerHTML = `<div class="dropdown-search-item text-muted text-center" style="font-size:0.85rem;">⚠️ هذا الصنف غير مسجل بالمخزن</div>`;
             } else {
                 matchedItems.forEach(item => {
                     const div = document.createElement('div');
@@ -254,47 +238,82 @@
     }
 
     // ══════════════════════════════
-    // دالة الإدخال الصوتي الذكية
+    // دالة الإدخال الصوتي الحي والمباشر
     // ══════════════════════════════
     window.startVoiceInput = () => {
-        // التحقق من دعم المتصفح للتعرف على الصوت
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert("ميزة الإدخال الصوتي غير مدعومة في متصفحك الحالي، يرجى استخدام تطبيق Google Chrome لتعمل الميزة بنجاح.");
+            alert("ميزة الإدخال الصوتي غير مدعومة في متصفحك الحالي، يرجى استخدام Google Chrome.");
             return;
         }
 
         const recognition = new SpeechRecognition();
-        recognition.lang = 'ar-EG'; // ضبط اللغة على العربية (اللهجة المصرية)
-        recognition.interimResults = false; // جلب النتيجة النهائية فقط
-        recognition.maxAlternatives = 1;
+        recognition.lang = 'ar-EG';
+        recognition.interimResults = true; // تفعيل خاصية الكتابة الفورية أثناء التحدث!
+        recognition.continuous = false;
 
         const micBtn = document.getElementById('micBtn');
         const input = document.getElementById('itemName');
 
         recognition.onstart = () => {
-            micBtn.classList.add('listening'); // تشغيل وميض المايك الأحمر
+            micBtn.classList.add('listening');
         };
 
         recognition.onerror = (e) => {
-            console.error("خطأ صوتي:", e);
             micBtn.classList.remove('listening');
-            alert("لم يتم سماع الصوت بوضوح، يرجى المحاولة مرة أخرى وتأكيد صلاحية المايك.");
         };
 
         recognition.onend = () => {
-            micBtn.classList.remove('listening'); // إطفاء الوميض عند الانتهاء
+            micBtn.classList.remove('listening');
         };
 
         recognition.onresult = (event) => {
-            const speechToText = event.results[0][0].transcript;
-            input.value = speechToText; // كتابة النص المنطوق في الخانة
-            
-            // إطلاق حدث 'input' يدوياً لتشغيل الفلترة والقائمة المنسدلة فوراً بناءً على الكلمة المقروءة صوتاً
-            input.dispatchEvent(new Event('input'));
+            let liveText = "";
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                liveText += event.results[i][0].transcript;
+            }
+            input.value = liveText; // يكتب في الخانة فوراً والكلمة بتتقال
+            input.dispatchEvent(new Event('input')); // يرسل إشارة فورية للقائمة المنسدلة عشان تفلتر لايف
         };
 
-        recognition.start(); // بدء الاستماع للمايك
+        recognition.start();
+    };
+
+    // ══════════════════════════════
+    // هندسة توليد صوت الإنذار الحاد (بدون ملفات)
+    // ══════════════════════════════
+    window.playWarningSound = () => {
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // النبرة الأولى للإنذار
+            let osc1 = audioCtx.createOscillator();
+            let gain1 = audioCtx.createGain();
+            osc1.type = 'sawtooth'; // صوت حاد وقوي جداً للتنبيه
+            osc1.frequency.value = 950; // تردد مرتفع
+            gain1.gain.setValueAtTime(0.6, audioCtx.currentTime);
+            gain1.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc1.connect(gain1);
+            gain1.connect(audioCtx.destination);
+            osc1.start();
+            osc1.stop(audioCtx.currentTime + 0.2);
+            
+            // النبرة الثانية (تأخير بسيط لعمل تأثير إنذار مزدوج)
+            setTimeout(() => {
+                let osc2 = audioCtx.createOscillator();
+                let gain2 = audioCtx.createGain();
+                osc2.type = 'sawtooth';
+                osc2.frequency.value = 950;
+                gain2.gain.setValueAtTime(0.6, audioCtx.currentTime);
+                gain2.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                osc2.connect(gain2);
+                gain2.connect(audioCtx.destination);
+                osc2.start();
+                osc2.stop(audioCtx.currentTime + 0.2);
+            }, 180);
+        } catch (e) {
+            console.error("فشل تشغيل الصوت التحذيري الإلكتروني:", e);
+        }
     };
 
     // الاستماع المباشر للنواقص
@@ -340,20 +359,30 @@
         });
     }
 
+    // دالة الحفظ مع التحقق الصارم من توفر المنتج
     window.saveShortage = async () => {
         const nameInput = document.getElementById('itemName');
         const qtyInput = document.getElementById('itemQty');
         const noteInput = document.getElementById('itemNote');
         const btn = document.getElementById('btnSubmit');
 
-        if(!nameInput.value || !qtyInput.value) return;
+        const enteredName = nameInput.value.trim();
+
+        if(!enteredName || !qtyInput.value) return;
+
+        // 🚨 الفحص الصارم: التأكد من أن المنتج موجود فعلياً في قائمة المخزن
+        if (!inventoryItems.includes(enteredName)) {
+            window.playWarningSound(); // 🔊 إطلاق صوت الإنذار العالي فوراً
+            alert("⚠️ خطأ! هذا المنتج غير متوفر في المخزن الأساسي. لا يمكن تسجيله في النواقص.");
+            return; // ⛔ إيقاف العملية تماماً وعدم الرفع للـ Firebase
+        }
 
         btn.disabled = true;
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الإضافة...';
 
         try {
             await addDoc(collection(db, "shortages"), {
-                name: nameInput.value,
+                name: enteredName,
                 qty: Number(qtyInput.value),
                 note: noteInput.value,
                 createdAt: serverTimestamp(),
