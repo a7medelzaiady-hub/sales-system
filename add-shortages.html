@@ -89,9 +89,14 @@
             padding: 12px 16px; cursor: pointer; font-weight: 700; font-size: 0.95rem;
             border-bottom: 1px solid #f8faf9; text-align: right; color: var(--text-deep);
             transition: background 0.2s;
+            display: flex; justify-content: space-between; align-items: center; gap: 8px;
         }
         .dropdown-search-item:last-child { border-bottom: none; }
         .dropdown-search-item:hover { background: #f0f6f3; color: var(--emerald-700); }
+        .dropdown-search-item .match-badge {
+            font-size: 0.7rem; font-weight: 700; color: var(--emerald-700);
+            background: #e6f7ef; border-radius: 6px; padding: 2px 6px; flex-shrink: 0;
+        }
         
         .dropdown-suggestion-header {
             background-color: #fff8e1; color: #b78103; font-size: 0.8rem;
@@ -184,6 +189,9 @@
     const db = getFirestore(app);
 
     let inventoryItems = [];
+    // نسخة معالجة مسبقاً (Normalized) من أسماء المخزن لتسريع كل عملية بحث لاحقة
+    let normalizedInventory = [];
+    const MAX_SUGGESTIONS = 4;
 
     async function loadInventory() {
         try {
@@ -194,60 +202,155 @@
                 const name = data.name || data.itemName;
                 if(name) inventoryItems.push(name.trim());
             });
+            buildNormalizedInventory();
             initAutocomplete();
         } catch (e) {
             console.error("خطأ في جلب أصناف المخزن:", e);
         }
     }
 
+    // ══════════════════════════════
+    // أدوات تطبيع النص العربي (لتوحيد أشكال الحروف المتشابهة)
+    // ══════════════════════════════
+    function normalizeArabic(str) {
+        if (!str) return "";
+        return str
+            .replace(/[\u064B-\u0652\u0670\u0640]/g, '')   // إزالة التشكيل والتطويل
+            .replace(/[إأآا]/g, 'ا')
+            .replace(/ى/g, 'ي')
+            .replace(/ؤ/g, 'و')
+            .replace(/ئ/g, 'ي')
+            .replace(/ة/g, 'ه')
+            .replace(/[^\u0600-\u06FFa-zA-Z0-9 ]/g, ' ')     // إزالة الرموز
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+    }
+
+    function buildNormalizedInventory() {
+        normalizedInventory = inventoryItems.map(item => ({
+            original: item,
+            norm: normalizeArabic(item),
+            words: normalizeArabic(item).split(' ').filter(Boolean)
+        }));
+    }
+
+    // مسافة ليفنشتاين (لمطابقة تقريبية سريعة على نصوص قصيرة - مفيدة لأخطاء النطق الصوتي)
+    function levenshtein(a, b) {
+        const al = a.length, bl = b.length;
+        if (al === 0) return bl;
+        if (bl === 0) return al;
+        let prev = new Array(bl + 1);
+        let curr = new Array(bl + 1);
+        for (let j = 0; j <= bl; j++) prev[j] = j;
+        for (let i = 1; i <= al; i++) {
+            curr[0] = i;
+            for (let j = 1; j <= bl; j++) {
+                const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+            }
+            [prev, curr] = [curr, prev];
+        }
+        return prev[bl];
+    }
+
+    // نظام تسجيل نقاط للمطابقة: أعلى نقاط = أقرب صنف للبحث
+    function scoreMatch(queryNorm, entry) {
+        const itemNorm = entry.norm;
+        if (!queryNorm || !itemNorm) return 0;
+
+        if (itemNorm === queryNorm) return 1000;                 // تطابق كامل
+        if (itemNorm.startsWith(queryNorm)) return 700;           // يبدأ بنفس النص
+
+        let score = 0;
+        // إحدى كلمات الصنف تبدأ بنص البحث
+        if (entry.words.some(w => w.startsWith(queryNorm))) score = Math.max(score, 480);
+        // نص البحث موجود كجزء من اسم الصنف
+        if (itemNorm.includes(queryNorm)) score = Math.max(score, 350);
+
+        // تطابق جزئي للكلمات (بحث متعدد الكلمات)
+        const queryWords = queryNorm.split(' ').filter(w => w.length >= 2);
+        if (queryWords.length > 0) {
+            const matched = queryWords.filter(qw => entry.words.some(w => w.includes(qw))).length;
+            if (matched > 0) score = Math.max(score, matched * 160);
+        }
+
+        // مطابقة تقريبية (فروقات نطق/كتابة بسيطة) - فقط لو لسه مفيش تطابق قوي
+        if (score < 200 && queryNorm.length >= 3) {
+            const compareLen = Math.min(itemNorm.length, queryNorm.length + 6);
+            const dist = levenshtein(queryNorm, itemNorm.slice(0, compareLen));
+            const maxLen = Math.max(queryNorm.length, compareLen);
+            const similarity = 1 - dist / maxLen;
+            if (similarity > 0.55) score = Math.max(score, Math.round(similarity * 250));
+        }
+
+        return score;
+    }
+
     function initAutocomplete() {
         const input = document.getElementById('itemName');
         const menu = document.getElementById('dropdownMenu');
+        let debounceTimer = null;
 
         input.addEventListener('input', function() {
-            const textValue = this.value.trim().toLowerCase();
-            menu.innerHTML = "";
+            const rawValue = this.value;
+            clearTimeout(debounceTimer);
 
-            if (!textValue) {
+            if (!rawValue.trim()) {
                 menu.classList.remove('show');
+                menu.innerHTML = "";
                 return;
             }
 
-            let matchedItems = inventoryItems.filter(item => item.toLowerCase().includes(textValue));
+            // تأخير بسيط جداً لتجميع الكتابة السريعة وتقليل عدد عمليات البحث بدون أي تأثير محسوس على السرعة
+            debounceTimer = setTimeout(() => runSearch(rawValue), 90);
+        });
 
-            if (matchedItems.length === 0) {
-                const searchWords = textValue.split(/\s+/).filter(w => w.length > 2);
-                if (searchWords.length > 0) {
-                    matchedItems = inventoryItems.filter(item => {
-                        return searchWords.some(word => item.toLowerCase().includes(word));
-                    });
-                }
-            }
+        function runSearch(rawValue) {
+            const queryNorm = normalizeArabic(rawValue);
+            menu.innerHTML = "";
 
-            if (matchedItems.length === 0) {
+            const results = normalizedInventory
+                .map(entry => ({ item: entry.original, norm: entry.norm, score: scoreMatch(queryNorm, entry) }))
+                .filter(r => r.score > 0)
+                .sort((a, b) => b.score - a.score)
+                .slice(0, MAX_SUGGESTIONS);
+
+            if (results.length === 0) {
                 menu.innerHTML = `<div class="dropdown-search-item text-muted text-center" style="font-size:0.85rem;">⚠️ هذا الصنف غير مسجل بالمخزن</div>`;
             } else {
-                if (!inventoryItems.some(item => item.toLowerCase().includes(textValue))) {
+                const hasDirectMatch = results.some(r => r.norm.includes(queryNorm));
+                if (!hasDirectMatch) {
                     const header = document.createElement('div');
                     header.className = 'dropdown-suggestion-header';
                     header.innerHTML = `<i class="fas fa-lightbulb me-1"></i> هل تقصد أحد هذه الأصناف من المخزن؟`;
                     menu.appendChild(header);
                 }
 
-                matchedItems.forEach(item => {
+                results.forEach(r => {
                     const div = document.createElement('div');
                     div.className = 'dropdown-search-item';
-                    div.textContent = item;
-                    
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.textContent = r.item;
+                    div.appendChild(nameSpan);
+
+                    if (r.score >= 700) {
+                        const badge = document.createElement('span');
+                        badge.className = 'match-badge';
+                        badge.textContent = 'الأقرب';
+                        div.appendChild(badge);
+                    }
+
                     div.addEventListener('click', () => {
-                        input.value = item;
+                        input.value = r.item;
                         menu.classList.remove('show');
                     });
                     menu.appendChild(div);
                 });
             }
             menu.classList.add('show');
-        });
+        }
 
         document.addEventListener('click', function(e) {
             if (!input.contains(e.target) && !menu.contains(e.target)) {
