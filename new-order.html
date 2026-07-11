@@ -89,11 +89,45 @@
             50% { transform: scale(1.03); }
             100% { transform: scale(1); }
         }
+
+        /* ستايل البحث الذكي عن الأصناف (نفس فكرة صفحة النواقص) */
+        .dropdown-container { position: relative; }
+
+        .custom-dropdown-menu {
+            position: absolute;
+            top: 100%; left: 0; right: 0;
+            background: var(--white);
+            border: 1px solid var(--accent);
+            border-radius: 12px;
+            max-height: 220px;
+            overflow-y: auto;
+            z-index: 1100;
+            box-shadow: 0 8px 24px rgba(11, 94, 61, 0.12);
+            display: none;
+            margin-top: -6px;
+        }
+        .custom-dropdown-menu.show { display: block; }
+
+        .dropdown-search-item {
+            padding: 12px 16px; cursor: pointer; font-weight: 700; font-size: 0.9rem;
+            border-bottom: 1px solid #f8faf9; text-align: right; color: var(--text-primary);
+            transition: background 0.2s;
+            display: flex; justify-content: space-between; align-items: center; gap: 8px;
+        }
+        .dropdown-search-item:last-child { border-bottom: none; }
+        .dropdown-search-item:hover { background: #f0f6f3; color: var(--accent); }
+        .dropdown-search-item .match-badge {
+            font-size: 0.68rem; font-weight: 700; color: var(--accent);
+            background: #e6f7ef; border-radius: 6px; padding: 2px 6px; flex-shrink: 0;
+        }
+
+        .dropdown-suggestion-header {
+            background-color: #fff8e1; color: #b78103; font-size: 0.78rem;
+            font-weight: 800; padding: 8px 16px; border-bottom: 1px solid #ffe082;
+        }
     </style>
 </head>
 <body>
-
-<datalist id="inventoryList"></datalist>
 
 <div class="header">
     <a href="purchase-orders-list.html" class="text-white"><i class="fas fa-arrow-right"></i></a>
@@ -155,6 +189,11 @@
     // مصفوفة لتخزين أسماء الموردين للمطابقة الذكية
     let suppliersList = [];
 
+    // مصفوفات البحث الذكي عن الأصناف (نفس فكرة صفحة النواقص)
+    let inventoryItems = [];
+    let normalizedInventory = [];
+    const MAX_SUGGESTIONS = 3;
+
     async function initPage() {
         try {
             const supSnap = await getDocs(collection(db, "suppliers"));
@@ -165,15 +204,14 @@
                 select.innerHTML += `<option value="${doc.id}">${supData.name}</option>`;
             });
 
-            const datalist = document.getElementById('inventoryList');
             const invSnap = await getDocs(collection(db, "inventory"));
-            let options = "";
+            inventoryItems = [];
             invSnap.forEach(doc => {
                 const data = doc.data();
                 const itemName = data.name || data.itemName;
-                if(itemName) options += `<option value="${itemName}">`;
+                if (itemName) inventoryItems.push(itemName.trim());
             });
-            datalist.innerHTML = options;
+            buildNormalizedInventory();
 
             if (editId) {
                 await loadOrderData();
@@ -205,7 +243,7 @@
 
     window.addNewRow = (item = null) => {
         const container = document.getElementById('itemsContainer');
-        const rowId = Date.now() + Math.random();
+        const rowId = (Date.now() + '_' + Math.floor(Math.random() * 100000));
         const html = `
             <div class="order-item" id="row_${rowId}">
                 <div class="d-flex justify-content-between align-items-center mb-2">
@@ -214,8 +252,11 @@
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
-                <input type="text" class="form-control item-name" list="inventoryList" 
-                       value="${item ? item.name : ''}" placeholder="ابحث أو اكتب اسم الصنف...">
+                <div class="dropdown-container">
+                    <input type="text" class="form-control item-name" id="itemName_${rowId}"
+                           value="${item ? item.name : ''}" placeholder="ابحث أو اكتب اسم الصنف..." autocomplete="off">
+                    <div class="custom-dropdown-menu" id="dropdownMenu_${rowId}"></div>
+                </div>
                 <div class="row g-2">
                     <div class="col-6">
                         <label>الكمية</label>
@@ -229,8 +270,158 @@
             </div>
         `;
         container.insertAdjacentHTML('beforeend', html);
+        attachAutocomplete(rowId);
         return rowId; // نرجعه للاستخدام الذكي عند الحاجة
     };
+
+    // ================= محرك البحث الذكي عن الأصناف (نفس فكرة صفحة النواقص) =================
+
+    function normalizeArabic(str) {
+        if (!str) return "";
+        return str
+            .replace(/[\u064B-\u0652\u0670\u0640]/g, '')   // إزالة التشكيل والتطويل
+            .replace(/[إأآا]/g, 'ا')
+            .replace(/ى/g, 'ي')
+            .replace(/ؤ/g, 'و')
+            .replace(/ئ/g, 'ي')
+            .replace(/ة/g, 'ه')
+            .replace(/[^\u0600-\u06FFa-zA-Z0-9 ]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+    }
+
+    function buildNormalizedInventory() {
+        normalizedInventory = inventoryItems.map(it => ({
+            original: it,
+            norm: normalizeArabic(it),
+            words: normalizeArabic(it).split(' ').filter(Boolean)
+        }));
+    }
+
+    function levenshtein(a, b) {
+        const al = a.length, bl = b.length;
+        if (al === 0) return bl;
+        if (bl === 0) return al;
+        let prev = new Array(bl + 1);
+        let curr = new Array(bl + 1);
+        for (let j = 0; j <= bl; j++) prev[j] = j;
+        for (let i = 1; i <= al; i++) {
+            curr[0] = i;
+            for (let j = 1; j <= bl; j++) {
+                const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+            }
+            [prev, curr] = [curr, prev];
+        }
+        return prev[bl];
+    }
+
+    function scoreMatch(queryNorm, entry) {
+        const itemNorm = entry.norm;
+        if (!queryNorm || !itemNorm) return 0;
+
+        if (itemNorm === queryNorm) return 1000;
+        if (itemNorm.startsWith(queryNorm)) return 700;
+
+        let score = 0;
+        if (entry.words.some(w => w.startsWith(queryNorm))) score = Math.max(score, 480);
+        if (itemNorm.includes(queryNorm)) score = Math.max(score, 350);
+
+        const queryWords = queryNorm.split(' ').filter(w => w.length >= 2);
+        if (queryWords.length > 0) {
+            const matched = queryWords.filter(qw => entry.words.some(w => w.includes(qw))).length;
+            if (matched > 0) score = Math.max(score, matched * 160);
+        }
+
+        if (score < 200 && queryNorm.length >= 3) {
+            const compareLen = Math.min(itemNorm.length, queryNorm.length + 6);
+            const dist = levenshtein(queryNorm, itemNorm.slice(0, compareLen));
+            const maxLen = Math.max(queryNorm.length, compareLen);
+            const similarity = 1 - dist / maxLen;
+            if (similarity > 0.55) score = Math.max(score, Math.round(similarity * 250));
+        }
+
+        return score;
+    }
+
+    function attachAutocomplete(rowId) {
+        const input = document.getElementById('itemName_' + rowId);
+        const menu = document.getElementById('dropdownMenu_' + rowId);
+        if (!input || !menu) return;
+
+        let debounceTimer = null;
+
+        input.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            const rawValue = this.value;
+            if (!rawValue.trim()) {
+                menu.classList.remove('show');
+                menu.innerHTML = "";
+                return;
+            }
+            debounceTimer = setTimeout(() => runItemSearch(rawValue, input, menu), 90);
+        });
+
+        document.addEventListener('click', function(e) {
+            if (!input.contains(e.target) && !menu.contains(e.target)) {
+                menu.classList.remove('show');
+            }
+        });
+    }
+
+    function runItemSearch(rawValue, input, menu) {
+        const queryNorm = normalizeArabic(rawValue);
+        menu.innerHTML = "";
+
+        const results = normalizedInventory
+            .map(entry => ({ item: entry.original, norm: entry.norm, score: scoreMatch(queryNorm, entry) }))
+            .filter(r => r.score > 0)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, MAX_SUGGESTIONS);
+
+        // لو الاسم مطابق تماماً لصنف مسجل، معناه إننا متأكدين، فمفيش داعي للاقتراح
+        const isConfidentExactMatch = results.length > 0 && results[0].score === 1000;
+        if (isConfidentExactMatch) {
+            menu.classList.remove('show');
+            return;
+        }
+
+        if (results.length === 0) {
+            menu.innerHTML = `<div class="dropdown-search-item text-muted text-center" style="font-size:0.85rem;">⚠️ هذا الصنف غير مسجل بالمخزن</div>`;
+        } else {
+            const hasDirectMatch = results.some(r => r.norm.includes(queryNorm));
+            if (!hasDirectMatch) {
+                const header = document.createElement('div');
+                header.className = 'dropdown-suggestion-header';
+                header.innerHTML = `<i class="fas fa-lightbulb me-1"></i> هل تقصد أحد هذه الأصناف من المخزن؟`;
+                menu.appendChild(header);
+            }
+
+            results.forEach(r => {
+                const div = document.createElement('div');
+                div.className = 'dropdown-search-item';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = r.item;
+                div.appendChild(nameSpan);
+
+                if (r.score >= 700) {
+                    const badge = document.createElement('span');
+                    badge.className = 'match-badge';
+                    badge.textContent = 'الأقرب';
+                    div.appendChild(badge);
+                }
+
+                div.addEventListener('click', () => {
+                    input.value = r.item;
+                    menu.classList.remove('show');
+                });
+                menu.appendChild(div);
+            });
+        }
+        menu.classList.add('show');
+    }
 
     // ================= محرك الذكاء الصوتي والتحليل =================
 
@@ -274,87 +465,126 @@
         }
     };
 
-    // قاموس تحويل الكلمات الرقمية المشهورة إلى أرقام مجردة
+    // قاموس تحويل الكلمات الرقمية المشهورة إلى أرقام مجردة (موسّع ليشمل حتى عشرين)
     const wordsToNumbers = {
-        "واحد": 1, "واحدة": 1, "اثنين": 2, "اتنين": 2, "ثلاثة": 3, "تلاته": 3, "ثلاث": 3, "تلات": 3,
-        "اربعة": 4, "اربع": 4, "أربعة": 4, "خمسة": 5, "خمس": 5, "ستة": 6, "ست": 6, "سبعة": 7, "سبع": 7,
-        "ثمانية": 8, "تمانية": 8, "تمن": 8, "تسعة": 9, "تسع": 9, "عشرة": 10, "عشر": 10
+        "صفر": 0,
+        "واحد": 1, "واحدة": 1, "واحده": 1,
+        "اثنين": 2, "اتنين": 2, "اثنان": 2,
+        "ثلاثة": 3, "تلاته": 3, "ثلاث": 3, "تلات": 3, "ثلاثه": 3,
+        "اربعة": 4, "اربع": 4, "أربعة": 4, "اربعه": 4,
+        "خمسة": 5, "خمس": 5, "خمسه": 5,
+        "ستة": 6, "ست": 6, "سته": 6,
+        "سبعة": 7, "سبع": 7, "سبعه": 7,
+        "ثمانية": 8, "تمانية": 8, "تمن": 8, "تمانيه": 8, "ثمانيه": 8,
+        "تسعة": 9, "تسع": 9, "تسعه": 9,
+        "عشرة": 10, "عشر": 10, "عشره": 10,
+        "حداشر": 11, "احد عشر": 11,
+        "اتناشر": 12, "اثنا عشر": 12,
+        "تلتاشر": 13, "ثلاثة عشر": 13,
+        "اربعتاشر": 14, "اربعة عشر": 14,
+        "خمستاشر": 15, "خمسة عشر": 15,
+        "ستاشر": 16, "ستة عشر": 16,
+        "سبعتاشر": 17, "سبعة عشر": 17,
+        "تمنتاشر": 18, "ثمانية عشر": 18,
+        "تسعتاشر": 19, "تسعة عشر": 19,
+        "عشرين": 20
     };
+
+    function easternToWesternDigits(str) {
+        const map = {'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+        return str.replace(/[٠-٩]/g, d => map[d]);
+    }
 
     function parseNumber(text) {
         if (!text) return "";
-        let cleanText = text.trim();
+        let cleanText = easternToWesternDigits(text.trim());
+
         if (wordsToNumbers[cleanText] !== undefined) {
             return wordsToNumbers[cleanText];
         }
-        let num = cleanText.match(/\d+/);
+        const normWord = normalizeArabic(cleanText);
+        if (wordsToNumbers[normWord] !== undefined) {
+            return wordsToNumbers[normWord];
+        }
+
+        let num = cleanText.match(/\d+(\.\d+)?/);
         return num ? num[0] : "";
+    }
+
+    // بيدور على أقرب صنف مسجل بالمخزن للاسم اللي استخرجناه من النص الصوتي/الذكي
+    // لو لقى تطابق قوي كفاية بيرجع الاسم الرسمي المسجل، وإلا بيسيب اللي المستخدم قاله زي ما هو
+    function matchToInventory(rawName) {
+        const queryNorm = normalizeArabic(rawName);
+        if (!queryNorm || normalizedInventory.length === 0) return rawName;
+
+        let best = null;
+        normalizedInventory.forEach(entry => {
+            const score = scoreMatch(queryNorm, entry);
+            if (!best || score > best.score) best = { item: entry.original, score };
+        });
+
+        // نستبدل الاسم بس لو التطابق قوي (مش مجرد تخمين ضعيف)
+        if (best && best.score >= 480) return best.item;
+        return rawName;
     }
 
     window.processSmartText = () => {
         let text = document.getElementById('voiceInput').value.trim();
         if (!text) return;
 
-        // 1. محاولة التعرف على المورد
+        text = easternToWesternDigits(text);
+
+        // 1. محاولة التعرف على المورد (بمطابقة مبنية على تطبيع النص لتفادي فروق الكتابة)
+        const textNorm = normalizeArabic(text);
         for (let sup of suppliersList) {
-            if (text.includes(sup.name)) {
+            if (textNorm.includes(normalizeArabic(sup.name))) {
                 document.getElementById('supplierSelect').value = sup.id;
                 break;
             }
         }
 
         // 2. تقسيم النص لاستخراج الأصناف
-        // الكلمات المفتاحية التي تفصل بين صنف وصنف آخر (مثل: صنف، أو و صنف، أو و)
         let itemsParts = text.split(/(?:صنف|و صنف)/);
-        
-        // إذا كان هناك أجزاء تم العثور عليها
         let detectedItems = [];
 
         itemsParts.forEach((part, index) => {
-            // إهمال الجزء الأول إذا كان يحتوي فقط على اسم المورد أو مقدمة الكلام بدون صنف
             if (index === 0 && !part.includes("العدد") && !part.includes("كمية")) return;
 
-            // تنظيف النص
             let name = "";
             let qty = "";
             let price = "";
 
-            // استخراج العدد/الكمية
             let qtyMatch = part.match(/(?:العدد|كمية|عدد)\s*([^\s]+)/);
             if (qtyMatch) {
                 qty = parseNumber(qtyMatch[1]);
             }
 
-            // استخراج السعر
             let priceMatch = part.match(/(?:بسعر|سعر)\s*([^\s]+)/);
             if (priceMatch) {
                 price = parseNumber(priceMatch[1]);
             }
 
-            // استخراج اسم الصنف (هو النص الذي يأتي قبل كلمة العدد أو السعر)
             let nameText = part;
             if (qtyMatch) nameText = nameText.split(qtyMatch[0])[0];
             else if (priceMatch) nameText = nameText.split(priceMatch[0])[0];
 
-            // تنظيف اسم الصنف من الكلمات الزائدة والرموز
             name = nameText.replace(/(?:طلب من|شراء|مورد|شركة)/g, "").trim();
-            name = name.replace(/^[,.\s\s]+|[,.\s\s]+$/g, ''); // إزالة الفواصل من الأطراف
+            name = name.replace(/^[,.\s\s]+|[,.\s\s]+$/g, '');
 
             if (name) {
+                // مطابقة الاسم مع أقرب صنف فعلي في المخزن لتقليل الأخطاء الإملائية
+                name = matchToInventory(name);
                 detectedItems.push({ name, qty, price });
             }
         });
 
-        // إذا نجح التحليل في استخراج أصناف، نقوم بإضافتها للجدول
         if (detectedItems.length > 0) {
-            // مسح السطور الفارغة تماماً أولاً لتنظيف الواجهة
             const container = document.getElementById('itemsContainer');
             const existingRows = container.querySelectorAll('.order-item');
             existingRows.forEach(row => {
-                if(!row.querySelector('.item-name').value) row.remove();
+                if (!row.querySelector('.item-name').value) row.remove();
             });
 
-            // إضافة الأصناف المكتشفة
             detectedItems.forEach(item => {
                 addNewRow(item);
             });
