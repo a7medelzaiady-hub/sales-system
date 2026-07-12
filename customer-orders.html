@@ -337,6 +337,19 @@
             margin-top: 4px;
             display: none;
         }
+
+        /* مظهر نبض التسجيل الصوتي */
+        .recording-active {
+            background-color: #fee2e2 !important;
+            border-color: var(--danger) !important;
+            color: var(--danger) !important;
+            animation: pulseBg 1.5s infinite;
+        }
+        @keyframes pulseBg {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
     </style>
 </head>
 <body>
@@ -409,13 +422,23 @@
             <i class="fas fa-boxes"></i> الأصناف المطلوبة
         </div>
 
-        <!-- قسم الإدخال السريع الذكي الجديد -->
+        <!-- قسم الإدخال الصوتي / السريع المطور -->
         <div class="mb-3 p-3" style="background: #f1f5f9; border-radius: var(--input-radius); border: 1px dashed #cbd5e1;">
-            <label class="sub-lbl text-dark mb-1"><i class="fas fa-bolt text-warning me-1"></i> إدخال سريع وكامل للطلبية</label>
-            <textarea id="bulkInputText" class="form-control notes-input mb-2" rows="3" placeholder="اكتب طلب الزبون هنا بالكامل.. مثال: عاوز 5 كرتونة شيبسي و قطعتين بيبسي و 10 مكرونة..."></textarea>
-            <button type="button" class="btn btn-dark btn-sm w-100 fw-bold" onclick="processBulkInput()" style="background-color: #1e293b; border-radius: 10px; padding: 8px; font-size:0.82rem;">
-                <i class="fas fa-wand-magic-sparkles me-1"></i> استخراج وتوزيع الأصناف تلقائياً
-            </button>
+            <label class="sub-lbl text-dark mb-1"><i class="fas fa-microphone text-danger me-1"></i> الإدخال السريع (صوتي أو نصي)</label>
+            <textarea id="bulkInputText" class="form-control notes-input mb-2" rows="3" placeholder="اضغط على زر المايك وتحدث بالطلبية كاملة، أو اكتبها هنا..."></textarea>
+            
+            <div class="row g-2">
+                <div class="col-6">
+                    <button type="button" id="micBtn" class="btn btn-light btn-sm w-100 fw-bold py-2" onclick="startVoiceInput()" style="border: 1px solid #cbd5e1; border-radius: 10px; font-size:0.82rem;">
+                        <i class="fas fa-microphone text-danger me-1"></i> إدخال صوتي (تحدث)
+                    </button>
+                </div>
+                <div class="col-6">
+                    <button type="button" class="btn btn-dark btn-sm w-100 fw-bold py-2" onclick="processBulkInput()" style="background-color: #1e293b; border-radius: 10px; font-size:0.82rem;">
+                        <i class="fas fa-wand-magic-sparkles me-1"></i> معالجة وتوزيع الأصناف
+                    </button>
+                </div>
+            </div>
         </div>
 
         <div id="itemsContainer">
@@ -528,6 +551,52 @@
         localStorage.setItem('cache_customers', JSON.stringify(customers));
         localStorage.setItem('cache_inventory', JSON.stringify(inventory));
     }
+
+    // ---------- تشغيل ميزة الإدخال الصوتي التلقائي ----------
+    window.startVoiceInput = () => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("عذراً، متصفحك أو جهازك الحالي لا يدعم ميزة التعرف على الصوت. جرب فتح الصفحة من متصفح Google Chrome.");
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'ar-EG'; // اللغة العربية بلهجة مصرية للتعرف على العامية بدقة
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        const micBtn = document.getElementById('micBtn');
+        const bulkInput = document.getElementById('bulkInputText');
+
+        recognition.onstart = () => {
+            micBtn.classList.add('recording-active');
+            micBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الاستماع...';
+        };
+
+        recognition.onerror = (e) => {
+            console.error(e.error);
+            resetMicBtn();
+        };
+
+        recognition.onend = () => {
+            resetMicBtn();
+        };
+
+        recognition.onresult = (event) => {
+            const voiceResult = event.results[0][0].transcript;
+            bulkInput.value = voiceResult;
+            
+            // معالجة النص تلقائياً بمجرد انتهاء التحدث وتحويله لأصناف
+            window.processBulkInput();
+        };
+
+        function resetMicBtn() {
+            micBtn.classList.remove('recording-active');
+            micBtn.innerHTML = '<i class="fas fa-microphone text-danger me-1"></i> إدخال صوتي (تحدث)';
+        }
+
+        recognition.start();
+    };
 
     // ---------- customer search ----------
     window.filterCustomers = (input) => {
@@ -716,43 +785,36 @@
         const text = document.getElementById('bulkInputText').value.trim();
         if (!text) return;
 
-        // تفريغ الحقول الفارغة الحالية قبل الحقن الجديد
         document.getElementById('itemsContainer').innerHTML = '';
         rowCounter = 0;
 
-        // تقسيم النص بناءً على السطور، أو الفواصل، أو حرف العطف "و"
         const phrases = text.split(/[\n،,]|(?:\s+و\s+)/);
 
         phrases.forEach(phrase => {
             let chunk = phrase.trim();
             if (!chunk) return;
 
-            // استخراج أي أرقام تشير للكمية
             const matchNum = chunk.match(/\d+(\.\d+)?/);
             let qty = matchNum ? parseFloat(matchNum[0]) : 1;
 
-            // دعم صيغ التثنية الشهيرة بالعامية المصرية (كرتونتين، قطعتين، حبتين)
             if (chunk.includes("كرتونتين") || chunk.includes("كرتنتين")) qty = 2;
             if (chunk.includes("قطعتين") || chunk.includes("حبتين")) qty = 2;
 
-            // تحديد نوع الوحدة الافتراضية بناء على الكلمات الدلالية
-            let unit = "pcs"; // افتراضي قطعة
+            let unit = "pcs"; 
             if (chunk.includes("كرتون") || chunk.includes("كراتين") || chunk.includes("علب") || chunk.includes("علبة")) {
                 unit = "box";
             } else if (chunk.includes("قطعة") || chunk.includes("قطع") || chunk.includes("حبة") || chunk.includes("كيس")) {
                 unit = "pcs";
             }
 
-            // تنظيف النص تماماً من الأرقام والكلمات الزائدة للوصول لاسم المنتج النقي فقط
             let cleanKeyword = chunk
-                .replace(/\d+(\.\d+)?/g, '') // إزالة الأرقام
+                .replace(/\d+(\.\d+)?/g, '') 
                 .replace(/(عاوز|عايز|محتاج|طلب|كرتونة|كرتونتين|كرتون|كراتين|علبة|علب|قطعة|قطع|قطعتين|حبة|حبتين|أكياس|كيس|لو سمحت|هات|من فضلك|بتاع|يا ريت|معايا)/g, '')
-                .replace(/\s+/g, ' ') // إزالة المسافات المزدوجة
+                .replace(/\s+/g, ' ') 
                 .trim();
 
-            if (cleanKeyword.length < 2) return; // تخطي الكلمات القصيرة جداً التي لا معنى لها
+            if (cleanKeyword.length < 2) return; 
 
-            // البحث الذكي عن أقرب صنف مطابق من المخزن المستدعى
             let bestMatch = null;
             let highestScore = 0;
 
@@ -763,7 +825,7 @@
 
                 searchWords.forEach(w => {
                     if (w && itemName.includes(w)) {
-                        score += w.length; // ثقل موازنة الكلمة بناء على طولها
+                        score += w.length; 
                     }
                 });
 
@@ -773,7 +835,6 @@
                 }
             });
 
-            // إذا وجدنا صنف متطابق، نقوم بإنشاء السطر الخاص به وحساب السعر فوراً
             if (bestMatch && highestScore > 0) {
                 rowCounter++;
                 const id = 'itemrow_' + rowCounter;
@@ -825,7 +886,7 @@
             }
         });
 
-        recalc(); // تحديث شريط الإجمالي النهائي لجميع الكراتين والقطع الموزعة
+        recalc(); 
     };
 
     // ---------- submit ----------
