@@ -338,17 +338,12 @@
             display: none;
         }
 
-        /* مظهر نبض التسجيل الصوتي */
+        /* نبض التسجيل النشط للميكروفون يدويًا */
         .recording-active {
-            background-color: #fee2e2 !important;
+            background-color: var(--danger) !important;
             border-color: var(--danger) !important;
-            color: var(--danger) !important;
-            animation: pulseBg 1.5s infinite;
-        }
-        @keyframes pulseBg {
-            0% { opacity: 1; }
-            50% { opacity: 0.6; }
-            100% { opacity: 1; }
+            color: var(--white) !important;
+            box-shadow: 0 0 12px rgba(217,4,41,0.4);
         }
     </style>
 </head>
@@ -389,7 +384,7 @@
                 <label class="sub-lbl"><i class="fas fa-user me-1"></i> اسم العميل</label>
                 <div class="autocomplete-wrap">
                     <input type="text" id="customerInput" class="form-control"
-                        placeholder="ابحث عن عميل..."
+                        placeholder="ابحث أو تحدث باسم العميل..."
                         oninput="filterCustomers(this)"
                         autocomplete="off">
                     <input type="hidden" id="customerId">
@@ -424,18 +419,13 @@
 
         <!-- قسم الإدخال الصوتي / السريع المطور -->
         <div class="mb-3 p-3" style="background: #f1f5f9; border-radius: var(--input-radius); border: 1px dashed #cbd5e1;">
-            <label class="sub-lbl text-dark mb-1"><i class="fas fa-microphone text-danger me-1"></i> الإدخال السريع (صوتي أو نصي)</label>
-            <textarea id="bulkInputText" class="form-control notes-input mb-2" rows="3" placeholder="اضغط على زر المايك وتحدث بالطلبية كاملة، أو اكتبها هنا..."></textarea>
+            <label class="sub-lbl text-dark mb-1"><i class="fas fa-microphone text-danger me-1"></i> الإدخال الذكي المستمر</label>
+            <textarea id="bulkInputText" class="form-control notes-input mb-2" rows="3" placeholder="اضغط ابدأ وتحدث بالعميل والطلب معاً بحرية.. اضغط إيقاف عند الانتهاء ليقوم البرنامج بتوزيع البيانات تلقائياً."></textarea>
             
             <div class="row g-2">
-                <div class="col-6">
-                    <button type="button" id="micBtn" class="btn btn-light btn-sm w-100 fw-bold py-2" onclick="startVoiceInput()" style="border: 1px solid #cbd5e1; border-radius: 10px; font-size:0.82rem;">
-                        <i class="fas fa-microphone text-danger me-1"></i> إدخال صوتي (تحدث)
-                    </button>
-                </div>
-                <div class="col-6">
-                    <button type="button" class="btn btn-dark btn-sm w-100 fw-bold py-2" onclick="processBulkInput()" style="background-color: #1e293b; border-radius: 10px; font-size:0.82rem;">
-                        <i class="fas fa-wand-magic-sparkles me-1"></i> معالجة وتوزيع الأصناف
+                <div class="col-12">
+                    <button type="button" id="micBtn" class="btn btn-light btn-sm w-100 fw-bold py-2" onclick="toggleVoiceInput()" style="border: 1px solid #cbd5e1; border-radius: 10px; font-size:0.85rem;">
+                        <i class="fas fa-microphone text-danger me-1"></i> ابدأ التسجيل الصوتي الحُر
                     </button>
                 </div>
             </div>
@@ -530,6 +520,8 @@
     let inventory = [];
     let rowCounter = 0;
     let editOrderId = null;
+    let recognition = null;
+    let isRecording = false;
 
     // ---------- init ----------
     async function init() {
@@ -552,50 +544,234 @@
         localStorage.setItem('cache_inventory', JSON.stringify(inventory));
     }
 
-    // ---------- تشغيل ميزة الإدخال الصوتي التلقائي ----------
-    window.startVoiceInput = () => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            alert("عذراً، متصفحك أو جهازك الحالي لا يدعم ميزة التعرف على الصوت. جرب فتح الصفحة من متصفح Google Chrome.");
-            return;
-        }
+    // ---------- تنظيف النصوص والمصطلحات العربية والتشابه النصي ----------
+    function normalizeArabic(text) {
+        return text ? text.trim().toLowerCase()
+            .replace(/[أإآا]/g, 'ا')
+            .replace(/[ةه]/g, 'ة')
+            .replace(/[ىي]/g, 'ي')
+            .replace(/[\u064B-\u0652]/g, '') 
+            : '';
+    }
 
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'ar-EG'; // اللغة العربية بلهجة مصرية للتعرف على العامية بدقة
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
+    function getMatchScore(sourceText, targetName) {
+        const nSource = normalizeArabic(sourceText);
+        const nTarget = normalizeArabic(targetName);
+        const targetWords = nTarget.split(/\s+/).filter(w => w.length > 1);
+        let score = 0;
+        targetWords.forEach(word => {
+            if (nSource.includes(word)) {
+                score += word.length; 
+            }
+        });
+        return score;
+    }
 
+    // ---------- نظام التحكم اليدوي بالتسجيل الصوتي (ابدأ / أوقف) ----------
+    window.toggleVoiceInput = () => {
         const micBtn = document.getElementById('micBtn');
         const bulkInput = document.getElementById('bulkInputText');
 
+        if (isRecording) {
+            if (recognition) recognition.stop();
+            return;
+        }
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert("عذراً، جهازك لا يدعم ميزة التعرف على الصوت. يرجى استخدام متصفح Google Chrome.");
+            return;
+        }
+
+        recognition = new SpeechRecognition();
+        recognition.lang = 'ar-EG'; 
+        recognition.continuous = true; // مستمر حتي تقوم بالايقاف بنفسك
+        recognition.interimResults = false;
+
         recognition.onstart = () => {
+            isRecording = true;
+            bulkInput.value = ''; // تفريغ حقل الادخال لبدء تسجيل جديد نظيف
             micBtn.classList.add('recording-active');
-            micBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> جاري الاستماع...';
+            micBtn.innerHTML = '<i class="fas fa-stop-circle me-1"></i> اضغط هنا لإنهاء التسجيل وتوزيع الطلب';
         };
 
         recognition.onerror = (e) => {
             console.error(e.error);
-            resetMicBtn();
+            stopRecordingState();
         };
 
         recognition.onend = () => {
-            resetMicBtn();
+            stopRecordingState();
+            window.processBulkInput(); // المعالجة التلقائية والتوزيع فور الايقاف اليدوي
         };
 
         recognition.onresult = (event) => {
-            const voiceResult = event.results[0][0].transcript;
-            bulkInput.value = voiceResult;
-            
-            // معالجة النص تلقائياً بمجرد انتهاء التحدث وتحويله لأصناف
-            window.processBulkInput();
+            let transcript = '';
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    transcript += event.results[i][0].transcript + ' ';
+                }
+            }
+            if (transcript.trim()) {
+                bulkInput.value += transcript;
+            }
         };
 
-        function resetMicBtn() {
+        function stopRecordingState() {
+            isRecording = false;
             micBtn.classList.remove('recording-active');
-            micBtn.innerHTML = '<i class="fas fa-microphone text-danger me-1"></i> إدخال صوتي (تحدث)';
+            micBtn.innerHTML = '<i class="fas fa-microphone text-danger me-1"></i> ابدأ التسجيل الصوتي الحُر';
         }
 
         recognition.start();
+    };
+
+    // ---------- وظيفة معالجة النص التلقائي وتوزيع العملاء والاصناف المحدثة ----------
+    window.processBulkInput = () => {
+        const text = document.getElementById('bulkInputText').value.trim();
+        if (!text) return;
+
+        // --- أولاً: معالجة اسم العميل واقتراح الأقرب (3 مقترحات إذا لم يتطابق بالكامل) ---
+        let bestCustomer = null;
+        let maxCustScore = 0;
+        let customerScores = [];
+
+        customers.forEach(c => {
+            const score = getMatchScore(text, c.name);
+            customerScores.push({ customer: c, score: score });
+            if (score > maxCustScore) {
+                maxCustScore = score;
+                bestCustomer = c;
+            }
+        });
+
+        customerScores.sort((a, b) => b.score - a.score);
+
+        const dd = document.getElementById('customerDropdown');
+        if (bestCustomer && maxCustScore > 3) {
+            // تطابق قوي مباشر
+            selectCustomer(bestCustomer.id, bestCustomer.name);
+        } else {
+            // جلب أفضل 3 نتائج متقاربة نصياً
+            const topMatches = customerScores.filter(x => x.score > 0).slice(0, 3);
+            if (topMatches.length > 0) {
+                document.getElementById('customerInput').value = "";
+                document.getElementById('customerInput').placeholder = "⚠️ اختر العميل المقترح الصحيح من القائمة بالأسفل...";
+                dd.innerHTML = `<div class="dropdown-item-row" style="color:var(--danger); cursor:default; font-size:0.75rem;"><i class="fas fa-lightbulb me-1"></i> اقرب 3 عملاء تم التعرف عليهم صوتياً:</div>` + 
+                topMatches.map(m => `
+                    <div class="dropdown-item-row" onclick="selectCustomer('${m.customer.id}', '${m.customer.name}')">
+                        <i class="fas fa-user-circle" style="color: var(--warning);"></i>
+                        ${m.customer.name}
+                    </div>
+                `).join('');
+                dd.style.display = 'block';
+            }
+        }
+
+        // --- ثانياً: معالجة وتوزيع الأصناف في حاويات الإدخال ---
+        document.getElementById('itemsContainer').innerHTML = '';
+        rowCounter = 0;
+
+        // تقسيم النص بناءً على السطور، الفواصل، أو الروابط المعتادة
+        const phrases = text.split(/[\n،,]|(?:\s+و\s+)|(?:\s+كمان\s+)|(?:\s+ثم\s+)/);
+
+        phrases.forEach(phrase => {
+            let chunk = phrase.trim();
+            if (!chunk) return;
+
+            // إزالة اسم العميل لتجنب تداخل حروف العميل مع أسماء المنتجات
+            if (bestCustomer && chunk.includes(bestCustomer.name)) {
+                chunk = chunk.replace(bestCustomer.name, '');
+            }
+
+            // استخراج الأعداد والكميات
+            const matchNum = chunk.match(/\d+(\.\d+)?/);
+            let qty = matchNum ? parseFloat(matchNum[0]) : 1;
+
+            if (chunk.includes("كرتونتين") || chunk.includes("كرتنتين")) qty = 2;
+            if (chunk.includes("قطعتين") || chunk.includes("حبتين") || chunk.includes("علبتين") || chunk.includes("ازازتين")) qty = 2;
+
+            // تحديد فئة الوحدة
+            let unit = "pcs"; 
+            if (chunk.includes("كرتون") || chunk.includes("كراتين") || chunk.includes("علب") || chunk.includes("علبة")) {
+                unit = "box";
+            } else if (chunk.includes("قطعة") || chunk.includes("قطع") || chunk.includes("حبة") || chunk.includes("كيس") || chunk.includes("برطمان")) {
+                unit = "pcs";
+            }
+
+            // تصفية الكلمات الحشوية للحصول على المقاربة النقية
+            let cleanKeyword = chunk
+                .replace(/\d+(\.\d+)?/g, '') 
+                .replace(/(عاوز|عايز|محتاج|طلب|عميل|كرتونة|كرتونتين|كرتون|كراتين|علبة|علب|قطعة|قطع|قطعتين|حبة|حبتين|أكياس|كيس|لو سمحت|هات|من فضلك|بتاع|يا ريت|معايا|شغال|ابعت|سجل)/g, '')
+                .replace(/\s+/g, ' ') 
+                .trim();
+
+            if (cleanKeyword.length < 2) return; 
+
+            let bestMatch = null;
+            let highestScore = 0;
+
+            inventory.forEach(item => {
+                const score = getMatchScore(cleanKeyword, item.name);
+                if (score > highestScore) {
+                    highestScore = score;
+                    bestMatch = item;
+                }
+            });
+
+            // رسم السطر بناءً على أقرب صنف من الليستة
+            if (bestMatch && highestScore > 0) {
+                rowCounter++;
+                const id = 'itemrow_' + rowCounter;
+                const factor = Number(bestMatch.unitFactor) || 1;
+                const price = unit === 'box' ? (bestMatch.sell || 0) : ((bestMatch.sell || 0) / factor);
+                const sub = qty * price;
+
+                const html = `
+                    <div class="item-row" id="${id}">
+                        <button type="button" class="remove-row-btn" onclick="removeRow('${id}')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        <div class="row g-2 mb-2">
+                            <div class="col-8">
+                                <label class="sub-lbl">اسم الصنف</label>
+                                <div class="autocomplete-wrap">
+                                    <input type="text" class="form-control p-name" value="${bestMatch.name}" oninput="filterProducts(this, '${id}')" autocomplete="off">
+                                    <input type="hidden" class="p-id" value="${bestMatch.id}">
+                                    <div class="dropdown-list p-dropdown"></div>
+                                </div>
+                                <div class="stock-hint p-stock" style="display:block;"><i class="fas fa-warehouse me-1"></i><span>رصيد المخزن: ${bestMatch.totalPcs || 0} قطعة</span></div>
+                            </div>
+                            <div class="col-4">
+                                <label class="sub-lbl">الوحدة</label>
+                                <select class="form-select p-unit" onchange="onUnitChange(this, '${id}')">
+                                    <option value="box" ${unit === 'box' ? 'selected' : ''}>كرتونة</option>
+                                    <option value="pcs" ${unit === 'pcs' ? 'selected' : ''}>قطعة</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <label class="sub-lbl">الكمية</label>
+                                <input type="number" class="form-control p-qty" value="${qty}" min="1" oninput="recalc()">
+                            </div>
+                            <div class="col-4">
+                                <label class="sub-lbl">السعر</label>
+                                <input type="number" class="form-control p-price" value="${price.toFixed(2)}" oninput="recalc()">
+                            </div>
+                            <div class="col-4">
+                                <label class="sub-lbl">الإجمالي</label>
+                                <input type="text" class="form-control p-sub" value="${sub.toFixed(2)}" readonly
+                                    style="background:#f0f4f2!important; font-weight:800; color: var(--accent)!important;">
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', html);
+            }
+        });
+
+        recalc(); 
     };
 
     // ---------- customer search ----------
@@ -778,115 +954,6 @@
         document.getElementById('summaryQty').innerText = totalQty;
         document.getElementById('summaryTotal').innerText = totalVal.toFixed(2) + ' ج.م';
         document.getElementById('badgeCount').innerText = totalItems;
-    };
-
-    // ---------- وظيفة معالجة النص التلقائي الذكي ----------
-    window.processBulkInput = () => {
-        const text = document.getElementById('bulkInputText').value.trim();
-        if (!text) return;
-
-        document.getElementById('itemsContainer').innerHTML = '';
-        rowCounter = 0;
-
-        const phrases = text.split(/[\n،,]|(?:\s+و\s+)/);
-
-        phrases.forEach(phrase => {
-            let chunk = phrase.trim();
-            if (!chunk) return;
-
-            const matchNum = chunk.match(/\d+(\.\d+)?/);
-            let qty = matchNum ? parseFloat(matchNum[0]) : 1;
-
-            if (chunk.includes("كرتونتين") || chunk.includes("كرتنتين")) qty = 2;
-            if (chunk.includes("قطعتين") || chunk.includes("حبتين")) qty = 2;
-
-            let unit = "pcs"; 
-            if (chunk.includes("كرتون") || chunk.includes("كراتين") || chunk.includes("علب") || chunk.includes("علبة")) {
-                unit = "box";
-            } else if (chunk.includes("قطعة") || chunk.includes("قطع") || chunk.includes("حبة") || chunk.includes("كيس")) {
-                unit = "pcs";
-            }
-
-            let cleanKeyword = chunk
-                .replace(/\d+(\.\d+)?/g, '') 
-                .replace(/(عاوز|عايز|محتاج|طلب|كرتونة|كرتونتين|كرتون|كراتين|علبة|علب|قطعة|قطع|قطعتين|حبة|حبتين|أكياس|كيس|لو سمحت|هات|من فضلك|بتاع|يا ريت|معايا)/g, '')
-                .replace(/\s+/g, ' ') 
-                .trim();
-
-            if (cleanKeyword.length < 2) return; 
-
-            let bestMatch = null;
-            let highestScore = 0;
-
-            inventory.forEach(item => {
-                const itemName = item.name.toLowerCase();
-                const searchWords = cleanKeyword.toLowerCase().split(/\s+/);
-                let score = 0;
-
-                searchWords.forEach(w => {
-                    if (w && itemName.includes(w)) {
-                        score += w.length; 
-                    }
-                });
-
-                if (score > highestScore) {
-                    highestScore = score;
-                    bestMatch = item;
-                }
-            });
-
-            if (bestMatch && highestScore > 0) {
-                rowCounter++;
-                const id = 'itemrow_' + rowCounter;
-                const factor = Number(bestMatch.unitFactor) || 1;
-                const price = unit === 'box' ? (bestMatch.sell || 0) : ((bestMatch.sell || 0) / factor);
-                const sub = qty * price;
-
-                const html = `
-                    <div class="item-row" id="${id}">
-                        <button type="button" class="remove-row-btn" onclick="removeRow('${id}')">
-                            <i class="fas fa-times"></i>
-                        </button>
-                        <div class="row g-2 mb-2">
-                            <div class="col-8">
-                                <label class="sub-lbl">اسم الصنف</label>
-                                <div class="autocomplete-wrap">
-                                    <input type="text" class="form-control p-name" value="${bestMatch.name}" oninput="filterProducts(this, '${id}')" autocomplete="off">
-                                    <input type="hidden" class="p-id" value="${bestMatch.id}">
-                                    <div class="dropdown-list p-dropdown"></div>
-                                </div>
-                                <div class="stock-hint p-stock" style="display:block;"><i class="fas fa-warehouse me-1"></i><span>رصيد المخزن: ${bestMatch.totalPcs || 0} قطعة</span></div>
-                            </div>
-                            <div class="col-4">
-                                <label class="sub-lbl">الوحدة</label>
-                                <select class="form-select p-unit" onchange="onUnitChange(this, '${id}')">
-                                    <option value="box" ${unit === 'box' ? 'selected' : ''}>كرتونة</option>
-                                    <option value="pcs" ${unit === 'pcs' ? 'selected' : ''}>قطعة</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="row g-2">
-                            <div class="col-4">
-                                <label class="sub-lbl">الكمية</label>
-                                <input type="number" class="form-control p-qty" value="${qty}" min="1" oninput="recalc()">
-                            </div>
-                            <div class="col-4">
-                                <label class="sub-lbl">السعر</label>
-                                <input type="number" class="form-control p-price" value="${price.toFixed(2)}" oninput="recalc()">
-                            </div>
-                            <div class="col-4">
-                                <label class="sub-lbl">الإجمالي</label>
-                                <input type="text" class="form-control p-sub" value="${sub.toFixed(2)}" readonly
-                                    style="background:#f0f4f2!important; font-weight:800; color: var(--accent)!important;">
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', html);
-            }
-        });
-
-        recalc(); 
     };
 
     // ---------- submit ----------
