@@ -389,7 +389,7 @@
                 </div>
             </div>
 
-            <!-- Date (تعديل: جعل حقل التاريخ يدوي وقابل للاختيار) -->
+            <!-- Date -->
             <div class="col-5">
                 <label class="sub-lbl"><i class="fas fa-calendar-alt me-1"></i> التاريخ</label>
                 <input type="date" id="orderDate" class="form-control" style="font-size: 0.78rem;">
@@ -409,12 +409,21 @@
             <i class="fas fa-boxes"></i> الأصناف المطلوبة
         </div>
 
+        <!-- قسم الإدخال السريع الذكي الجديد -->
+        <div class="mb-3 p-3" style="background: #f1f5f9; border-radius: var(--input-radius); border: 1px dashed #cbd5e1;">
+            <label class="sub-lbl text-dark mb-1"><i class="fas fa-bolt text-warning me-1"></i> إدخال سريع وكامل للطلبية</label>
+            <textarea id="bulkInputText" class="form-control notes-input mb-2" rows="3" placeholder="اكتب طلب الزبون هنا بالكامل.. مثال: عاوز 5 كرتونة شيبسي و قطعتين بيبسي و 10 مكرونة..."></textarea>
+            <button type="button" class="btn btn-dark btn-sm w-100 fw-bold" onclick="processBulkInput()" style="background-color: #1e293b; border-radius: 10px; padding: 8px; font-size:0.82rem;">
+                <i class="fas fa-wand-magic-sparkles me-1"></i> استخراج وتوزيع الأصناف تلقائياً
+            </button>
+        </div>
+
         <div id="itemsContainer">
             <!-- rows injected here -->
         </div>
 
         <button class="btn-add-row" onclick="addItemRow()">
-            <i class="fas fa-plus-circle me-1"></i> إضافة صنف
+            <i class="fas fa-plus-circle me-1"></i> إضافة صنف يدوي
         </button>
 
         <div class="error-msg" id="itemsError" style="display: none; margin-top: -4px; margin-bottom: 8px;">
@@ -471,16 +480,16 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-   import {
-    getFirestore,
-    collection,
-    getDocs,
-    addDoc,
-    updateDoc,
-    getDoc,
-    doc,
-    serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import {
+        getFirestore,
+        collection,
+        getDocs,
+        addDoc,
+        updateDoc,
+        getDoc,
+        doc,
+        serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -501,18 +510,15 @@
 
     // ---------- init ----------
     async function init() {
-        // تعديل: ضبط تاريخ اليوم بتنسيق متوافق مع الحقل اليدوي القياسي (YYYY-MM-DD)
         document.getElementById('orderDate').value = new Date().toISOString().split('T')[0];
 
-        // load cache first
         const cCache = localStorage.getItem('cache_customers');
         const iCache = localStorage.getItem('cache_inventory');
         if (cCache) customers = JSON.parse(cCache);
         if (iCache) inventory = JSON.parse(iCache);
 
-        addItemRow(); // start with one empty row
+        addItemRow(); 
 
-        // fetch fresh
         const [cSnap, iSnap] = await Promise.all([
             getDocs(collection(db, 'customers')),
             getDocs(collection(db, 'inventory'))
@@ -567,7 +573,6 @@
         document.getElementById('customerBadge').style.display = 'none';
     }
 
-    // close dropdown when clicking outside
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.autocomplete-wrap')) {
             document.querySelectorAll('.dropdown-list').forEach(d => d.style.display = 'none');
@@ -585,7 +590,6 @@
                 </button>
 
                 <div class="row g-2 mb-2">
-                    <!-- Product -->
                     <div class="col-8">
                         <label class="sub-lbl">اسم الصنف</label>
                         <div class="autocomplete-wrap">
@@ -596,7 +600,6 @@
                         </div>
                         <div class="stock-hint p-stock"><i class="fas fa-warehouse me-1"></i><span></span></div>
                     </div>
-                    <!-- Unit -->
                     <div class="col-4">
                         <label class="sub-lbl">الوحدة</label>
                         <select class="form-select p-unit" onchange="onUnitChange(this, '${id}')">
@@ -669,7 +672,6 @@
             const stockHint = row.querySelector('.p-stock');
             stockHint.querySelector('span').innerText = `رصيد المخزن: ${p.totalPcs || 0} قطعة`;
             stockHint.style.display = 'block';
-            // auto-set price by unit
             setRowPrice(row, p);
         }
         recalc();
@@ -709,10 +711,126 @@
         document.getElementById('badgeCount').innerText = totalItems;
     };
 
+    // ---------- وظيفة معالجة النص التلقائي الذكي ----------
+    window.processBulkInput = () => {
+        const text = document.getElementById('bulkInputText').value.trim();
+        if (!text) return;
+
+        // تفريغ الحقول الفارغة الحالية قبل الحقن الجديد
+        document.getElementById('itemsContainer').innerHTML = '';
+        rowCounter = 0;
+
+        // تقسيم النص بناءً على السطور، أو الفواصل، أو حرف العطف "و"
+        const phrases = text.split(/[\n،,]|(?:\s+و\s+)/);
+
+        phrases.forEach(phrase => {
+            let chunk = phrase.trim();
+            if (!chunk) return;
+
+            // استخراج أي أرقام تشير للكمية
+            const matchNum = chunk.match(/\d+(\.\d+)?/);
+            let qty = matchNum ? parseFloat(matchNum[0]) : 1;
+
+            // دعم صيغ التثنية الشهيرة بالعامية المصرية (كرتونتين، قطعتين، حبتين)
+            if (chunk.includes("كرتونتين") || chunk.includes("كرتنتين")) qty = 2;
+            if (chunk.includes("قطعتين") || chunk.includes("حبتين")) qty = 2;
+
+            // تحديد نوع الوحدة الافتراضية بناء على الكلمات الدلالية
+            let unit = "pcs"; // افتراضي قطعة
+            if (chunk.includes("كرتون") || chunk.includes("كراتين") || chunk.includes("علب") || chunk.includes("علبة")) {
+                unit = "box";
+            } else if (chunk.includes("قطعة") || chunk.includes("قطع") || chunk.includes("حبة") || chunk.includes("كيس")) {
+                unit = "pcs";
+            }
+
+            // تنظيف النص تماماً من الأرقام والكلمات الزائدة للوصول لاسم المنتج النقي فقط
+            let cleanKeyword = chunk
+                .replace(/\d+(\.\d+)?/g, '') // إزالة الأرقام
+                .replace(/(عاوز|عايز|محتاج|طلب|كرتونة|كرتونتين|كرتون|كراتين|علبة|علب|قطعة|قطع|قطعتين|حبة|حبتين|أكياس|كيس|لو سمحت|هات|من فضلك|بتاع|يا ريت|معايا)/g, '')
+                .replace(/\s+/g, ' ') // إزالة المسافات المزدوجة
+                .trim();
+
+            if (cleanKeyword.length < 2) return; // تخطي الكلمات القصيرة جداً التي لا معنى لها
+
+            // البحث الذكي عن أقرب صنف مطابق من المخزن المستدعى
+            let bestMatch = null;
+            let highestScore = 0;
+
+            inventory.forEach(item => {
+                const itemName = item.name.toLowerCase();
+                const searchWords = cleanKeyword.toLowerCase().split(/\s+/);
+                let score = 0;
+
+                searchWords.forEach(w => {
+                    if (w && itemName.includes(w)) {
+                        score += w.length; // ثقل موازنة الكلمة بناء على طولها
+                    }
+                });
+
+                if (score > highestScore) {
+                    highestScore = score;
+                    bestMatch = item;
+                }
+            });
+
+            // إذا وجدنا صنف متطابق، نقوم بإنشاء السطر الخاص به وحساب السعر فوراً
+            if (bestMatch && highestScore > 0) {
+                rowCounter++;
+                const id = 'itemrow_' + rowCounter;
+                const factor = Number(bestMatch.unitFactor) || 1;
+                const price = unit === 'box' ? (bestMatch.sell || 0) : ((bestMatch.sell || 0) / factor);
+                const sub = qty * price;
+
+                const html = `
+                    <div class="item-row" id="${id}">
+                        <button type="button" class="remove-row-btn" onclick="removeRow('${id}')">
+                            <i class="fas fa-times"></i>
+                        </button>
+                        <div class="row g-2 mb-2">
+                            <div class="col-8">
+                                <label class="sub-lbl">اسم الصنف</label>
+                                <div class="autocomplete-wrap">
+                                    <input type="text" class="form-control p-name" value="${bestMatch.name}" oninput="filterProducts(this, '${id}')" autocomplete="off">
+                                    <input type="hidden" class="p-id" value="${bestMatch.id}">
+                                    <div class="dropdown-list p-dropdown"></div>
+                                </div>
+                                <div class="stock-hint p-stock" style="display:block;"><i class="fas fa-warehouse me-1"></i><span>رصيد المخزن: ${bestMatch.totalPcs || 0} قطعة</span></div>
+                            </div>
+                            <div class="col-4">
+                                <label class="sub-lbl">الوحدة</label>
+                                <select class="form-select p-unit" onchange="onUnitChange(this, '${id}')">
+                                    <option value="box" ${unit === 'box' ? 'selected' : ''}>كرتونة</option>
+                                    <option value="pcs" ${unit === 'pcs' ? 'selected' : ''}>قطعة</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-4">
+                                <label class="sub-lbl">الكمية</label>
+                                <input type="number" class="form-control p-qty" value="${qty}" min="1" oninput="recalc()">
+                            </div>
+                            <div class="col-4">
+                                <label class="sub-lbl">السعر</label>
+                                <input type="number" class="form-control p-price" value="${price.toFixed(2)}" oninput="recalc()">
+                            </div>
+                            <div class="col-4">
+                                <label class="sub-lbl">الإجمالي</label>
+                                <input type="text" class="form-control p-sub" value="${sub.toFixed(2)}" readonly
+                                    style="background:#f0f4f2!important; font-weight:800; color: var(--accent)!important;">
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', html);
+            }
+        });
+
+        recalc(); // تحديث شريط الإجمالي النهائي لجميع الكراتين والقطع الموزعة
+    };
+
     // ---------- submit ----------
     window.submitOrder = async () => {
         let valid = true;
-
         const customerId = document.getElementById('customerId').value;
         const customerName = document.getElementById('customerInput').value.trim();
 
@@ -750,29 +868,26 @@
 
         try {
             const total = items.reduce((s, i) => s + i.qty * i.price, 0);
-const orderData = {
-    customerId,
-    customerName,
-    items,
-    total,
-    notes: document.getElementById('orderNotes').value.trim(),
-    date: document.getElementById('orderDate').value,
-    timestamp: serverTimestamp(),
-    status: 'pending'
-};
+            const orderData = {
+                customerId,
+                customerName,
+                items,
+                total,
+                notes: document.getElementById('orderNotes').value.trim(),
+                date: document.getElementById('orderDate').value,
+                timestamp: serverTimestamp(),
+                status: 'pending'
+            };
 
-if (editOrderId) {
-    await updateDoc(doc(db, 'orders', editOrderId), orderData);
-} else {
-    await addDoc(collection(db, 'orders'), orderData);
-}
+            if (editOrderId) {
+                await updateDoc(doc(db, 'orders', editOrderId), orderData);
+            } else {
+                await addDoc(collection(db, 'orders'), orderData);
+            }
 
-           document.getElementById('successCustomerName').innerText = customerName;
-
-document.querySelector('.modal-box h5').innerText =
-    editOrderId ? 'تم تعديل الطلبية!' : 'تم تسجيل الطلبية!';
-
-document.getElementById('successModal').style.display = 'flex';
+            document.getElementById('successCustomerName').innerText = customerName;
+            document.querySelector('.modal-box h5').innerText = editOrderId ? 'تم تعديل الطلبية!' : 'تم تسجيل الطلبية!';
+            document.getElementById('successModal').style.display = 'flex';
 
         } catch (e) {
             console.error(e);
@@ -792,7 +907,7 @@ document.getElementById('successModal').style.display = 'flex';
         document.getElementById('customerInput').value = '';
         document.getElementById('customerId').value = '';
         document.getElementById('orderNotes').value = '';
-        // تعديل: ضبط التصفير هنا أيضاً ليتوافق مع الحقل اليدوي الجديد بصيغة الموبايل القياسية
+        document.getElementById('bulkInputText').value = '';
         document.getElementById('orderDate').value = new Date().toISOString().split('T')[0];
         document.getElementById('itemsContainer').innerHTML = '';
         hideBadge();
@@ -803,7 +918,6 @@ document.getElementById('successModal').style.display = 'flex';
         document.getElementById('submitBtn').innerHTML = '<i class="fas fa-paper-plane"></i> تسجيل الطلبية';
     };
 
-    // ------------------ تحميل الطلبية للتعديل ------------------
     async function loadOrderForEdit() {
         const params = new URLSearchParams(window.location.search);
         editOrderId = params.get("editOrderId");
@@ -827,13 +941,11 @@ document.getElementById('successModal').style.display = 'flex';
             document.getElementById("orderNotes").value = order.notes || "";
 
             showBadge(order.customerName);
-
             document.getElementById("itemsContainer").innerHTML = "";
             rowCounter = 0;
 
             order.items.forEach(item => {
                 addItemRow();
-
                 const rowsNow = document.querySelectorAll(".item-row");
                 const currentRow = rowsNow[rowsNow.length - 1];
 
@@ -845,16 +957,13 @@ document.getElementById('successModal').style.display = 'flex';
             });
 
             recalc();
-
-            document.getElementById("submitBtn").innerHTML =
-                '<i class="fas fa-save"></i> حفظ التعديلات';
+            document.getElementById("submitBtn").innerHTML = '<i class="fas fa-save"></i> حفظ التعديلات';
 
         } catch (err) {
             console.error(err);
         }
     }
 
-    // ------------------ تشغيل التهيئة ------------------
     await init();
     await loadOrderForEdit();
 </script>
