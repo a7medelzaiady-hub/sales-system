@@ -2,6 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
+<!-- تعديل مهم للموبايل: يمنع التقريب التلقائي عند الضغط على الحقول -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>حمولة العربية - الزيادي</title>
 <style>
@@ -229,9 +230,9 @@ table select:focus { border-color: var(--brand); }
       <h2>تسجيل تحميل حمولة السيارة</h2>
       <p>سجّل كمية التحميل الحالية لكل صنف لربطها بالمبيعات</p>
     </div>
-    <!-- الزر الجديد الخاص بتصدير PDF لصفحة التحميل -->
+    <!-- الزر الخاص بتصدير PDF لصفحة التحميل (الفاتورة) -->
     <button class="btn btn-success btn-sm" onclick="window.exportLoadPDF()" style="background:var(--red); color:#fff; display:flex; align-items:center; gap:5px; height: 38px;">
-      📄 تصدير المحمل PDF
+      📄 إذن تحميل PDF
     </button>
   </div>
 
@@ -290,7 +291,7 @@ table select:focus { border-color: var(--brand); }
     <div style="display:flex; gap:8px; margin-right:auto; flex-wrap:wrap;">
       <button class="btn btn-success btn-sm" onclick="window.exportPDF()"
         style="display:flex; align-items:center; gap:5px; background:var(--red); color:#fff;">
-        📄 تصدير PDF
+        📄 تقرير الجرد PDF
       </button>
       <button class="btn btn-success btn-sm" onclick="window.printSummaryReport()"
         style="display:flex; align-items:center; gap:5px;">
@@ -339,8 +340,8 @@ table select:focus { border-color: var(--brand); }
 
 <div id="toast"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<!-- استخدام مكتبة html2pdf فقط للحفاظ على اللغة العربية وتنسيق الطباعة الممتاز -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -502,7 +503,6 @@ window.selectSuggestItem = function(itemId) {
     if (targetEl) {
       targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       targetEl.classList.add('active');
-      // أولوية التركيز لخانة الكراتين lc- قبل ll-
       const inp = document.getElementById('lc-' + itemId) || document.getElementById('ll-' + itemId);
       if (inp) setTimeout(() => { inp.focus(); inp.select(); }, 400);
     }
@@ -558,7 +558,6 @@ window.scrollToFirstPending = function() {
     firstPending.scrollIntoView({ behavior: 'smooth', block: 'center' });
     firstPending.classList.add('active');
     const id = firstPending.dataset.itemid;
-    // أولوية التركيز لخانة الكراتين lc- 
     const inp = document.getElementById('lc-' + id) || document.getElementById('ll-' + id);
     if (inp) setTimeout(() => { inp.focus(); inp.select(); }, 300);
   }
@@ -712,7 +711,6 @@ function renderLoadFlow() {
     } else {
       let inputFieldsHtml = '';
       if (it.capacity > 1) {
-        // تم إضافة فئة priority-field لخانة الكراتين لتمييزها بصرياً
         inputFieldsHtml = `
           <div class="field-inline priority-field" style="flex: 1.2;">
             <label>📦 عدد الكراتين</label>
@@ -778,7 +776,6 @@ window.confirmStep = function(itemId) {
     if (nextStep) {
       nextStep.scrollIntoView({ behavior: 'smooth', block: 'center' });
       const nextId = nextStep.dataset.itemid;
-      // أولوية لخانة الكراتين
       const inp = document.getElementById(`lc-${nextId}`) || document.getElementById(`ll-${nextId}`);
       if (inp) { inp.focus(); inp.select(); }
     }
@@ -799,7 +796,6 @@ window.editStep = function(itemId) {
     const step = document.getElementById('step-' + itemId);
     if (step) {
       step.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // أولوية لخانة الكراتين
       const inp = document.getElementById(`lc-${itemId}`) || document.getElementById(`ll-${itemId}`);
       if (inp) { inp.focus(); inp.select(); }
     }
@@ -845,15 +841,7 @@ async function buildSummaryData() {
   let loaded = firebaseItems.map(fbItem => {
     let cartData = cartItems[fbItem.id];
     if (!cartData) {
-      cartData = {
-        name: fbItem.name,
-        capacity: fbItem.capacity,
-        loadedCartons: 0,
-        loadedLoose: 0,
-        manualCartons: '',
-        manualLoose: '',
-        diffStatus: ''
-      };
+      cartData = { name: fbItem.name, capacity: fbItem.capacity, loadedCartons: 0, loadedLoose: 0, manualCartons: '', manualLoose: '', diffStatus: '' };
     }
     return [fbItem.id, cartData];
   });
@@ -891,9 +879,7 @@ async function buildSummaryData() {
         }
       });
     });
-  } catch(e) {
-    console.error(e);
-  }
+  } catch(e) { console.error(e); }
 
   const rows = [];
   loaded.forEach(([id, it]) => {
@@ -1043,101 +1029,89 @@ window.renderSummary = async function() {
   });
 };
 
-/* دالة تصدير الجرد */
-window.exportPDF = async function() {
-  if (typeof window.jspdf === 'undefined' && typeof jsPDF === 'undefined') {
-    window.toast('⏳ جاري تحميل مكتبة PDF...');
-    await new Promise(r => setTimeout(r, 1500));
-  }
 
+/* ===================================================================
+   دالة تصدير الجرد النهائي (تم تحويلها لـ html2pdf لضمان اللغة العربية)
+   =================================================================== */
+window.exportPDF = async function() {
   const { rows, selectedDate } = await buildSummaryData();
   if (!rows || !rows.length) {
     window.toast('⚠️ لا توجد بيانات لتصديرها');
     return;
   }
+  window.toast('⏳ جاري إنشاء تقرير الجرد PDF...');
 
-  window.toast('⏳ جاري إنشاء ملف PDF...');
-
-  const jsPDFClass = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-  if (!jsPDFClass) {
-    window.toast('❌ فشل تحميل مكتبة PDF، حاول مرة أخرى');
-    return;
-  }
-
-  const doc = new jsPDFClass({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-  const pageWidth  = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const nowStr = new Date().toLocaleDateString('ar-EG');
   const reportDate = selectedDate || defaultDateStr;
-
-  doc.setFillColor(11, 94, 61);
-  doc.rect(0, 0, pageWidth, 28, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Al-Ziady Car Load Report', pageWidth / 2, 11, { align: 'center' });
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Date: ${reportDate}  |  Generated: ${nowStr}`, pageWidth / 2, 20, { align: 'center' });
-  doc.setFontSize(9);
-  doc.text('Al-Ziady Motor Oils', pageWidth - 10, 11, { align: 'right' });
-
-  const headers = [['Item Name', 'Loaded', 'Sold', 'Remaining', 'Return/Diff', 'Status']];
-  const body = rows.map(r => [
-    r.it.name,
-    r.loadedText,
-    r.soldText,
-    r.remText,
-    r.manualText,
-    r.calculatedStatus || '—'
-  ]);
-
-  doc.autoTable({
-    head: headers,
-    body: body,
-    startY: 32,
-    theme: 'grid',
-    styles: { fontSize: 9, cellPadding: 4, halign: 'center', valign: 'middle', font: 'helvetica', textColor: [27, 46, 38], lineColor: [228, 233, 230], lineWidth: 0.3 },
-    headStyles: { fillColor: [11, 94, 61], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9, halign: 'center' },
-    columnStyles: { 0: { halign: 'right', cellWidth: 70, fontStyle: 'bold' }, 1: { cellWidth: 35 }, 2: { cellWidth: 35, textColor: [217, 4, 41] }, 3: { cellWidth: 35, textColor: [11, 94, 61] }, 4: { cellWidth: 40 }, 5: { cellWidth: 30 } },
-    alternateRowStyles: { fillColor: [238, 250, 241] },
-    margin: { top: 32, right: 10, bottom: 20, left: 10 },
-    didDrawPage: function(data) {
-      const pg = doc.internal.getCurrentPageInfo().pageNumber;
-      doc.setFillColor(245, 247, 246);
-      doc.rect(0, pageHeight - 14, pageWidth, 14, 'F');
-      doc.setTextColor(107, 122, 115);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Al-Ziady Motor Oils — Accountant: Ahmed Mahmoud Al-Ziady', 10, pageHeight - 5);
-      doc.text(`Page ${pg}`, pageWidth / 2, pageHeight - 5, { align: 'center' });
-      doc.text(`Generated: ${nowStr}`, pageWidth - 10, pageHeight - 5, { align: 'right' });
-    }
+  const nowStr = new Date().toLocaleDateString('ar-EG');
+  let tbody = '';
+  
+  rows.forEach(r => {
+    let statusColor = r.calculatedStatus === 'عجز' ? '#d90429' : (r.calculatedStatus === 'زيادة' ? '#2d6a4f' : '#1b2e26');
+    tbody += `
+      <tr>
+        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: right; font-weight: bold; color: #0a4a31;">${r.it.name}</td>
+        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: center;">${r.loadedText}</td>
+        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: center; color: #d90429;">${r.soldText}</td>
+        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: center; color: #0b5e3d; background: #eefaf1;">${r.remText}</td>
+        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: center;">${r.manualText}</td>
+        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: center; font-weight: bold; color: ${statusColor};">${r.calculatedStatus || '—'}</td>
+      </tr>
+    `;
   });
 
-  const finalY = doc.lastAutoTable.finalY + 10;
-  if (finalY < pageHeight - 30) {
-    doc.setDrawColor(11, 94, 61);
-    doc.setLineWidth(0.5);
-    doc.line(10, finalY + 15, 90, finalY + 15);
-    doc.line(pageWidth - 90, finalY + 15, pageWidth - 10, finalY + 15);
-    doc.setTextColor(107, 122, 115);
-    doc.setFontSize(8);
-    doc.text('Accountant Signature', 50, finalY + 20, { align: 'center' });
-    doc.text('Driver / Storekeeper Signature', pageWidth - 50, finalY + 20, { align: 'center' });
-  }
+  const html = `
+    <div id="summary-print-area" style="padding: 20px; direction: rtl; font-family: 'Cairo', Tahoma, sans-serif; background: #fff; color: #000; width: 1000px;">
+       <div style="text-align: center; border-bottom: 2px dashed #0b5e3d; padding-bottom: 15px; margin-bottom: 20px;">
+           <h1 style="margin:0 0 5px 0; font-size: 24px; color: #0b5e3d;">الزيادي لزيوت السيارات</h1>
+           <h2 style="margin:0 0 10px 0; font-size: 16px; color: #475569;">تقرير جرد وتتبع حركة حمولة السيارة الفعلي</h2>
+           <p style="margin:0; font-size: 14px; font-weight: bold;">تاريخ الحركة: ${reportDate} | تاريخ الطباعة: ${nowStr}</p>
+       </div>
+       <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 30px;">
+           <thead>
+               <tr style="background: #0b5e3d; color: #fff;">
+                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: right;">اسم الصنف</th>
+                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: center;">المحمل</th>
+                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: center;">المباع</th>
+                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: center;">المتبقي</th>
+                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: center;">الراجع</th>
+                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: center;">الحالة</th>
+               </tr>
+           </thead>
+           <tbody>${tbody}</tbody>
+       </table>
+       <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 30px;">
+           <div>المحاسب المسؤول: أحمد محمود الزيادي</div>
+           <div>توقيع أمين المخزن/السائق: .......................................</div>
+       </div>
+    </div>
+  `;
 
-  doc.save(`تقرير_جرد_العربة_${reportDate}.pdf`);
-  window.toast('✅ تم تصدير PDF بنجاح');
+  const container = document.createElement('div');
+  container.innerHTML = html;
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.top = '-9999px';
+  document.body.appendChild(container);
+
+  const opt = {
+    margin:       [0.5, 0.5], 
+    filename:     `تقرير_جرد_العربة_${reportDate}.pdf`,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true },
+    jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' }
+  };
+
+  html2pdf().set(opt).from(container.querySelector('#summary-print-area')).save().then(() => {
+     document.body.removeChild(container);
+     window.toast('✅ تم تصدير تقرير الجرد بنجاح');
+  });
 };
 
-/* الدالة الجديدة: تصدير المحمل فقط لـ PDF (تُستدعى من صفحة التحميل) */
-window.exportLoadPDF = async function() {
-  if (typeof window.jspdf === 'undefined' && typeof jsPDF === 'undefined') {
-    window.toast('⏳ جاري تحميل مكتبة PDF...');
-    await new Promise(r => setTimeout(r, 1500));
-  }
 
+/* ===================================================================
+   دالة تصدير المحمل كإذن تحميل فاتورة (تم تحويلها لـ html2pdf)
+   =================================================================== */
+window.exportLoadPDF = async function() {
   syncSessionVars();
   const loadedKeys = Object.keys(loadedInSession);
   
@@ -1146,32 +1120,11 @@ window.exportLoadPDF = async function() {
     return;
   }
 
-  window.toast('⏳ جاري إنشاء ملف PDF للمحمل...');
-
-  const jsPDFClass = (window.jspdf && window.jspdf.jsPDF) || window.jsPDF;
-  if (!jsPDFClass) {
-    window.toast('❌ فشل تحميل مكتبة PDF، حاول مرة أخرى');
-    return;
-  }
-
-  const doc = new jsPDFClass({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const pageWidth  = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const nowStr = new Date().toLocaleDateString('ar-EG');
+  window.toast('⏳ جاري تجهيز إذن التحميل...');
   const reportDate = document.getElementById('summaryDate').value || defaultDateStr;
+  let tbody = '';
+  let index = 1;
 
-  doc.setFillColor(2, 132, 199); // Blue theme for load
-  doc.rect(0, 0, pageWidth, 25, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(15);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Al-Ziady Registered Load Items', pageWidth / 2, 10, { align: 'center' });
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Date: ${reportDate}`, pageWidth / 2, 18, { align: 'center' });
-
-  // تحضير البيانات المعبأة فعلياً
-  const rows = [];
   firebaseItems.forEach(fbItem => {
     if (loadedInSession[fbItem.id]) {
       const sess = loadedInSession[fbItem.id];
@@ -1180,41 +1133,65 @@ window.exportLoadPDF = async function() {
       const totalLoadedPcs = (parseFloat(sess.cartons || 0) * cap) + parseInt(sess.loose || 0);
       const loadedText = formatQuantityDetailed(totalLoadedPcs, cap, unit);
       
-      // تفاصيل إضافية لتوضيح عدد الكراتين والمنفرد
-      const cartonStr = sess.cartons > 0 ? `${sess.cartons} Cartons` : '-';
-      const looseStr  = sess.loose > 0 ? `${sess.loose} Loose` : '-';
-
-      rows.push([
-        fbItem.name,
-        cartonStr,
-        looseStr,
-        loadedText
-      ]);
+      tbody += `
+        <tr>
+          <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center;">${index++}</td>
+          <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: right; font-weight: bold; color: #1b2e26;">${fbItem.name}</td>
+          <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center; font-weight: bold; color: #0b5e3d;">${loadedText}</td>
+        </tr>
+      `;
     }
   });
 
-  const headers = [['Item Name', 'Cartons Loaded', 'Loose Loaded', 'Total Final Loaded']];
+  const invoiceHTML = `
+    <div id="invoice-print-area" style="padding: 40px; direction: rtl; font-family: 'Cairo', Tahoma, sans-serif; background: #fff; color: #000; width: 800px;">
+       <div style="text-align: center; border-bottom: 2px dashed #0b5e3d; padding-bottom: 15px; margin-bottom: 25px;">
+           <h1 style="margin:0 0 5px 0; font-size: 28px; color: #0b5e3d;">الزيادي لزيوت السيارات</h1>
+           <h2 style="margin:0 0 10px 0; font-size: 18px; color: #475569;">إذن تحميل بضاعة (أصناف محملة)</h2>
+           <p style="margin:0; font-size: 14px; font-weight: bold; color: #1b2e26;">التاريخ: ${reportDate}</p>
+       </div>
+       <table style="width: 100%; border-collapse: collapse; font-size: 15px; margin-bottom: 40px;">
+           <thead>
+               <tr style="background: #eefaf1;">
+                   <th style="padding: 12px; border: 1px solid #0b5e3d; width: 8%; text-align: center; color: #0a4a31;">م</th>
+                   <th style="padding: 12px; border: 1px solid #0b5e3d; width: 62%; text-align: right; color: #0a4a31;">اسم الصنف</th>
+                   <th style="padding: 12px; border: 1px solid #0b5e3d; width: 30%; text-align: center; color: #0a4a31;">الكمية المحملة</th>
+               </tr>
+           </thead>
+           <tbody>${tbody}</tbody>
+       </table>
+       <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 16px; color: #1b2e26; margin-top: 50px;">
+           <div>توقيع أمين المخزن: .......................................</div>
+           <div>توقيع السائق/المندوب: .......................................</div>
+       </div>
+    </div>
+  `;
 
-  doc.autoTable({
-    head: headers,
-    body: rows,
-    startY: 30,
-    theme: 'grid',
-    styles: { fontSize: 10, cellPadding: 5, halign: 'center', valign: 'middle', font: 'helvetica' },
-    headStyles: { fillColor: [2, 132, 199], textColor: [255, 255, 255], fontStyle: 'bold' },
-    columnStyles: { 
-      0: { halign: 'right', cellWidth: 80, fontStyle: 'bold' },
-      1: { cellWidth: 35 },
-      2: { cellWidth: 35 },
-      3: { cellWidth: 40, textColor: [11, 94, 61], fontStyle: 'bold' }
-    },
-    alternateRowStyles: { fillColor: [240, 249, 255] },
-    margin: { left: 10, right: 10 }
+  const container = document.createElement('div');
+  container.innerHTML = invoiceHTML;
+  container.style.position = 'absolute';
+  container.style.left = '-9999px';
+  container.style.top = '-9999px';
+  document.body.appendChild(container);
+
+  const opt = {
+    margin:       0.5,
+    filename:     `إذن_تحميل_${reportDate}.pdf`,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true },
+    jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+  };
+
+  html2pdf().set(opt).from(container.querySelector('#invoice-print-area')).save().then(() => {
+     document.body.removeChild(container);
+     window.toast('✅ تم تصدير الفاتورة بنجاح');
+  }).catch(err => {
+     console.error(err);
+     window.toast('❌ حدث خطأ أثناء التصدير');
+     document.body.removeChild(container);
   });
-
-  doc.save(`تقرير_التحميل_الفردي_${reportDate}.pdf`);
-  window.toast('✅ تم تصدير PDF للمحمل بنجاح');
 };
+
 
 window.printSummaryReport = function() {
   const d = document.getElementById('summaryDate').value;
