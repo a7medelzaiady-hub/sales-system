@@ -2,7 +2,6 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<!-- تعديل مهم للموبايل: يمنع التقريب التلقائي عند الضغط على الحقول -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>حمولة العربية - الزيادي</title>
 <style>
@@ -230,7 +229,6 @@ table select:focus { border-color: var(--brand); }
       <h2>تسجيل تحميل حمولة السيارة</h2>
       <p>سجّل كمية التحميل الحالية لكل صنف لربطها بالمبيعات</p>
     </div>
-    <!-- الزر الخاص بتصدير PDF لصفحة التحميل (الفاتورة) -->
     <button class="btn btn-success btn-sm" onclick="window.exportLoadPDF()" style="background:var(--red); color:#fff; display:flex; align-items:center; gap:5px; height: 38px;">
       📄 إذن تحميل PDF
     </button>
@@ -340,7 +338,7 @@ table select:focus { border-color: var(--brand); }
 
 <div id="toast"></div>
 
-<!-- استخدام مكتبة html2pdf فقط للحفاظ على اللغة العربية وتنسيق الطباعة الممتاز -->
+<!-- مكتبة تحويل الـ HTML لـ PDF -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <script type="module">
@@ -408,18 +406,19 @@ function cleanItemName(str) {
             .replace(/ى/g, 'ي');
 }
 
+/* تعديل جوهري لمنع تداخل الكلمات في الـ PDF عن طريق استخدام &nbsp; بدلاً من المسافة العادية */
 function formatQuantityDetailed(totalPcs, capacity, unit) {
   totalPcs = parseInt(totalPcs) || 0;
   capacity = parseInt(capacity) || 1;
-  if (totalPcs === 0) return `0 ${unit}`;
-  if (capacity <= 1) { return `${totalPcs} ${unit}`; }
+  if (totalPcs === 0) return `0&nbsp;${unit}`;
+  if (capacity <= 1) { return `${totalPcs}&nbsp;${unit}`; }
   
   const cartons = Math.floor(totalPcs / capacity);
   const loose = totalPcs % capacity;
   
-  if (cartons > 0 && loose > 0) { return `${cartons} كرتونة و ${loose} ${unit}`; }
-  else if (cartons > 0) { return `${cartons} كرتونة`; }
-  else { return `${loose} ${unit}`; }
+  if (cartons > 0 && loose > 0) { return `${cartons}&nbsp;كرتونة و&nbsp;${loose}&nbsp;${unit}`; }
+  else if (cartons > 0) { return `${cartons}&nbsp;كرتونة`; }
+  else { return `${loose}&nbsp;${unit}`; }
 }
 
 function highlightMatch(text, query) {
@@ -692,13 +691,13 @@ function renderLoadFlow() {
       div.style.display = 'none';
     }
 
-    const stockText = formatQuantityDetailed(it.totalPcs, it.capacity, unit);
+    const stockText = formatQuantityDetailed(it.totalPcs, it.capacity, unit).replace(/&nbsp;/g, ' ');
     const stockBadge = `<span class="item-stock-badge">🏭 المخزون: ${stockText}</span>`;
 
     if (isDone) {
       const sess = loadedInSession[it.id];
       const totalLoadedPcs = (parseFloat(sess.cartons || 0) * it.capacity) + parseInt(sess.loose || 0);
-      const doneText = formatQuantityDetailed(totalLoadedPcs, it.capacity, unit);
+      const doneText = formatQuantityDetailed(totalLoadedPcs, it.capacity, unit).replace(/&nbsp;/g, ' ');
       
       div.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
@@ -902,7 +901,7 @@ async function buildSummaryData() {
     
     let soldText = formatQuantityDetailed(Math.abs(totalSoldPcs), cap, unit);
     if (totalSoldPcs === 0) soldText = '0';
-    else if (totalSoldPcs < 0) soldText = '↺ ' + soldText;
+    else if (totalSoldPcs < 0) soldText = '↺&nbsp;' + soldText;
 
     const remText = totalRemPcs <= 0 ? '0' : formatQuantityDetailed(totalRemPcs, cap, unit);
 
@@ -981,20 +980,20 @@ window.renderSummary = async function() {
     card.innerHTML = `
       <div class="inv-item-name">
         ${it.name}
-        <span class="stock-badge" title="المخزون الفعلي بالمخزن الرئيسي">🏭 المخزن: ${stockText}</span>
+        <span class="stock-badge" title="المخزون الفعلي بالمخزن الرئيسي">🏭 المخزن: ${stockText.replace(/&nbsp;/g, ' ')}</span>
       </div>
       <div class="inv-stats-row">
         <div class="inv-stat loaded">
           <span class="lbl">المحمل</span>
-          <span class="val">${loadedText}</span>
+          <span class="val">${loadedText.replace(/&nbsp;/g, ' ')}</span>
         </div>
         <div class="inv-stat sold">
           <span class="lbl">المباع</span>
-          <span class="val" style="${totalSoldPcs < 0 ? 'color:var(--amber)' : ''}">${soldText}</span>
+          <span class="val" style="${totalSoldPcs < 0 ? 'color:var(--amber)' : ''}">${soldText.replace(/&nbsp;/g, ' ')}</span>
         </div>
         <div class="inv-stat remain">
           <span class="lbl">المتبقي</span>
-          <span class="val">${remText}</span>
+          <span class="val">${remText.replace(/&nbsp;/g, ' ')}</span>
         </div>
       </div>
       <div class="inv-bottom-row">
@@ -1014,9 +1013,9 @@ window.renderSummary = async function() {
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="text-align:right; padding-right:8px; font-weight:700; color:var(--brand-d);">${it.name}</td>
-      <td>${loadedText}</td>
-      <td style="color:var(--red);">${soldText}</td>
-      <td style="color:var(--brand); background:var(--brand-lt);">${remText}</td>
+      <td>${loadedText.replace(/&nbsp;/g, ' ')}</td>
+      <td style="color:var(--red);">${soldText.replace(/&nbsp;/g, ' ')}</td>
+      <td style="color:var(--brand); background:var(--brand-lt);">${remText.replace(/&nbsp;/g, ' ')}</td>
       <td>${tblReturnFieldsHtml}</td>
       <td>
         <select onchange="window.updateManualSummaryField('${id}','diffStatus',this.value)">
@@ -1029,9 +1028,8 @@ window.renderSummary = async function() {
   });
 };
 
-
 /* ===================================================================
-   دالة تصدير الجرد النهائي (تم تحويلها لـ html2pdf لضمان اللغة العربية)
+   دالة تصدير الجرد النهائي PDF
    =================================================================== */
 window.exportPDF = async function() {
   const { rows, selectedDate } = await buildSummaryData();
@@ -1049,37 +1047,37 @@ window.exportPDF = async function() {
     let statusColor = r.calculatedStatus === 'عجز' ? '#d90429' : (r.calculatedStatus === 'زيادة' ? '#2d6a4f' : '#1b2e26');
     tbody += `
       <tr>
-        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: right; font-weight: bold; color: #0a4a31;">${r.it.name}</td>
-        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: center;">${r.loadedText}</td>
-        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: center; color: #d90429;">${r.soldText}</td>
-        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: center; color: #0b5e3d; background: #eefaf1;">${r.remText}</td>
-        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: center;">${r.manualText}</td>
-        <td style="padding: 8px; border: 1px solid #e4e9e6; text-align: center; font-weight: bold; color: ${statusColor};">${r.calculatedStatus || '—'}</td>
+        <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: right; font-weight: bold; color: #0a4a31;">${r.it.name}</td>
+        <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center; color: #0b5e3d; font-weight: bold;">${r.loadedText}</td>
+        <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center; color: #d90429; font-weight: bold;">${r.soldText}</td>
+        <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center; color: #0b5e3d; font-weight: bold; background: #eefaf1;">${r.remText}</td>
+        <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center; font-weight: bold;">${r.manualText}</td>
+        <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center; font-weight: bold; color: ${statusColor};">${r.calculatedStatus || '—'}</td>
       </tr>
     `;
   });
 
   const html = `
-    <div id="summary-print-area" style="padding: 20px; direction: rtl; font-family: 'Cairo', Tahoma, sans-serif; background: #fff; color: #000; width: 1000px;">
-       <div style="text-align: center; border-bottom: 2px dashed #0b5e3d; padding-bottom: 15px; margin-bottom: 20px;">
-           <h1 style="margin:0 0 5px 0; font-size: 24px; color: #0b5e3d;">الزيادي لزيوت السيارات</h1>
-           <h2 style="margin:0 0 10px 0; font-size: 16px; color: #475569;">تقرير جرد وتتبع حركة حمولة السيارة الفعلي</h2>
+    <div id="summary-print-area" style="padding: 30px; direction: rtl; font-family: Tahoma, Arial, sans-serif; background: #fff; color: #000; width: 1000px;">
+       <div style="text-align: center; border-bottom: 2px dashed #0b5e3d; padding-bottom: 15px; margin-bottom: 25px;">
+           <h1 style="margin:0 0 5px 0; font-size: 26px; color: #0b5e3d;">الزيادي لزيوت السيارات</h1>
+           <h2 style="margin:0 0 10px 0; font-size: 18px; color: #475569;">تقرير جرد وتتبع حركة حمولة السيارة الفعلي</h2>
            <p style="margin:0; font-size: 14px; font-weight: bold;">تاريخ الحركة: ${reportDate} | تاريخ الطباعة: ${nowStr}</p>
        </div>
-       <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 30px;">
+       <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 40px;">
            <thead>
-               <tr style="background: #0b5e3d; color: #fff;">
-                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: right;">اسم الصنف</th>
-                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: center;">المحمل</th>
-                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: center;">المباع</th>
-                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: center;">المتبقي</th>
-                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: center;">الراجع</th>
-                   <th style="padding: 10px; border: 1px solid #0b5e3d; text-align: center;">الحالة</th>
+               <tr style="background-color: #0b5e3d; color: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                   <th style="padding: 12px; border: 1px solid #0b5e3d; text-align: right; color: #ffffff;">اسم الصنف</th>
+                   <th style="padding: 12px; border: 1px solid #0b5e3d; text-align: center; color: #ffffff;">المحمل</th>
+                   <th style="padding: 12px; border: 1px solid #0b5e3d; text-align: center; color: #ffffff;">المباع</th>
+                   <th style="padding: 12px; border: 1px solid #0b5e3d; text-align: center; color: #ffffff;">المتبقي</th>
+                   <th style="padding: 12px; border: 1px solid #0b5e3d; text-align: center; color: #ffffff;">الراجع</th>
+                   <th style="padding: 12px; border: 1px solid #0b5e3d; text-align: center; color: #ffffff;">الحالة</th>
                </tr>
            </thead>
            <tbody>${tbody}</tbody>
        </table>
-       <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 30px;">
+       <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 15px; margin-top: 40px;">
            <div>المحاسب المسؤول: أحمد محمود الزيادي</div>
            <div>توقيع أمين المخزن/السائق: .......................................</div>
        </div>
@@ -1094,7 +1092,7 @@ window.exportPDF = async function() {
   document.body.appendChild(container);
 
   const opt = {
-    margin:       [0.5, 0.5], 
+    margin:       0.4, 
     filename:     `تقرير_جرد_العربة_${reportDate}.pdf`,
     image:        { type: 'jpeg', quality: 0.98 },
     html2canvas:  { scale: 2, useCORS: true },
@@ -1107,9 +1105,8 @@ window.exportPDF = async function() {
   });
 };
 
-
 /* ===================================================================
-   دالة تصدير المحمل كإذن تحميل فاتورة (تم تحويلها لـ html2pdf)
+   دالة تصدير إذن التحميل PDF
    =================================================================== */
 window.exportLoadPDF = async function() {
   syncSessionVars();
@@ -1135,7 +1132,7 @@ window.exportLoadPDF = async function() {
       
       tbody += `
         <tr>
-          <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center;">${index++}</td>
+          <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center; font-weight: bold;">${index++}</td>
           <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: right; font-weight: bold; color: #1b2e26;">${fbItem.name}</td>
           <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center; font-weight: bold; color: #0b5e3d;">${loadedText}</td>
         </tr>
@@ -1143,24 +1140,25 @@ window.exportLoadPDF = async function() {
     }
   });
 
+  /* تم استخدام خط Tahoma وتوضيح لون رأس الجدول لمنع الأخطاء البصرية */
   const invoiceHTML = `
-    <div id="invoice-print-area" style="padding: 40px; direction: rtl; font-family: 'Cairo', Tahoma, sans-serif; background: #fff; color: #000; width: 800px;">
+    <div id="invoice-print-area" style="padding: 40px; direction: rtl; font-family: Tahoma, Arial, sans-serif; background: #fff; color: #000; width: 794px;">
        <div style="text-align: center; border-bottom: 2px dashed #0b5e3d; padding-bottom: 15px; margin-bottom: 25px;">
            <h1 style="margin:0 0 5px 0; font-size: 28px; color: #0b5e3d;">الزيادي لزيوت السيارات</h1>
            <h2 style="margin:0 0 10px 0; font-size: 18px; color: #475569;">إذن تحميل بضاعة (أصناف محملة)</h2>
-           <p style="margin:0; font-size: 14px; font-weight: bold; color: #1b2e26;">التاريخ: ${reportDate}</p>
+           <p style="margin:0; font-size: 15px; font-weight: bold; color: #1b2e26;">التاريخ: ${reportDate}</p>
        </div>
-       <table style="width: 100%; border-collapse: collapse; font-size: 15px; margin-bottom: 40px;">
+       <table style="width: 100%; border-collapse: collapse; font-size: 16px; margin-bottom: 40px;">
            <thead>
-               <tr style="background: #eefaf1;">
-                   <th style="padding: 12px; border: 1px solid #0b5e3d; width: 8%; text-align: center; color: #0a4a31;">م</th>
-                   <th style="padding: 12px; border: 1px solid #0b5e3d; width: 62%; text-align: right; color: #0a4a31;">اسم الصنف</th>
-                   <th style="padding: 12px; border: 1px solid #0b5e3d; width: 30%; text-align: center; color: #0a4a31;">الكمية المحملة</th>
+               <tr style="background-color: #0b5e3d; color: #ffffff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;">
+                   <th style="padding: 14px; border: 1px solid #0b5e3d; width: 8%; text-align: center; color: #ffffff;">م</th>
+                   <th style="padding: 14px; border: 1px solid #0b5e3d; width: 62%; text-align: right; color: #ffffff;">اسم الصنف</th>
+                   <th style="padding: 14px; border: 1px solid #0b5e3d; width: 30%; text-align: center; color: #ffffff;">الكمية المحملة</th>
                </tr>
            </thead>
            <tbody>${tbody}</tbody>
        </table>
-       <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 16px; color: #1b2e26; margin-top: 50px;">
+       <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 17px; color: #1b2e26; margin-top: 50px;">
            <div>توقيع أمين المخزن: .......................................</div>
            <div>توقيع السائق/المندوب: .......................................</div>
        </div>
@@ -1175,7 +1173,7 @@ window.exportLoadPDF = async function() {
   document.body.appendChild(container);
 
   const opt = {
-    margin:       0.5,
+    margin:       0.4,
     filename:     `إذن_تحميل_${reportDate}.pdf`,
     image:        { type: 'jpeg', quality: 0.98 },
     html2canvas:  { scale: 2, useCORS: true },
@@ -1191,7 +1189,6 @@ window.exportLoadPDF = async function() {
      document.body.removeChild(container);
   });
 };
-
 
 window.printSummaryReport = function() {
   const d = document.getElementById('summaryDate').value;
