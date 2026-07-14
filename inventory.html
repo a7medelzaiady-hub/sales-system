@@ -323,7 +323,7 @@
         .close-modal { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .modal-body { padding: 12px 16px 20px; overflow-y: auto; flex: 1; background: #f8fafc; }
         
-        /* تصميم كروت الـ Dashboard داخل المودال (جديد واحترافي) */
+        /* تصميم كروت الـ Dashboard داخل المودال */
         .modal-dashboard {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -436,7 +436,7 @@
     <div class="stat s-total"><div class="stat-num" id="sTotal">—</div><div class="stat-lbl">إجمالي الأصناف</div></div>
     <div class="stat s-ok">  <div class="stat-num" id="sOk">—</div>   <div class="stat-lbl">متوفر</div></div>
     <div class="stat s-low"> <div class="stat-num" id="sLow">—</div>  <div class="stat-lbl">كمية منخفضة</div></div>
-    <div class="stat s-zero"><div class="stat-num" id="sZero">—</div> <div class="stat-lbl">نفد المخزون</div></div>
+    <div class="stat s-zero"><div class="stat-num" id="sZero">—</div> <div class="stat-lbl">نفد المخزون / بالسالب</div></div>
 </div>
 
 <div class="search-wrap">
@@ -502,12 +502,14 @@
             if (data.isDeleted !== true) allItems.push({ id: d.id, ...data });
         });
 
+        // ترتيب مخصص: المتوفر أولاً (الكمية الأعلى للأقل)، ثم الأصناف النافذة والسالبة في الأسفل
         allItems.sort((a, b) => {
             const qa = Number(a.totalPcs) || 0;
             const qb = Number(b.totalPcs) || 0;
-            if (qa === 0 && qb === 0) return (a.name||'').localeCompare(b.name||'', 'ar');
-            if (qa === 0) return  1;
-            if (qb === 0) return -1;
+            
+            if (qa <= 0 && qb <= 0) return (a.name||'').localeCompare(b.name||'', 'ar');
+            if (qa <= 0) return  1;
+            if (qb <= 0) return -1;
             return qb - qa;
         });
 
@@ -532,7 +534,8 @@
             const factor   = Number(item.unitFactor) || 1;
             const totalPcs = Number(item.totalPcs)   || 0;
             const minPcs   = (Number(item.min) || 0) * factor;
-            if (totalPcs === 0)        zero++;
+            
+            if (totalPcs <= 0)          zero++; // يدخل السالب أيضاً هنا
             else if (totalPcs <= minPcs) low++;
             else                         ok++;
         });
@@ -562,8 +565,9 @@
 
         listBody.classList.remove('full-width');
 
+        // فصل المنتجات: المتوفرة (أكبر من صفر)، والنافذة أو السالبة (أصغر من أو تساوي صفر)
         const withQty = list.filter(i => (Number(i.totalPcs) || 0) > 0);
-        const zeroQty = list.filter(i => (Number(i.totalPcs) || 0) === 0);
+        const zeroQty = list.filter(i => (Number(i.totalPcs) || 0) <= 0);
 
         let html = '';
         let n = 1;
@@ -572,7 +576,7 @@
         if (zeroQty.length > 0) {
             html += `<div class="zero-divider">
                         <i class="fas fa-triangle-exclamation"></i>
-                        <em>نفد المخزون الحالي — عدد الأصناف ${zeroQty.length}</em>
+                        <em>نفد المخزون أو بالسالب — عدد الأصناف ${zeroQty.length}</em>
                      </div>`;
             zeroQty.forEach(item => { html += buildRow(item, n++); });
         }
@@ -587,11 +591,19 @@
         const factor     = hasCartons ? Number(rawFactor) : 1;
         const minPcs = (Number(item.min) || 0) * (hasCartons ? factor : 1);
 
-        const boxes = hasCartons ? Math.floor(totalPcs / factor) : 0;
-        const jars  = hasCartons ? totalPcs % factor : totalPcs;
+        // حساب الكراتين والقطع بدقة لدعم القيم السالبة
+        let boxes = 0;
+        let jars  = 0;
+        
+        if (hasCartons) {
+            boxes = Math.trunc(totalPcs / factor);
+            jars  = totalPcs % factor;
+        } else {
+            jars = totalPcs;
+        }
 
         let status = 'ok';
-        if (totalPcs === 0)          status = 'zero';
+        if (totalPcs <= 0)          status = 'zero'; // حالة النفاد أو السالب
         else if (totalPcs <= minPcs) status = 'low';
 
         const normalizeAr = (s) => String(s || '').trim()
@@ -774,7 +786,6 @@
                 } else if (rawType.includes('loss') || rawType.includes('تالف') || rawType.includes('اتلاف')) {
                     totalLosses += qty;
                 } else {
-                    // الافتراضي مبيعات
                     totalSales += qty;
                 }
             });
