@@ -181,7 +181,7 @@
         .toolbar-btn-del:hover { background: var(--danger-light); border-color: transparent; }
 
         /* ============================================================
-           STATS GRID (بجانب بعض بشكل متناسق ومحمي من الانضغاط)
+           STATS GRID
            ============================================================ */
         .stats-grid { 
             display: grid; 
@@ -354,7 +354,7 @@
         .details-table td { font-weight: 600; padding: 8px 4px; vertical-align: middle; }
 
         /* ============================================================
-           THERMAL PRINT DESIGN (استعادة كاملة للتصميم الأصلي وحل التداخل)
+           THERMAL PRINT DESIGN
            ============================================================ */
         #thermalInvoiceHidden {
             position: absolute; left: -9999px; top: -9999px;
@@ -362,7 +362,6 @@
             box-sizing: border-box; direction: rtl; font-family: 'Cairo', sans-serif;
         }
         .term-header { text-align: center; border-bottom: 2px dashed #000; padding-bottom: 12px; margin-bottom: 12px; }
-        /* تم إزالة الـ letter-spacing لمنع تداخل الحروف العربية نهائياً وضبط حجم الخط */
         .term-title { font-size: 24px; font-weight: 800; margin: 0; letter-spacing: normal !important; line-height: 1.4; }
         .term-table { width: 100%; font-size: 13px; margin-top: 12px; border-collapse: collapse; }
         .term-table th { border-bottom: 1px dashed #000; padding: 6px 0; text-align: right; font-weight: bold; }
@@ -397,6 +396,9 @@
         </a>
         <button onclick="exportToExcel()" class="toolbar-btn toolbar-btn-excel">
             <i class="fas fa-file-excel"></i> تصدير Excel
+        </button>
+        <button onclick="exportAllInvoicesAsImages()" class="toolbar-btn" style="background: #0284c7; color: #fff;">
+            <i class="fas fa-images"></i> تصدير كل الصور (ZIP)
         </button>
         <button onclick="deleteAllInvoices()" class="toolbar-btn toolbar-btn-del">
             <i class="fas fa-trash-alt"></i> مسح السجل
@@ -433,6 +435,7 @@
 
 <div id="thermalInvoiceHidden"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
@@ -814,6 +817,128 @@
             }, "image/png");
         } catch (error) {
             alert("خطأ أثناء توليد الفاتورة: " + error.message);
+        }
+    };
+
+    window.exportAllInvoicesAsImages = async function() {
+        if (allInvoices.length === 0) return alert("لا تتوفر فواتير لتصديرها كصور");
+        
+        const confirmProceed = confirm(`سيتم الآن إنشاء وتجميع صور لعدد (${allInvoices.length}) فاتورة وتحميلها في ملف مضغوط واحد. هل تريد الاستمرار؟`);
+        if (!confirmProceed) return;
+
+        const zip = new JSZip();
+        const hiddenDiv = document.getElementById('thermalInvoiceHidden');
+        
+        const progressAlert = document.createElement('div');
+        progressAlert.style = "position:fixed; bottom:20px; right:20px; background:#0b5e3d; color:#fff; padding:15px 25px; border-radius:8px; z-index:9999; font-weight:bold; box-shadow:0 4px 12px rgba(0,0,0,0.15); font-family:'Cairo', sans-serif;";
+        document.body.appendChild(progressAlert);
+
+        for (let i = 0; i < allInvoices.length; i++) {
+            const inv = allInvoices[i];
+            const supName = suppliersBase[inv.supplierId] ? suppliersBase[inv.supplierId].name : 'مورد غير معروف';
+            
+            progressAlert.innerText = `جاري تجهيز الفاتورة (${i + 1} من ${allInvoices.length}) - ${supName}`;
+
+            const historicalPrevBalance = calculateHistoricalPreviousBalance(inv.supplierId, inv.timestamp);
+            const items = inv.items || [];
+            const formattedDate = formatEnglishDate(inv.date);
+
+            let rowsHtml = "";
+            items.forEach(item => {
+                const isItemReturn = item.returnQty > 0 || inv.isReturn;
+                const qty = item.qty || item.returnQty || 0;
+                const unit = item.unitName || 'كرتونة';
+                const price = item.buy || 0;
+                const subtotal = qty * price;
+                rowsHtml += `
+                    <tr>
+                        <td style="padding: 8px 0; font-size:14px; color:#000;">
+                            <b>${item.name}</b><br>
+                            <span style="color:#555; font-size:12px;">(${isItemReturn ? '-' : ''}${qty} ${unit} × ${price.toFixed(2)} EGP)</span>
+                        </td>
+                        <td style="text-align: left; padding: 8px 0; font-family:'Montserrat', sans-serif; font-weight:800; font-size:14px;" dir="ltr">
+                            ${isItemReturn ? '-' : ''}${subtotal.toFixed(2)}
+                        </td>
+                    </tr>`;
+            });
+
+            const grossTotal = Number(inv.displayGross);
+            const cashPaid = Number(inv.computedCashPaid || 0);
+            const walletPaid = Number(inv.computedWalletPaid || 0);
+            const netPending = Number(inv.displayNetPending);
+            const finalSupplierTotal = historicalPrevBalance + (inv.isReturn ? -grossTotal : netPending);
+
+            let paymentDesc = "آجل الحساب";
+            if (cashPaid > 0 && walletPaid > 0) paymentDesc = "مشترك (كاش + محفظة)";
+            else if (cashPaid > 0) paymentDesc = "نقدي كاش";
+            else if (walletPaid > 0) paymentDesc = "محفظة إلكترونية";
+
+            hiddenDiv.innerHTML = `
+                <div class="term-header">
+                    <p class="term-title">شركة الزيادى للتجارة</p>
+                    <small style="color:#222; font-size:14px; font-weight:700;">فاتورة مشتريات </small>
+                </div>
+                <div style="font-size: 13px; margin-bottom: 12px; border-bottom:1px dashed #000; padding-bottom:10px; line-height: 1.6;">
+                    <div><b>نوع الحساب:</b> ${inv.isReturn ? 'مرتجع شراء ↩️' : 'فاتورة شراء 🧾'}</div>
+                    <div><b>المورد:</b> ${supName}</div>
+                    <div><b>التاريخ:</b> ${formattedDate}</div>
+                    <div><b>طريقة السداد:</b> ${paymentDesc}</div>
+                </div>
+                <table class="term-table">
+                    <thead><tr><th>الصنف</th><th style="text-align:left;">الإجمالي</th></tr></thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+                <div class="term-footer">
+                    <div class="term-row" style="color:#444;">
+                        <span>الحساب السابق:</span>
+                        <span dir="ltr">${historicalPrevBalance.toFixed(2)} EGP</span>
+                    </div>
+                    <div class="term-row">
+                        <span>إجمالي الفاتورة:</span>
+                        <span dir="ltr">${inv.isReturn ? '-' : ''}${grossTotal.toFixed(2)} EGP</span>
+                    </div>
+                    ${cashPaid > 0 ? `<div class="term-row" style="color:#2d6a4f;"><span>المدفوع نقداً:</span><span dir="ltr">-${cashPaid.toFixed(2)} EGP</span></div>` : ''}
+                    ${walletPaid > 0 ? `<div class="term-row" style="color:#0077b6;"><span>المدفوع بالمحفظة:</span><span dir="ltr">-${walletPaid.toFixed(2)} EGP</span></div>` : ''}
+                    <div class="term-row" style="border-top:1px dashed #000; padding-top:6px; color:#555;">
+                        <span>صافي الآجل:</span>
+                        <span dir="ltr">${inv.isReturn ? '-' : ''}${netPending.toFixed(2)} EGP</span>
+                    </div>
+                    <div class="term-row" style="border-top:2px dashed #000; padding-top:8px; font-size:17px; color:#0b5e3d;">
+                        <span>صافى المتبقي :</span>
+                        <span dir="ltr">${finalSupplierTotal.toFixed(2)} EGP</span>
+                    </div>
+                </div>
+                <div style="text-align:center; margin-top:25px; font-size:12px; color:#333; border-top:1px dashed #000; padding-top:10px; font-weight:700;">
+                    إدارة وتصميم / أحمد محمود الزيادى
+                </div>`;
+
+            try {
+                const canvas = await html2canvas(hiddenDiv, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+                const imgData = canvas.toDataURL("image/png").split(',')[1];
+                
+                const sanitizedSupName = supName.replace(/[/\\?%*:|"<>. ]/g, '_');
+                const fileName = `فاتورة_${sanitizedSupName}_${inv.id}.png`;
+                
+                zip.file(fileName, imgData, {base64: true});
+            } catch (err) {
+                console.error(`فشل توليد صورة الفاتورة رقم ${inv.id}: `, err);
+            }
+        }
+
+        progressAlert.innerText = "جاري ضغط الصور وتحميل الملف المضغوط...";
+        
+        try {
+            const content = await zip.generateAsync({type:"blob"});
+            const url = URL.createObjectURL(content);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `كافة_صور_فواتير_المشتريات.zip`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert("حدث خطأ أثناء تجميع وضغط الصور: " + e.message);
+        } finally {
+            progressAlert.remove();
         }
     };
 
