@@ -196,6 +196,34 @@
             z-index: 1000;
         }
         .fab:hover { background: #0a5234; transform: translateY(-3px); color: white;}
+
+        /* تحسين منطقة التمرير في المودال */
+        .modal-body-scroll {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        /* تخصيص شكل الـ Scrollbar ليكون متناسقاً */
+        .modal-body-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .modal-body-scroll::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .modal-body-scroll::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        .modal-body-scroll::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* تنسيق إضافي لتوضيح تغيرات الرصيد */
+        .balance-text {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            display: block;
+            margin-top: 2px;
+        }
     </style>
 </head>
 <body>
@@ -231,26 +259,28 @@
     <i class="fas fa-plus"></i>
 </a>
 
+<!-- المودال المحدث مع التمرير ورصيد ما قبل الحركة -->
 <div class="modal fade" id="transactionsModal" tabindex="-1" aria-labelledby="transactionsModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
     <div class="modal-content" style="border-radius: 20px; border: none;">
       <div class="modal-header" style="background: var(--bg-light); border-radius: 20px 20px 0 0; border-bottom: 1px solid var(--border-color);">
-        <h5 class="modal-title fw-bold" id="transactionsModalLabel" style="color: var(--primary-green);">سجل حركات الصنف</h5>
+        <h5 class="modal-title fw-bold" id="transactionsModalLabel" style="color: var(--primary-green);">سجل حركات الصنف وتطور الرصيد</h5>
         <button type="button" class="btn-close m-0" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body p-0">
+      <div class="modal-body p-0 modal-body-scroll">
         <div class="table-responsive">
             <table class="table table-hover text-center mb-0" style="font-size: 0.9rem;">
-                <thead class="table-light" style="font-size: 0.85rem; color: var(--text-muted);">
+                <thead class="table-light" style="position: sticky; top: 0; z-index: 10; font-size: 0.85rem; color: var(--text-muted);">
                     <tr>
                         <th>التاريخ</th>
                         <th>النوع</th>
-                        <th>الكمية</th>
+                        <th>الكمية وتغير الرصيد</th>
                         <th>السعر</th>
                     </tr>
                 </thead>
                 <tbody id="transactionsBody">
-                    </tbody>
+                    <!-- سيتم تعبئة الحركات هنا برمجياً -->
+                </tbody>
             </table>
         </div>
       </div>
@@ -368,18 +398,17 @@
         document.getElementById('totalCount').innerText = filtered.length;
     };
 
-    // دالة عرض التفاصيل في النافذة المنبثقة
+    // دالة عرض تفاصيل حركات الصنف مع حساب وتوضيح الأرصدة التراكمية (قبل وبعد)
     window.goToDetails = async function(id) {
-        // إظهار النافذة
         const modalElement = document.getElementById('transactionsModal');
         const modalInstance = new bootstrap.Modal(modalElement);
         modalInstance.show();
 
         const tbody = document.getElementById('transactionsBody');
-        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i> جاري تحميل البيانات...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i> جاري تحميل البيانات وحساب الأرصدة...</td></tr>';
 
         try {
-            // جلب الحركات الخاصة بهذا الصنف من قاعدة البيانات (تأكد من أن اسم الـ collection هو transactions)
+            // 1. جلب الحركات الخاصة بالمنتج المحدد
             const q = query(
                 collection(db, "transactions"),
                 where("productId", "==", id)
@@ -392,33 +421,58 @@
                 return;
             }
 
-            let html = '';
+            // 2. تجميع الحركات في مصفوفة لترتيبها زمنياً بشكل تصاعدي
+            let txList = [];
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
+                let rawDate = data.date?.toDate ? data.date.toDate() : new Date(data.date || 0);
+                txList.push({ ...data, actualDate: rawDate });
+            });
+
+            // الترتيب من الأقدم إلى الأحدث لضمان دقة العمليات الحسابية التراكمية للرصيد
+            txList.sort((a, b) => a.actualDate - b.actualDate);
+
+            // 3. حساب حركة الرصيد (قبل وبعد) وبناء الجدول
+            let currentRunningBalance = 0;
+            let rowsHtml = [];
+
+            txList.forEach((tx) => {
+                const qty = Number(tx.quantity || tx.qty || 0);
+                const isSale = tx.type === 'sale';
                 
-                const isSale = data.type === 'sale';
-                const typeText = isSale ? '<span class="badge bg-danger">بيع</span>' : '<span class="badge bg-success">شراء</span>';
+                // رصيد ما قبل هذه الحركة
+                const balanceBefore = currentRunningBalance;
                 
-                let dateStr = '---';
-                if(data.date) {
-                    const dateObj = data.date.toDate ? data.date.toDate() : new Date(data.date);
-                    dateStr = dateObj.toLocaleDateString('ar-EG');
+                // تحديث رصيد ما بعد هذه الحركة
+                if (isSale) {
+                    currentRunningBalance -= qty;
+                } else {
+                    currentRunningBalance += qty;
                 }
 
-                html += `
+                const typeText = isSale ? '<span class="badge bg-danger">بيع</span>' : '<span class="badge bg-success">شراء</span>';
+                const dateStr = tx.actualDate.toLocaleDateString('ar-EG');
+
+                const row = `
                     <tr>
                         <td class="align-middle">${dateStr}</td>
                         <td class="align-middle">${typeText}</td>
-                        <td class="align-middle fw-bold">${data.quantity || data.qty || 0}</td>
-                        <td class="align-middle text-primary-green">${Number(data.price || 0).toLocaleString('en-US')}</td>
+                        <td class="align-middle">
+                            <span class="fw-bold text-dark d-block">الكمية: ${qty}</span>
+                            <span class="balance-text">قبل: ${balanceBefore} | بعد: ${currentRunningBalance}</span>
+                        </td>
+                        <td class="align-middle text-success fw-bold">${Number(tx.price || 0).toLocaleString('en-US')}</td>
                     </tr>
                 `;
+                
+                // نضع الحركة الأحدث في الأعلى لراحة التصفح للمستخدم
+                rowsHtml.unshift(row);
             });
 
-            tbody.innerHTML = html;
+            tbody.innerHTML = rowsHtml.join('');
 
         } catch (error) {
-            console.error("خطأ في جلب الحركات: ", error);
+            console.error("خطأ في جلب الحركات وحساب الأرصدة: ", error);
             tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-danger">حدث خطأ أثناء الاتصال بقاعدة البيانات.</td></tr>';
         }
     };
