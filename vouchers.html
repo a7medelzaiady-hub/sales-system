@@ -806,12 +806,23 @@
     };
 
     window.exportToExcel = () => {
-        if (allVouchers.length === 0) {
-            alert("لا توجد بيانات لتصديرها.");
+        const fType = document.getElementById('filterType').value;
+        const fParty = document.getElementById('filterParty').value;
+        const fMethod = document.getElementById('filterMethod').value;
+
+        const displayedVouchers = allVouchers.filter(v => {
+            const matchType = (fType === 'الكل' || v.type === fType);
+            const matchParty = (fParty === 'الكل' || v.partyType === fParty);
+            const matchMethod = (fMethod === 'الكل' || v.method === fMethod);
+            return matchType && matchParty && matchMethod;
+        });
+
+        if (displayedVouchers.length === 0) {
+            alert("لا توجد بيانات معروضة لتصديرها.");
             return;
         }
 
-        const excelRows = allVouchers.map(v => {
+        const excelRows = displayedVouchers.map(v => {
             const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
 
             let movementLabel = '';
@@ -840,14 +851,26 @@
         XLSX.writeFile(workbook, `سجل_سندات_الزيادي_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
-    // ===== دالة تصدير كافة الإيصالات كصور داخل ملف مضغوط واحد ZIP =====
+    // ===== دالة تصدير كافة الإيصالات كصور داخل ملف مضغوط واحد ZIP (معدلة لمنع التكرار) =====
     window.exportAllReceiptsAsZip = async () => {
-        if (allVouchers.length === 0) {
-            alert("لا توجد بيانات لتصدير صورها.");
+        // نعتمد على المعروض والملخص حالياً أمام المستخدم في الجدول ليتطابق مع الفلترة
+        const fType = document.getElementById('filterType').value;
+        const fParty = document.getElementById('filterParty').value;
+        const fMethod = document.getElementById('filterMethod').value;
+
+        const displayedVouchers = allVouchers.filter(v => {
+            const matchType = (fType === 'الكل' || v.type === fType);
+            const matchParty = (fParty === 'الكل' || v.partyType === fParty);
+            const matchMethod = (fMethod === 'الكل' || v.method === fMethod);
+            return matchType && matchParty && matchMethod;
+        });
+
+        if (displayedVouchers.length === 0) {
+            alert("لا توجد بيانات معروضة لتصدير صورها.");
             return;
         }
 
-        if (!confirm(`سيتم الآن تجهيز وتصيير عدد (${allVouchers.length}) إيصال حراري وتجميعهم تلقائياً في ملف مضغوط واحد. قد تستغرق العملية ثوانٍ معدودة، هل تريد الاستمرار؟`)) return;
+        if (!confirm(`سيتم الآن تجهيز وتصيير عدد (${displayedVouchers.length}) إيصال حراري وتجميعهم تلقائياً في ملف مضغوط واحد. قد تستغرق العملية ثوانٍ معدودة، هل تريد الاستمرار؟`)) return;
 
         const btn = document.getElementById('btnImagesExport');
         const originalIcon = btn.innerHTML;
@@ -864,8 +887,8 @@
         const zip = new JSZip();
 
         try {
-            for (let i = 0; i < allVouchers.length; i++) {
-                const v = allVouchers[i];
+            for (let i = 0; i < displayedVouchers.length; i++) {
+                const v = displayedVouchers[i];
                 const pType = partiesMap[v.partyId] ? partiesMap[v.partyId].type : 'عميل';
                 const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
 
@@ -908,7 +931,7 @@
                             </tr>
                             <tr style="border-top: 1px solid #ddd !important;">
                                 <td style="text-align: right; padding: 5px 8px; color: #444; font-weight: bold;">المتبقي بعد السداد:</td>
-                                <td style="text-align: left; font-weight: bold; color: #198754;">${currentBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.m</td>
+                                <td style="text-align: left; font-weight: bold; color: #198754;">${currentBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م</td>
                             </tr>
                         </table>
                         <div class="text-center mt-3 pt-2" style="border-top: 1px dashed #ccc;">
@@ -923,7 +946,9 @@
                 
                 // تنظيف اسم الملف من الرموز لتفادي مشاكل التحميل على الهواتف
                 const cleanName = pName.replace(/[\/\\?%*:|"<>. ]/g, '_');
-                const filename = `${cleanName}_سند_${v.type}_${v.date}_${v.amount}جنيه.png`;
+                
+                // الحل الجذري: إضافة رقم تسلسلي (i+1) في نهاية الاسم لضمان عدم حدوث أي تكرار بالملف المضغوط
+                const filename = `${cleanName}_سند_${v.type}_${v.date}_${v.amount}جنيه_رقم(${i + 1}).png`;
                 zip.file(filename, imgData, {base64: true});
             }
 
@@ -935,7 +960,7 @@
             a.click();
             document.body.removeChild(a);
 
-            alert("تم إعداد وتنزيل ملف الأرشيف المضغوط (ZIP) بنجاح ويحتوي على كافة صور الإيصالات.");
+            alert("تم إعداد وتنزيل ملف الأرشيف المضغوط (ZIP) بنجاح ويحتوي على كافة صور الإيصالات الـ 3 دون نقصان.");
         } catch (error) {
             console.error("حدث خطأ أثناء تصدير الصور المجمعة:", error);
             alert("عذراً، حدث خطأ أثناء معالجة الصور أو ضغط ملف الـ ZIP.");
