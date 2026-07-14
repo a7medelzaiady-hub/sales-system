@@ -10,6 +10,8 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <!-- مكتبة JSZip لضغط الصور وتجميعها في ملف واحد للموبايل -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
     <style>
         :root { 
@@ -172,6 +174,10 @@
                 </a>
                 <button id="btnExcelExport" class="btn-action btn-excel-custom" onclick="exportToExcel()" title="تصدير إكسل">
                     <i class="fas fa-file-excel"></i>
+                </button>
+                <!-- زر تصدير كافة الإيصالات المجمعة كصور -->
+                <button id="btnImagesExport" class="btn-action" style="background-color: #028090 !important; border-color: #026775 !important;" onclick="exportAllReceiptsAsZip()" title="تصدير كافة الإيصالات كصور">
+                    <i class="fas fa-images"></i>
                 </button>
                 <button id="btnPurgeAll" class="btn-action btn-danger-custom" onclick="deleteAllVouchers()" title="حذف كافة البيانات">
                     <i class="fas fa-trash-alt"></i>
@@ -502,8 +508,6 @@
             allVouchers = [];
             querySnapshot.forEach((doc) => {
                 const d = doc.data();
-                // فلترة صارمة: نسجل فقط سندات القبض أو الصرف الخاصة بعميل أو مورد فعلي
-                // أي سندات أو حركات أخرى (مثل تسديد فواتير من شاشات مختلفة) يتم تجاهلها هنا
                 const isValidVoucherType = (d.type === 'قبض' || d.type === 'صرف');
                 const resolvedPartyType = d.partyType || (partiesMap[d.partyId] ? partiesMap[d.partyId].type : null);
                 const isValidParty = !!d.partyId && (resolvedPartyType === 'عميل' || resolvedPartyType === 'مورد');
@@ -741,7 +745,6 @@
         const method = document.getElementById('vMethod').value;
         const note = document.getElementById('vNote').value;
 
-        // تأكيد إضافي: لا يتم تسجيل أي سند إلا إذا كان النوع قبض/صرف والطرف عميل/مورد محدد فعلياً
         if (type !== 'قبض' && type !== 'صرف') {
             alert("خطأ: نوع الحركة غير صالح، يجب أن يكون قبض أو صرف فقط.");
             return;
@@ -802,16 +805,6 @@
         }
     };
 
-    // ===== تصدير الإكسل - بالتنسيق الجديد المطلوب (8 أعمدة) =====
-    // 1) التاريخ
-    // 2) الحركة: قبض+نقدى → سداد منه نقدى | قبض+محفظة → سداد منه محفظه
-    //            صرف+نقدى → سداد له نقدى   | صرف+محفظة → سداد له محفظه
-    // 3) اسم العميل أو المورد
-    // 4) ثابت: "سداد نقدى"
-    // 5) ثابت: 0
-    // 6) ثابت: 1
-    // 7) ثابت: 0
-    // 8) المبلغ
     window.exportToExcel = () => {
         if (allVouchers.length === 0) {
             alert("لا توجد بيانات لتصديرها.");
@@ -821,7 +814,6 @@
         const excelRows = allVouchers.map(v => {
             const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
 
-            // تحديد تسمية الحركة بناءً على النوع وطريقة السداد
             let movementLabel = '';
             if (v.type === 'قبض') {
                 movementLabel = v.method === 'محفظة' ? 'سداد منه محفظه' : 'سداد منه نقدى';
@@ -846,6 +838,112 @@
         XLSX.utils.book_append_sheet(workbook, worksheet, "كشف السندات الجاري");
         worksheet['!dir'] = "rtl";
         XLSX.writeFile(workbook, `سجل_سندات_الزيادي_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    // ===== دالة تصدير كافة الإيصالات كصور داخل ملف مضغوط واحد ZIP =====
+    window.exportAllReceiptsAsZip = async () => {
+        if (allVouchers.length === 0) {
+            alert("لا توجد بيانات لتصدير صورها.");
+            return;
+        }
+
+        if (!confirm(`سيتم الآن تجهيز وتصيير عدد (${allVouchers.length}) إيصال حراري وتجميعهم تلقائياً في ملف مضغوط واحد. قد تستغرق العملية ثوانٍ معدودة، هل تريد الاستمرار؟`)) return;
+
+        const btn = document.getElementById('btnImagesExport');
+        const originalIcon = btn.innerHTML;
+        btn.innerHTML = `<div class="spinner-border spinner-border-sm text-light"></div>`;
+        btn.disabled = true;
+
+        const hiddenContainer = document.createElement('div');
+        hiddenContainer.style.position = 'absolute';
+        hiddenContainer.style.left = '-9999px';
+        hiddenContainer.style.top = '0';
+        hiddenContainer.style.width = '80mm';
+        document.body.appendChild(hiddenContainer);
+
+        const zip = new JSZip();
+
+        try {
+            for (let i = 0; i < allVouchers.length; i++) {
+                const v = allVouchers[i];
+                const pType = partiesMap[v.partyId] ? partiesMap[v.partyId].type : 'عميل';
+                const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
+
+                const currentBalance = await calculateCustomerBalance(v.partyId);
+                let prevBalance = currentBalance;
+                if (pType === 'عميل') {
+                    if (v.type === 'قبض') { prevBalance = currentBalance + v.amount; }
+                    else { prevBalance = currentBalance - v.amount; }
+                } else {
+                    if (v.type === 'صرف') { prevBalance = currentBalance + v.amount; }
+                    else { prevBalance = currentBalance - v.amount; }
+                }
+
+                hiddenContainer.innerHTML = `
+                    <div id="tempReceipt" class="receipt-preview-box" dir="rtl" style="box-shadow:none; margin:0; border:1px solid #000;">
+                        <div class="text-center border-bottom pb-2 mb-2">
+                            <h4 class="fw-bold m-0" style="font-family: 'Cairo'; color: #000; font-size:1.3rem;">شركة الزيادي</h4>
+                            <small style="font-size: 0.7rem; color: #555; font-family: 'Cairo';">لزيوت وفلاتر السيارات</small>
+                        </div>
+                        <table class="receipt-table-layout border-bottom mb-2">
+                            <tr>
+                                <td style="text-align: right; width: 50%;"><strong>الحركة:</strong> ${v.type === 'قبض' ? 'سند قبض' : 'سند صرف'}</td>
+                                <td style="text-align: left; width: 50%;"><strong>التاريخ:</strong> ${v.date}</td>
+                            </tr>
+                        </table>
+                        <table class="receipt-table-layout border-bottom mb-2">
+                            <tr>
+                                <td style="text-align: right; padding: 6px 0;"><strong>الاسم:</strong> <span class="fw-bold" style="font-size: 0.85rem;">${pName}</span></td>
+                            </tr>
+                        </table>
+                        <div class="my-2 py-2 border-bottom text-center" style="background: #f9f9f9; width: 100%;">
+                            <small class="text-muted d-block" style="font-size: 0.75rem;">المبلغ المالي</small>
+                            <h2 class="fw-bold m-0 text-dark" style="font-size: 1.4rem; padding: 2px 0;">${v.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م</h2>
+                            <span class="fw-bold text-success small">${v.type === 'قبض' ? 'تم الاستلام بنجاح' : 'تم الصرف بنجاح'}</span>
+                        </div>
+                        <table class="receipt-table-layout" style="background: #f4f6f5; border-radius: 6px; padding: 5px; margin-top: 8px;">
+                            <tr>
+                                <td style="text-align: right; padding: 5px 8px; color: #444;">الحساب السابق:</td>
+                                <td style="text-align: left; font-weight: bold; color: #000;">${prevBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م</td>
+                            </tr>
+                            <tr style="border-top: 1px solid #ddd !important;">
+                                <td style="text-align: right; padding: 5px 8px; color: #444; font-weight: bold;">المتبقي بعد السداد:</td>
+                                <td style="text-align: left; font-weight: bold; color: #198754;">${currentBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.m</td>
+                            </tr>
+                        </table>
+                        <div class="text-center mt-3 pt-2" style="border-top: 1px dashed #ccc;">
+                            <small style="font-size: 0.7rem; color: #444; display: block;">شكراً لتعاملكم معنا</small>
+                            <small style="font-size: 0.7rem; color: #444; display: block; font-weight: bold; margin-top: 2px;">للتواصل 01027830834</small>
+                        </div>
+                    </div>
+                `;
+
+                const canvas = await html2canvas(hiddenContainer.querySelector('#tempReceipt'), { scale: 2, backgroundColor: "#ffffff" });
+                const imgData = canvas.toDataURL("image/png").split(',')[1];
+                
+                // تنظيف اسم الملف من الرموز لتفادي مشاكل التحميل على الهواتف
+                const cleanName = pName.replace(/[\/\\?%*:|"<>. ]/g, '_');
+                const filename = `${cleanName}_سند_${v.type}_${v.date}_${v.amount}جنيه.png`;
+                zip.file(filename, imgData, {base64: true});
+            }
+
+            const content = await zip.generateAsync({type: "blob"});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(content);
+            a.download = `أرشيف_إيصالات_الزيادي_${new Date().toISOString().split('T')[0]}.zip`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            alert("تم إعداد وتنزيل ملف الأرشيف المضغوط (ZIP) بنجاح ويحتوي على كافة صور الإيصالات.");
+        } catch (error) {
+            console.error("حدث خطأ أثناء تصدير الصور المجمعة:", error);
+            alert("عذراً، حدث خطأ أثناء معالجة الصور أو ضغط ملف الـ ZIP.");
+        } finally {
+            document.body.removeChild(hiddenContainer);
+            btn.innerHTML = originalIcon;
+            btn.disabled = false;
+        }
     };
 </script>
 </body>
