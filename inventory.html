@@ -314,20 +314,80 @@
         .modal-card {
             background: var(--card); width: 100%; max-width: 550px; border-radius: var(--r); 
             box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden; 
-            display: flex; flex-direction: column; max-height: 80vh;
+            display: flex; flex-direction: column; max-height: 85vh;
             animation: modalFade 0.22s cubic-bezier(0.16, 1, 0.3, 1);
         }
         @keyframes modalFade { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         .modal-header { background: var(--accent); color: #fff; padding: 16px; display: flex; align-items: center; justify-content: space-between; }
         .modal-header h4 { font-size: 15px; font-weight: 800; line-height: 1.4; padding-left: 10px; }
         .close-modal { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
-        .modal-body { padding: 10px 16px 20px; overflow-y: auto; flex: 1; background: #fafafa; }
+        .modal-body { padding: 12px 16px 20px; overflow-y: auto; flex: 1; background: #f8fafc; }
         
+        /* تصميم كروت الـ Dashboard داخل المودال (جديد واحترافي) */
+        .modal-dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .mini-card {
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.01);
+        }
+        .mini-card i {
+            width: 34px; height: 34px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; font-size: 14px;
+        }
+        .mini-info { display: flex; flex-direction: column; text-align: right; }
+        .mini-val { font-size: 18px; font-weight: 800; line-height: 1.2; }
+        .mini-lbl { font-size: 10.5px; color: var(--sub); font-weight: 700; margin-top: 2px; }
+        
+        /* ألوان كروت الداشبورد للمودال */
+        .mc-init i { background: rgba(100, 116, 139, 0.08); color: var(--sub); }
+        .mc-init .mini-val { color: var(--text); }
+        
+        .mc-buy i { background: rgba(2, 132, 199, 0.08); color: #0284c7; }
+        .mc-buy .mini-val { color: #0284c7; }
+        
+        .mc-sell i { background: rgba(22, 163, 74, 0.08); color: var(--success); }
+        .mc-sell .mini-val { color: var(--success); }
+        
+        .mc-ret i { background: rgba(217, 119, 6, 0.08); color: var(--gold); }
+        .mc-ret .mini-val { color: var(--gold); }
+
+        .mc-current {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, rgba(11,94,61,0.03) 0%, rgba(18,130,86,0.06) 100%);
+            border: 1px dashed var(--accent-light);
+            justify-content: center;
+            padding: 10px;
+        }
+        .mc-current .mini-val { color: var(--accent); font-size: 20px; font-weight: 900; }
+        .mc-current .mini-lbl { color: var(--accent); font-weight: 800; }
+
+        /* عنوان جدول الحركات */
+        .section-title {
+            font-size: 12.5px;
+            font-weight: 800;
+            color: var(--text);
+            margin: 8px 0 8px 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
         /* جدول الحركات */
-        .history-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+        .history-list { display: flex; flex-direction: column; gap: 8px; }
         .tx-item {
             display: flex; align-items: center; justify-content: space-between;
-            padding: 12px; background: white; border: 1px solid #f1f5f9; border-radius: 14px; gap: 12px;
+            padding: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 14px; gap: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.01);
         }
         .tx-type { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; color: #fff; text-align: center; min-width: 70px; }
         .tx-type.sale { background: var(--success); }
@@ -352,6 +412,8 @@
             .stat-num { font-size: 24px; }
             .row-info { padding-right: 8px; }
             .item-card { padding: 10px; gap: 8px; }
+            .mini-val { font-size: 16px; }
+            .mini-lbl { font-size: 10px; }
         }
     </style>
 </head>
@@ -396,6 +458,7 @@
     </div>
 </div>
 
+<!-- المودال المتطور والمحترف لعرض تفاصيل حركات الصنف والداشبورد -->
 <div class="modal-overlay" id="historyModal" onclick="closeHistoryModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -519,14 +582,9 @@
 
     function buildRow(item, num) {
         const totalPcs = Number(item.totalPcs) || 0;
-
-        // معامل التحويل (كام قطعة/جركن في الكرتونة). لو الصنف مش متسجل بنظام
-        // الكراتين (unitFactor غير موجود أو أقل من أو يساوي 1) نعتبره صنف
-        // "قطعة فقط" ونحط كل الكمية في خانة القطع بدل ما تختفي في خانة الكرتونة
         const rawFactor  = item.unitFactor;
         const hasCartons = rawFactor !== undefined && rawFactor !== null && Number(rawFactor) > 1;
         const factor     = hasCartons ? Number(rawFactor) : 1;
-
         const minPcs = (Number(item.min) || 0) * (hasCartons ? factor : 1);
 
         const boxes = hasCartons ? Math.floor(totalPcs / factor) : 0;
@@ -536,8 +594,6 @@
         if (totalPcs === 0)          status = 'zero';
         else if (totalPcs <= minPcs) status = 'low';
 
-        // نطبّع النص العربي (نشيل التشكيل ونوحّد الألف/التاء المربوطة) عشان لو اسم الوحدة
-        // في قاعدة البيانات مكتوب "كرتونة" بشكل مختلف شكلياً، منمنعش تكراره في الشاشة
         const normalizeAr = (s) => String(s || '').trim()
             .replace(/[\u064B-\u0652]/g, '')
             .replace(/[إأآا]/g, 'ا')
@@ -547,7 +603,6 @@
         const rawUnit = (item.unitName || '').trim();
         const unitName = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
 
-        // كرتونة + قطع منفردة تُعرضان معاً دائماً، بجانب إجمالي عدد القطع
         const boxesEmpty = boxes === 0;
         const jarsEmpty  = jars  === 0;
 
@@ -557,10 +612,10 @@
             : `<span class="price-tag no-price"><i class="fas fa-tag"></i>السعر غير محدد</span>`;
 
         const safeName = (item.name || 'بدون اسم').replace(/'/g, "\\'");
+        const initQty = item.initQty || 0;
 
-        // الهيكل الجديد يعيد ترتيب العناصر: البيانات يمين، والترقيم يسار لمنع ميل التنسيق
         return `
-        <div class="item-card${status==='zero' ? ' zero-row' : status==='low' ? ' low-row' : ''}" onclick="showItemHistory('${item.id}', '${safeName}')">
+        <div class="item-card${status==='zero' ? ' zero-row' : status==='low' ? ' low-row' : ''}" onclick="showItemHistory('${item.id}', '${safeName}', false, ${totalPcs}, ${initQty})">
             <span class="status-dot ${status}"></span>
             <div class="card-top">
                 <div class="row-info">
@@ -618,17 +673,16 @@
         return docs;
     }
 
-    window.showItemHistory = async function(itemId, itemName, forceRefresh) {
+    window.showItemHistory = async function(itemId, itemName, forceRefresh, currentStock = 0, initialStock = 0) {
         const modal = document.getElementById('historyModal');
         const modalTitle = document.getElementById('modalItemName');
         const modalBody = document.getElementById('modalBody');
 
-        modalTitle.innerHTML = `<span style="color:#ffce31; font-weight:800; display:block; font-size:11px;">حركات الصنف:</span> ${itemName}
+        modalTitle.innerHTML = `<span style="color:#ffce31; font-weight:800; display:block; font-size:11px;">تفاصيل وتحليل الصنف:</span> ${itemName}
             <i class="fas fa-rotate" title="تحديث البيانات" style="font-size:13px; cursor:pointer; margin-right:10px; opacity:.9; background:rgba(255,255,255,0.15); padding:6px; border-radius:50%;"
-               onclick="event.stopPropagation(); window.showItemHistory('${itemId}', '${itemName}', true)"></i>`;
-        modalBody.innerHTML = `<div class="loading"><div class="spinner"></div><p>${forceRefresh ? 'جاري إعادة جلب البيانات الحية...' : 'جاري فحص سجل العمليات...'}</p></div>`;
+               onclick="event.stopPropagation(); window.showItemHistory('${itemId}', '${itemName}', true, ${currentStock}, ${initialStock})"></i>`;
+        modalBody.innerHTML = `<div class="loading"><div class="spinner"></div><p>${forceRefresh ? 'جاري إعادة جلب البيانات الحية...' : 'جاري فحص بناء لوحة التحليل...'}</p></div>`;
         modal.style.display = 'flex';
-        window.__lastHistoryItem = { itemId, itemName };
 
         try {
             const cleanText = (txt) => String(txt || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -703,12 +757,32 @@
                 }
             });
 
+            // تجميع وتحليل البيانات الإحصائية (المبيعات، المشتريات، المرتجعات، التوالف)
+            let totalPurchases = 0;
+            let totalSales = 0;
+            let totalReturns = 0;
+            let totalLosses = 0;
+
+            uniqueTransactions.forEach(tx => {
+                const rawType = cleanText(tx.type || tx.status || tx.detectedSource || '');
+                const qty = Number(tx.finalCalculatedQty) || 0;
+                
+                if (rawType.includes('purchase') || rawType.includes('شراء') || rawType.includes('تزويد') || rawType.includes('وارد') || rawType.includes('supp')) {
+                    totalPurchases += qty;
+                } else if (rawType.includes('return') || rawType.includes('مرتجع') || rawType.includes('ارتجاع')) {
+                    totalReturns += qty;
+                } else if (rawType.includes('loss') || rawType.includes('تالف') || rawType.includes('اتلاف')) {
+                    totalLosses += qty;
+                } else {
+                    // الافتراضي مبيعات
+                    totalSales += qty;
+                }
+            });
+
             uniqueTransactions.sort((a, b) => {
                 const parseDate = (item) => {
                     const fireDate = item.date || item.createdAt || item.timestamp;
-                    if (fireDate && typeof fireDate.toDate === 'function') {
-                        return fireDate.toDate().getTime();
-                    }
+                    if (fireDate && typeof fireDate.toDate === 'function') return fireDate.toDate().getTime();
                     if (fireDate) {
                         const parsed = new Date(fireDate).getTime();
                         return isNaN(parsed) ? 0 : parsed;
@@ -718,16 +792,60 @@
                 return parseDate(b) - parseDate(a); 
             });
 
+            // بناء الهيكل المتطور للمودال (داشبورد كروت + جدول الحركات المكتمل)
+            let html = `
+            <!-- كروت المؤشرات الإحصائية السريعة للـ KPI -->
+            <div class="modal-dashboard">
+                <div class="mini-card mc-init">
+                    <i class="fas fa-hourglass-start"></i>
+                    <div class="mini-info">
+                        <span class="mini-val">${initialStock.toLocaleString()}</span>
+                        <span class="mini-lbl">رصيد أول المدة</span>
+                    </div>
+                </div>
+                <div class="mini-card mc-buy">
+                    <i class="fas fa-circle-arrow-down"></i>
+                    <div class="mini-info">
+                        <span class="mini-val">+${totalPurchases.toLocaleString()}</span>
+                        <span class="mini-lbl">إجمالي المشتريات</span>
+                    </div>
+                </div>
+                <div class="mini-card mc-sell">
+                    <i class="fas fa-circle-arrow-up"></i>
+                    <div class="mini-info">
+                        <span class="mini-val">-${totalSales.toLocaleString()}</span>
+                        <span class="mini-lbl">إجمالي المبيعات</span>
+                    </div>
+                </div>
+                <div class="mini-card mc-ret">
+                    <i class="fas fa-rotate-left"></i>
+                    <div class="mini-info">
+                        <span class="mini-val">+${totalReturns.toLocaleString()}</span>
+                        <span class="mini-lbl">المرتجعات والتالف</span>
+                    </div>
+                </div>
+                <div class="mini-card mc-current">
+                    <div class="mini-info" style="text-align: center;">
+                        <span class="mini-val">${currentStock.toLocaleString()} قطعة</span>
+                        <span class="mini-lbl"><i class="fas fa-calculator" style="margin-left: 4px;"></i>الرصيد الحالي المتوفر بالمخزن</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section-title"><i class="fas fa-clipboard-list"></i> تفاصيل الحركات التاريخية</div>
+            `;
+
             if (uniqueTransactions.length === 0) {
-                modalBody.innerHTML = `
+                html += `
                     <div class="empty-state">
-                        <i class="fas fa-receipt" style="font-size:36px; color:var(--sub); opacity:0.3;"></i>
-                        <p>لا توجد حركات مسجلة (بيع/شراء) لهذا الصنف حالياً.</p>
+                        <i class="fas fa-receipt" style="font-size:32px; color:var(--sub); opacity:0.3;"></i>
+                        <p>لا توجد حركات بيع أو شراء مسجلة حالياً.</p>
                     </div>`;
+                modalBody.innerHTML = html;
                 return;
             }
 
-            let html = '<div class="history-list">';
+            html += '<div class="history-list">';
             uniqueTransactions.forEach(tx => {
                 let typeClass = 'sale';
                 let typeText = 'بيع';
@@ -769,7 +887,7 @@
 
         } catch (err) {
             console.error(err);
-            modalBody.innerHTML = `<div class="err-box"><i class="fas fa-exclamation-triangle"></i>فشل في جلب البيانات المحدثة<br><small>${err.message}</small></div>`;
+            modalBody.innerHTML = `<div class="err-box"><i class="fas fa-exclamation-triangle"></i>فشل في بناء لوحة التحليل الذكية<br><small>${err.message}</small></div>`;
         }
     };
 
