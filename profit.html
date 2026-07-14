@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تقرير الأرباح والمبيعات اليومية — الزيادي</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <style>
 :root{
@@ -196,29 +196,6 @@ body{
 .kpi-s .kpi-val{color:var(--g7)}
 .kpi-val.negative{color:var(--r7);}
 
-.action-bar {
-  margin: 10px;
-  display: flex;
-  justify-content: center;
-}
-.btn-archive-save {
-  background: var(--g8);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-family: 'Cairo', sans-serif;
-  font-weight: 800;
-  font-size: .8rem;
-  cursor: pointer;
-  box-shadow: 0 2px 6px rgba(11, 78, 51, 0.3);
-  transition: background 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.btn-archive-save:hover { background: var(--g7); }
-
 .sec-hdr{padding:10px 12px 5px;}
 .sec-ttl-btn{
   background: none; border: none; padding: 0; width: 100%; text-align: right;
@@ -303,7 +280,6 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
 .spin-lbl{font-size:.78rem;font-weight:600;color:var(--s5)}
 .foot{text-align:center;padding:16px;font-size:.65rem;color:var(--s5);font-weight:600}
 
-/* تنسيقات قسم الأرشيف المدمج */
 .archive-time {
   font-size: 0.65rem;
   color: var(--s5);
@@ -396,14 +372,6 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
   </div>
 </div>
 
-<!-- زر الترحيل للحفظ الدائم -->
-<div class="action-bar">
-  <button class="btn-archive-save" onclick="archiveCurrentDay()">
-    <i class="fas fa-cloud-arrow-up"></i> حفظ وترحيل أرباح اليوم للسجل
-  </button>
-</div>
-
-<!-- قسم التفصيل الأساسي -->
 <div class="sec-hdr">
   <button class="sec-ttl-btn" onclick="toggleTableGrid()">
     <div class="sec-ttl-right">
@@ -464,12 +432,11 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
 
 <div class="divider-line" id="archiveAnchor"></div>
 
-<!-- قسم سجل الأرباح المرحّلة (نظام الجرد) -->
 <div class="sec-hdr">
   <button class="sec-ttl-btn" onclick="toggleArchiveSection()">
     <div class="sec-ttl-right">
       <span class="sec-dot" style="background: var(--s5);"></span>
-      <span><i class="fas fa-archive"></i> سجل الأرباح المُرحّلة للتواريخ السابقة</span>
+      <span><i class="fas fa-archive"></i> سجل الأرباح المُرحّلة للتواريخ السابقة (تحديث تلقائي)</span>
     </div>
     <i class="fas fa-chevron-down table-toggle-icon collapsed" id="archiveToggleIcon"></i>
   </button>
@@ -527,14 +494,12 @@ function toggleTableGrid() {
   }
 }
 
-// التحكم في قسم الأرشيف المدمج
 function toggleArchiveSection() {
   const container = document.getElementById("archiveSectionContainer");
   const icon = document.getElementById("archiveToggleIcon");
   if (container.style.display === "none") {
     container.style.display = "block";
     icon.classList.remove("collapsed");
-    if(window.fetchArchive) window.fetchArchive(); 
   } else {
     container.style.display = "none";
     icon.classList.add("collapsed");
@@ -677,7 +642,7 @@ window.updateFooterColspans = updateFooterColspans;
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, setDoc, query, orderBy }
+import { getFirestore, collection, onSnapshot, doc, setDoc }
   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const app = initializeApp({
@@ -702,6 +667,9 @@ const FIXED_EXPENSES = {
 const TOTAL_FIXED_EXPENSES = Object.values(FIXED_EXPENSES).reduce((a,b)=>a+b, 0);
 
 let currentDaySummary = null;
+let factorMap = {};     
+let currentBuyMap = {}; 
+let globalInvoices = [];
 
 function renderExpenses() {
   const container = document.getElementById("expList");
@@ -714,7 +682,7 @@ function renderExpenses() {
 }
 
 function toEn(s){
-  if(!s)return"";
+  if(!s)return "";
   const a=[/٠/g,/١/g,/٢/g,/٣/g,/٤/g,/٥/g,/٦/g,/٧/g,/٨/g,/٩/g];
   let r=s.toString();a.forEach((p,i)=>r=r.replace(p,i));return r;
 }
@@ -728,7 +696,7 @@ function parseDate(df,ts){
     if(m)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
   }
   if(ts?.seconds)return new Date(ts.seconds*1000).toISOString().slice(0,10);
-  return"";
+  return "";
 }
 
 let tableRowsData = [];
@@ -777,20 +745,26 @@ window.filterTable = function(){
   renderTable(val);
 };
 
-// دالة جلب وعرض الأرشيف في القسم المدمج
-window.fetchArchive = async function() {
+// تشغيل الاستماع اللحظي لسجل الأرباح المؤرشفة لمنع ضغط ترحيل يدوي
+function setupArchiveRealtime() {
   const tbody = document.getElementById("archiveTbody");
-  tbody.innerHTML = `<tr><td colspan="5"><div class="spin-wrap"><div class="spin"></div><div class="spin-lbl">جاري تحميل السجل...</div></div></td></tr>`;
-  
-  try {
-    const q = query(collection(db, "archived_profits"), orderBy("timestamp", "desc"));
-    const snap = await getDocs(q);
-    
+  onSnapshot(collection(db, "archived_profits"), (snap) => {
     let html = "";
     let grandTotal = 0;
     
-    snap.forEach(doc => {
-      const data = doc.data();
+    const docsArray = [];
+    snap.forEach(d => {
+      docsArray.push({ id: d.id, ...d.data() });
+    });
+    
+    // ترتيب الأرشيف تنازلياً من الأحدث للأقدم
+    docsArray.sort((a, b) => {
+      const dateA = a.date || "";
+      const dateB = b.date || "";
+      return dateB.localeCompare(dateA);
+    });
+
+    docsArray.forEach(data => {
       grandTotal += (data.netProfit || 0);
       let pColor = data.netProfit >= 0 ? 'var(--g6)' : 'var(--r7)';
       let pBg = data.netProfit >= 0 ? '#f0fdf4' : '#fef2f2';
@@ -810,70 +784,173 @@ window.fetchArchive = async function() {
         <td style="color:${pColor}; background:${pBg}; font-weight:900;">${(data.netProfit || 0).toFixed(2)} ج</td>
       </tr>`;
     });
-    
+
     if(html === "") {
       html = `<tr><td colspan="5">لا توجد أرباح مرحلة حتى الآن في النظام.</td></tr>`;
     }
     
     tbody.innerHTML = html;
     document.getElementById("archiveGrandTotal").innerText = `${grandTotal.toFixed(2)} ج`;
-    
-  } catch (error) {
+  }, (error) => {
     console.error(error);
     tbody.innerHTML = `<tr><td colspan="5" style="color:var(--r7); font-weight:bold;">حدث خطأ في الاتصال بقاعدة البيانات لجمع السجل.</td></tr>`;
-  }
-};
+  });
+}
 
-window.archiveCurrentDay = async function() {
-  if (!currentDaySummary) {
-    alert("لا توجد بيانات محسوبة لترحيلها اليوم.");
-    return;
-  }
-  
-  const msg = `هل أنت متأكد من حفظ وترحيل أرباح يوم (${currentDaySummary.date})؟\n\nصافي الربح: ${currentDaySummary.netProfit.toFixed(2)} ج\n\n(ملاحظة: سيتم تحديث بيانات اليوم إذا تم ترحيلها مسبقاً).`;
-  
-  if (!confirm(msg)) return;
-  
+// دالة احتساب وحفظ الأرباح تلقائياً في السيرفر وتخطي الإجراء اليدوي
+async function autoSaveProfitToServer(summary) {
+  if (!summary || !summary.date) return;
   try {
-    const docRef = doc(db, "archived_profits", currentDaySummary.date);
+    const docRef = doc(db, "archived_profits", summary.date);
     await setDoc(docRef, {
-      date: currentDaySummary.date,
-      sales: currentDaySummary.sales,
-      cost: currentDaySummary.cost,
-      expenses: currentDaySummary.expenses,
-      netProfit: currentDaySummary.netProfit,
+      date: summary.date,
+      sales: summary.sales,
+      cost: summary.cost,
+      expenses: summary.expenses,
+      netProfit: summary.netProfit,
       timestamp: new Date()
-    });
-    
-    alert("تم الحفظ والترحيل بنجاح إلى السجل الدائم!");
-    
-    // تحديث الأرشيف تلقائياً إذا كان القسم مفتوحاً
-    if(document.getElementById("archiveSectionContainer").style.display !== "none") {
-      window.fetchArchive();
-    }
+    }, { merge: true });
+    console.log(`✅ تم تحديث أرباح اليوم (${summary.date}) تلقائياً بالسيرفر.`);
   } catch (error) {
-    console.error(error);
-    alert("حدث خطأ أثناء حفظ البيانات، يرجى المحاولة مرة أخرى.");
+    console.error("❌ فشل ترحيل الأرباح التلقائي:", error);
   }
-};
+}
 
-async function load(){
+function processCalculations() {
   const date = document.getElementById("dateIn").value;
   if(!date) return;
 
-  document.getElementById("dateLabel").textContent = date.replace(/-/g, '/');
-  document.getElementById("tbody").innerHTML = `<tr><td colspan="11"><div class="spin-wrap"><div class="spin"></div><div class="spin-lbl">جاري جلب وتحضير الجدول بدقة…</div></div></td></tr>`;
-  document.getElementById("tfoot").style.display = "none";
-
   tableRowsData = [];
-  currentDaySummary = null; 
   const D = {};
+  let totalGrossSales = 0;
+  let totalGrossProfit = 0;
+  let totalGrossCost = 0;
 
-  try {
-    const itemsSnap = await getDocs(collection(db, "inventory"));
-    const factorMap = {};     
-    const currentBuyMap = {}; 
+  globalInvoices.forEach(inv => {
+    if(parseDate(inv.date, inv.timestamp) !== date) return;
+    if(!Array.isArray(inv.items)) return;
 
+    inv.items.forEach(item => {
+      if(item.isReturn) return; 
+
+      const name = (item.name || "").trim();
+      const qty = Number(item.qty) || 0;
+      const sellPrice = Number(item.price) || 0; 
+      const unit = (item.unitName || item.unit || "قطعة").toString().trim();
+      const factor = factorMap[name] || 1;
+
+      if(!name || qty <= 0) return;
+
+      let basePieceCost = currentBuyMap[name] || 0;
+
+      if(!D[name]) {
+        D[name] = { 
+          qtyBox: 0, 
+          qtyPiece: 0, 
+          totalSalesBox: 0, 
+          totalSalesPiece: 0,
+          totalSales: 0, 
+          totalCost: 0,
+          factor: factor,
+          basePieceCost: basePieceCost
+        };
+      }
+
+      if(unit === "box" || unit === "كرتونة") {
+        D[name].qtyBox += qty;
+        D[name].totalSalesBox += (qty * sellPrice);
+        D[name].totalSales += (qty * sellPrice);
+        D[name].totalCost += (qty * (basePieceCost * factor));
+      } else {
+        D[name].qtyPiece += qty;
+        D[name].totalSalesPiece += (qty * sellPrice);
+        D[name].totalSales += (qty * sellPrice);
+        D[name].totalCost += (qty * basePieceCost);
+      }
+    });
+  });
+
+  Object.keys(D).forEach(name => {
+    const d = D[name];
+    const profit = d.totalSales - d.totalCost;
+    totalGrossSales += d.totalSales;
+    totalGrossProfit += profit;
+    totalGrossCost += d.totalCost;
+
+    const buyPiece = d.basePieceCost;
+    const buyBox = d.basePieceCost * d.factor;
+    
+    const sellBox = d.qtyBox > 0 ? (d.totalSalesBox / d.qtyBox) : 0;
+    const sellPiece = d.qtyPiece > 0 ? (d.totalSalesPiece / d.qtyPiece) : 0;
+
+    const margin = d.totalSales > 0 ? (profit / d.totalSales) * 100 : 0;
+
+    tableRowsData.push({
+      name: name,
+      qtyBox: d.qtyBox,
+      qtyPiece: d.qtyPiece,
+      buyBox: buyBox,
+      buyPiece: buyPiece,
+      sellBox: sellBox,
+      sellPiece: sellPiece,
+      totalCost: d.totalCost,
+      totalSales: d.totalSales,
+      profit: profit,
+      margin: margin
+    });
+  });
+
+  tableRowsData.sort((a, b) => b.profit - a.profit);
+
+  const netProfit = totalGrossProfit - TOTAL_FIXED_EXPENSES;
+  
+  currentDaySummary = {
+    date: date,
+    sales: totalGrossSales,
+    cost: totalGrossCost,
+    expenses: TOTAL_FIXED_EXPENSES,
+    netProfit: netProfit
+  };
+
+  const totalProfitMargin = totalGrossSales > 0 ? (totalGrossProfit / totalGrossSales) * 100 : 0;
+  const netProfitMargin = totalGrossSales > 0 ? (netProfit / totalGrossSales) * 100 : 0;
+
+  document.getElementById("kGrossSales").innerText = `${totalGrossSales.toFixed(2)} ج`;
+  document.getElementById("kGrossProfit").innerText = `${totalGrossProfit.toFixed(2)} ج`;
+
+  const kNet = document.getElementById("kNetProfit");
+  kNet.innerText = `${netProfit.toFixed(2)} ج`;
+  if(netProfit < 0) kNet.classList.add("negative");
+  else kNet.classList.remove("negative");
+
+  document.getElementById("fTotalCost").innerText = `${totalGrossCost.toFixed(2)} ج`;
+  document.getElementById("fTotalSales").innerText = `${totalGrossSales.toFixed(2)} ج`;
+  document.getElementById("fTotalProfit").innerText = `${totalGrossProfit.toFixed(2)} ج`;
+  document.getElementById("fProfitMargin").innerHTML = `<span class="badge-pct">${totalProfitMargin.toFixed(1)}%</span>`;
+  
+  document.getElementById("fTotalExpenses").innerText = `-${TOTAL_FIXED_EXPENSES} ج`;
+  document.getElementById("fNetProfit").innerText = `${netProfit.toFixed(2)} ج`;
+  document.getElementById("fNetProfitMargin").innerHTML = `<span class="badge-pct ${netProfit < 0 ? 'neg':''}">${netProfitMargin.toFixed(1)}%</span>`;
+
+  document.getElementById("eqSales").innerText = `${totalGrossSales.toFixed(1)} ج`;
+  document.getElementById("eqCost").innerText = `${totalGrossCost.toFixed(1)} ج`;
+  document.getElementById("eqExp").innerText = `${TOTAL_FIXED_EXPENSES} ج`;
+
+  renderTable("");
+
+  // الحفظ والترحيل التلقائي المباشر للسيرفر فور حدوث تغيير
+  autoSaveProfitToServer(currentDaySummary);
+}
+
+// استماع فوري لأي تحديث بالفواتير أو الأصناف بالمخزن
+function initRealtimeListeners() {
+  const date = document.getElementById("dateIn").value;
+  document.getElementById("dateLabel").textContent = date.replace(/-/g, '/');
+
+  // 1. الاستماع لتغييرات المخزن لربط أسعار الشراء
+  onSnapshot(collection(db, "inventory"), (itemsSnap) => {
+    factorMap = {};
+    currentBuyMap = {};
     itemsSnap.forEach(doc => {
       const itm = doc.data();
       if(!itm.name) return;
@@ -885,137 +962,36 @@ async function load(){
       currentBuyMap[name] = rawBuy / factor; 
     });
 
-    let totalGrossSales = 0;
-    let totalGrossProfit = 0;
-    let totalGrossCost = 0;
-
-    const sSnap = await getDocs(collection(db, "invoices"));
-    sSnap.forEach(doc => {
-      const inv = doc.data();
-      if(parseDate(inv.date, inv.timestamp) !== date) return;
-      if(!Array.isArray(inv.items)) return;
-
-      inv.items.forEach(item => {
-        if(item.isReturn) return; 
-
-        const name = (item.name || "").trim();
-        const qty = Number(item.qty) || 0;
-        const sellPrice = Number(item.price) || 0; 
-        const unit = (item.unitName || item.unit || "قطعة").toString().trim();
-        const factor = factorMap[name] || 1;
-
-        if(!name || qty <= 0) return;
-
-        let basePieceCost = currentBuyMap[name] || 0;
-
-        if(!D[name]) {
-          D[name] = { 
-            qtyBox: 0, 
-            qtyPiece: 0, 
-            totalSalesBox: 0, 
-            totalSalesPiece: 0,
-            totalSales: 0, 
-            totalCost: 0,
-            factor: factor,
-            basePieceCost: basePieceCost
-          };
-        }
-
-        if(unit === "box" || unit === "كرتونة") {
-          D[name].qtyBox += qty;
-          D[name].totalSalesBox += (qty * sellPrice);
-          D[name].totalSales += (qty * sellPrice);
-          D[name].totalCost += (qty * (basePieceCost * factor));
-        } else {
-          D[name].qtyPiece += qty;
-          D[name].totalSalesPiece += (qty * sellPrice);
-          D[name].totalSales += (qty * sellPrice);
-          D[name].totalCost += (qty * basePieceCost);
+    // 2. الاستماع لتغييرات الفواتير لحظة بلحظة
+    onSnapshot(collection(db, "invoices"), (sSnap) => {
+      globalInvoices = [];
+      sSnap.forEach(doc => {
+        const data = doc.data();
+        if (data.isDeleted !== true) {
+          globalInvoices.push(data);
         }
       });
+      processCalculations();
     });
-
-    Object.keys(D).forEach(name => {
-      const d = D[name];
-      const profit = d.totalSales - d.totalCost;
-      totalGrossSales += d.totalSales;
-      totalGrossProfit += profit;
-      totalGrossCost += d.totalCost;
-
-      const buyPiece = d.basePieceCost;
-      const buyBox = d.basePieceCost * d.factor;
-      
-      const sellBox = d.qtyBox > 0 ? (d.totalSalesBox / d.qtyBox) : 0;
-      const sellPiece = d.qtyPiece > 0 ? (d.totalSalesPiece / d.qtyPiece) : 0;
-
-      const margin = d.totalSales > 0 ? (profit / d.totalSales) * 100 : 0;
-
-      tableRowsData.push({
-        name: name,
-        qtyBox: d.qtyBox,
-        qtyPiece: d.qtyPiece,
-        buyBox: buyBox,
-        buyPiece: buyPiece,
-        sellBox: sellBox,
-        sellPiece: sellPiece,
-        totalCost: d.totalCost,
-        totalSales: d.totalSales,
-        profit: profit,
-        margin: margin
-      });
-    });
-
-    tableRowsData.sort((a, b) => b.profit - a.profit);
-
-    const netProfit = totalGrossProfit - TOTAL_FIXED_EXPENSES;
-    
-    currentDaySummary = {
-      date: date,
-      sales: totalGrossSales,
-      cost: totalGrossCost,
-      expenses: TOTAL_FIXED_EXPENSES,
-      netProfit: netProfit
-    };
-
-    const totalProfitMargin = totalGrossSales > 0 ? (totalGrossProfit / totalGrossSales) * 100 : 0;
-    const netProfitMargin = totalGrossSales > 0 ? (netProfit / totalGrossSales) * 100 : 0;
-
-    document.getElementById("kGrossSales").innerText = `${totalGrossSales.toFixed(2)} ج`;
-    document.getElementById("kGrossProfit").innerText = `${totalGrossProfit.toFixed(2)} ج`;
-
-    const kNet = document.getElementById("kNetProfit");
-    kNet.innerText = `${netProfit.toFixed(2)} ج`;
-    if(netProfit < 0) kNet.classList.add("negative");
-    else kNet.classList.remove("negative");
-
-    document.getElementById("fTotalCost").innerText = `${totalGrossCost.toFixed(2)} ج`;
-    document.getElementById("fTotalSales").innerText = `${totalGrossSales.toFixed(2)} ج`;
-    document.getElementById("fTotalProfit").innerText = `${totalGrossProfit.toFixed(2)} ج`;
-    document.getElementById("fProfitMargin").innerHTML = `<span class="badge-pct">${totalProfitMargin.toFixed(1)}%</span>`;
-    
-    document.getElementById("fTotalExpenses").innerText = `-${TOTAL_FIXED_EXPENSES} ج`;
-    document.getElementById("fNetProfit").innerText = `${netProfit.toFixed(2)} ج`;
-    document.getElementById("fNetProfitMargin").innerHTML = `<span class="badge-pct ${netProfit < 0 ? 'neg':''}">${netProfitMargin.toFixed(1)}%</span>`;
-
-    document.getElementById("eqSales").innerText = `${totalGrossSales.toFixed(1)} ج`;
-    document.getElementById("eqCost").innerText = `${totalGrossCost.toFixed(1)} ج`;
-    document.getElementById("eqExp").innerText = `${TOTAL_FIXED_EXPENSES} ج`;
-
-    renderTable("");
-
-  } catch(e) {
-    console.error(e);
-    document.getElementById("tbody").innerHTML = `<tr><td colspan="11"><div class="text-center p-4 text-danger" style="font-weight:bold;">حدث خطأ أثناء معالجة البيانات وبناء الجدول.</div></td></tr>`;
-  }
+  });
 }
+
+window.load = function() {
+  const date = document.getElementById("dateIn").value;
+  if(!date) return;
+  document.getElementById("dateLabel").textContent = date.replace(/-/g, '/');
+  document.getElementById("tbody").innerHTML = `<tr><td colspan="11"><div class="spin-wrap"><div class="spin"></div><div class="spin-lbl">جاري جلب وتحضير الجدول بدقة…</div></div></td></tr>`;
+  document.getElementById("tfoot").style.display = "none";
+  processCalculations();
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   renderExpenses();
   const t = new Date();
   document.getElementById("dateIn").value = `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
-  load();
+  initRealtimeListeners();
+  setupArchiveRealtime();
 });
-window.load = load;
 </script>
 </body>
 </html>
