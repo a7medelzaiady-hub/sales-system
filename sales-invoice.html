@@ -370,6 +370,20 @@
             <i class="fas fa-plus-circle me-1"></i> إضافة صنف جديد
         </button>
 
+        <!-- حقل تصوير البضاعة المطور والملائم لشاشة الموبايل -->
+        <div class="mb-3 p-3 text-center" style="background: #f8faf9; border: 1.5px dashed var(--accent); border-radius: var(--card-radius);">
+            <span class="sub-lbl mb-2 text-center" style="font-size: 0.85rem; font-weight: 700; color: var(--accent);"><i class="fas fa-camera me-1"></i> تصوير البضاعة للمراجعة</span>
+            <button type="button" class="btn btn-outline-success w-100 fw-bold" onclick="document.getElementById('cargoImageInput').click()" style="border-radius: var(--input-radius);">
+                📸 التقط صورة البضاعة الآن
+            </button>
+            <input type="file" id="cargoImageInput" accept="image/*" capture="environment" style="display: none;" onchange="previewCargoImage(event)">
+            
+            <div id="imagePreviewContainer" style="display: none; margin-top: 12px;">
+                <img id="cargoImagePreview" src="" alt="معاينة البضاعة" style="max-width: 100%; max-height: 200px; border-radius: var(--input-radius); border: 1px solid var(--border);">
+                <div class="text-success fw-bold small mt-2"><i class="fas fa-check-circle"></i> تم التقاط صورة البضاعة بنجاح ✅</div>
+            </div>
+        </div>
+
         <div class="payment-box">
             <div class="row g-2 mb-2">
                 <div class="col-6">
@@ -627,6 +641,7 @@
     let isChanged = false;
     let currentFetchedOldBalance = 0;
     let originalInvoiceTime = "";
+    let base64CargoImage = ""; // متغير لتخزين صورة البضاعة بصيغة Base64 لحفظها في Firestore
 
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -667,6 +682,21 @@
         document.getElementById('customAlertModal').style.display = 'none';
     };
 
+    // ------- التقاط ومعاينة البضاعة للمراجعة -------
+    window.previewCargoImage = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                base64CargoImage = e.target.result;
+                document.getElementById("cargoImagePreview").src = base64CargoImage;
+                document.getElementById("imagePreviewContainer").style.display = "block";
+                isChanged = true;
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
     // ------- الحفظ المؤقت (Draft) على جهاز المستخدم -------
     function collectDraftPayload() {
         const items = [];
@@ -691,6 +721,7 @@
             paidAmount: document.getElementById('paidAmount').value,
             oldBalance: currentFetchedOldBalance,
             items,
+            cargoImage: base64CargoImage, // الاحتفاظ بالصورة الملتقطة في المسودة
             savedAt: new Date().toISOString()
         };
     }
@@ -719,6 +750,14 @@
         currentFetchedOldBalance = Number(payload.oldBalance) || 0;
         showBalance(currentFetchedOldBalance);
         if (payload.customerId) document.getElementById('customerBalanceInfo').style.display = 'block';
+
+        base64CargoImage = payload.cargoImage || "";
+        if (base64CargoImage) {
+            document.getElementById("cargoImagePreview").src = base64CargoImage;
+            document.getElementById("imagePreviewContainer").style.display = "block";
+        } else {
+            document.getElementById("imagePreviewContainer").style.display = "none";
+        }
 
         document.getElementById('itemsContainer').innerHTML = '';
         (payload.items || []).forEach(item => window.addNewRow(item));
@@ -790,26 +829,60 @@
         return minBox / (Number(product.unitFactor) || 1);
     }
 
-    // تعديل الدالة لتبحث عن آخر سعر تم البيع به للصنف عموماً لأي عميل
+    // دالة تحليل تاريخ النصوص العربية والإنجليزية بشكل آمن
+    function parseArabicDate(dateStr) {
+        if (!dateStr) return 0;
+        try {
+            let cleanStr = dateStr.replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
+            cleanStr = cleanStr.replace(/ص/g, 'AM').replace(/م/g, 'PM');
+            
+            const parsed = Date.parse(cleanStr);
+            if (!isNaN(parsed)) return parsed;
+
+            const parts = cleanStr.match(/(\d+)/g);
+            if (parts && parts.length >= 3) {
+                const day = parseInt(parts[0]);
+                const month = parseInt(parts[1]) - 1;
+                const year = parseInt(parts[2]);
+                let hour = parts[3] ? parseInt(parts[3]) : 0;
+                const minute = parts[4] ? parseInt(parts[4]) : 0;
+                
+                if (cleanStr.includes('PM') && hour < 12) hour += 12;
+                if (cleanStr.includes('AM') && hour === 12) hour = 0;
+
+                return new Date(year, month, day, hour, minute).getTime();
+            }
+        } catch (e) {
+            console.error("Error parsing date: ", dateStr, e);
+        }
+        return 0;
+    }
+
+    // دالة تبحث عن آخر سعر تم البيع به للصنف عموماً لأي عميل بدون الاعتماد حصراً على الفهارس المركبة لـ Firestore
     async function fetchSmartPrice(stockId, selectedUnit) {
         try {
-            // جلب آخر 30 فاتورة مبيعات عموماً للبحث عن آخر سعر بيع مسجل للصنف المحدد
-            const qGeneralInvoices = query(
-                collection(db, "invoices"),
-                orderBy("timestamp", "desc"),
-                limit(30)
-            );
-            const snapGeneralInvoices = await getDocs(qGeneralInvoices);
-            for (const docSnap of snapGeneralInvoices.docs) {
-                const invData = docSnap.data();
-                if (editId && docSnap.id === editId) continue;
+            // جلب الفواتير لترتيبها وفلترتها يدوياً لضمان عدم حدوث مشاكل مع الفواتير القديمة التي لا تحتوي على حقل timestamp
+            const snap = await getDocs(collection(db, "invoices"));
+            if (snap.empty) return null;
+
+            const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            // ترتيب تنازلي: الأحدث أولاً مع دعم تاريخ السيرفر وحقل التاريخ النصي المكتوب
+            docs.sort((a, b) => {
+                const dateA = a.timestamp ? (a.timestamp.seconds * 1000) : (a.time ? parseArabicDate(a.time) : 0);
+                const dateB = b.timestamp ? (b.timestamp.seconds * 1000) : (b.time ? parseArabicDate(b.time) : 0);
+                return dateB - dateA;
+            });
+
+            for (const invData of docs) {
+                if (editId && invData.id === editId) continue;
                 const matchedItem = invData.items?.find(item => item.stockId === stockId && item.unit === selectedUnit);
                 if (matchedItem && matchedItem.price) {
                     return Number(matchedItem.price);
                 }
             }
         } catch (error) {
-            console.error("خطأ أثناء جلب السعر التاريخي العام للبلاتفورم:", error);
+            console.error("خطأ أثناء جلب السعر التاريخي العام:", error);
         }
         return null;
     }
@@ -1096,11 +1169,11 @@
         // 2. جلب آخر سعر بيع مسجل عموماً لهذا الصنف لأي عميل كان
         const lastSoldPrice = await fetchSmartPrice(stockId, selectedUnit);
 
-        // 3. مقارنة السعرين لتحديد السعر الأكبر واعتماده
+        // 3. مقارنة السعرين لتحديد السعر الأكبر واعتماده بدقة
         let finalPrice = storePrice;
         if (lastSoldPrice !== null && lastSoldPrice > storePrice) {
             finalPrice = lastSoldPrice;
-            console.log(`تم اعتماد آخر سعر بيع عام (${lastSoldPrice}) لكونه أكبر من سعر المخزن (${storePrice})`);
+            console.log(`تم اعتماد آخر سعر بيع عام (${lastSoldPrice}) لكونه أكبر من سعر المخزن الحالي (${storePrice})`);
         } else {
             console.log(`تم اعتماد سعر المخزن (${storePrice}) لكونه أكبر أو يساوي آخر سعر بيع عام (${lastSoldPrice || 0})`);
         }
@@ -1257,6 +1330,41 @@
             const validationError = validateItemRows(allRows);
             if (validationError) { return window.showCustomAlert(validationError); }
 
+            // حساب أعداد الأصناف والكميات لرسالة التنبيه والمطابقة
+            let totalCartons = 0;
+            let totalJerricans = 0;
+            allRows.forEach(r => {
+                const qty = parseFloat(r.querySelector('.p-qty')?.value || 0);
+                const unit = r.querySelector('.p-unit')?.value;
+                const isReturn = r.querySelector('.p-return-checkbox')?.checked || false;
+                if (!isReturn) {
+                    if (unit === 'box') totalCartons += qty;
+                    else totalJerricans += qty;
+                }
+            });
+            const totalQty = totalCartons + totalJerricans;
+
+            // التحقق الإلزامي من تصوير البضاعة قبل الحفظ
+            if (!base64CargoImage) {
+                window.showCustomAlert("⚠️ تنبيه: يرجى تصوير البضاعة والاحتفاظ بها على البرنامج أولاً حتى تتمكن من مراجعتها في أي وقت!");
+                document.getElementById("cargoImageInput").click(); // فتح كاميرا الهاتف تلقائياً للمستخدم
+                return;
+            }
+
+            // نافذة التنبيه والمراجعة الكمية للكراتين والقطع
+            const userConfirmed = confirm(
+                `🚨 تنبيه التأكيد والمراجعة:\n\n` +
+                `يرجى التأكد من مطابقة الأعداد المسجلة للبضاعة الفعلية:\n` +
+                `- إجمالي عدد الكراتين: (${totalCartons})\n` +
+                `- إجمالي عدد الجراكن/القطع: (${totalJerricans})\n` +
+                `- إجمالي عدد الأصناف الفعلي: (${totalQty} قطعة/كرتونة)\n\n` +
+                `هل قمت بمطابقة الأعداد وصورت البضاعة وتريد حفظ الفاتورة والبيانات الآن؟`
+            );
+
+            if (!userConfirmed) {
+                return; // إلغاء الحفظ لإتاحة الفرصة للمستخدم لمراجعة وتعديل الأرقام
+            }
+
             const { itemsTotal, discount, total, paid, remaining } = calc();
 
             const items = [];
@@ -1296,7 +1404,8 @@
                 paymentMethod: finalMethod,
                 cashAmount: Number(finalCash) || 0,
                 walletAmount: Number(finalWallet) || 0,
-                items, time: currentInvoiceTime, notes: ""
+                items, time: currentInvoiceTime, notes: "",
+                cargoImage: base64CargoImage // حفظ الصورة الملتقطة مع الفاتورة داخل Firestore
             };
 
             if (!editId) {
@@ -1607,6 +1716,15 @@
                     document.getElementById('walletAmount').value = data.walletAmount || 0;
                     document.getElementById('paidAmount').value = data.paid || 0;
                     document.getElementById('discountAmount').value = data.discount || 0;
+
+                    // استعادة صورة البضاعة المصاحبة للفاتورة إن وجدت عند فتح التعديل
+                    base64CargoImage = data.cargoImage || "";
+                    if (base64CargoImage) {
+                        document.getElementById("cargoImagePreview").src = base64CargoImage;
+                        document.getElementById("imagePreviewContainer").style.display = "block";
+                    } else {
+                        document.getElementById("imagePreviewContainer").style.display = "none";
+                    }
 
                     if (data.customerId) {
                         const cust = customers.find(c => c.id === data.customerId);
