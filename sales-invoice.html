@@ -419,7 +419,7 @@
                     <span id="displayOldBalance" class="fw-bold" style="font-size: 0.85rem; color: var(--warning);">0.00</span>
                 </div>
                 <div class="col-4">
-                    <small class="d-block fw-bold" style="font-size: 0.65rem; color: #ffeb3b; margin-bottom: 2px;">الإجمالي الحالي والسابق</small>
+                    <small class="d-block fw-bold" style="font-size: 0.65rem; color: #ffeb3b; margin-bottom: 2px;">إجمالي الحالي والسابق</small>
                     <span id="displayGrandTotal" class="fw-bold" style="font-size: 0.95rem; color: #ffeb3b;">0.00</span>
                 </div>
             </div>
@@ -461,7 +461,7 @@
                 <i class="fas fa-clipboard-check" style="color: var(--accent); font-size: 1.6rem;"></i>
             </div>
             <h5 class="fw-bold m-0" style="color: var(--text-primary);">مراجعة بنود الفاتورة</h5>
-            <small class="text-muted">راجع الأصناف مع العميل قبل التأكيد النهائي</small>
+            <small class="text-muted">راجع الأصناف والعدد الفعلي قبل التأكيد النهائي</small>
         </div>
 
         <div style="background: #f8faf9; border-radius: 10px; padding: 10px; font-size: 0.85rem; margin-bottom: 12px; border: 1px dashed var(--border);">
@@ -469,13 +469,22 @@
                 <span><b>اسم العميل:</b></span>
                 <span id="revCustomerName" class="fw-bold text-success"></span>
             </div>
-            <div class="d-flex justify-content-between">
+            <div class="d-flex justify-content-between mb-1">
                 <span><b>إجمالي البنود:</b></span>
                 <span id="revItemsCount" class="badge bg-secondary">0 صنف</span>
             </div>
+            <!-- عرض ملخص الأعداد بالتفصيل لإلغاء الحاجة للتنبيه المنفصل بعد الحفظ -->
+            <div class="d-flex justify-content-between mb-1">
+                <span><b>إجمالي الكراتين:</b></span>
+                <span id="revCartonsCount" class="fw-bold text-dark">0 كرتونة</span>
+            </div>
+            <div class="d-flex justify-content-between">
+                <span><b>إجمالي الجراكن / القطع:</b></span>
+                <span id="revJerricansCount" class="fw-bold text-dark">0 جركن</span>
+            </div>
         </div>
 
-        <div style="max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 15px;">
+        <div style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 15px;">
             <table class="table table-sm table-striped m-0 text-center align-middle" style="font-size: 0.8rem; direction: rtl;">
                 <thead class="table-dark" style="position: sticky; top: 0; z-index: 5;">
                     <tr>
@@ -641,7 +650,7 @@
     let isChanged = false;
     let currentFetchedOldBalance = 0;
     let originalInvoiceTime = "";
-    let base64CargoImage = ""; // متغير لتخزين صورة البضاعة بصيغة Base64 لحفظها في Firestore
+    let base64CargoImage = ""; // متغير لتخزين صورة البضاعة
 
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -673,6 +682,7 @@
         try { if (navigator.vibrate) navigator.vibrate([180, 80, 180]); } catch (e) { }
     }
 
+    // تنبيه مخصص لحماية وحظر ظهور رابط البرنامج في المتصفح
     window.showCustomAlert = (msg, playSound = true) => {
         if (playSound) { playAlertSound(); vibrateDevice(); }
         document.getElementById('customAlertMessage').innerText = msg;
@@ -682,18 +692,53 @@
         document.getElementById('customAlertModal').style.display = 'none';
     };
 
-    // ------- التقاط ومعاينة البضاعة للمراجعة -------
+    // ------- دالة ضغط الصور وتصغير حجمها تلقائياً قبل الحفظ لـ Firestore -------
+    function resizeAndCompressImage(file, maxWidth, maxHeight, quality, callback) {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = function(event) {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = Math.round((width * maxHeight) / height);
+                        height = maxHeight;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // تحويل الكانفس إلى صورة مضغوطة للغاية بصيغة jpeg وجودة متوازنة
+                const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+                callback(compressedBase64);
+            };
+        };
+    }
+
+    // ------- التقاط ومعاينة البضاعة للمراجعة مع الضغط التلقائي -------
     window.previewCargoImage = (event) => {
         const file = event.target.files[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                base64CargoImage = e.target.result;
+            // نقوم بضغط الصورة فوراً ليكون عرضها الأقصى 800 بكسل وبجودة 0.6 لمنع تخطي الحد المسموح
+            resizeAndCompressImage(file, 800, 800, 0.6, (compressedBase64) => {
+                base64CargoImage = compressedBase64;
                 document.getElementById("cargoImagePreview").src = base64CargoImage;
                 document.getElementById("imagePreviewContainer").style.display = "block";
                 isChanged = true;
-            };
-            reader.readAsDataURL(file);
+            });
         }
     };
 
@@ -721,7 +766,7 @@
             paidAmount: document.getElementById('paidAmount').value,
             oldBalance: currentFetchedOldBalance,
             items,
-            cargoImage: base64CargoImage, // الاحتفاظ بالصورة الملتقطة في المسودة
+            cargoImage: base64CargoImage, 
             savedAt: new Date().toISOString()
         };
     }
@@ -858,10 +903,9 @@
         return 0;
     }
 
-    // دالة تبحث عن آخر سعر تم البيع به للصنف عموماً لأي عميل بدون الاعتماد حصراً على الفهارس المركبة لـ Firestore
+    // دالة تبحث عن آخر سعر تم البيع به للصنف عموماً لأي عميل
     async function fetchSmartPrice(stockId, selectedUnit) {
         try {
-            // جلب الفواتير لترتيبها وفلترتها يدوياً لضمان عدم حدوث مشاكل مع الفواتير القديمة التي لا تحتوي على حقل timestamp
             const snap = await getDocs(collection(db, "invoices"));
             if (snap.empty) return null;
 
@@ -1037,7 +1081,7 @@
                 idInput.value = docRef.id;
                 currentFetchedOldBalance = newInitialBalance;
                 showBalance(newInitialBalance);
-                window.showCustomAlert(`تم حفظ العميل الجديد "${customerName}" بنجاح.`, false);
+                window.showCustomAlert("تم حفظ العميل الجديد بنجاح.", false);
             } else {
                 const customerRef = doc(db, "customers", customerId);
                 await updateDoc(customerRef, { initialBalance: newInitialBalance });
@@ -1048,7 +1092,7 @@
                 const updatedRealBalance = await getRealBalance(customerId, startBalance);
                 currentFetchedOldBalance = updatedRealBalance;
                 showBalance(updatedRealBalance);
-                window.showCustomAlert(`تم تحديث الرصيد الافتتاحي للعميل "${customerName}" بنجاح.`, false);
+                window.showCustomAlert("تم تحديث الرصيد الافتتاحي للعميل بنجاح.", false);
             }
 
             persistCache();
@@ -1150,7 +1194,6 @@
         return id;
     };
 
-    // دالة تحديث السعر الذكية لمقارنة سعر المخزن مع آخر سعر بيع مسجل عموماً وتطبيق الأكبر
     window.updateRowPrice = async (unitSel) => {
         const row = unitSel.closest('.product-row');
         const stockId = row.querySelector('.p-select').value;
@@ -1163,19 +1206,16 @@
 
         row.querySelector('.p-price').placeholder = "جاري حساب السعر...";
 
-        // 1. حساب السعر المسجل في المخزن حالياً بناءً على وحدة القياس
+        // 1. حساب السعر المسجل في المخزن
         const storePrice = (selectedUnit === 'box') ? (Number(p.sell) || 0) : ((Number(p.sell) || 0) / (Number(p.unitFactor) || 1));
 
-        // 2. جلب آخر سعر بيع مسجل عموماً لهذا الصنف لأي عميل كان
+        // 2. جلب آخر سعر بيع مسجل عموماً لأي عميل
         const lastSoldPrice = await fetchSmartPrice(stockId, selectedUnit);
 
-        // 3. مقارنة السعرين لتحديد السعر الأكبر واعتماده بدقة
+        // 3. اعتماد السعر الأكبر بين السعرين
         let finalPrice = storePrice;
         if (lastSoldPrice !== null && lastSoldPrice > storePrice) {
             finalPrice = lastSoldPrice;
-            console.log(`تم اعتماد آخر سعر بيع عام (${lastSoldPrice}) لكونه أكبر من سعر المخزن الحالي (${storePrice})`);
-        } else {
-            console.log(`تم اعتماد سعر المخزن (${storePrice}) لكونه أكبر أو يساوي آخر سعر بيع عام (${lastSoldPrice || 0})`);
         }
 
         row.querySelector('.p-price').value = Number(finalPrice).toFixed(2);
@@ -1269,6 +1309,7 @@
         return null;
     }
 
+    // فتح شاشة المراجعة الكلية مع إظهار أرقام ملخص الكميات الفعلي ومطابقتها مباشرة بالداخل
     window.openReviewModal = () => {
         const customerId = document.getElementById('customerSelect').value;
         const customerName = document.getElementById('customerSearch').value;
@@ -1280,6 +1321,8 @@
         if (validationError) { return window.showCustomAlert(validationError); }
 
         let validItemsCount = 0;
+        let totalCartons = 0;
+        let totalJerricans = 0;
         let htmlList = "";
 
         rows.forEach(r => {
@@ -1290,7 +1333,13 @@
             const price = Number(r.querySelector('.p-price')?.value || 0);
             const isReturn = r.querySelector('.p-return-checkbox').checked;
             if (!pid || qty <= 0) return;
+            
             validItemsCount++;
+            if (!isReturn) {
+                if (unit === 'box') totalCartons += qty;
+                else totalJerricans += qty;
+            }
+
             const unitText = window.handleSpreadsheetUnitText(unit);
             const returnStyle = isReturn ? 'color: red; font-weight: bold; background-color: #fff0f1;' : '';
             htmlList += `
@@ -1306,14 +1355,25 @@
 
         if (validItemsCount === 0) { return window.showCustomAlert("الرجاء إضافة أصناف للفاتورة"); }
 
+        // التحقق الإلزامي من التقاط الصورة أولاً قبل فتح شاشة المراجعة للحفاظ على سلامة سير العملية
+        if (!base64CargoImage) {
+            window.showCustomAlert("⚠️ تنبيه: يرجى تصوير البضاعة والاحتفاظ بها على البرنامج أولاً للرجوع إليها وقت المراجعة!");
+            document.getElementById("cargoImageInput").click(); // فتح الكاميرا تلقائياً للمستخدم
+            return;
+        }
+
         document.getElementById('revCustomerName').innerText = customerName;
         document.getElementById('revItemsCount').innerText = `${validItemsCount} صنف`;
+        document.getElementById('revCartonsCount').innerText = `${totalCartons} كرتونة`;
+        document.getElementById('revJerricansCount').innerText = `${totalJerricans} جركن/قطعة`;
         document.getElementById('revItemsBody').innerHTML = htmlList;
 
         const { discount, total } = calc();
         document.getElementById('revDiscountVal').innerText = discount.toFixed(2);
         document.getElementById('revTotalVal').innerText = total.toFixed(2);
         document.getElementById('reviewModal').style.display = 'flex';
+        
+        // عند تأكيد الحفظ من مودال المراجعة، يحفظ مباشرة دون أي رسائل تنبيهية مكررة
         document.getElementById('finalConfirmSaveBtn').onclick = () => { closeReviewModal(); saveInvoice(); };
     };
 
@@ -1329,41 +1389,6 @@
             const allRows = Array.from(document.querySelectorAll('.product-row'));
             const validationError = validateItemRows(allRows);
             if (validationError) { return window.showCustomAlert(validationError); }
-
-            // حساب أعداد الأصناف والكميات لرسالة التنبيه والمطابقة
-            let totalCartons = 0;
-            let totalJerricans = 0;
-            allRows.forEach(r => {
-                const qty = parseFloat(r.querySelector('.p-qty')?.value || 0);
-                const unit = r.querySelector('.p-unit')?.value;
-                const isReturn = r.querySelector('.p-return-checkbox')?.checked || false;
-                if (!isReturn) {
-                    if (unit === 'box') totalCartons += qty;
-                    else totalJerricans += qty;
-                }
-            });
-            const totalQty = totalCartons + totalJerricans;
-
-            // التحقق الإلزامي من تصوير البضاعة قبل الحفظ
-            if (!base64CargoImage) {
-                window.showCustomAlert("⚠️ تنبيه: يرجى تصوير البضاعة والاحتفاظ بها على البرنامج أولاً حتى تتمكن من مراجعتها في أي وقت!");
-                document.getElementById("cargoImageInput").click(); // فتح كاميرا الهاتف تلقائياً للمستخدم
-                return;
-            }
-
-            // نافذة التنبيه والمراجعة الكمية للكراتين والقطع
-            const userConfirmed = confirm(
-                `🚨 تنبيه التأكيد والمراجعة:\n\n` +
-                `يرجى التأكد من مطابقة الأعداد المسجلة للبضاعة الفعلية:\n` +
-                `- إجمالي عدد الكراتين: (${totalCartons})\n` +
-                `- إجمالي عدد الجراكن/القطع: (${totalJerricans})\n` +
-                `- إجمالي عدد الأصناف الفعلي: (${totalQty} قطعة/كرتونة)\n\n` +
-                `هل قمت بمطابقة الأعداد وصورت البضاعة وتريد حفظ الفاتورة والبيانات الآن؟`
-            );
-
-            if (!userConfirmed) {
-                return; // إلغاء الحفظ لإتاحة الفرصة للمستخدم لمراجعة وتعديل الأرقام
-            }
 
             const { itemsTotal, discount, total, paid, remaining } = calc();
 
@@ -1405,7 +1430,7 @@
                 cashAmount: Number(finalCash) || 0,
                 walletAmount: Number(finalWallet) || 0,
                 items, time: currentInvoiceTime, notes: "",
-                cargoImage: base64CargoImage // حفظ الصورة الملتقطة مع الفاتورة داخل Firestore
+                cargoImage: base64CargoImage // حفظ الصورة المضغوطة والخفيفة بنجاح
             };
 
             if (!editId) {
@@ -1717,7 +1742,6 @@
                     document.getElementById('paidAmount').value = data.paid || 0;
                     document.getElementById('discountAmount').value = data.discount || 0;
 
-                    // استعادة صورة البضاعة المصاحبة للفاتورة إن وجدت عند فتح التعديل
                     base64CargoImage = data.cargoImage || "";
                     if (base64CargoImage) {
                         document.getElementById("cargoImagePreview").src = base64CargoImage;
