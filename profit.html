@@ -51,6 +51,13 @@ body{
   text-decoration:none;transition:background .15s;
 }
 .tb-btn:hover{background:rgba(255,255,255,.22);color:#fff}
+.save-btn-active {
+  background: var(--g6) !important;
+  border-color: rgba(255,255,255,.3) !important;
+}
+.save-btn-active:hover {
+  background: #117e38 !important;
+}
 
 .datebar{
   background:var(--wh);
@@ -305,6 +312,8 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
     </div>
   </div>
   <div class="tb-btns">
+    <!-- زر الحفظ والترحيل اليدوي المضاف حديثاً -->
+    <button class="tb-btn save-btn-active" onclick="triggerManualSave()" title="حفظ الأرباح في السجل"><i class="fas fa-save"></i></button>
     <button class="tb-btn" onclick="scrollToArchive()" title="سجل الأرباح المرحلة"><i class="fas fa-archive"></i></button>
     <button class="tb-btn" onclick="window.print()" title="طباعة"><i class="fas fa-print"></i></button>
     <a href="index.html" class="tb-btn" title="الرئيسية"><i class="fas fa-home"></i></a>
@@ -769,7 +778,7 @@ function setupArchiveRealtime() {
       let pColor = data.netProfit >= 0 ? 'var(--g6)' : 'var(--r7)';
       let pBg = data.netProfit >= 0 ? '#f0fdf4' : '#fef2f2';
       
-      let dateStr = data.date || "غير محدد";
+      let dateStr = data.date || "غير مححدد";
       let timeStr = "";
       if(data.timestamp && data.timestamp.toDate) {
          const t = data.timestamp.toDate();
@@ -797,9 +806,15 @@ function setupArchiveRealtime() {
   });
 }
 
-// دالة احتساب وحفظ الأرباح تلقائياً في السيرفر وتخطي الإجراء اليدوي
+// دالة الحفظ التلقائي الذكية (تحفظ فقط إذا اكتمل الحساب وتوفر مبيعات حقيقية)
 async function autoSaveProfitToServer(summary) {
   if (!summary || !summary.date) return;
+  // منع حفظ أي حقول فارغة أو بقيمة صفر عندما لا تكون الفواتير قد حملت بعد
+  if (summary.sales <= 0 || summary.cost <= 0) {
+    console.log(`⚠️ تم تخطي الحفظ التلقائي اللحظي لمنع تصفير السجل أثناء تحميل فواتير اليوم (${summary.date}).`);
+    return;
+  }
+  
   try {
     const docRef = doc(db, "archived_profits", summary.date);
     await setDoc(docRef, {
@@ -810,11 +825,41 @@ async function autoSaveProfitToServer(summary) {
       netProfit: summary.netProfit,
       timestamp: new Date()
     }, { merge: true });
-    console.log(`✅ تم تحديث أرباح اليوم (${summary.date}) تلقائياً بالسيرفر.`);
+    console.log(`✅ تم تحديث أرباح اليوم (${summary.date}) تلقائياً بالسيرفر بنجاح.`);
   } catch (error) {
     console.error("❌ فشل ترحيل الأرباح التلقائي:", error);
   }
 }
+
+// دالة الترحيل والحفظ اليدوية بطلب من المستخدم مع التنبيه
+async function triggerManualSave() {
+  if (!currentDaySummary) {
+    alert("برجاء الانتظار حتى اكتمال تحميل البيانات الحالية أولاً.");
+    return;
+  }
+  
+  const confirmSave = confirm(`هل تود الاحتفاظ بأرباح هذا اليوم (${currentDaySummary.date}) وترحيلها إلى السجل؟`);
+  if (!confirmSave) return;
+  
+  try {
+    const docRef = doc(db, "archived_profits", currentDaySummary.date);
+    await setDoc(docRef, {
+      date: currentDaySummary.date,
+      sales: currentDaySummary.sales,
+      cost: currentDaySummary.cost,
+      expenses: currentDaySummary.expenses,
+      netProfit: currentDaySummary.netProfit,
+      timestamp: new Date()
+    }, { merge: true });
+    
+    alert(`🚀 تم ترحيل أرباح اليوم (${currentDaySummary.date}) والاحتفاظ بها في السجل بنجاح!`);
+    scrollToArchive();
+  } catch (error) {
+    console.error(error);
+    alert("❌ حدث خطأ أثناء محاولة حفظ الأرباح في السجل. تحقق من اتصالك بالإنترنت.");
+  }
+}
+window.triggerManualSave = triggerManualSave;
 
 function processCalculations() {
   const date = document.getElementById("dateIn").value;
@@ -938,7 +983,7 @@ function processCalculations() {
 
   renderTable("");
 
-  // الحفظ والترحيل التلقائي المباشر للسيرفر فور حدوث تغيير
+  // الترحيل التلقائي الذكي لا يتنفذ إلا لو كانت المبيعات دقيقة وأكبر من الصفر
   autoSaveProfitToServer(currentDaySummary);
 }
 
