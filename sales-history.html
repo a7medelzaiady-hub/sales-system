@@ -255,13 +255,49 @@
         .empty-state { text-align: center; padding: 55px 10px; color: var(--text-secondary); }
         .empty-state i { color: #c9d4cf; }
 
+        /* ===== بوب اب مشاهدة صور البضاعة المطور للموبايل ===== */
+        .cargo-gallery-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 20000; display: flex;
+            align-items: center; justify-content: center; backdrop-filter: blur(4px);
+        }
+        .cargo-gallery-box {
+            background: #fff; width: 92%; max-width: 420px; border-radius: 20px;
+            overflow: hidden; box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            animation: scaleUp 0.2s ease; display: flex; flex-direction: column;
+        }
+        .cargo-gallery-header {
+            background: var(--accent-deep); color: white; padding: 12px 16px;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .cargo-gallery-body {
+            padding: 16px; display: flex; flex-direction: column; align-items: center;
+            background: #111; justify-content: center; min-height: 250px; position: relative;
+        }
+        .cargo-gallery-img {
+            max-width: 100%; max-height: 350px; border-radius: 10px;
+            object-fit: contain; box-shadow: 0 4px 15px rgba(0,0,0,0.6);
+        }
+        .cargo-gallery-footer {
+            background: #f8faf9; padding: 12px 16px; display: flex;
+            align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .gallery-nav-btn {
+            background: var(--accent); color: white; border: none;
+            border-radius: 8px; padding: 6px 14px; font-weight: bold; cursor: pointer;
+        }
+        .gallery-nav-btn:disabled { background: #ccc; cursor: not-allowed; }
+
         /* ===== تحضيرات وضع الطباعة ===== */
         #thermalPrintSection { display: none; }
         @media print {
             body { background: white; color: black; padding: 0; margin: 0; }
-            #content-to-export, .header-nav, .control-panel-card, .stats-section-title, .row, .filter-status-bar, #customGlobalModal, .invoice-item, .recon-card { display: none !important; }
+            #content-to-export, .header-nav, .control-panel-card, .stats-section-title, .row, .filter-status-bar, #customGlobalModal, .invoice-item, .recon-card, .cargo-gallery-overlay { display: none !important; }
             #thermalPrintSection { display: block !important; width: 80mm; max-width: 80mm; padding: 4mm 2mm; margin: 0 auto; direction: rtl; font-family: 'Cairo', sans-serif; }
         }
+
+        @keyframes scaleUp { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
 </head>
 <body>
@@ -378,6 +414,29 @@
 
 <div id="thermalPrintSection"></div>
 
+<!-- نافذة بوب اب مخصصة ومطورة لعرض صور البضاعة المتعددة للفاتورة -->
+<div id="cargoGalleryModal" class="cargo-gallery-overlay" style="display: none;">
+    <div class="cargo-gallery-box">
+        <div class="cargo-gallery-header">
+            <span class="fw-bold" style="font-size: 0.9rem;"><i class="fas fa-camera me-1"></i> معاينة صور البضاعة الملتقطة</span>
+            <button type="button" class="btn-close btn-close-white" onclick="closeCargoGallery()"></button>
+        </div>
+        <div class="cargo-gallery-body">
+            <img id="modalGalleryImg" class="cargo-gallery-img" src="" alt="بضاعة الفاتورة">
+        </div>
+        <div class="cargo-gallery-footer">
+            <div>
+                <button id="btnPrevGallery" class="gallery-nav-btn" onclick="navigateGallery(-1)"><i class="fas fa-arrow-right"></i> السابق</button>
+                <button id="btnNextGallery" class="gallery-nav-btn" onclick="navigateGallery(1)">التالي <i class="fas fa-arrow-left"></i></button>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <span id="galleryCounter" class="fw-bold small text-muted">0 / 0</span>
+                <button id="btnDownloadGallery" class="btn btn-sm btn-outline-primary py-1 px-2" onclick="downloadCurrentImage()" style="border-radius: 6px;"><i class="fas fa-download"></i> تنزيل</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">
     <div class="custom-popup-box" style="max-width: 420px;">
         <div id="customModalIcon" style="width: 48px; height: 48px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;"></div>
@@ -409,6 +468,10 @@
     let currentRenderedInvoices = [];
     let allReceiptVouchers = [];
     
+    // متغيرات مخصصة لمعرض الصور
+    let currentGalleryImages = [];
+    let currentGalleryIndex = 0;
+
     window.globalExpectedTodayCash = 0;
 
     window.showCustomUi = (options) => {
@@ -560,6 +623,14 @@
 
             const isModified = inv.originalDate || (inv.items && inv.items.some(i => i.originalQty !== undefined)) || inv.notes === "معدلة";
             
+            // التحقق من وجود صور بضاعة مخزنة لعرض زر المعاينة بذكاء
+            const hasImages = (inv.cargoImages && inv.cargoImages.length > 0) || (inv.cargoImage && inv.cargoImage.trim() !== "");
+            const viewImagesBtn = hasImages ? `
+                <button class="btn btn-outline-warning text-dark" onclick="openCargoGallery('${inv.id}')" title="مشاهدة صور البضاعة">
+                    <i class="fas fa-camera"></i>
+                </button>
+            ` : '';
+
             return `
                 <div class="invoice-item ${!originalDate ? 'no-date' : ''}">
                     <div class="d-flex justify-content-between align-items-start">
@@ -581,6 +652,7 @@
                     </div>
                     <div class="invoice-actions-group">
                         <button class="btn btn-outline-info text-dark" onclick="toggleDetails('${inv.id}')" title="عرض الأصناف"><i class="fas fa-eye"></i></button>
+                        ${viewImagesBtn}
                         <button class="btn btn-outline-dark" onclick="window.printThermalInvoice('${inv.id}')" title="طباعة حرارية 80"><i class="fas fa-print"></i></button>
                         <button class="btn btn-outline-success" onclick="window.shareThermalInvoice('${inv.id}')" title="مشاركة الفاتورة"><i class="fas fa-share-alt"></i></button>
                         <button class="btn btn-outline-primary" onclick="editInvoice('${inv.id}')" title="تعديل الفاتورة"><i class="fas fa-edit"></i></button>
@@ -630,6 +702,66 @@
         }
 
         container.innerHTML = invoicesHtml + dividerHtml + vouchersHtml;
+    };
+
+    // دوال تفعيل وتشغيل معرض صور البضاعة الملتقطة
+    window.openCargoGallery = (invoiceId) => {
+        const inv = allInvoices.find(i => i.id === invoiceId);
+        if (!inv) return;
+
+        currentGalleryImages = [];
+        currentGalleryIndex = 0;
+
+        // دمج صور البضاعة المتعددة أو الفردية القديمة في مصفوفة موحدة
+        if (inv.cargoImages && inv.cargoImages.length > 0) {
+            currentGalleryImages = [...inv.cargoImages];
+        } else if (inv.cargoImage && inv.cargoImage.trim() !== "") {
+            currentGalleryImages.push(inv.cargoImage);
+        }
+
+        if (currentGalleryImages.length === 0) {
+            window.showCustomUi({ title: "تنبيه", message: "لا توجد صور ملتقطة لهذه الفاتورة.", icon: "info" });
+            return;
+        }
+
+        document.getElementById('cargoGalleryModal').style.display = 'flex';
+        updateGalleryView();
+    };
+
+    window.closeCargoGallery = () => {
+        document.getElementById('cargoGalleryModal').style.display = 'none';
+    };
+
+    function updateGalleryView() {
+        const imgEl = document.getElementById('modalGalleryImg');
+        const counterEl = document.getElementById('galleryCounter');
+        const btnPrev = document.getElementById('btnPrevGallery');
+        const btnNext = document.getElementById('btnNextGallery');
+
+        imgEl.src = currentGalleryImages[currentGalleryIndex];
+        counterEl.innerText = `${currentGalleryIndex + 1} / ${currentGalleryImages.length}`;
+
+        btnPrev.disabled = (currentGalleryIndex === 0);
+        btnNext.disabled = (currentGalleryIndex === currentGalleryImages.length - 1);
+    }
+
+    window.navigateGallery = (direction) => {
+        currentGalleryIndex += direction;
+        if (currentGalleryIndex < 0) currentGalleryIndex = 0;
+        if (currentGalleryIndex >= currentGalleryImages.length) currentGalleryIndex = currentGalleryImages.length - 1;
+        updateGalleryView();
+    };
+
+    window.downloadCurrentImage = () => {
+        const currentSrc = currentGalleryImages[currentGalleryIndex];
+        if (!currentSrc) return;
+
+        const a = document.createElement('a');
+        a.href = currentSrc;
+        a.download = `بضاعة_معاينة_${currentGalleryIndex + 1}.jpeg`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     };
 
     function calculateStats() {
