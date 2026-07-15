@@ -632,7 +632,7 @@
     const CACHE_TTL_MS = 10 * 60 * 1000;
     const DRAFT_KEY = 'invoice_draft_' + (editId ? editId : 'new');
 
-    // ------- تنبيه صوتي + اهتزاز عند وجود خطأ (خانة فارغة أو نحوها) -------
+    // ------- تنبيه صوتي + اهتزاز عند وجود خطأ -------
     function playAlertSound() {
         try {
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -651,15 +651,13 @@
             };
             playBeep(880, 0, 0.15);
             playBeep(880, 0.22, 0.15);
-        } catch (e) { /* المتصفح لا يدعم Web Audio */ }
+        } catch (e) { }
     }
 
     function vibrateDevice() {
         try { if (navigator.vibrate) navigator.vibrate([180, 80, 180]); } catch (e) { }
     }
 
-    // دوال للتحكم بـ المودال الاحترافي للتنبيهات
-    // playSound = true (افتراضي) يعني رسالة تنبيه/خطأ فتصدر صوت واهتزاز، وإذا كانت رسالة نجاح عادية يتم تمرير false
     window.showCustomAlert = (msg, playSound = true) => {
         if (playSound) { playAlertSound(); vibrateDevice(); }
         document.getElementById('customAlertMessage').innerText = msg;
@@ -701,7 +699,7 @@
         try {
             const payload = collectDraftPayload();
             localStorage.setItem(DRAFT_KEY, JSON.stringify(payload));
-            isChanged = false; // تم تأمين البيانات مؤقتًا على الجهاز
+            isChanged = false;
             window.showCustomAlert("تم حفظ بيانات الفاتورة مؤقتًا على هذا الجهاز. يمكنك إغلاق الصفحة أو متابعة العمل، وستجد البيانات كما هي عند العودة لهذه الصفحة مرة أخرى.", false);
             const banner = document.getElementById('draftBanner');
             if (banner) banner.style.display = 'flex';
@@ -784,11 +782,10 @@
         }
     }
 
-    // ------- الحد الأدنى للسعر المسموح به لكل صنف (مخزّن يدويًا في بيانات الصنف بحقل minPrice) -------
     function getMinPriceForUnit(product, selectedUnit) {
         if (!product) return null;
         const minBox = Number(product.minPrice);
-        if (!minBox || minBox <= 0) return null; // لا يوجد حد أدنى محدد لهذا الصنف
+        if (!minBox || minBox <= 0) return null;
         if (selectedUnit === 'box') return minBox;
         return minBox / (Number(product.unitFactor) || 1);
     }
@@ -1047,7 +1044,6 @@
         const isReturnChecked = oldData && oldData.isReturn ? 'checked' : '';
         const returnClass = oldData && oldData.isReturn ? 'is-return-row' : '';
 
-        // تم إعادة هيكلة التقسيم (col-3) لزر المرتجع لكي يعطيه اتساعاً تاماً يمنع تداخله على الشاشات الصغيرة
         const html = `
             <div class="product-row ${returnClass}" id="${id}">
                 <i class="fas fa-times-circle btn-remove" onclick="document.getElementById('${id}').remove(); handleInput();"></i>
@@ -1130,7 +1126,6 @@
             r.querySelector('.p-subtotal').value = (isReturn ? "-" : "") + sub.toFixed(2);
             if (isReturn) { itemsTotal -= sub; } else { itemsTotal += sub; }
 
-            // تنبيه فوري (بدون منع) لو السعر المدخل أقل من الحد الأدنى المسموح به لهذا الصنف
             const pid = r.querySelector('.p-select')?.value;
             const unit = r.querySelector('.p-unit')?.value;
             const warnDiv = r.querySelector('.min-price-warn');
@@ -1562,7 +1557,6 @@
 
             const urlParams = new URLSearchParams(window.location.search);
 
-            // إذا وجدت مسودة محفوظة مؤقتًا على هذا الجهاز لنفس الفاتورة (جديدة أو تعديل)، نعرضها فورًا
             const draftLoaded = tryLoadDraftOnInit();
             if (draftLoaded) {
                 if (fromOrderId) document.getElementById('modeText').innerText = "من طلبية";
@@ -1582,7 +1576,6 @@
                 document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
 
                 document.getElementById('customerSearch').value = paramCustomerName || '';
-                // إصلاح جذري: تعيين الآيدي في حقل السلكت المخفي ليتعرف عليه السيستم عند الحفظ بدون مشاكل
                 document.getElementById('customerSelect').value = paramCustomerId || '';
 
                 if (paramCustomerId) {
