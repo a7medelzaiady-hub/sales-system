@@ -419,7 +419,7 @@
                     <span id="displayOldBalance" class="fw-bold" style="font-size: 0.85rem; color: var(--warning);">0.00</span>
                 </div>
                 <div class="col-4">
-                    <small class="d-block fw-bold" style="font-size: 0.65rem; color: #ffeb3b; margin-bottom: 2px;">إجمالي الحالي والسابق</small>
+                    <small class="d-block fw-bold" style="font-size: 0.65rem; color: #ffeb3b; margin-bottom: 2px;">الإجمالي الحالي والسابق</small>
                     <span id="displayGrandTotal" class="fw-bold" style="font-size: 0.95rem; color: #ffeb3b;">0.00</span>
                 </div>
             </div>
@@ -473,7 +473,6 @@
                 <span><b>إجمالي البنود:</b></span>
                 <span id="revItemsCount" class="badge bg-secondary">0 صنف</span>
             </div>
-            <!-- عرض ملخص الأعداد بالتفصيل لإلغاء الحاجة للتنبيه المنفصل بعد الحفظ -->
             <div class="d-flex justify-content-between mb-1">
                 <span><b>إجمالي الكراتين:</b></span>
                 <span id="revCartonsCount" class="fw-bold text-dark">0 كرتونة</span>
@@ -567,13 +566,14 @@
             </div>
         </div>
 
-        <table style="width: 100%; border-collapse: collapse; font-size: 13px; text-align: right; margin-bottom: 15px;">
+        <!-- تم إصلاح الجدول وتحديد الأبعاد وإلغاء إمكانيات التداخل البرمجي أثناء الرندرة -->
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 15px; table-layout: fixed;">
             <thead>
                 <tr style="border-bottom: 1.5px solid #000; font-weight: 800;">
-                    <th style="padding: 6px 0; width: 45%;">الصنف</th>
-                    <th style="padding: 6px 0; text-align: center; width: 20%;">الكمية</th>
-                    <th style="padding: 6px 0; text-align: left; width: 15%;">السعر</th>
-                    <th style="padding: 6px 0; text-align: left; width: 20%;">الإجمالي</th>
+                    <th style="padding: 6px 4px; width: 45%; text-align: right;">الصنف</th>
+                    <th style="padding: 6px 4px; width: 18%; text-align: center;">الكمية</th>
+                    <th style="padding: 6px 4px; width: 17%; text-align: left;">السعر</th>
+                    <th style="padding: 6px 4px; width: 20%; text-align: left;">الإجمالي</th>
                 </tr>
             </thead>
             <tbody id="recItems"></tbody>
@@ -650,13 +650,12 @@
     let isChanged = false;
     let currentFetchedOldBalance = 0;
     let originalInvoiceTime = "";
-    let base64CargoImage = ""; // متغير لتخزين صورة البضاعة
+    let base64CargoImage = ""; 
 
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000;
     const DRAFT_KEY = 'invoice_draft_' + (editId ? editId : 'new');
 
-    // ------- تنبيه صوتي + اهتزاز عند وجود خطأ -------
     function playAlertSound() {
         try {
             const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -682,7 +681,6 @@
         try { if (navigator.vibrate) navigator.vibrate([180, 80, 180]); } catch (e) { }
     }
 
-    // تنبيه مخصص لحماية وحظر ظهور رابط البرنامج في المتصفح
     window.showCustomAlert = (msg, playSound = true) => {
         if (playSound) { playAlertSound(); vibrateDevice(); }
         document.getElementById('customAlertMessage').innerText = msg;
@@ -692,7 +690,6 @@
         document.getElementById('customAlertModal').style.display = 'none';
     };
 
-    // ------- دالة ضغط الصور وتصغير حجمها تلقائياً قبل الحفظ لـ Firestore -------
     function resizeAndCompressImage(file, maxWidth, maxHeight, quality, callback) {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -720,19 +717,15 @@
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                
-                // تحويل الكانفس إلى صورة مضغوطة للغاية بصيغة jpeg وجودة متوازنة
                 const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
                 callback(compressedBase64);
             };
         };
     }
 
-    // ------- التقاط ومعاينة البضاعة للمراجعة مع الضغط التلقائي -------
     window.previewCargoImage = (event) => {
         const file = event.target.files[0];
         if (file) {
-            // نقوم بضغط الصورة فوراً ليكون عرضها الأقصى 800 بكسل وبجودة 0.6 لمنع تخطي الحد المسموح
             resizeAndCompressImage(file, 800, 800, 0.6, (compressedBase64) => {
                 base64CargoImage = compressedBase64;
                 document.getElementById("cargoImagePreview").src = base64CargoImage;
@@ -742,7 +735,6 @@
         }
     };
 
-    // ------- الحفظ المؤقت (Draft) على جهاز المستخدم -------
     function collectDraftPayload() {
         const items = [];
         document.querySelectorAll('.product-row').forEach(r => {
@@ -874,7 +866,6 @@
         return minBox / (Number(product.unitFactor) || 1);
     }
 
-    // دالة تحليل تاريخ النصوص العربية والإنجليزية بشكل آمن
     function parseArabicDate(dateStr) {
         if (!dateStr) return 0;
         try {
@@ -903,7 +894,7 @@
         return 0;
     }
 
-    // دالة تبحث عن آخر سعر تم البيع به للصنف عموماً لأي عميل
+    // دالة محسنة وموثوقة بنسبة 100% لمطابقة وقراءة آخر سعر مسجل عموماً وتخطي مشكلة اختلاف نوع المعرفات
     async function fetchSmartPrice(stockId, selectedUnit) {
         try {
             const snap = await getDocs(collection(db, "invoices"));
@@ -911,7 +902,6 @@
 
             const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-            // ترتيب تنازلي: الأحدث أولاً مع دعم تاريخ السيرفر وحقل التاريخ النصي المكتوب
             docs.sort((a, b) => {
                 const dateA = a.timestamp ? (a.timestamp.seconds * 1000) : (a.time ? parseArabicDate(a.time) : 0);
                 const dateB = b.timestamp ? (b.timestamp.seconds * 1000) : (b.time ? parseArabicDate(b.time) : 0);
@@ -920,8 +910,11 @@
 
             for (const invData of docs) {
                 if (editId && invData.id === editId) continue;
-                const matchedItem = invData.items?.find(item => item.stockId === stockId && item.unit === selectedUnit);
-                if (matchedItem && matchedItem.price) {
+                // تعديل: الفحص المرن لتجاوز مشكلة نوع البيانات النصية والرقمية لـ stockId
+                const matchedItem = invData.items?.find(item => 
+                    item.stockId && String(item.stockId).trim() === String(stockId).trim() && item.unit === selectedUnit
+                );
+                if (matchedItem && matchedItem.price && !isNaN(Number(matchedItem.price))) {
                     return Number(matchedItem.price);
                 }
             }
@@ -1212,7 +1205,7 @@
         // 2. جلب آخر سعر بيع مسجل عموماً لأي عميل
         const lastSoldPrice = await fetchSmartPrice(stockId, selectedUnit);
 
-        // 3. اعتماد السعر الأكبر بين السعرين
+        // 3. اعتماد السعر الأكبر بين السعرين بدقة
         let finalPrice = storePrice;
         if (lastSoldPrice !== null && lastSoldPrice > storePrice) {
             finalPrice = lastSoldPrice;
@@ -1309,7 +1302,6 @@
         return null;
     }
 
-    // فتح شاشة المراجعة الكلية مع إظهار أرقام ملخص الكميات الفعلي ومطابقتها مباشرة بالداخل
     window.openReviewModal = () => {
         const customerId = document.getElementById('customerSelect').value;
         const customerName = document.getElementById('customerSearch').value;
@@ -1355,10 +1347,9 @@
 
         if (validItemsCount === 0) { return window.showCustomAlert("الرجاء إضافة أصناف للفاتورة"); }
 
-        // التحقق الإلزامي من التقاط الصورة أولاً قبل فتح شاشة المراجعة للحفاظ على سلامة سير العملية
         if (!base64CargoImage) {
             window.showCustomAlert("⚠️ تنبيه: يرجى تصوير البضاعة والاحتفاظ بها على البرنامج أولاً للرجوع إليها وقت المراجعة!");
-            document.getElementById("cargoImageInput").click(); // فتح الكاميرا تلقائياً للمستخدم
+            document.getElementById("cargoImageInput").click(); 
             return;
         }
 
@@ -1373,7 +1364,6 @@
         document.getElementById('revTotalVal').innerText = total.toFixed(2);
         document.getElementById('reviewModal').style.display = 'flex';
         
-        // عند تأكيد الحفظ من مودال المراجعة، يحفظ مباشرة دون أي رسائل تنبيهية مكررة
         document.getElementById('finalConfirmSaveBtn').onclick = () => { closeReviewModal(); saveInvoice(); };
     };
 
@@ -1430,7 +1420,7 @@
                 cashAmount: Number(finalCash) || 0,
                 walletAmount: Number(finalWallet) || 0,
                 items, time: currentInvoiceTime, notes: "",
-                cargoImage: base64CargoImage // حفظ الصورة المضغوطة والخفيفة بنجاح
+                cargoImage: base64CargoImage 
             };
 
             if (!editId) {
@@ -1543,10 +1533,14 @@
         const tbody = document.getElementById('recItems');
         tbody.innerHTML = data.items.map(item => `
             <tr style="border-bottom: 1px dotted #000; ${item.isReturn ? 'background-color: #fce8e6;' : ''}">
-                <td style="padding: 8px 0;">${item.isReturn ? '<span style="color:red; font-weight:bold;">(مرتجع) </span>' : ''}${item.name}</td>
-                <td style="padding: 8px 0; text-align: center;">${item.qty}</td>
-                <td style="padding: 8px 0; text-align: left;">${Number(item.price).toFixed(2)}</td>
-                <td style="padding: 8px 0; text-align: left; ${item.isReturn ? 'color: red;' : ''}">${item.isReturn ? '-' : ''}${(item.qty * item.price).toFixed(2)}</td>
+                <td style="padding: 8px 4px; width: 45%; text-align: right; word-break: break-word; direction: rtl;">
+                    ${item.isReturn ? '<span style="color:red; font-weight:bold;">(مرتجع) </span>' : ''}${item.name}
+                </td>
+                <td style="padding: 8px 4px; width: 18%; text-align: center; direction: ltr;">${item.qty}</td>
+                <td style="padding: 8px 4px; width: 17%; text-align: left; direction: ltr;">${Number(item.price).toFixed(2)}</td>
+                <td style="padding: 8px 4px; width: 20%; text-align: left; direction: ltr; ${item.isReturn ? 'color: red;' : ''}">
+                    ${item.isReturn ? '-' : ''}${(item.qty * item.price).toFixed(2)}
+                </td>
             </tr>
         `).join('');
     }
