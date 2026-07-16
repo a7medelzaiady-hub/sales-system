@@ -441,7 +441,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, query, orderBy, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, query, orderBy, deleteDoc, doc, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -677,9 +677,54 @@
     }
 
     window.deleteSingleInvoice = async function(invoiceId) {
-        if (!confirm('هل تريد حذف هذه الفاتورة؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+        if (!confirm('هل تريد حذف هذه الفاتورة؟ سيتم تعديل كميات الأصناف في المخزن تلقائياً ولا يمكن التراجع عن هذا الإجراء.')) return;
+        
+        const inv = allInvoices.find(i => i.id === invoiceId);
+        if (!inv) {
+            alert("لم يتم العثور على بيانات الفاتورة محلياً.");
+            return;
+        }
+
         try {
-            await deleteDoc(doc(db, "supplier_transactions", invoiceId));
+            await runTransaction(db, async (transaction) => {
+                if (Array.isArray(inv.items) && inv.items.length > 0) {
+                    for (const item of inv.items) {
+                        if (!item.id) continue;
+                        
+                        const productRef = doc(db, "products", item.id);
+                        const productSnap = await transaction.get(productRef);
+                        
+                        if (productSnap.exists()) {
+                            const productData = productSnap.data();
+                            const qtyToModify = item.qty || item.returnQty || 0;
+                            const isReturn = inv.isReturn || inv.type === "مرتجع شراء";
+                            
+                            // في الشراء: الحذف يخصم من المخزن (-)
+                            // في المرتجع: الحذف يعيد للمخزن (+)
+                            const modifier = isReturn ? qtyToModify : -qtyToModify;
+                            const unitName = item.unitName || "كرتونة";
+                            let currentQty = 0;
+                            let updateData = {};
+
+                            if (unitName === "جركن" || unitName === "قطعة") {
+                                currentQty = Number(productData.jerrycan || productData.pieces || 0);
+                                const newQty = Math.max(0, currentQty + modifier);
+                                updateData = { jerrycan: newQty };
+                            } else {
+                                currentQty = Number(productData.carton || 0);
+                                const newQty = Math.max(0, currentQty + modifier);
+                                updateData = { carton: newQty };
+                            }
+
+                            transaction.update(productRef, updateData);
+                        }
+                    }
+                }
+
+                const invoiceRef = doc(db, "supplier_transactions", invoiceId);
+                transaction.delete(invoiceRef);
+            });
+
             const card = document.getElementById('card-' + invoiceId);
             if (card) {
                 card.style.transition = 'opacity 0.3s, transform 0.3s';
@@ -687,10 +732,14 @@
                 card.style.transform = 'scale(0.97)';
                 setTimeout(() => card.remove(), 300);
             }
+            
             allInvoices = allInvoices.filter(i => i.id !== invoiceId);
             recalcStats();
+            alert("تم حذف الفاتورة وتعديل كميات المخزن بنجاح ✅");
+
         } catch (e) {
-            alert('خطأ أثناء الحذف: ' + e.message);
+            console.error("Error deleting invoice and updating stock:", e);
+            alert('حدث خطأ أثناء الحذف وتعديل المخزن: ' + e.message);
         }
     };
 
@@ -713,7 +762,7 @@
             }
         });
         const netPurchase   = totalPurchaseSum - totalReturnSum;
-        const totalPaid     = totalDirectPaid + totalVoucherPayments;
+        const totalPaid      = totalDirectPaid + totalVoucherPayments;
         const finalPending  = Math.max(0, netPurchase - totalPaid);
         
         document.getElementById('totalPurchase').innerHTML = generateCurrencyHTML(netPurchase);
@@ -978,7 +1027,7 @@
                     const isItemReturn = item.returnQty > 0 || inv.isReturn;
                     const motionType = isItemReturn ? "بيع" : "شراء";
                     let qtyPcs = "", qtyCrt = "", pricePcs = "", priceCrt = "";
-                    if (unit === "قطعة") { qtyPcs = item.qty || item.returnQty || 0; pricePcs = item.buy || 0; }
+                    if (unit === "جركن" || unit === "قطعة") { qtyPcs = item.qty || item.returnQty || 0; pricePcs = item.buy || 0; }
                     else { qtyCrt = item.qty || item.returnQty || 0; priceCrt = item.buy || 0; }
                     excelData.push([inv.date || "", motionType, supplierName, item.name || "", qtyPcs, qtyCrt, pricePcs, priceCrt]);
                 });
