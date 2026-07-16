@@ -47,7 +47,7 @@
             min-height: 100vh;
             box-shadow: 0 0 40px rgba(0,0,0,0.1);
             position: relative;
-            overflow-hidden: hidden;
+            overflow: hidden;
             padding-bottom: 40px;
         }
 
@@ -170,7 +170,30 @@
         .log-info { flex-grow: 1; min-width: 0; }
         .log-name { font-weight: 800; font-size: 0.85rem; color: var(--text-dark); margin: 0; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .log-time { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; display: block; margin-top: 2px; }
-        .log-val { text-align: left; font-weight: 850; font-size: 0.95rem; min-width: 90px; }
+        
+        /* منطقة عرض القيمة وزر الحذف المتناسق */
+        .log-action-zone {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        .log-val { text-align: left; font-weight: 850; font-size: 0.95rem; min-width: 80px; }
+        
+        .btn-delete-log {
+            background: var(--danger-light);
+            border: 1px solid rgba(239, 68, 68, 0.15);
+            color: var(--danger);
+            width: 30px;
+            height: 30px;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.15s;
+        }
+        .btn-delete-log:active { transform: scale(0.9); }
         
         .badge-sale { display: inline-block; font-size: 0.6rem; background: #e0f2f1; color: #00796b; padding: 2px 6px; border-radius: 6px; margin-left: 6px; font-weight: 900; vertical-align: middle; }
     </style>
@@ -183,7 +206,7 @@
         <div style="width: 36px;"></div>
         <div class="header-title">
             <span>شركة الزيادي للتجارة</span>
-            <h1>إدارة الصندوق النقدي</h1>
+            <h1>إدارة الصندوق النقدى</h1>
         </div>
         <a href="index1.html" class="back-btn"><i class="fas fa-arrow-left"></i></a>
     </div>
@@ -226,7 +249,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, query, limit, serverTimestamp, doc, getDoc, updateDoc, orderBy, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, query, limit, serverTimestamp, doc, getDoc, updateDoc, orderBy, increment, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = { apiKey: "AIzaSyB3jpSs_LiIZwoaPIgRAiALVX5F1OkBYOI", authDomain: "elzyady-da509.firebaseapp.com", projectId: "elzyady-da509", storageBucket: "elzyady-da509.firebasestorage.app", messagingSenderId: "242117738897", appId: "1:242117738897:web:d658d6ca335b316f7f9a30" };
     const app = initializeApp(firebaseConfig);
@@ -287,6 +310,7 @@
                 const paid = Math.round(Number(data.total || 0) - Number(data.remaining || 0));
                 if(paid > 0) {
                     combinedLogs.push({
+                        id: d.id,
                         name: data.customerName || 'عميل نقدي',
                         amount: paid,
                         type: 'in',
@@ -300,6 +324,7 @@
             logsSnap.forEach(d => {
                 const data = d.data();
                 combinedLogs.push({
+                    id: d.id,
                     name: data.note || (data.type === 'in' ? 'إيداع نقدي' : 'سحب مصروفات'),
                     amount: data.amount,
                     type: data.type,
@@ -327,8 +352,16 @@
                             </p>
                             <span class="log-time">${log.time}</span>
                         </div>
-                        <div class="log-val num" style="color: ${log.type === 'in' ? '#10b981' : '#ef4444'}">
-                            ${log.type === 'in' ? '+' : '-'}${Math.round(log.amount).toLocaleString('en-US')} <small style="font-size:0.6rem; font-weight:800;">ج.م</small>
+                        <div class="log-action-zone">
+                            <div class="log-val num" style="color: ${log.type === 'in' ? '#10b981' : '#ef4444'}">
+                                ${log.type === 'in' ? '+' : '-'}${Math.round(log.amount).toLocaleString('en-US')} <small style="font-size:0.6rem; font-weight:800;">ج.م</small>
+                            </div>
+                            <!-- زر الحذف الذكي يظهر فقط للحركات اليدوية -->
+                            ${!log.isSale ? `
+                                <button class="btn-delete-log" onclick="deleteTransaction('${log.id}', ${log.amount}, '${log.type}')" title="حذف العملية">
+                                    <i class="fas fa-trash-alt"></i>
+                                </button>
+                            ` : '<div style="width: 30px;"></div>'}
                         </div>
                     </div>
                 `).join('');
@@ -338,6 +371,27 @@
             document.getElementById('logsList').innerHTML = '<div class="alert alert-danger mx-3 small">خطأ في مزامنة الحسابات النقدية</div>';
         }
     }
+
+    // دالة حذف المعاملة اليدوية وإعادة تسوية الرصيد
+    window.deleteTransaction = async (id, amount, type) => {
+        if (!confirm("⚠️ هل أنت متأكد من حذف هذه المعاملة نهائياً من الصندوق؟ سيتم تحديث الرصيد الفوري فورا.")) return;
+
+        try {
+            // 1. مسح مستند العملية من الكولكشن الرئيسي
+            await deleteDoc(doc(db, "cash_logs", id));
+
+            // 2. عكس المعاملة التراكمية في settings/cash_meta لتعديل الرصيد الاحتياطي السريع
+            const change = type === 'in' ? -amount : amount;
+            const metaRef = doc(db, "settings", "cash_meta");
+            await updateDoc(metaRef, { balance: increment(change) });
+
+            alert("تم حذف العملية بنجاح وإعادة تسوية الحسابات النقدية للصندوق! ✅");
+            loadData();
+        } catch (error) {
+            console.error(error);
+            alert("خطأ أثناء الاتصال بقاعدة البيانات لحذف السجل!");
+        }
+    };
 
     window.saveTransaction = async () => {
         const amtInput = document.getElementById('amount');
