@@ -5,91 +5,284 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>قائمة الجرد - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root { 
-            --bg-dark: #0d1117; 
-            --glass: rgba(255,255,255,0.05); 
-            --neon-blue: #58a6ff;
-            --neon-red: #f85149;
-            --neon-green: #3fb950;
+            --bg-dark: #0f172a; 
+            --card-bg: rgba(30, 41, 59, 0.7); 
+            --border-color: rgba(255, 255, 255, 0.08);
+            --neon-blue: #38bdf8;
+            --neon-red: #f43f5e;
+            --neon-green: #34d399;
+            --input-radius: 14px;
         }
 
-        body { background: var(--bg-dark); font-family: 'Cairo', sans-serif; color: #ffffff; padding-bottom: 50px; }
-        .stat-card { background: var(--glass); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; padding: 15px; text-align: center; height: 100%; }
-        .stat-value { font-size: 1.4rem; font-weight: 700; display: block; }
-        .inventory-container { background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; overflow: hidden; }
-        .search-box { background: rgba(255, 255, 255, 0.05) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: white !important; border-radius: 12px; }
-        .table { color: #ffffff !important; margin-bottom: 0; background: transparent !important; white-space: nowrap; }
-        .table thead th { background: rgba(255, 255, 255, 0.05) !important; color: var(--neon-blue) !important; border-bottom: 1px solid rgba(255,255,255,0.1) !important; padding: 15px; }
-        .table tbody td { background: transparent !important; padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05) !important; color: #ffffff !important; }
-        .low-stock-row { background: rgba(248, 81, 73, 0.1) !important; border-right: 4px solid var(--neon-red); }
-        .action-btn { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.1); color: white; text-decoration: none; }
-        .btn-edit:hover { background: var(--neon-blue); color: #000; }
-        .btn-delete:hover { background: var(--neon-red); color: #fff; }
-        .price-text { color: var(--neon-blue); font-weight: 700; }
-        .total-pcs-text { color: var(--neon-green); font-weight: 700; }
-        .qty-badge { background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px; font-size: 0.85rem; }
-        .load-more-btn { background: var(--neon-blue); color: #000; border: none; font-weight: bold; border-radius: 10px; padding: 10px 25px; transition: 0.3s; }
-        .load-more-btn:hover { transform: scale(1.05); filter: brightness(1.2); }
+        body { 
+            background: var(--bg-dark); 
+            font-family: 'Cairo', sans-serif; 
+            color: #f8fafc; 
+            padding-bottom: 60px;
+            font-size: 0.88rem;
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .num { 
+            font-family: 'JetBrains Mono', monospace; 
+            font-weight: 700; 
+        }
+
+        /* ===== الهيدر العلوي المطور للموبايل ===== */
+        .top-navbar {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .header-actions-group {
+            display: flex;
+            gap: 8px;
+            width: 100%;
+            margin-top: 12px;
+        }
+        .header-actions-group .btn, .header-actions-group .nav-link-btn {
+            flex: 1;
+            font-family: 'Cairo';
+            font-weight: 700;
+            font-size: 0.8rem;
+            border-radius: 10px;
+            padding: 8px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        .nav-link-btn-light { background: rgba(255,255,255,0.08); color: #fff; border: 1px solid var(--border-color); }
+        .nav-link-btn-danger { background: rgba(244, 63, 94, 0.15); color: var(--neon-red); border: 1px solid rgba(244, 63, 94, 0.3); }
+
+        /* ===== بطاقات الإحصائيات ===== */
+        .stat-card { 
+            background: var(--card-bg); 
+            border: 1px solid var(--border-color); 
+            border-radius: 16px; 
+            padding: 14px 10px; 
+            text-align: center; 
+            height: 100%;
+            backdrop-filter: blur(8px);
+        }
+        .stat-value { font-size: 1.35rem; font-weight: 800; display: block; margin-bottom: 2px; }
+        .stat-card small { color: #94a3b8; font-weight: 600; font-size: 0.72rem; }
+
+        /* ===== مربع البحث والأزرار ===== */
+        .search-wrapper {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .search-box { 
+            background: rgba(30, 41, 59, 0.8) !important; 
+            border: 1px solid var(--border-color) !important; 
+            color: white !important; 
+            border-radius: var(--input-radius); 
+            padding: 12px 14px;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+        .search-box:focus {
+            border-color: var(--neon-blue) !important;
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15) !important;
+        }
+        .btn-add-fast {
+            background: var(--neon-blue);
+            color: #0f172a;
+            border: none;
+            width: 48px;
+            height: 48px;
+            border-radius: var(--input-radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: 0.2s;
+        }
+        .btn-add-fast:active { transform: scale(0.92); }
+
+        /* ===== نظام العرض للموبايل (كروت مرنة بديلة للجدول) ===== */
+        .stock-mobile-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 18px;
+            padding: 14px;
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            position: relative;
+        }
+        .stock-mobile-card.low-stock {
+            border-right: 4px solid var(--neon-red);
+            background: linear-gradient(to left, rgba(244, 63, 94, 0.05), var(--card-bg));
+        }
+        .card-row-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 1px dashed rgba(255,255,255,0.06);
+            padding-bottom: 8px;
+        }
+        .card-item-name { font-weight: 800; font-size: 0.95rem; color: #fff; line-height: 1.4; }
+        .card-row-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px;
+            font-size: 0.78rem;
+        }
+        .info-box {
+            background: rgba(255,255,255,0.03);
+            padding: 6px 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.02);
+        }
+        .info-box span { display: block; font-weight: bold; margin-top: 2px; }
+        
+        .qty-badge { 
+            background: rgba(255,255,255,0.06); 
+            padding: 3px 8px; 
+            border-radius: 6px; 
+            font-size: 0.75rem; 
+            font-weight: 700;
+            display: inline-block;
+        }
+
+        /* ===== أزرار التحكم الفردية المريحة باللمس ===== */
+        .card-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .action-touch-btn {
+            flex: 1;
+            padding: 8px;
+            border-radius: 10px;
+            font-size: 0.78rem;
+            font-weight: 700;
+            text-align: center;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            border: none;
+            transition: 0.2s;
+        }
+        .action-touch-btn:active { transform: scale(0.95); }
+        .touch-btn-edit { background: rgba(56, 189, 248, 0.15); color: var(--neon-blue); }
+        .touch-btn-delete { background: rgba(244, 63, 94, 0.15); color: var(--neon-red); }
+
+        /* زر عرض المزيد المستجيب */
+        .load-more-btn { 
+            background: var(--neon-blue); 
+            color: #0f172a; 
+            border: none; 
+            font-weight: 800; 
+            border-radius: 12px; 
+            padding: 12px 30px; 
+            font-size: 0.85rem;
+            width: 100%;
+            transition: 0.2s; 
+        }
+        .load-more-btn:active { transform: scale(0.98); }
+
+        /* إخفاء نظام الجدول العادي في الموبايل */
+        .desktop-table-container { display: none; }
+
+        /* ===== الشاشات الكبيرة (أجهزة الكمبيوتر والتابلت العريض) ===== */
+        @media (min-width: 768px) {
+            .desktop-table-container { display: block; }
+            .mobile-cards-container { display: none; }
+            .header-nav-wrapper { display: flex; justify-content: space-between; align-items: center; }
+            .header-actions-group { width: auto; margin-top: 0; }
+            .load-more-btn { width: auto; }
+        }
     </style>
 </head>
 <body>
 
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h4 class="fw-bold m-0 text-white"><i class="fas fa-boxes me-2"></i> قائمة الجرد </h4>
-        <div class="d-flex gap-2">
-            <button onclick="clearAllInventory()" class="btn btn-danger btn-sm px-3"><i class="fas fa-exclamation-triangle"></i> تصفير المخزن</button>
-            <a href="trash.html" class="btn btn-outline-danger btn-sm px-3"><i class="fas fa-trash-restore"></i> السلة</a>
-            <a href="inventory-menu.html" class="btn btn-outline-light btn-sm px-3">رجوع</a>
+<div class="top-navbar">
+    <div class="container p-0">
+        <div class="header-nav-wrapper">
+            <h4 class="fw-bold m-0 text-white text-center text-md-start"><i class="fas fa-boxes me-2" style="color: var(--neon-blue);"></i> قائمة الجرد</h4>
+            <div class="header-actions-group">
+                <button onclick="clearAllInventory()" class="btn btn-danger"><i class="fas fa-exclamation-triangle"></i> تصفير المخزن</button>
+                <a href="trash.html" class="nav-link-btn nav-link-btn-danger"><i class="fas fa-trash-restore"></i> السلة</a>
+                <a href="inventory-menu.html" class="nav-link-btn nav-link-btn-light">رجوع</a>
+            </div>
         </div>
     </div>
+</div>
 
-    <div class="row g-3 mb-4">
+<div class="container py-3">
+    <!-- كروت الإحصائيات الفخمة المتجاوبة -->
+    <div class="row g-2 mb-3">
         <div class="col-12">
-            <div class="stat-card border-bottom border-success border-3">
-                <span class="stat-value text-success" id="totalValue">0</span>
+            <div class="stat-card" style="border-top: 3px solid var(--neon-green);">
+                <span class="stat-value text-success num" id="totalValue">0</span>
                 <small>إجمالي قيمة بضاعة المخزن (بسعر الشراء)</small>
             </div>
         </div>
         <div class="col-6">
-            <div class="stat-card">
-                <span class="stat-value text-white" id="totalItems">0</span>
+            <div class="stat-card" style="border-top: 3px solid var(--neon-blue);">
+                <span class="stat-value text-white num" id="totalItems">0</span>
                 <small>عدد الأصناف</small>
             </div>
         </div>
         <div class="col-6">
-            <div class="stat-card">
-                <span class="stat-value text-danger" id="lowStockCount">0</span>
+            <div class="stat-card" style="border-top: 3px solid var(--neon-red);">
+                <span class="stat-value text-danger num" id="lowStockCount">0</span>
                 <small>أصناف تحت حد الطلب</small>
             </div>
         </div>
     </div>
 
-    <div class="mb-3 d-flex gap-2">
-        <input type="text" id="searchStock" class="form-control search-box" placeholder="بحث سريع بالاسم أو الباركود..." oninput="renderStock()">
-        <button class="btn btn-info px-3" onclick="location.href='add-product.html'"><i class="fas fa-plus"></i></button>
+    <!-- البحث والفلترة -->
+    <div class="search-wrapper">
+        <input type="text" id="searchStock" class="form-control search-box" placeholder="بحث سريع باسم الصنف أو الباركود..." oninput="renderStock()">
+        <button class="btn-add-fast" onclick="location.href='add-product.html'" title="إضافة صنف جديد"><i class="fas fa-plus"></i></button>
     </div>
 
-    <div class="inventory-container">
-        <div class="table-responsive">
-            <table class="table text-center align-middle">
-                <thead>
-                    <tr>
-                        <th class="text-start">المنتج</th>
-                        <th>الفئة</th>
-                        <th>الكمية (كرتونة وقطع)</th>
-                        <th>إجمالي (قطعة)</th>
-                        <th>سعر البيع</th>
-                        <th>الحالة</th>
-                        <th>إجراء</th>
-                    </tr>
-                </thead>
-                <tbody id="stockTable"></tbody>
-            </table>
+    <!-- 1. حاوية العرض الخاصة بالموبايل (نظام الكروت الذكي) -->
+    <div id="mobileCardsContainer" class="mobile-cards-container"></div>
+
+    <!-- 2. حاوية العرض الخاصة بالكمبيوتر (نظام الجدول الأصلي النظيف) -->
+    <div class="desktop-table-container">
+        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; overflow: hidden;">
+            <div class="table-responsive">
+                <table class="table text-center align-middle m-0" style="color: white;">
+                    <thead style="background: rgba(255,255,255,0.02);">
+                        <tr>
+                            <th class="text-start" style="color: var(--neon-blue); padding: 15px;">المنتج</th>
+                            <th style="color: var(--neon-blue);">الفئة</th>
+                            <th style="color: var(--neon-blue);">الكمية (كرتونة وقطع)</th>
+                            <th style="color: var(--neon-blue);">إجمالي (قطعة)</th>
+                            <th style="color: var(--neon-blue);">سعر البيع</th>
+                            <th style="color: var(--neon-blue);">الحالة</th>
+                            <th style="color: var(--neon-blue);">إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody id="stockTable"></tbody>
+                </table>
+            </div>
         </div>
+    </div>
+    
+    <!-- زر تحميل المزيد التلقائي المتناسق -->
+    <div id="loadMoreContainer" class="text-center mt-3 d-none">
+        <button class="load-more-btn" onclick="loadMore()">عرض المزيد (+)</button>
+        <p class="text-muted mt-2 small" id="loadMoreCounter">يتم عرض 0 من أصل 0 صنف</p>
     </div>
 </div>
 
@@ -97,7 +290,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, updateDoc, doc, onSnapshot, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-     const firebaseConfig = {
+    const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
         authDomain: "ahmedelzaiady.firebaseapp.com",
         projectId: "ahmedelzaiady",
@@ -105,7 +298,7 @@
         messagingSenderId: "300306825071",
         appId: "1:300306825071:web:0426ddde56280fa090329a",
         measurementId: "G-WE04GK5XZZ"
-     };
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -171,17 +364,20 @@
 
     window.renderStock = function(isMore = false) {
         if (!isMore) displayLimit = 50; 
-        const term = document.getElementById('searchStock').value.toLowerCase();
+        const term = document.getElementById('searchStock').value.toLowerCase().trim();
         const tbody = document.getElementById('stockTable');
+        const mobileContainer = document.getElementById('mobileCardsContainer');
         
         const filtered = inventoryData.filter(i => 
-            i.name.toLowerCase().includes(term) || 
+            (i.name && i.name.toLowerCase().includes(term)) || 
             (i.barcode && i.barcode.includes(term))
         );
 
         const dataToShow = (term === "") ? filtered.slice(0, displayLimit) : filtered;
 
-        let rowsHtml = ''; 
+        let tableRowsHtml = ''; 
+        let mobileCardsHtml = '';
+
         dataToShow.forEach(item => {
             const factor = Number(item.unitFactor) || 1;
             const totalPcs = Number(item.totalPcs) || 0;
@@ -189,50 +385,90 @@
             const pieces = totalPcs % factor;
             const isLow = totalPcs <= ((Number(item.min) || 0) * factor);
             
-            // --- التعديل هنا لحل مشكلة عدم ظهور القطع ---
-            let qtyDisplay = '';
+            // تهيئة نصوص عرض الكميات حسب الفئات (كرتونة / جركن / قطعة)
+            let qtyTextDesktop = '';
+            let qtyTextMobile = '';
+            
             if (factor > 1) {
-                // إذا كان المنتج يحتوي على كرتونة (عامل التحويل أكبر من 1)
-                qtyDisplay = `<span class="qty-badge">${boxes} كرتونة</span>`;
-                qtyDisplay += ` <span class="qty-badge text-info">${pieces} قطعة</span>`;
+                qtyTextDesktop = `<span class="qty-badge">${boxes} كرتونة</span> <span class="qty-badge text-info">${pieces} قطعة</span>`;
+                qtyTextMobile = `${boxes} كرتونة | ${pieces} قطعة`;
             } else {
-                // إذا كان المنتج يباع بالقطع فقط (وليس بالكرتونة)
-                qtyDisplay = `<span class="qty-badge text-info">${totalPcs} قطعة</span>`;
+                qtyTextDesktop = `<span class="qty-badge text-info">${totalPcs} قطعة</span>`;
+                qtyTextMobile = `${totalPcs} قطعة`;
             }
-            // ------------------------------------------
 
-            rowsHtml += `
-                <tr class="${isLow ? 'low-stock-row' : ''}">
-                    <td class="text-start">
+            const statusBadge = isLow ? '<span class="badge bg-danger">ناقص</span>' : '<span class="badge bg-success">متوفر</span>';
+
+            // 1. بناء واجهة مستخدم الجدول المخصصة لأجهزة الكمبيوتر
+            tableRowsHtml += `
+                <tr style="${isLow ? 'background: rgba(244, 63, 94, 0.04) !important; border-right: 4px solid var(--neon-red);' : ''}">
+                    <td class="text-start" style="padding: 14px;">
                         <div class="fw-bold text-white">${item.name}</div>
-                        <small class="text-muted" style="font-size:0.7rem">${item.barcode || '---'}</small>
+                        <small class="text-muted" style="font-size:0.72rem">${item.barcode || '---'}</small>
                     </td>
-                    <td><span class="badge bg-secondary opacity-75">${item.category}</span></td>
-                    <td><div class="d-flex flex-column gap-1">${qtyDisplay}</div></td>
-                    <td><span class="total-pcs-text">${totalPcs}</span> <small style="font-size:0.6rem">ق</small></td>
-                    <td class="price-text">${Number(item.sell).toLocaleString()}</td>
-                    <td><span class="badge ${isLow ? 'bg-danger' : 'bg-success'}">${isLow ? 'ناقص' : 'متوفر'}</span></td>
+                    <td><span class="badge bg-secondary opacity-75">${item.category || 'عام'}</span></td>
+                    <td><div class="d-flex justify-content-center gap-1">${qtyTextDesktop}</div></td>
+                    <td><span class="num" style="color: var(--neon-green); font-weight:700;">${totalPcs}</span> <small style="font-size:0.65rem; color:#94a3b8">ق</small></td>
+                    <td class="num" style="color: var(--neon-blue); font-weight:700;">${Number(item.sell).toLocaleString()}</td>
+                    <td>${statusBadge}</td>
                     <td>
                         <div class="d-flex gap-2 justify-content-center">
-                            <a href="add-product.html?edit=${item.id}" class="action-btn btn-edit"><i class="fas fa-edit"></i></a>
-                            <button onclick="softDeleteItem('${item.id}', '${item.name}')" class="action-btn btn-delete"><i class="fas fa-trash"></i></button>
+                            <a href="add-product.html?edit=${item.id}" class="btn btn-sm btn-outline-info" style="border-radius:6px;"><i class="fas fa-edit"></i></a>
+                            <button onclick="softDeleteItem('${item.id}', '${item.name}')" class="btn btn-sm btn-outline-danger" style="border-radius:6px;"><i class="fas fa-trash"></i></button>
                         </div>
                     </td>
                 </tr>
             `;
+
+            // 2. بناء واجهة مستخدم الكروت الرأسية المخصصة للموبايل واللمس السريع
+            mobileCardsHtml += `
+                <div class="stock-mobile-card ${isLow ? 'low-stock' : ''}">
+                    <div class="card-row-header">
+                        <div>
+                            <div class="card-item-name">${item.name}</div>
+                            <small class="text-muted num" style="font-size:0.7rem">باركود: ${item.barcode || '---'}</small>
+                        </div>
+                        <div>
+                            <span class="badge ${isLow ? 'bg-danger' : 'bg-success'}" style="font-size:0.68rem; padding: 4px 8px; border-radius:6px;">${isLow ? 'ناقص' : 'متوفر'}</span>
+                        </div>
+                    </div>
+                    <div class="card-row-details">
+                        <div class="info-box">
+                            <small class="text-muted d-block" style="font-size:0.65rem">التفصيل:</small>
+                            <span style="color:#f1f5f9; font-size:0.78rem;">${qtyTextMobile}</span>
+                        </div>
+                        <div class="info-box">
+                            <small class="text-muted d-block" style="font-size:0.65rem">إجمالي القطع:</small>
+                            <span class="num" style="color: var(--neon-green);">${totalPcs} قطعة</span>
+                        </div>
+                        <div class="info-box">
+                            <small class="text-muted d-block" style="font-size:0.65rem">سعر البيع:</small>
+                            <span class="num" style="color: var(--neon-blue);">${Number(item.sell).toLocaleString()} EGP</span>
+                        </div>
+                        <div class="info-box">
+                            <small class="text-muted d-block" style="font-size:0.65rem">الفئة:</small>
+                            <span style="color: #94a3b8;">${item.category || 'عام'}</span>
+                        </div>
+                    </div>
+                    <div class="card-actions">
+                        <a href="add-product.html?edit=${item.id}" class="action-touch-btn touch-btn-edit"><i class="fas fa-edit"></i> تعديل الصنف</a>
+                        <button onclick="softDeleteItem('${item.id}', '${item.name}')" class="action-touch-btn touch-btn-delete"><i class="fas fa-trash"></i> نقل للسلة</button>
+                    </div>
+                </div>
+            `;
         });
 
-        tbody.innerHTML = rowsHtml;
+        // تعبئة البيانات في العناصر المقابلة
+        tbody.innerHTML = tableRowsHtml;
+        mobileContainer.innerHTML = mobileCardsHtml;
 
+        // إدارة ظهور زر "عرض المزيد"
+        const loadMoreEl = document.getElementById('loadMoreContainer');
         if (filtered.length > displayLimit && term === "") {
-            tbody.innerHTML += `
-                <tr>
-                    <td colspan="7" class="text-center p-4">
-                        <button class="load-more-btn" onclick="loadMore()">عرض المزيد (+)</button>
-                        <p class="text-muted mt-2 small">يتم عرض ${displayLimit} من أصل ${filtered.length} صنف</p>
-                    </td>
-                </tr>
-            `;
+            loadMoreEl.classList.remove('d-none');
+            document.getElementById('loadMoreCounter').innerText = `يتم عرض ${displayLimit} من أصل ${filtered.length} صنف`;
+        } else {
+            loadMoreEl.classList.add('d-none');
         }
     };
 
