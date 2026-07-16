@@ -97,9 +97,16 @@
             margin-bottom: 15px;
             display: flex;
             align-items: center;
-            gap: 8px;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
             border-bottom: 1.5px solid #f1f5f9;
             padding-bottom: 10px;
+        }
+        .card-sec-title .title-text {
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .price-item {
@@ -134,8 +141,13 @@
         /* تحسينات الموبايل للجداول لتفادي التداخل البصري */
         .table-responsive {
             border-radius: 12px;
-            overflow: hidden;
+            overflow-x: auto;
             border: 1px solid var(--border-color);
+            -webkit-overflow-scrolling: touch;
+        }
+        .table {
+            min-width: 600px; /* يمنع انضغاط الجدول ويسمح بالسحب اللمسى المريح على الموبايل */
+            margin-bottom: 0 !important;
         }
         .table th {
             background-color: #f8fafc !important;
@@ -143,12 +155,14 @@
             font-size: 0.78rem;
             font-weight: 700;
             text-align: center;
+            padding: 12px 8px;
         }
         .table td {
             font-size: 0.85rem;
             font-weight: 600;
             text-align: center;
             vertical-align: middle;
+            padding: 12px 8px;
         }
 
         .badge-type {
@@ -162,10 +176,10 @@
             background: var(--danger);
             color: white !important;
             border: none;
-            padding: 8px 16px;
+            padding: 6px 14px;
             border-radius: 10px;
             font-weight: 700;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             display: inline-flex;
             align-items: center;
             gap: 6px;
@@ -205,9 +219,11 @@
     <!-- كارت سياسة الأسعار والوحدات -->
     <div class="info-card">
         <div class="card-sec-title">
-            <i class="fas fa-coins"></i>
-            <span>سياسة الأسعار والوحدات للبيع</span>
-            <span class="badge bg-success ms-auto" id="majorUnitBadge" style="font-size: 0.7rem;">الوحدة الكبرى: كرتونة</span>
+            <div class="title-text">
+                <i class="fas fa-coins"></i>
+                <span>سياسة الأسعار والوحدات للبيع</span>
+            </div>
+            <span class="badge bg-success" id="majorUnitBadge" style="font-size: 0.7rem;">الوحدة الكبرى: كرتونة</span>
         </div>
         <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 12px;" id="unitFactorText">
             معدل التحويل: تحتوي الكرتونة على 12 قطعة/جركن
@@ -237,9 +253,11 @@
     <!-- تفاصيل أو وصف المنتج -->
     <div class="info-card">
         <div class="card-sec-title">
-            <i class="fas fa-file-lines"></i>
-            <span>تفاصيل أو وصف المنتج</span>
-            <a href="#" id="editProductBtn" class="btn-edit-product ms-auto">
+            <div class="title-text">
+                <i class="fas fa-file-lines"></i>
+                <span>تفاصيل أو وصف المنتج</span>
+            </div>
+            <a href="#" id="editProductBtn" class="btn-edit-product">
                 <i class="fas fa-edit"></i> تعديل الصنف
             </a>
         </div>
@@ -251,8 +269,10 @@
     <!-- حركة المستندات والسجل الكامل -->
     <div class="movements-table-card">
         <div class="card-sec-title">
-            <i class="fas fa-history text-primary"></i>
-            <span>حركة المستندات والسجل الكامل (فواتير وحركات)</span>
+            <div class="title-text">
+                <i class="fas fa-history text-primary"></i>
+                <span>حركة المستندات والسجل الكامل (فواتير وحركات)</span>
+            </div>
         </div>
         
         <div id="movementsArea">
@@ -281,7 +301,6 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // جلب معرف المنتج من الـ URL
     const urlParams = new URLSearchParams(window.location.search);
     const productId = urlParams.get('id');
 
@@ -290,12 +309,10 @@
         window.history.back();
     }
 
-    // إعداد زر التعديل
     document.getElementById('editProductBtn').href = `add-product.html?edit=${productId}`;
 
     async function loadProductDetails() {
         try {
-            // 1. جلب بيانات الصنف الأساسية
             const productDoc = await getDoc(doc(db, "inventory", productId));
             if (!productDoc.exists()) {
                 document.getElementById('movementsArea').innerHTML = `<div class="alert alert-danger text-center">عذراً، هذا المنتج غير مسجل بالنظام!</div>`;
@@ -304,24 +321,19 @@
 
             const product = productDoc.data();
             const productName = product.name;
-            const factor = Number(product.unitFactor) || 12; // الافتراضي 12 قطعة للكرتونة
+            const factor = Number(product.unitFactor) || 12;
 
-            // تحديث الهيدر والاسم
             document.getElementById('headerProductName').innerText = productName;
             document.getElementById('minQtyVal').innerText = product.min || 0;
             document.getElementById('totalPcsVal').innerText = product.totalPcs || product.qty || 0;
             
-            // حساب الكراتين والقطع المتبقية بدقة للأرقام الموجبة والسالبة
             const total = Number(product.totalPcs || product.qty || 0);
-            const absTotal = Math.abs(total);
-            const sign = total < 0 ? -1 : 1;
             const cartons = Math.trunc(total / factor);
             const remainingPcs = total % factor;
 
             document.getElementById('cartonsSplitVal').innerText = `${cartons} كرتونة و ${remainingPcs} جركن`;
             document.getElementById('unitFactorText').innerText = `معدل التحويل: تحتوي الكرتونة على ${factor} جركن/قطعة`;
 
-            // تحديث أسعار البيع
             document.getElementById('priceRetail').innerText = Number(product.sell || 0).toFixed(2);
             document.getElementById('priceGomla').innerText = Number(product.sellGomla || product.sell || 0).toFixed(2);
             document.getElementById('priceHalfGomla').innerText = Number(product.sellHalfGomla || product.sell || 0).toFixed(2);
@@ -332,17 +344,14 @@
                 document.getElementById('productDescription').innerText = `لا يوجد وصف متاح لـ ${productName}`;
             }
 
-            // 2. جلب الموردين لترجمة معرف المورد لاسم مقروء
             let suppliersBase = {};
             const supSnap = await getDocs(collection(db, "suppliers"));
             supSnap.forEach(d => {
                 suppliersBase[d.id] = d.data().name;
             });
 
-            // 3. تجميع الحركات من كل الكولكشنز (مبيعات ومشتريات)
             let movements = [];
 
-            // أ: جلب حركات المبيعات (من كولكشن invoices)
             const salesSnap = await getDocs(collection(db, "invoices"));
             salesSnap.forEach(doc => {
                 const data = doc.data();
@@ -356,7 +365,7 @@
                         dateStr: data.time || dateObj.toLocaleDateString('ar-EG'),
                         type: isReturn ? "مرتجع بيع ↩" : "بيع 🛒",
                         badgeClass: isReturn ? "bg-warning text-dark" : "bg-danger",
-                        party: data.customerName || "عميل نقدي", // الاحتفاظ باسم العميل ظاهراً دائماً
+                        party: data.customerName || "عميل نقدي",
                         qty: matchedItem.qty,
                         unit: matchedItem.unit === 'box' ? 'كرتونة' : 'جركن',
                         price: matchedItem.price,
@@ -366,7 +375,6 @@
                 }
             });
 
-            // ب: جلب حركات المشتريات (من كولكشن supplier_transactions)
             const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
             purchasesSnap.forEach(doc => {
                 const data = doc.data();
@@ -391,11 +399,9 @@
                 }
             });
 
-            // ج: جلب الحركات المباشرة الاحتياطية (من كولكشن transactions الموحد إن وُجد)
             const transSnap = await getDocs(query(collection(db, "transactions"), where("productId", "==", productId)));
             transSnap.forEach(doc => {
                 const data = doc.data();
-                // لتجنب تكرار العمليات التي تم جلبها بالفعل من الفواتير أعلاه
                 const alreadyExists = movements.some(m => m.docLink.includes(data.invoiceId));
                 if (!alreadyExists) {
                     const isSale = data.type === 'sale' || data.type === 'بيع';
@@ -416,10 +422,8 @@
                 }
             });
 
-            // 4. ترتيب جميع الحركات تنازلياً من الأحدث إلى الأقدم
             movements.sort((a, b) => b.date - a.date);
 
-            // 5. عرض البيانات في جدول تفاعلي
             if (movements.length === 0) {
                 document.getElementById('movementsArea').innerHTML = `
                     <div class="text-center text-muted py-5">
@@ -474,7 +478,6 @@
         }
     }
 
-    // بدء تشغيل الصفحة وجلب البيانات
     loadProductDetails();
 </script>
 </body>
