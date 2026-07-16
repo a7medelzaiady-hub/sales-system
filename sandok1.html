@@ -40,7 +40,6 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* حاوية الهاتف المحمول الاحترافية لمنع التمدد وتوسيط الواجهة */
         .app-container {
             max-width: 500px;
             margin: 0 auto;
@@ -57,7 +56,7 @@
             font-weight: 800; 
         }
 
-        /* ===== Header fakhim ===== */
+        /* ===== Header ===== */
         .header-nav { 
             background: var(--accent-gradient); 
             color: white; 
@@ -166,10 +165,10 @@
             background: rgba(239, 68, 68, 0.15);
             border: 1px solid rgba(239, 68, 68, 0.25);
             color: var(--danger);
-            padding: 4px 10px;
+            padding: 6px 12px;
             border-radius: 10px;
-            font-size: 0.72rem;
-            font-weight: 800;
+            font-size: 0.75rem;
+            font-weight: 900;
             display: inline-flex;
             align-items: center;
             gap: 4px;
@@ -224,7 +223,6 @@
 <body>
 
 <div class="app-container">
-    <!-- هيدر التطبيق -->
     <div class="header-nav">
         <div style="width: 36px;"></div>
         <div class="header-title">
@@ -234,7 +232,6 @@
         <a href="index1.html" class="back-btn"><i class="fas fa-arrow-left"></i></a>
     </div>
 
-    <!-- كارت عرض رصيد الخزنة المحدث دائماً -->
     <div class="balance-card">
         <p class="text-muted small mb-1 fw-bold">صافي النقدية الفعلي بالدرج</p>
         <div class="balance-amount">
@@ -244,7 +241,6 @@
         <p class="today-date small text-muted mt-2 fw-bold" id="todayDate"></p>
     </div>
 
-    <!-- كارت الحركات يدوي مبيعات ومصروفات -->
     <div class="action-card">
         <div class="btn-group-toggle">
             <button class="type-btn active-plus" id="btnIn" onclick="setType('in')">إيداع (+)</button>
@@ -261,9 +257,9 @@
         <button class="btn-confirm" id="btnConfirm" onclick="saveTransaction()">تأكيد عملية الإيداع</button>
     </div>
 
-    <!-- شريط ترويسة العمليات مضافاً إليه زر الحذف الكلي -->
     <div class="history-toolbar">
         <h6 class="history-title">آخر 20 عملية مسجلة</h6>
+        <!-- زر التصفير والمسح الشامل من Firebase -->
         <button class="btn-clear-all-logs" onclick="clearAllCashLogs()">
             <i class="fas fa-trash-can"></i> مسح الدفتر
         </button>
@@ -310,7 +306,6 @@
 
     async function loadData() {
         try {
-            // 1. حساب الرصيد الفعلي الحقيقي ديناميكياً من كافة حركات الصندوق (القبض والشرائح الأخرى)
             const cashLogsSnap = await getDocs(collection(db, "cash_logs"));
             let actualBalance = 0;
 
@@ -326,7 +321,6 @@
 
             document.getElementById('currentBalance').innerText = actualBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-            // 2. جلب وتجميع السجلات للدرج
             const logsQuery = query(collection(db, "cash_logs"), orderBy("timestamp", "desc"), limit(20));
             const logsSnap = await getDocs(logsQuery);
             
@@ -386,7 +380,6 @@
                             <div class="log-val num" style="color: ${log.type === 'in' ? '#10b981' : '#ef4444'}">
                                 ${log.type === 'in' ? '+' : '-'}${Math.round(log.amount).toLocaleString('en-US')} <small style="font-size:0.6rem; font-weight:800;">ج.م</small>
                             </div>
-                            <!-- زر الحذف الذكي يظهر فقط للحركات اليدوية -->
                             ${!log.isSale ? `
                                 <button class="btn-delete-log" onclick="deleteTransaction('${log.id}', ${log.amount}, '${log.type}')" title="حذف العملية">
                                     <i class="fas fa-trash-alt"></i>
@@ -420,32 +413,40 @@
         }
     };
 
-    // دالة مسح كافة عمليات النقدية بالكامل وتصفير كاش ميتا
+    // دالة التصفير الاحترافية والمسح الشامل من Firebase
     window.clearAllCashLogs = async () => {
-        const confirm1 = confirm("🚨 تحذير خطير للغاية!\nهل أنت متأكد من مسح جميع عمليات وحركات الصندوق والدرج من قاعدة البيانات؟ لا يمكن استرجاع هذه البيانات مطلقاً.");
+        const confirm1 = confirm("🚨 تحذير أمان هام للغاية!\nهل أنت متأكد من مسح جميع سجلات حركات الصندوق (cash_logs) من الـ Firebase؟ لا يمكن التراجع عن هذا الإجراء.");
         if (!confirm1) return;
 
-        const confirm2 = confirm("تأكيد نهائي: سيتم تصفير دفتر النقدية وتحديث الرصيد التراكمي إلى 0.00 ج.م، هل تريد المتابعة الحتمية؟");
-        if (!confirm2) return;
+        // سؤال المستخدم عما إذا كان يريد مسح الفواتير أيضاً لتصفير الصفحة تماماً
+        const deleteInvoices = confirm("❓ هل ترغب في مسح فواتير المبيعات (invoices) أيضاً لتصفير الصفحة بالكامل بنسبة 100%؟\n(ملاحظة: مسح الفواتير سيحذفها من لوحة المبيعات أيضاً).");
+
+        const confirmFinal = confirm("⚡ تأكيد أخير وحتمي: سيتم الآن تصفير رصيد الخزنة إلى 0.00 ج.م والبدء من جديد. هل أنت متأكد؟");
+        if (!confirmFinal) return;
 
         try {
+            // 1. مسح جميع مستندات cash_logs
             const logsSnap = await getDocs(collection(db, "cash_logs"));
-            
-            // مسح كافة مستندات حركات الصندوق واحداً تلو الآخر
-            const deletePromises = [];
-            logsSnap.forEach(logDoc => {
-                deletePromises.push(deleteDoc(doc(db, "cash_logs", logDoc.id)));
-            });
-            await Promise.all(deletePromises);
+            const logPromises = logsSnap.docs.map(lDoc => deleteDoc(doc(db, "cash_logs", lDoc.id)));
+            await Promise.all(logPromises);
 
-            // تصفير وثيقة settings/cash_meta بشكل كامل
+            // 2. تصفير الـ cash_meta
             await setDoc(doc(db, "settings", "cash_meta"), { balance: 0 });
 
-            alert("تم إفراغ وتصفير دفتر الصندوق النقدي بالكامل وتحديث المزامنة بنجاح! ✅");
+            // 3. مسح الفواتير إن وافق المستخدم
+            if (deleteInvoices) {
+                const invSnap = await getDocs(collection(db, "invoices"));
+                const invPromises = invSnap.docs.map(iDoc => deleteDoc(doc(db, "invoices", iDoc.id)));
+                await Promise.all(invPromises);
+                alert("تم تصفير الصندوق وحذف الفواتير بالكامل بنجاح! ✅");
+            } else {
+                alert("تم تفريغ الصندوق وتصفير الرصيد اليدوي بنجاح! (تم الاحتفاظ بالفواتير لتظل حساباتك دقيقة) ✅");
+            }
+
             loadData();
         } catch (error) {
             console.error(error);
-            alert("فشل مسح السجلات من قاعدة البيانات: " + error.message);
+            alert("حدث خطأ أثناء مسح البيانات من Firebase: " + error.message);
         }
     };
 
