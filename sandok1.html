@@ -17,6 +17,7 @@
             --bg: #f4f6f8; 
             --success: #10b981; 
             --danger: #ef4444; 
+            --danger-light: #fee2e2;
             --panel: #ffffff;
             --text-dark: #0f172a;
             --text-muted: #64748b;
@@ -152,8 +153,31 @@
         }
         .btn-confirm:active { transform: scale(0.97); }
         
-        /* ===== Logs History ===== */
-        .history-title { margin: 24px 20px 12px; font-weight: 850; color: var(--text-dark); font-size: 0.95rem; }
+        /* ===== Logs History Toolbar ===== */
+        .history-toolbar { 
+            margin: 24px 20px 12px; 
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .history-title { font-weight: 850; color: var(--text-dark); font-size: 0.95rem; margin: 0; }
+        
+        .btn-clear-all-logs {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            color: var(--danger);
+            padding: 4px 10px;
+            border-radius: 10px;
+            font-size: 0.72rem;
+            font-weight: 800;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+        .btn-clear-all-logs:active { transform: scale(0.92); background-color: rgba(239, 68, 68, 0.25); }
+
         .log-item { 
             background: var(--panel); 
             border-radius: var(--radius-md); 
@@ -171,7 +195,6 @@
         .log-name { font-weight: 800; font-size: 0.85rem; color: var(--text-dark); margin: 0; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .log-time { font-size: 0.68rem; color: var(--text-muted); font-weight: 600; display: block; margin-top: 2px; }
         
-        /* منطقة عرض القيمة وزر الحذف المتناسق */
         .log-action-zone {
             display: flex;
             align-items: center;
@@ -206,7 +229,7 @@
         <div style="width: 36px;"></div>
         <div class="header-title">
             <span>شركة الزيادي للتجارة</span>
-            <h1>إدارة الصندوق النقدى</h1>
+            <h1>إدارة الصندوق النقدي</h1>
         </div>
         <a href="index1.html" class="back-btn"><i class="fas fa-arrow-left"></i></a>
     </div>
@@ -238,7 +261,14 @@
         <button class="btn-confirm" id="btnConfirm" onclick="saveTransaction()">تأكيد عملية الإيداع</button>
     </div>
 
-    <h6 class="history-title">آخر 20 عملية مسجلة</h6>
+    <!-- شريط ترويسة العمليات مضافاً إليه زر الحذف الكلي -->
+    <div class="history-toolbar">
+        <h6 class="history-title">آخر 20 عملية مسجلة</h6>
+        <button class="btn-clear-all-logs" onclick="clearAllCashLogs()">
+            <i class="fas fa-trash-can"></i> مسح الدفتر
+        </button>
+    </div>
+    
     <div id="logsList">
         <div class="text-center py-5">
             <div class="spinner-border text-success" role="status"></div>
@@ -249,7 +279,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, query, limit, serverTimestamp, doc, getDoc, updateDoc, orderBy, increment, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, query, limit, serverTimestamp, doc, getDoc, updateDoc, orderBy, increment, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = { apiKey: "AIzaSyB3jpSs_LiIZwoaPIgRAiALVX5F1OkBYOI", authDomain: "elzyady-da509.firebaseapp.com", projectId: "elzyady-da509", storageBucket: "elzyady-da509.firebasestorage.app", messagingSenderId: "242117738897", appId: "1:242117738897:web:d658d6ca335b316f7f9a30" };
     const app = initializeApp(firebaseConfig);
@@ -372,15 +402,12 @@
         }
     }
 
-    // دالة حذف المعاملة اليدوية وإعادة تسوية الرصيد
     window.deleteTransaction = async (id, amount, type) => {
-        if (!confirm("⚠️ هل أنت متأكد من حذف هذه المعاملة نهائياً من الصندوق؟ سيتم تحديث الرصيد الفوري فورا.")) return;
+        if (!confirm("⚠️ هل أنت متأكد من حذف هذه المعاملة نهائياً من الصندوق؟ سيتم تحديث الرصيد الفوري فوراً.")) return;
 
         try {
-            // 1. مسح مستند العملية من الكولكشن الرئيسي
             await deleteDoc(doc(db, "cash_logs", id));
 
-            // 2. عكس المعاملة التراكمية في settings/cash_meta لتعديل الرصيد الاحتياطي السريع
             const change = type === 'in' ? -amount : amount;
             const metaRef = doc(db, "settings", "cash_meta");
             await updateDoc(metaRef, { balance: increment(change) });
@@ -390,6 +417,35 @@
         } catch (error) {
             console.error(error);
             alert("خطأ أثناء الاتصال بقاعدة البيانات لحذف السجل!");
+        }
+    };
+
+    // دالة مسح كافة عمليات النقدية بالكامل وتصفير كاش ميتا
+    window.clearAllCashLogs = async () => {
+        const confirm1 = confirm("🚨 تحذير خطير للغاية!\nهل أنت متأكد من مسح جميع عمليات وحركات الصندوق والدرج من قاعدة البيانات؟ لا يمكن استرجاع هذه البيانات مطلقاً.");
+        if (!confirm1) return;
+
+        const confirm2 = confirm("تأكيد نهائي: سيتم تصفير دفتر النقدية وتحديث الرصيد التراكمي إلى 0.00 ج.م، هل تريد المتابعة الحتمية؟");
+        if (!confirm2) return;
+
+        try {
+            const logsSnap = await getDocs(collection(db, "cash_logs"));
+            
+            // مسح كافة مستندات حركات الصندوق واحداً تلو الآخر
+            const deletePromises = [];
+            logsSnap.forEach(logDoc => {
+                deletePromises.push(deleteDoc(doc(db, "cash_logs", logDoc.id)));
+            });
+            await Promise.all(deletePromises);
+
+            // تصفير وثيقة settings/cash_meta بشكل كامل
+            await setDoc(doc(db, "settings", "cash_meta"), { balance: 0 });
+
+            alert("تم إفراغ وتصفير دفتر الصندوق النقدي بالكامل وتحديث المزامنة بنجاح! ✅");
+            loadData();
+        } catch (error) {
+            console.error(error);
+            alert("فشل مسح السجلات من قاعدة البيانات: " + error.message);
         }
     };
 
@@ -412,7 +468,6 @@
                 date: new Date().toLocaleString('ar-EG')
             });
 
-            // تحديث كاش ميتا كقيمة احتياطية سريعة
             const change = currentType === 'in' ? amt : -amt;
             const metaRef = doc(db, "settings", "cash_meta");
             await updateDoc(metaRef, { balance: increment(change) });
