@@ -2,8 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,
- initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>فاتورة مبيعات - شركة الزيادي</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -283,7 +282,6 @@
             border-radius: 20px !important; font-size: 0.85rem !important; font-weight: 800 !important;
         }
 
-        /* تنسيق شبكة معرض الصور الملتقطة البضاعة */
         .image-preview-gallery {
             display: flex;
             flex-wrap: wrap;
@@ -409,7 +407,6 @@
             <i class="fas fa-plus-circle me-1"></i> إضافة صنف جديد
         </button>
 
-        <!-- حقل تصوير البضاعة المتعدد المطور والملائم لشاشة الموبايل -->
         <div class="mb-3 p-3 text-center" style="background: #f8faf9; border: 1.5px dashed var(--accent); border-radius: var(--card-radius);">
             <span class="sub-lbl mb-2 text-center" style="font-size: 0.85rem; font-weight: 700; color: var(--accent);"><i class="fas fa-camera me-1"></i> تصوير البضاعة للمراجعة (متعدد)</span>
             <button type="button" class="btn btn-outline-success w-100 fw-bold" onclick="document.getElementById('cargoImageInput').click()" style="border-radius: var(--input-radius);">
@@ -481,7 +478,6 @@
     </div>
 </div>
 
-<!-- مودال التنبيه الاحترافي المخصص بدلاً من الـ alert العادي لحماية اسم الموقع من الظهور -->
 <div id="customAlertModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100000; align-items: center; justify-content: center; backdrop-filter: blur(3px);">
     <div style="background: white; width: 88%; max-width: 380px; padding: 22px; border-radius: var(--card-radius); text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); animation: scaleUp 0.2s ease;">
         <div style="width: 55px; height: 55px; background: #fff3cd; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
@@ -605,7 +601,6 @@
             </div>
         </div>
 
-        <!-- تم تحديث هيكل الجدول لضمان عرض مستقر ومنع التداخل نهائياً -->
         <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 15px; table-layout: fixed;">
             <thead>
                 <tr style="border-bottom: 1.5px solid #000; font-weight: 800;">
@@ -689,7 +684,8 @@
     let isChanged = false;
     let currentFetchedOldBalance = 0;
     let originalInvoiceTime = "";
-    let cargoImagesArray = []; // مصفوفة لحفظ لقطات صور متعددة للبضاعة
+    let cargoImagesArray = []; 
+    let originalInvoiceDataForLogs = null; // متغير لحفظ الحالة الأصلية للفاتورة قبل التعديل لمقارنتها
 
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -762,7 +758,6 @@
         };
     }
 
-    // التقاط وإدراج صور متعددة في المعرض المخصص
     window.previewCargoImage = (event) => {
         const file = event.target.files[0];
         if (file) {
@@ -959,7 +954,6 @@
         return 0;
     }
 
-    // دالة جلب آخر سعر بيع ذكية ومعدلة لتشمل كافة معرّفات الأصناف التاريخية الممكنة وتجنب السقوط
     async function fetchSmartPrice(stockId, selectedUnit) {
         try {
             const snap = await getDocs(collection(db, "invoices"));
@@ -1266,13 +1260,9 @@
 
         row.querySelector('.p-price').placeholder = "جاري حساب السعر...";
 
-        // 1. حساب السعر المسجل في المخزن
         const storePrice = (selectedUnit === 'box') ? (Number(p.sell) || 0) : ((Number(p.sell) || 0) / (Number(p.unitFactor) || 1));
-
-        // 2. جلب آخر سعر بيع مسجل عموماً لأي عميل
         const lastSoldPrice = await fetchSmartPrice(stockId, selectedUnit);
 
-        // 3. اعتماد السعر الأكبر وتفادي السقوط في مقارنات Firestore
         let finalPrice = storePrice;
         if (lastSoldPrice !== null && !isNaN(lastSoldPrice) && lastSoldPrice > storePrice) {
             finalPrice = lastSoldPrice;
@@ -1436,6 +1426,59 @@
 
     window.closeReviewModal = () => { document.getElementById('reviewModal').style.display = 'none'; };
 
+    // دالة ذكية لمقارنة التغييرات وصياغة ملحوظة مراجعة محاسبية تلقائية دقيقة
+    function generateModificationLogs(oldData, newData) {
+        if (!oldData) return "تعديل عام على بيانات الفاتورة";
+        let logs = [];
+
+        // 1. مقارنة الخصم
+        if (Number(oldData.discount || 0) !== Number(newData.discount || 0)) {
+            logs.push(`تعديل الخصم من (${oldData.discount || 0}) إلى (${newData.discount || 0})`);
+        }
+        // 2. مقارنة السداد الكاش والمحفظة
+        if (Number(oldData.cashAmount || 0) !== Number(newData.cashAmount || 0)) {
+            logs.push(`تعديل المدفوع كاش من (${oldData.cashAmount || 0}) إلى (${newData.cashAmount || 0})`);
+        }
+        if (Number(oldData.walletAmount || 0) !== Number(newData.walletAmount || 0)) {
+            logs.push(`تعديل المدفوع محفظة من (${oldData.walletAmount || 0}) إلى (${newData.walletAmount || 0})`);
+        }
+
+        // 3. مقارنة بنود الأصناف
+        const oldItems = oldData.items || [];
+        const newItems = newData.items || [];
+
+        // تتبع الأصناف المحذوفة أو المعدلة
+        oldItems.forEach(oldItem => {
+            const newItem = newItems.find(n => n.stockId === oldItem.stockId && n.unit === oldItem.unit && n.isReturn === oldItem.isReturn);
+            const unitText = oldItem.unit === 'box' ? 'كرتونة' : 'جركن';
+            const modeText = oldItem.isReturn ? 'مرتجع' : 'بيع';
+
+            if (!newItem) {
+                logs.push(`حذف بند: ${oldItem.name} (${modeText} - وحدة ${unitText})`);
+            } else {
+                if (Number(oldItem.qty) !== Number(newItem.qty)) {
+                    logs.push(`تعديل كمية ${oldItem.name} من (${oldItem.qty}) إلى (${newItem.qty}) ${unitText}`);
+                }
+                if (Number(oldItem.price) !== Number(newItem.price)) {
+                    logs.push(`تعديل سعر ${oldItem.name} من (${oldItem.price}) إلى (${newItem.price}) ج.م`);
+                }
+            }
+        });
+
+        // تتبع الأصناف الجديدة تماماً المضافة
+        newItems.forEach(newItem => {
+            const oldItem = oldItems.find(o => o.stockId === newItem.stockId && o.unit === newItem.unit && o.isReturn === newItem.isReturn);
+            const unitText = newItem.unit === 'box' ? 'كرتونة' : 'جركن';
+            const modeText = newItem.isReturn ? 'مرتجع' : 'بيع';
+
+            if (!oldItem) {
+                logs.push(`إضافة صنف جديد: ${newItem.name} (عدد ${newItem.qty} ${unitText} بسعر ${newItem.price} - ${modeText})`);
+            }
+        });
+
+        return logs.length > 0 ? logs.join(' | ') : "تم فتح الفاتورة وحفظها بدون إجراء تغييرات جوهرية";
+    }
+
     window.saveInvoice = async () => {
         const saveBtn = document.getElementById('saveBtn');
         try {
@@ -1476,6 +1519,14 @@
 
             const currentInvoiceTime = document.getElementById('invTime').value || originalInvoiceTime || new Date().toLocaleString('ar-EG');
 
+            // تجهيز نص الملاحظات بناء على وضع التسجيل (جديد أو تعديل)
+            let finalNotes = "";
+            if (editId && originalInvoiceDataForLogs) {
+                finalNotes = generateModificationLogs(originalInvoiceDataForLogs, {
+                    discount, cashAmount: finalCash, walletAmount: finalWallet, items
+                });
+            }
+
             const baseInvoiceData = {
                 customerId, customerName,
                 itemsTotal: Number(itemsTotal) || 0,
@@ -1486,8 +1537,9 @@
                 paymentMethod: finalMethod,
                 cashAmount: Number(finalCash) || 0,
                 walletAmount: Number(finalWallet) || 0,
-                items, time: currentInvoiceTime, notes: "",
-                cargoImages: cargoImagesArray // حفظ مصفوفة لقطات البضاعة المتعددة
+                items, time: currentInvoiceTime, 
+                notes: finalNotes, // تسجيل ملحوظة التغييرات التفصيلية
+                cargoImages: cargoImagesArray 
             };
 
             if (!editId) {
@@ -1598,7 +1650,6 @@
         } else { recSplitZone.style.display = 'none'; }
 
         const tbody = document.getElementById('recItems');
-        // تعديل رندرة الجدول لمنع التداخل نهائياً عبر عزل الحروف عن الأرقام
         tbody.innerHTML = data.items.map(item => `
             <tr style="border-bottom: 1px dotted #000; ${item.isReturn ? 'background-color: #fce8e6;' : ''}">
                 <td style="padding: 8px 2px; width: 50%; text-align: right; direction: rtl; white-space: normal; line-height: 1.3;">
@@ -1793,6 +1844,10 @@
 
                 if (invDoc.exists()) {
                     const data = invDoc.data();
+                    
+                    // حفظ نسخة كاملة في المتغير المرجعي للمقارنة اللاحقة عند الحفظ لإنشاء الـ logs
+                    originalInvoiceDataForLogs = JSON.parse(JSON.stringify(data));
+
                     document.getElementById('customerSelect').value = data.customerId || "";
                     document.getElementById('customerSearch').value = data.customerName || 'عميل نقدي';
 
@@ -1805,7 +1860,6 @@
                     document.getElementById('paidAmount').value = data.paid || 0;
                     document.getElementById('discountAmount').value = data.discount || 0;
 
-                    // استعادة مصفوفة الصور المتعددة
                     cargoImagesArray = data.cargoImages || [];
                     if (data.cargoImage && cargoImagesArray.length === 0) {
                         cargoImagesArray.push(data.cargoImage);
