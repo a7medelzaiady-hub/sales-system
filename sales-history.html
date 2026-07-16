@@ -239,17 +239,19 @@
         }
         .pay-badge { font-size: 0.7rem; font-weight: 800; padding: 5px 11px; border-radius: 8px; }
 
-        /* حاوية صندوق التعديلات المحسّنة للموبايل لتبدو واضحة وجميلة */
+        /* حاوية صندوق التعديلات المحسّنة والمتحكم بها بزر للموبايل */
         .modification-log-box {
-            background: #fff9db;
-            border: 1px solid #ffe066;
-            color: #868e96;
+            background: #fffdf5;
+            border: 1px solid #ffd43b;
+            color: #495057;
             border-radius: 12px;
             padding: 10px 14px;
             margin-top: 12px;
             font-size: 0.78rem;
             font-weight: 700;
             line-height: 1.5;
+            display: none; /* مخفي افتراضياً ويظهر عند الضغط على الزر */
+            animation: scaleUp 0.15s ease-out;
         }
 
         .financial-grid {
@@ -541,7 +543,7 @@
                 </div>
             </div>
             <div class="action-buttons-group">
-                <button class="btn btn-outline-primary" onclick="downloadInvoicesImagesByDate()" title="تحميل الفواتير وصور البضاعة">
+                <button class="btn btn-outline-primary" onclick="downloadInvoicesImagesByDate()" title="تحميل الفواتير وصور البضاعة وملحوظاتها">
                     <i class="fas fa-images"></i> صور الفواتير ZIP
                 </button>
                 <button class="btn btn-success text-white" onclick="printDailyComprehensiveReport()" title="تقرير مالي للمبيعات والمخزن اليومي">
@@ -735,6 +737,13 @@
         return "00:00 م";
     }
 
+    window.toggleModificationsBox = (invoiceId) => {
+        const box = document.getElementById(`mod_log_${invoiceId}`);
+        if (box) {
+            box.style.display = (box.style.display === "none" || box.style.display === "") ? "block" : "none";
+        }
+    };
+
     window.renderInvoices = (invoices, vouchers = []) => {
         currentRenderedInvoices = invoices;
         const container = document.getElementById('invoicesList');
@@ -765,7 +774,6 @@
                 shortDate = "بلا تاريخ";
             }
 
-            // تتبع حقل الملاحظات المحاسبية لعرض سجل التعديلات بشكل فوري
             const modificationNotes = inv.notes || "";
             const isModified = modificationNotes.trim() !== "" && modificationNotes !== "معدلة";
             
@@ -773,6 +781,13 @@
             const viewImagesBtn = hasImages ? `
                 <button class="btn btn-outline-warning text-dark" onclick="openCargoGallery('${inv.id}')" title="مشاهدة صور البضاعة">
                     <i class="fas fa-camera"></i>
+                </button>
+            ` : '';
+
+            // زر مخصص يظهر فقط عند وجود ملحوظة تعديل بالفاتورة
+            const viewModificationsBtn = isModified ? `
+                <button class="btn btn-outline-warning text-dark" onclick="toggleModificationsBox('${inv.id}')" title="عرض سجل التعديل">
+                    <i class="fas fa-info-circle"></i> تعديل
                 </button>
             ` : '';
 
@@ -788,10 +803,10 @@
                         </div>
                     </div>
                     
-                    <!-- إدراج الملاحظات التفصيلية مباشرة داخل الفاتورة المحاسبية -->
+                    <!-- صندوق تفاصيل التعديل يتم التحكم به عن طريق الزر -->
                     ${isModified ? `
-                        <div class="modification-log-box">
-                            <i class="fas fa-info-circle text-warning me-1"></i> <b>سجل التعديل:</b> ${modificationNotes}
+                        <div id="mod_log_${inv.id}" class="modification-log-box">
+                            <i class="fas fa-history text-warning me-1"></i> <b>ملحوظة التعديل المحاسبي:</b> ${modificationNotes}
                         </div>
                     ` : ''}
 
@@ -804,6 +819,7 @@
                     </div>
                     <div class="invoice-actions-group">
                         <button class="btn btn-outline-info text-dark" onclick="toggleDetails('${inv.id}')" title="عرض الأصناف"><i class="fas fa-eye"></i></button>
+                        ${viewModificationsBtn}
                         ${viewImagesBtn}
                         <button class="btn btn-outline-dark" onclick="window.printThermalInvoice('${inv.id}')" title="طباعة حرارية 80"><i class="fas fa-print"></i></button>
                         <button class="btn btn-outline-success" onclick="window.shareThermalInvoice('${inv.id}')" title="مشاركة الفاتورة"><i class="fas fa-share-alt"></i></button>
@@ -1309,17 +1325,32 @@
             const zip = new JSZip();
             const folder = zip.folder(`صور_الفواتير_يوم_${targetDate}`);
 
+            // إنشاء ملف نصي لتقرير الملاحظات والمسح السريع للتعديلات داخل ملف الـ ZIP
+            let modificationReportText = `تقرير ملاحظات وتعديلات الفواتير ليوم: ${targetDate}\n`;
+            modificationReportText += `==================================================\n\n`;
+
+            let hasAnyNotes = false;
+
             for (let i = 0; i < targetInvoices.length; i++) {
                 const inv = targetInvoices[i];
                 const safeCustomerName = (inv.customerName || 'عميل_نقدى').replace(/[/\\?%*:|"<>]/g, '-');
                 
+                // إضافة الملاحظات إن وجدت لملف التقرير النصي
+                const invNote = inv.notes || "";
+                if (invNote.trim() !== "" && invNote !== "معدلة") {
+                    hasAnyNotes = true;
+                    modificationReportText += `[فاتورة رقم ${i + 1}] العميل: ${inv.customerName || 'عميل نقدى'}\n`;
+                    modificationReportText += `تفاصيل التعديل: ${invNote}\n`;
+                    modificationReportText += `--------------------------------------------------\n`;
+                }
+
                 try {
                     const invoiceBlob = await getInvoiceImageBlob(inv);
                     if (invoiceBlob) {
                         folder.file(`فاتورة_${safeCustomerName}_${i + 1}.png`, invoiceBlob);
                     }
                 } catch (e) {
-                    console.error("تخطي تبليد صورة فاتورة للعميل: " + safeCustomerName, e);
+                    console.error("تخطي توليد صورة فاتورة للعميل: " + safeCustomerName, e);
                 }
 
                 let tempImages = [];
@@ -1342,6 +1373,13 @@
                 }
             }
 
+            if (!hasAnyNotes) {
+                modificationReportText += `لا توجد أي تعديلات أو ملاحظات مسجلة على فواتير هذا اليوم.\n`;
+            }
+
+            // حقن ملف تقرير الملحوظات داخل الـ ZIP مباشرة
+            folder.file(`سجل_تعديلات_وملحوظات_اليوم.txt`, modificationReportText);
+
             const content = await zip.generateAsync({ type: "blob" });
             
             const url = URL.createObjectURL(content);
@@ -1351,7 +1389,7 @@
             a.click();
             URL.revokeObjectURL(url);
             
-            window.showCustomUi({ title: "اكتمل التنزيل", message: "تم تنزيل ملف ZIP (صور الفواتير ZIP) ويحتوي على كافة الفواتير وصور بضاعتها بنجاح.", icon: "success" });
+            window.showCustomUi({ title: "اكتمل التنزيل", message: "تم تنزيل ملف ZIP بنجاح.\nالملف يحتوي على:\n1. صور الفواتير الحرارية.\n2. صور البضاعة الملتقطة.\n3. ملف تقرير الملحوظات النصي.", icon: "success" });
         } catch (error) {
             console.error(error);
             window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء تجميع وضغط الملفات.", icon: "danger" });
@@ -1427,6 +1465,7 @@
             itemsSummaryHtml = `<tr><td colspan="3" style="text-align:center; color:gray; padding:8px;">لا توجد حركة سحب كميات اليوم</td></tr>`;
         }
 
+        // إدراج الملاحظات والتعديلات مباشرة في تقرير الفواتير المطبوع
         let invoicesDetailsHtml = "";
         targetInvoices.forEach((inv, i) => {
             const name = inv.customerName || 'عميل نقدى';
@@ -1434,9 +1473,10 @@
             const cash = inv.calculatedCash || 0;
             const wallet = inv.calculatedWallet || 0;
             const rem = Number(inv.remaining) || 0;
+            const noteText = inv.notes && inv.notes !== "معدلة" ? inv.notes : "لا توجد";
             
             invoicesDetailsHtml += `
-                <div style="font-size:10.5px; border-bottom:1px solid #eee; padding:5px 0; line-height:1.4;">
+                <div style="font-size:10.5px; border-bottom:1px solid #eee; padding:6px 0; line-height:1.4;">
                     <div style="display:flex; justify-content:space-between;">
                         <span><b>${i+1}. ${name}</b></span>
                         <span class="num" style="font-weight:bold;">${invTotal.toFixed(1)} EGP</span>
@@ -1445,6 +1485,10 @@
                         <span>كاش: <b class="num">${cash.toFixed(1)}</b></span>
                         <span>محفظة: <b class="num">${wallet.toFixed(1)}</b></span>
                         <span style="color:${rem > 0 ? 'var(--danger)' : '#2d6a4f'}">آجل: <b class="num">${rem.toFixed(1)}</b></span>
+                    </div>
+                    <!-- طباعة الملاحظات التعديلية المحاسبية داخل بنية التقرير -->
+                    <div style="font-size:9px; color:#c27803; margin-top:3px; background:#fffdf5; padding:2px 5px; border-radius:3px;">
+                        <i class="fas fa-edit"></i> <b>الملحوظة:</b> ${noteText}
                     </div>
                 </div>
             `;
@@ -1492,7 +1536,7 @@
                 </div>
 
                 <div style="margin-bottom:14px;">
-                    <h6 style="margin:0 0 4px 0; font-weight:bold; font-size:11.5px; border-bottom:1.5px solid #000; padding-bottom:3px; color:var(--accent);"><i class="fas fa-file-invoice"></i> حركة مبيعات الفواتير (${targetInvoices.length}):</h6>
+                    <h6 style="margin:0 0 4px 0; font-weight:bold; font-size:11.5px; border-bottom:1.5px solid #000; padding-bottom:3px; color:var(--accent);"><i class="fas fa-file-invoice"></i> حركة مبيعات الفواتير وملحوظاتها (${targetInvoices.length}):</h6>
                     ${invoicesDetailsHtml}
                 </div>
 
