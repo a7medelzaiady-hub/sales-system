@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- مكتبة تصدير الإكسل SheetJS -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
     <style>
         :root { --accent: #0b5e3d; --bg: #f8fafc; --danger: #ef4444; }
         body { background: var(--bg); font-family: 'Cairo', sans-serif; padding-bottom: 30px; }
@@ -19,8 +23,14 @@
         .label-custom { display: block; font-size: 0.85rem; color: #64748b; margin-bottom: 8px; font-weight: 700; }
         .input-field { width: 100%; padding: 12px 15px; border-radius: 15px; border: 1px solid #e2e8f0; background: #f8fafc; font-weight: 600; }
         .btn-save { background: var(--accent); color: white; width: 100%; border: none; padding: 15px; border-radius: 18px; font-weight: 800; }
-        .expense-item { display: flex; align-items: center; justify-content: space-between; background: white; padding: 15px; border-radius: 20px; margin-bottom: 12px; border: 1px solid #f1f5f9; }
-        .expense-amount { font-weight: 800; color: var(--danger); }
+        .btn-excel { background: #1f7246; color: white !important; border: none; padding: 10px 20px; border-radius: 12px; font-weight: 700; font-size: 0.9rem; margin-bottom: 15px; display: inline-flex; align-items: center; gap: 8px; text-decoration: none; width: 100%; justify-content: center; }
+        .expense-item { display: flex; align-items: center; justify-content: space-between; background: white; padding: 15px; border-radius: 20px; margin-bottom: 12px; border: 1px solid #f1f5f9; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .expense-info { display: flex; flex-direction: column; gap: 4px; }
+        .expense-type { font-weight: 800; color: #1e293b; font-size: 1rem; }
+        .expense-meta { font-size: 0.78rem; color: #64748b; font-weight: 600; }
+        .expense-amount { font-weight: 800; color: var(--danger); font-size: 1.1rem; }
+        .btn-delete { background: none; border: none; color: #94a3b8; font-size: 1.1rem; transition: 0.2s; padding: 5px 10px; }
+        .btn-delete:hover { color: var(--danger); }
     </style>
 </head>
 <body>
@@ -37,11 +47,11 @@
 </ul>
 
 <div class="tab-content">
+    <!-- تبويب الإضافة -->
     <div class="tab-pane fade show active" id="addContent">
         <div class="card-custom">
             <div class="input-group-custom">
                 <label class="label-custom">نوع المصروف</label>
-                <!-- إضافة onchange لتبديل الحالة -->
                 <select id="expType" class="input-field" onchange="toggleOtherField(this.value)">
                     <option value="إيجار">إيجار</option>
                     <option value="كهرباء/مياه">كهرباء / مياه</option>
@@ -51,66 +61,234 @@
                 </select>
             </div>
 
-            <!-- الحقل الذي سيظهر عند اختيار أخرى -->
             <div id="otherTypeDiv" class="input-group-custom" style="display: none;">
                 <label class="label-custom">اكتب نوع المصروف الجديد</label>
                 <input type="text" id="otherTypeInput" class="input-field" placeholder="أدخل اسم المصروف هنا...">
             </div>
 
             <div class="row">
-                <div class="col-6"><label class="label-custom">القيمة</label><input type="number" id="expAmount" class="input-field" placeholder="0.00"></div>
-                <div class="col-6"><label class="label-custom">التاريخ</label><input type="date" id="expDate" class="input-field"></div>
+                <div class="col-6">
+                    <label class="label-custom">القيمة</label>
+                    <input type="number" id="expAmount" class="input-field" placeholder="0.00" step="0.01">
+                </div>
+                <div class="col-6">
+                    <label class="label-custom">التاريخ</label>
+                    <input type="date" id="expDate" class="input-field">
+                </div>
             </div>
 
             <div class="input-group-custom mt-3">
                 <label class="label-custom">ملاحظات</label>
-                <textarea id="expNote" class="input-field" rows="3"></textarea>
+                <textarea id="expNote" class="input-field" rows="3" placeholder="أضف أي ملاحظات إضافية هنا..."></textarea>
             </div>
 
             <button class="btn-save" id="btnSave" onclick="saveExpense()">تأكيد وحفظ</button>
         </div>
     </div>
-    <div class="tab-pane fade" id="listContent"><div id="expensesList" class="px-3"></div></div>
+
+    <!-- تبويب العرض والتصدير -->
+    <div class="tab-pane fade" id="listContent">
+        <div class="px-3">
+            <button class="btn-excel" onclick="exportToExcel()">
+                <i class="fas fa-file-excel"></i> تصدير البيانات إلى ملف Excel
+            </button>
+            <div id="expensesList">
+                <div class="text-center text-muted py-4">جاري تحميل المصروفات...</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-    const firebaseConfig = { /* ... بياناتك هنا ... */ };
+    // يرجى تعبئة بيانات FirebaseConfig الخاصة بك هنا ليعمل الاتصال بقاعدة البيانات
+    const firebaseConfig = {
+      apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+      authDomain: "ahmedelzaiady.firebaseapp.com",
+      projectId: "ahmedelzaiady",
+      storageBucket: "ahmedelzaiady.firebasestorage.app",
+      messagingSenderId: "300306825071",
+      appId: "1:300306825071:web:0426ddde56280fa090329a",
+      measurementId: "G-WE04GK5XZZ"
+    };
+
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // دالة إظهار/إخفاء الحقل
+    // إعداد تاريخ اليوم تلقائياً
+    document.getElementById('expDate').valueAsDate = new Date();
+
+    // قائمة محلية للاحتفاظ بالبيانات لتصدير الإكسل لاحقاً بسهولة
+    let allExpenses = [];
+
+    // دالة إظهار/إخفاء حقل الإدخال لـ "أخرى"
     window.toggleOtherField = (val) => {
         document.getElementById('otherTypeDiv').style.display = (val === 'أخرى') ? 'block' : 'none';
     };
 
+    // حفظ المصروف
     window.saveExpense = async () => {
         let type = document.getElementById('expType').value;
         const otherVal = document.getElementById('otherTypeInput').value;
         
-        // إذا كان "أخرى" نعتمد القيمة من الحقل النصي
         if (type === 'أخرى') {
-            if (!otherVal) return alert("يرجى كتابة نوع المصروف");
-            type = otherVal;
+            if (!otherVal.trim()) return alert("يرجى كتابة نوع المصروف الجديد");
+            type = otherVal.trim();
         }
 
         const amt = parseFloat(document.getElementById('expAmount').value);
-        const note = document.getElementById('expNote').value;
+        const note = document.getElementById('expNote').value.trim();
         const date = document.getElementById('expDate').value;
 
-        if(!amt || amt <= 0) return alert("برجاء إدخال مبلغ صحيح");
+        if(!amt || amt <= 0) return alert("برجاء إدخال مبلغ صحيح ومقبول");
+        if(!date) return alert("يرجى اختيار تاريخ الحركة");
 
         try {
-            await addDoc(collection(db, "expenses"), { type, amount: amt, note, date, timestamp: serverTimestamp() });
-            await addDoc(collection(db, "cash_logs"), { amount: amt, note: `مصروف: ${type}`, type: 'out', timestamp: serverTimestamp(), date: date });
-            alert("تم الحفظ");
+            // حفظ في كولكشن المصروفات
+            const expenseRef = await addDoc(collection(db, "expenses"), { 
+                type, 
+                amount: amt, 
+                note, 
+                date, 
+                timestamp: serverTimestamp() 
+            });
+            
+            // حفظ في كولكشن الكاش لوج
+            await addDoc(collection(db, "cash_logs"), { 
+                amount: amt, 
+                note: `مصروف: ${type} ${note ? '(' + note + ')' : ''}`, 
+                type: 'out', 
+                timestamp: serverTimestamp(), 
+                date: date,
+                expenseId: expenseRef.id // ربط مستند الخزينة بالمصروف لسهولة إدارته مستقبلاً
+            });
+
+            alert("تم حفظ المصروف وتسجيل المعاملة بنجاح");
             location.reload();
-        } catch (e) { alert("خطأ في الاتصال"); }
+        } catch (e) { 
+            console.error(e);
+            alert("خطأ أثناء الاتصال بقاعدة البيانات!"); 
+        }
     };
-    
-    // ... باقي كود العرض والحذف كما هو ...
+
+    // جلب وعرض المصروفات
+    async function loadExpenses() {
+        const expensesContainer = document.getElementById('expensesList');
+        try {
+            // جلب البيانات مرتبة من الأحدث إلى الأقدم
+            const q = query(collection(db, "expenses"), orderBy("date", "desc"));
+            const querySnapshot = await getDocs(q);
+            
+            allExpenses = [];
+            expensesContainer.innerHTML = '';
+
+            if (querySnapshot.empty) {
+                expensesContainer.innerHTML = `<div class="text-center text-muted py-5">لا توجد مصروفات مسجلة حتى الآن</div>`;
+                return;
+            }
+
+            querySnapshot.forEach((docSnap) => {
+                const data = docSnap.data();
+                const expItem = {
+                    id: docSnap.id,
+                    type: data.type,
+                    amount: Number(data.amount) || 0,
+                    date: data.date,
+                    note: data.note || ''
+                };
+                allExpenses.push(expItem);
+
+                // بناء كارت المصروف في الواجهة
+                const itemHtml = `
+                    <div class="expense-item" id="item-${expItem.id}">
+                        <div class="expense-info">
+                            <span class="expense-type">${expItem.type}</span>
+                            <span class="expense-meta">
+                                <i class="far fa-calendar-alt me-1"></i> ${expItem.date} 
+                                ${expItem.note ? ` | <i class="far fa-sticky-note ms-1 me-1"></i> ${expItem.note}` : ''}
+                            </span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="expense-amount">-${expItem.amount.toFixed(2)} ج.م</span>
+                            <button class="btn-delete" onclick="deleteExpense('${expItem.id}')" title="حذف">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </div>`;
+                expensesContainer.insertAdjacentHTML('beforeend', itemHtml);
+            });
+
+        } catch (e) {
+            console.error(e);
+            expensesContainer.innerHTML = `<div class="alert alert-danger text-center">حدث خطأ أثناء تحميل البيانات!</div>`;
+        }
+    }
+
+    // حذف مصروف
+    window.deleteExpense = async (id) => {
+        if (!confirm("هل أنت متأكد من رغبتك في حذف هذا المصروف نهائياً؟")) return;
+
+        try {
+            // حذف المصروف من كولكشن expenses
+            await deleteDoc(doc(db, "expenses", id));
+            
+            // البحث عن معاملة الكاش المرتبطة وحذفها تلقائياً
+            const logsSnap = await getDocs(query(collection(db, "cash_logs"), orderBy("timestamp", "desc")));
+            logsSnap.forEach(async (logDoc) => {
+                if(logDoc.data().expenseId === id || logDoc.data().note.includes(`مصروف:`) && logDoc.data().amount === allExpenses.find(e => e.id === id)?.amount) {
+                    await deleteDoc(doc(db, "cash_logs", logDoc.id));
+                }
+            });
+
+            alert("تم الحذف بنجاح");
+            location.reload();
+        } catch (e) {
+            console.error(e);
+            alert("فشل حذف المستند!");
+        }
+    };
+
+    // دالة تصدير ملف الإكسل
+    window.exportToExcel = () => {
+        if (allExpenses.length === 0) {
+            return alert("لا توجد بيانات مصروفات لتصديرها حالياً!");
+        }
+
+        // تنسيق وتهيئة البيانات لتكون ملائمة لجدول الإكسل بصيغة عربية صحيحة
+        const formattedData = allExpenses.map((exp, index) => ({
+            "م.": index + 1,
+            "تاريخ المصروف": exp.date,
+            "نوع المصروف": exp.type,
+            "القيمة (ج.م)": exp.amount,
+            "البيان والملاحظات": exp.note
+        }));
+
+        // إنشاء كتاب العمل والورقة من مصفوفة البيانات JSON
+        const worksheet = XLSX.utils.json_to_sheet(formattedData);
+        const workbook = XLSX.utils.book_new();
+        
+        // إعداد اتجاه الصفحة ليكون من اليمين لليسار في إكسل لتنسيق عربي مثالي
+        worksheet['!dir'] = "rtl";
+
+        XLSX.utils.book_append_sheet(workbook, worksheet, "تقرير المصروفات");
+        
+        // حفظ وتوليد الملف في المتصفح تلقائياً
+        XLSX.writeFile(workbook, `تقرير_مصروفات_شركة_الزيادي_${new Date().toISOString().slice(0,10)}.xlsx`);
+    };
+
+    // تحميل التبويب الأول للبدء وعرض البيانات عند اختيار تبويب المصروفات المسجلة
+    const triggerTabList = document.querySelectorAll('#expenseTabs button');
+    triggerTabList.forEach(tabEl => {
+        tabEl.addEventListener('shown.bs.tab', (event) => {
+            if (event.target.innerText.includes("المصروفات المسجلة")) {
+                loadExpenses();
+            }
+        });
+    });
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
