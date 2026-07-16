@@ -323,7 +323,7 @@
                         <th style="width: 10%;">المحفظة</th>
                         <th style="width: 20%; text-align: right;">اسم العميل</th>
                         <th style="width: 24%; text-align: right;">البيان والتفاصيل</th>
-                        <th style="width: 10%;">الإجمالي</th>
+                        <th style="width: 10%;">إجمالي السند</th>
                         <th style="width: 2%;">شير</th>
                         <th style="width: 2%;">تعديل</th>
                         <th style="width: 2%;">حذف</th>
@@ -416,7 +416,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, orderBy, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, orderBy, where, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -468,7 +468,8 @@
                 const d = doc.data();
                 clientsMap[doc.id] = { 
                     name: d.name,
-                    balance: Number(d.currentBalance || d.balance || 0)
+                    balance: Number(d.currentBalance || d.balance || 0),
+                    initialBalance: Number(d.initialBalance || 0)
                 }; 
             });
             localStorage.setItem('cache_clientsWithBalancesMap', JSON.stringify(clientsMap));
@@ -503,14 +504,15 @@
         }
     };
 
-    window.selectParty = (id, name, balance) => {
+    window.selectParty = async (id, name, balance) => {
         document.getElementById('partySearch').value = name;
         document.getElementById('partyId').value = id;
         document.getElementById('partyResults').style.display = 'none';
         
+        const realBalance = await calculateCustomerBalance(id);
         const balIndicator = document.getElementById('partyBalanceDisplay');
         const balSpan = document.getElementById('currentPartyBalance');
-        balSpan.innerText = balance.toLocaleString('en-US', {minimumFractionDigits: 2});
+        balSpan.innerText = realBalance.toLocaleString('en-US', {minimumFractionDigits: 2});
         balIndicator.classList.remove('d-none');
     };
 
@@ -521,6 +523,30 @@
             document.getElementById('partyResults').style.display = 'none';
         }
     });
+
+    async function calculateCustomerBalance(partyId) {
+        try {
+            const partyDoc = await getDoc(doc(db, "customers", partyId));
+            if (!partyDoc.exists()) return 0;
+            let balance = Number(partyDoc.data().initialBalance || 0);
+
+            const invoicesSnap = await getDocs(query(collection(db, "invoices"), where("customerId", "==", partyId)));
+            invoicesSnap.forEach(inv => { 
+                balance += Number(inv.data().remaining || 0); 
+            });
+
+            const transSnap = await getDocs(query(collection(db, "transactions"), where("partyId", "==", partyId)));
+            transSnap.forEach(tr => {
+                const t = tr.data();
+                if (t.type === 'قبض') balance -= Number(t.amount || 0);
+                if (t.type === 'صرف') balance += Number(t.amount || 0);
+            });
+            return balance;
+        } catch (err) {
+            console.error("Error calculating dynamic customer balance:", err);
+            return 0;
+        }
+    }
 
     async function loadVouchers() {
         try {
@@ -588,7 +614,6 @@
             const typeColor = v.type === 'قبض' ? 'text-success' : 'text-danger';
             const cardClass = v.type === 'قبض' ? 'type-receipt' : 'type-payment';
 
-            // 1. بناء صفوف الجدول للكمبيوتر
             desktopHTML += `<tr>
                     <td><span class="text-secondary fw-bold">${v.date}</span></td>
                     <td><span class="badge-type ${badgeClass}">${v.type}</span></td>
@@ -602,7 +627,6 @@
                     <td><button class="btn-table-action delete" onclick="deleteVoucher('${v.id}')"><i class="fas fa-trash-alt"></i></button></td>
                 </tr>`;
 
-            // 2. بناء كروت الموبايل المنظمة
             mobileHTML += `
                 <div class="voucher-card ${cardClass}">
                     <div class="voucher-card-header">
@@ -681,7 +705,7 @@
         if(receiptModalObj) receiptModalObj.show();
     };
 
-    window.editVoucher = (id) => {
+    window.editVoucher = async (id) => {
         const v = allVouchers.find(item => item.id === id);
         if(!v) return;
 
@@ -693,9 +717,9 @@
         document.getElementById('vNote').value = v.note;
         
         const clientName = clientsMap[v.partyId] ? clientsMap[v.partyId].name : '';
-        const clientBal = clientsMap[v.partyId] ? clientsMap[v.partyId].balance : 0;
+        const realBalance = await calculateCustomerBalance(v.partyId);
         
-        selectParty(v.partyId, clientName, clientBal);
+        selectParty(v.partyId, clientName, realBalance);
 
         document.getElementById('formTitle').innerHTML = `<i class="fas fa-edit me-1"></i> تعديل بيانات السند الحالي`;
         document.getElementById('btnSubmitForm').innerHTML = `تحديث السند <i class="fas fa-check-double ms-1"></i>`;
@@ -775,15 +799,11 @@
         const noteVal = document.getElementById('vNote').value;
 
         try {
-            const custRef = doc(db, "customers", partyId);
-            const custDoc = await getDoc(custRef);
-            let currentDbBalance = 0;
-            if (custDoc.exists()) {
-                currentDbBalance = Number(custDoc.data().currentBalance || custDoc.data().balance || 0);
-            }
+            // 1. حساب الرصيد الفعلي الحالي ديناميكياً قبل إتمام العملية
+            const currentBalance = await calculateCustomerBalance(partyId);
+            let prevBalance = currentBalance;
 
-            let previousBalance = currentDbBalance;
-
+            // 2. إذا كانت عملية تعديل، نقوم بالتحييد المالي المؤقت لقيمة السند القديم
             if(editId) {
                 const oldVoucherSnap = await getDoc(doc(db, "transactions", editId));
                 if(oldVoucherSnap.exists()) {
@@ -793,14 +813,15 @@
                     const oldTotal = oldData.amount || (oldCash + oldWallet);
                     
                     if (oldData.type === 'قبض') {
-                        previousBalance += oldTotal;
+                        prevBalance += oldTotal;
                     } else if (oldData.type === 'صرف') {
-                        previousBalance -= oldTotal;
+                        prevBalance -= oldTotal;
                     }
                 }
             }
 
-            let finalNewBalance = previousBalance;
+            // 3. حساب صافي الحساب الجديد المتبقي بعد السداد
+            let finalNewBalance = prevBalance;
             if (vTypeVal === 'قبض') {
                 finalNewBalance -= totalAmount;
             } else if (vTypeVal === 'صرف') {
@@ -816,18 +837,25 @@
                 partyType: 'عميل',
                 partyId: partyId,
                 note: noteVal,
-                prevBalance: previousBalance,
+                prevBalance: prevBalance,
                 newBalance: finalNewBalance
             };
 
+            // 4. الحفظ في فايرستور
             if (editId) {
                 await updateDoc(doc(db, "transactions", editId), voucherPayload);
             } else {
                 await addDoc(collection(db, "transactions"), voucherPayload);
             }
 
-            const netBalanceDiff = finalNewBalance - currentDbBalance;
-            await updateDoc(custRef, { currentBalance: increment(netBalanceDiff) });
+            // 5. ترحيل الرصيد الإجمالي لبطاقة العميل (حقل currentBalance) متزامناً مع الفارق الفعلي
+            const custRef = doc(db, "customers", partyId);
+            const custDoc = await getDoc(custRef);
+            if (custDoc.exists()) {
+                const currentDbBalance = Number(custDoc.data().currentBalance || custDoc.data().balance || 0);
+                const netBalanceDiff = finalNewBalance - currentDbBalance;
+                await updateDoc(custRef, { currentBalance: increment(netBalanceDiff) });
+            }
 
             resetVoucherForm();
             
@@ -838,7 +866,8 @@
             await fetchClientsData();
             await loadVouchers();
             
-            openReceiptModalDirect(vTypeVal, vDateVal, partyId, cashAmt, walletAmt, totalAmount, previousBalance, finalNewBalance);
+            // 6. تشغيل واجهة المعاينة ببيانات الحساب السليمة المحسوبة
+            openReceiptModalDirect(vTypeVal, vDateVal, partyId, cashAmt, walletAmt, totalAmount, prevBalance, finalNewBalance);
 
             setTimeout(() => {
                 document.getElementById('btnDoShare').click();
