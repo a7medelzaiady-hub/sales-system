@@ -26,6 +26,7 @@
             --blue: #0d6efd;
             --purple: #7c3aed;
             --orange: #ca8a04;
+            --teal: #0d9488;
             --radius-sm: 12px;
             --radius-md: 16px;
             --radius-lg: 24px;
@@ -188,6 +189,7 @@
             top: 0; bottom: 0; right: 0; width: 5px;
         }
         .account-card.cash::before { background-color: var(--gold); }
+        .account-card.wallet::before { background-color: var(--teal); }
         .account-card.inventory::before { background-color: var(--orange); }
         .account-card.customers::before { background-color: var(--blue); }
         .account-card.suppliers::before { background-color: var(--purple); }
@@ -334,7 +336,7 @@
         <!-- كارت الصافي والمراكز المالي المدمج المحدث -->
         <div class="net-summary-card">
             <div class="net-row">
-                <span class="net-title"><i class="fas fa-hourglass-start text-muted"></i> صافي رصيد أول المدة :</span>
+                <span class="net-title"><i class="fas fa-hourglass-start text-muted"></i> صافي ثروة أول المدة (المحفوظة):</span>
                 <span class="net-val num text-dark" id="netInitial">0.00</span>
             </div>
             <div class="net-row">
@@ -383,7 +385,29 @@
                 <div class="deviation-bar" id="diffCash">—</div>
             </div>
 
-            <!-- 2. كارت قيمة بضاعة المخزن -->
+            <!-- 2. كارت رصيد المحفظة الإلكترونية -->
+            <div class="account-card wallet">
+                <div class="card-title-row">
+                    <i class="fas fa-wallet" style="color: var(--teal);"></i>
+                    <span>رصيد المحفظة (فودافون كاش / فوري)</span>
+                </div>
+                <div class="balance-grid">
+                    <div class="balance-box">
+                        <span class="title">رصيد أول المدة</span>
+                        <div class="manual-input-wrapper">
+                            <input type="number" id="initWallet" class="manual-input num" placeholder="0.00" oninput="calculateFinancialTotals()">
+                            <span class="save-date-label" id="dateWallet">غير محفوظ</span>
+                        </div>
+                    </div>
+                    <div class="balance-box">
+                        <span class="title">الرصيد الفعلي الحالي</span>
+                        <span class="val num" id="currWallet">0.00</span>
+                    </div>
+                </div>
+                <div class="deviation-bar" id="diffWallet">—</div>
+            </div>
+
+            <!-- 3. كارت قيمة بضاعة المخزن -->
             <div class="account-card inventory">
                 <div class="card-title-row">
                     <i class="fas fa-boxes-stacked" style="color: var(--orange);"></i>
@@ -405,7 +429,7 @@
                 <div class="deviation-bar" id="diffInv">—</div>
             </div>
 
-            <!-- 3. كارت ديون العملاء -->
+            <!-- 4. كارت ديون العملاء -->
             <div class="account-card customers">
                 <div class="card-title-row">
                     <i class="fas fa-users" style="color: var(--blue);"></i>
@@ -427,7 +451,7 @@
                 <div class="deviation-bar" id="diffCust">—</div>
             </div>
 
-            <!-- 4. كارت مستحقات الموردين -->
+            <!-- 5. كارت مستحقات الموردين -->
             <div class="account-card suppliers">
                 <div class="card-title-row">
                     <i class="fas fa-truck" style="color: var(--purple);"></i>
@@ -470,8 +494,9 @@
 
         const fmtC = v => Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ج.م';
 
-        // متغيرات عامة لحفظ الأرصدة الحالية المستدعاة من السيرفر
+        // متغيرات حفظ الأرصدة الحالية المستدعاة من السيرفر
         let serverActualCash = 0;
+        let serverActualWallet = 0;
         let serverActualInv = 0;
         let serverActualCust = 0;
         let serverActualSup = 0;
@@ -492,19 +517,20 @@
             try {
                 // 1. جلب رصيد أول المدة المحفوظ من قاعدة البيانات
                 const initDoc = await getDoc(doc(db, 'settings', 'initial_balances'));
-                const initVals = initDoc.exists() ? initDoc.data() : { cash: 0, inventory: 0, customers: 0, suppliers: 0, savedAt: '—' };
+                const initVals = initDoc.exists() ? initDoc.data() : { cash: 0, wallet: 0, inventory: 0, customers: 0, suppliers: 0, savedAt: '—' };
 
                 document.getElementById('initCash').value = initVals.cash || 0;
+                document.getElementById('initWallet').value = initVals.wallet || 0;
                 document.getElementById('initInv').value = initVals.inventory || 0;
                 document.getElementById('initCust').value = initVals.customers || 0;
                 document.getElementById('initSup').value = initVals.suppliers || 0;
 
-                const dateLabels = ['dateCash', 'dateInv', 'dateCust', 'dateSup'];
+                const dateLabels = ['dateCash', 'dateWallet', 'dateInv', 'dateCust', 'dateSup'];
                 dateLabels.forEach(id => {
                     document.getElementById(id).innerText = "حُفظ في: " + (initVals.savedAt || '—');
                 });
 
-                // 2. جلب الحركات الفعلية من مصادر البيانات الصحيحة المطابقة للكود الأصلي
+                // 2. جلب الحركات الفعلية من قاعدة البيانات
                 const [
                     cashLogsSnap,
                     inventorySnap,
@@ -535,7 +561,7 @@
                     }
                 });
 
-                // b- حساب قيمة المخزن الفعلي (مطابق لكود الجرد)
+                // ب- حساب قيمة المخزن الفعلي
                 serverActualInv = 0;
                 inventorySnap.forEach(doc => {
                     const data = doc.data();
@@ -552,11 +578,19 @@
                 const supplierDebtMap = {};
                 const supplierCreditMap = {};
 
+                // ربط رصيد المحفظة بالمبيعات والمشتريات
+                serverActualWallet = 0;
+
                 invoicesSnap.forEach(doc => {
                     const data = doc.data();
                     const cid = data.customerId;
                     if (cid) {
                         customerDebtMap[cid] = (customerDebtMap[cid] || 0) + parseSignedNumber(data.remaining);
+                        // إذا سدد العميل الفاتورة نقداً للمحفظة الإلكترونية (Vodafone Cash / Fawry)
+                        if (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet') {
+                            const paid = parseSignedNumber(data.total) - parseSignedNumber(data.remaining);
+                            serverActualWallet += paid;
+                        }
                     }
                 });
 
@@ -573,6 +607,15 @@
                         const amtNum = Number(data.amount) || 0;
                         if (data.type === 'صرف') supplierCreditMap[pid] = (supplierCreditMap[pid] || 0) + amtNum;
                         else if (data.type === 'قبض') supplierDebtMap[pid] = (supplierDebtMap[pid] || 0) + amtNum;
+
+                        // إذا تمت عملية الدفع أو القبض عبر المحفظة
+                        if (data.method === 'محفظة' || data.paymentMethod === 'محفظة') {
+                            if (data.type === 'قبض') {
+                                serverActualWallet += amtNum; // تحصيل المبيعات
+                            } else if (data.type === 'صرف') {
+                                serverActualWallet -= amtNum; // سداد مشتريات/مصروفات
+                            }
+                        }
                     }
                 });
 
@@ -583,6 +626,11 @@
                         const amt = Number(data.total) || Number(data.amount) || 0;
                         if (data.type === "شراء" || data.type === "فاتورة شراء") supplierDebtMap[sid] = (supplierDebtMap[sid] || 0) + amt;
                         else if (data.type === "مرتجع شراء") supplierCreditMap[sid] = (supplierCreditMap[sid] || 0) + amt;
+
+                        // مشتريات مباشرة مدفوعة من المحفظة
+                        if (data.paymentMethod === 'محفظة' && (data.type === "شراء" || data.type === "فاتورة شراء")) {
+                            serverActualWallet -= amt;
+                        }
                     }
                 });
 
@@ -606,11 +654,11 @@
 
                 // عرض الأرصدة الحالية في الكروت
                 document.getElementById('currCash').textContent = fmtC(serverActualCash);
+                document.getElementById('currWallet').textContent = fmtC(serverActualWallet);
                 document.getElementById('currInv').textContent = fmtC(serverActualInv);
                 document.getElementById('currCust').textContent = fmtC(serverActualCust);
                 document.getElementById('currSup').textContent = fmtC(serverActualSup);
 
-                // استدعاء دالة الحساب الشامل للأرصدة والشبكة المالية
                 window.calculateFinancialTotals();
 
             } catch (err) {
@@ -623,18 +671,18 @@
 
         // دالة الحساب الفوري لصافي رأس المال والنمو
         window.calculateFinancialTotals = function() {
-            // أخذ أرصدة أول المدة الحالية من حقول الإدخال
             const iCash = Number(document.getElementById('initCash').value) || 0;
+            const iWallet = Number(document.getElementById('initWallet').value) || 0;
             const iInv = Number(document.getElementById('initInv').value) || 0;
             const iCust = Number(document.getElementById('initCust').value) || 0;
             const iSup = Number(document.getElementById('initSup').value) || 0;
 
-            // معادلة ثروة أول المدة الصافية = (الخزنة + المخزن + العملاء) - الموردين
-            const totalInitialNet = (iCash + iInv + iCust) - iSup;
+            // معادلة ثروة أول المدة الصافية = (الخزنة + المحفظة + المخزن + العملاء) - الموردين
+            const totalInitialNet = (iCash + iWallet + iInv + iCust) - iSup;
             document.getElementById('netInitial').textContent = fmtC(totalInitialNet);
 
-            // معادلة المركز المالي الحالي = (الخزنة الحالية + المخزن الحالي + العملاء الحاليين) - الموردين الحاليين
-            const totalActualNet = (serverActualCash + serverActualInv + serverActualCust) - serverActualSup;
+            // معادلة المركز المالي الحالي = (الخزنة الحالية + المحفظة الحالية + المخزن الحالي + العملاء الحاليين) - الموردين الحاليين
+            const totalActualNet = (serverActualCash + serverActualWallet + serverActualInv + serverActualCust) - serverActualSup;
             document.getElementById('netActual').textContent = fmtC(totalActualNet);
 
             // حساب انحراف النمو المالي الكلي للشركة
@@ -650,11 +698,13 @@
 
             // حساب فروقات الكروت الفردية وعرض الانحرافات التوضيحية
             const diffCash = serverActualCash - iCash;
+            const diffWallet = serverActualWallet - iWallet;
             const diffInv = serverActualInv - iInv;
             const diffCust = serverActualCust - iCust;
             const diffSup = serverActualSup - iSup;
 
             renderDeviation('diffCash', diffCash, 'صعود نقدي بالخزنة 📈', 'عجز في النقدية 📉');
+            renderDeviation('diffWallet', diffWallet, 'تدفق وارد للمحفظة 📱', 'تدفق صادر من المحفظة 📉');
             renderDeviation('diffInv', diffInv, 'تضخم في المخزون الحالي 📦', 'انخفاض في بضاعة المخزن 📉');
             renderDeviation('diffCust', diffCust, 'ارتفاع مديونيات السوق ⚠️', 'صافي تحصيل من العملاء ✔️', true);
             renderDeviation('diffSup', diffSup, 'زيادة ديون الموردين ⚠️', 'صافي تسوية للموردين ✔️', true);
@@ -678,6 +728,7 @@
 
                 const data = {
                     cash: Number(document.getElementById('initCash').value || 0),
+                    wallet: Number(document.getElementById('initWallet').value || 0),
                     inventory: Number(document.getElementById('initInv').value || 0),
                     customers: Number(document.getElementById('initCust').value || 0),
                     suppliers: Number(document.getElementById('initSup').value || 0),
@@ -696,7 +747,6 @@
             }
         };
 
-        // التحميل التلقائي للمطابقة
         loadAllData();
     </script>
 </body>
