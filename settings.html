@@ -198,6 +198,27 @@
         </button>
     </div>
 
+    <div class="settings-card">
+        <div class="card-title text-info"><i class="fas fa-cloud"></i> النسخ الاحتياطي على فايربيز (اختياري)</div>
+        <p class="small text-muted">
+            البرنامج بيشتغل بالكامل من غير إنترنت والبيانات محفوظة على الموبايل.
+            لو حابب تحتفظ بنسخة إضافية أونلاين، استخدم الزرارين دول وقت ما يكون عندك نت.
+        </p>
+        <p class="small text-muted mb-2" id="lastBackupInfo">لا توجد نسخة احتياطية سابقة.</p>
+        <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-backup" id="btnCloudBackup">
+                <i class="fas fa-cloud-upload-alt me-2"></i> نسخ احتياطي على فايربيز
+            </button>
+            <button class="btn btn-backup" id="btnCloudRestore">
+                <i class="fas fa-cloud-download-alt me-2"></i> استرجاع من فايربيز
+            </button>
+        </div>
+        <div class="progress mt-2" style="height:6px; display:none;" id="cloudProgressWrap">
+            <div class="progress-bar" id="cloudProgressBar" style="width:0%"></div>
+        </div>
+        <p class="small mt-2" id="cloudStatusMsg"></p>
+    </div>
+
     <div class="mt-4 px-1">
         <button class="btn-save" id="btnSaveSettings">حفظ الإعدادات بالكامل</button>
         <button class="btn btn-danger-custom" id="btnResetApp">
@@ -207,8 +228,8 @@
 </div>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { initializeApp } from "./firebase-shim.js";
+    import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "./firebase-shim.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -222,6 +243,64 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
+
+    // =========================================================
+    // النسخ الاحتياطي على فايربيز (اختياري - يدوي بالكامل)
+    // =========================================================
+    import("./cloud-backup.js").then(({ backupToFirebase, restoreFromFirebase, getLastBackupTime, getLastRestoreTime }) => {
+        const lastBackupInfo = document.getElementById('lastBackupInfo');
+        const statusMsg = document.getElementById('cloudStatusMsg');
+        const progressWrap = document.getElementById('cloudProgressWrap');
+        const progressBar = document.getElementById('cloudProgressBar');
+
+        function refreshInfo() {
+            const lastBackup = getLastBackupTime();
+            const lastRestore = getLastRestoreTime();
+            let txt = [];
+            if (lastBackup) txt.push('آخر نسخة احتياطية: ' + new Date(lastBackup).toLocaleString('ar-EG'));
+            if (lastRestore) txt.push('آخر استرجاع: ' + new Date(lastRestore).toLocaleString('ar-EG'));
+            lastBackupInfo.textContent = txt.length ? txt.join(' | ') : 'لا توجد نسخة احتياطية سابقة.';
+        }
+        refreshInfo();
+
+        document.getElementById('btnCloudBackup').addEventListener('click', async () => {
+            if (!confirm('هيتم رفع كل بيانات البرنامج على فايربيز الآن، متأكد؟')) return;
+            statusMsg.textContent = 'جاري رفع البيانات...';
+            progressWrap.style.display = 'block';
+            try {
+                const result = await backupToFirebase((done, total) => {
+                    const pct = total ? Math.round((done / total) * 100) : 100;
+                    progressBar.style.width = pct + '%';
+                    statusMsg.textContent = `جاري الرفع... (${done}/${total})`;
+                });
+                statusMsg.textContent = `تم رفع ${result.total} عنصر بنجاح ✅`;
+                refreshInfo();
+            } catch (e) {
+                statusMsg.textContent = 'حصل خطأ: ' + e.message;
+            } finally {
+                setTimeout(() => { progressWrap.style.display = 'none'; progressBar.style.width = '0%'; }, 1500);
+            }
+        });
+
+        document.getElementById('btnCloudRestore').addEventListener('click', async () => {
+            if (!confirm('هيتم استبدال البيانات المحلية بالبيانات الموجودة على فايربيز، متأكد؟')) return;
+            statusMsg.textContent = 'جاري الاسترجاع...';
+            progressWrap.style.display = 'block';
+            try {
+                await restoreFromFirebase((colName, idx, total) => {
+                    const pct = Math.round((idx / total) * 100);
+                    progressBar.style.width = pct + '%';
+                    statusMsg.textContent = `جاري تحميل: ${colName} (${idx}/${total})`;
+                });
+                statusMsg.textContent = 'تم الاسترجاع بنجاح ✅ - يفضّل إعادة تحميل الصفحة الآن.';
+                refreshInfo();
+            } catch (e) {
+                statusMsg.textContent = 'حصل خطأ: ' + e.message;
+            } finally {
+                setTimeout(() => { progressWrap.style.display = 'none'; progressBar.style.width = '0%'; }, 1500);
+            }
+        });
+    });
 
     // =========================================================
     // كائن الإعدادات الموحد - إضافة اسم ملف العملاء الصريح بدقة

@@ -1,5 +1,5 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { initializeApp } from "./firebase-shim.js";
+import { getFirestore, collection, getDocs, doc, writeBatch } from "./firebase-shim.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAS0NNcZ1o-TL2nWCB7p0941jR0bo-MNls",
