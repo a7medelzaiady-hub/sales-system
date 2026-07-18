@@ -133,7 +133,6 @@
             border-radius: var(--radius-md);
             font-weight: 800;
             font-size: 0.9rem;
-            transition: all 0.2s;
         }
 
         .return-check-container {
@@ -456,7 +455,7 @@
                 if (data.supplierId) { document.getElementById('supplierSelect').value = data.supplierId; }
                 document.getElementById('itemsList').innerHTML = "";
                 data.items.forEach(item => {
-                    addNewItemRow({ name: item.name, qty: item.qty, returnQty: item.returnQty || 0, buy: item.buy || 0, unitName: item.unitName || 'كرتونة' });
+                    addNewItemRow({ name: item.name, qty: item.qty, returnQty: item.returnQty || 0, buy: item.buy || 0, unitName: item.unitName || 'كرتونة', isReturn: item.isReturn || false });
                 });
                 window.calculateTotal();
             }
@@ -466,7 +465,9 @@
     window.addNewItemRow = (itemData = null) => {
         const id = Date.now() + Math.random().toString(36).substring(2, 7);
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
-        const isReturnChecked = itemData && (itemData.returnQty > 0 || itemData.isReturn);
+        
+        // تم الإصلاح هنا: الاعتماد الكلي على حالة حقل المرتجع الفعلي لمنع التشغيل الذاتي
+        const isReturnChecked = itemData ? (itemData.isReturn === true) : false;
         isDataChanged = true;
 
         let displayQty = 1;
@@ -652,7 +653,7 @@
                         const qOld = query(collection(db, "inventory"), where("name", "==", oldItem.name));
                         const qOldSnap = await getDocs(qOld);
                         if (!qOldSnap.empty) {
-                            const isOldReturn = oldItem.isReturn || oldItem.returnQty > 0;
+                            const isOldReturn = oldItem.isReturn === true;
                             const finalOldMod = isOldReturn ? -oldModifier : oldModifier;
                             await updateDoc(doc(db, "inventory", qOldSnap.docs[0].id), { 
                                 qty: increment(-finalOldMod), 
@@ -676,10 +677,11 @@
 
                 const totalPcs = unitName === 'كرتونة' ? qtyInput * factor : qtyInput;
 
+                // تم الإصلاح هنا: فصل خانات حفظ الكميات لتطابق السيرفر بالكامل مع الحفاظ على دقة isReturn
                 items.push({
                     name,
-                    qty: unitName === 'كرتونة' ? qtyInput : 0,    
-                    returnQty: unitName === 'قطعة' ? qtyInput : 0, 
+                    qty: qtyInput,    
+                    returnQty: isReturn ? qtyInput : 0, 
                     buy,
                     unitName,
                     unitFactor: factor,
