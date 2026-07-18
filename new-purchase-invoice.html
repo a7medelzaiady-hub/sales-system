@@ -46,7 +46,6 @@
             font-family: 'Montserrat', 'Cairo', sans-serif !important;
         }
 
-        /* ===== HEADER ===== */
         .header {
             background: var(--primary-gradient);
             padding: 0 16px;
@@ -65,7 +64,6 @@
         .clickable-icon:hover { transform: scale(1.1); opacity: 1; }
         .badge-new { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); padding: 5px 12px; border-radius: 8px; font-weight: 700; font-size: 0.72rem; }
 
-        /* ===== DATA CARD ===== */
         .data-card {
             background: var(--white);
             border: 1px solid var(--border-color);
@@ -93,7 +91,6 @@
             outline: none;
         }
 
-        /* ===== ITEM ROW ===== */
         .item-row {
             background: var(--white);
             border: 1px solid var(--border-color);
@@ -138,7 +135,6 @@
             font-size: 0.9rem;
             transition: all 0.2s;
         }
-        .add-item-btn:active { transform: scale(0.98); background: var(--primary); color: white; }
 
         .return-check-container {
             display: flex;
@@ -154,7 +150,6 @@
 
         .subtotal-display { background: var(--success-light); border-radius: 10px; padding: 6px 12px; border: 1px solid #bbf7d0; color: var(--primary-dark); font-weight: 800; }
 
-        /* ===== SUMMARY GRID IN THE FOOTER ===== */
         .invoice-footer {
             background: var(--white);
             padding: 16px;
@@ -207,7 +202,6 @@
             font-size: 1rem;
             width: 100%;
             box-shadow: 0 4px 12px rgba(11, 94, 61, 0.2);
-            transition: all 0.2s;
         }
         .btn-save:active { transform: scale(0.99); opacity: 0.95; }
 
@@ -405,13 +399,6 @@
         else { addNewItemRow(); }
 
         window.calculateTotal();
-
-        setTimeout(() => {
-            document.querySelectorAll('input, select').forEach(el => {
-                el.addEventListener('change', () => { isDataChanged = true; });
-                el.addEventListener('input', () => { isDataChanged = true; });
-            });
-        }, 800);
     }
 
     function calculateHistoricalPreviousBalance(supId, invoiceTimestamp) {
@@ -477,7 +464,7 @@
     }
 
     window.addNewItemRow = (itemData = null) => {
-        const id = Date.now() + Math.random();
+        const id = Date.now() + Math.random().toString(36).substring(2, 7);
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
         const isReturnChecked = itemData && (itemData.returnQty > 0 || itemData.isReturn);
         isDataChanged = true;
@@ -497,7 +484,7 @@
                     </div>
                     <div class="col-6">
                         <label><i class="fas fa-boxes-stacked"></i> نوع الوحدة</label>
-                        <select class="form-select item-unit">
+                        <select class="form-select item-unit" id="unit_${id}">
                             <option value="كرتونة" ${currentUnit === 'كرتونة' ? 'selected' : ''}>كرتونة</option>
                             <option value="قطعة" ${currentUnit === 'قطعة' ? 'selected' : ''}>قطعة (جركن)</option>
                         </select>
@@ -549,7 +536,6 @@
             document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (${unitText})`;
             document.getElementById(`label_price_${id}`).innerText = `سعر الـ (${unitText})`;
             
-            // تحديث السعر تلقائيًا بناء على الوحدة ومعامل التحويل
             const found = allInventory.find(p => p.name === nameInput.value);
             if(found) {
                 if (val === 'كرتونة') {
@@ -576,8 +562,8 @@
         });
 
         row.querySelectorAll('input, select').forEach(input => {
-            input.addEventListener('input', window.calculateTotal);
-            input.addEventListener('change', window.calculateTotal);
+            input.addEventListener('input', () => { window.calculateTotal(); });
+            input.addEventListener('change', () => { window.calculateTotal(); });
         });
     }
 
@@ -688,7 +674,6 @@
                 const matchedProduct = allInventory.find(p => p.name === name);
                 const factor = Number(matchedProduct?.unitFactor) || 1;
 
-                // احتساب قطع المخزن الكلية بناء على معامل الصنف والوحدة المحددة
                 const totalPcs = unitName === 'كرتونة' ? qtyInput * factor : qtyInput;
 
                 items.push({
@@ -702,7 +687,6 @@
                     isReturn: isReturn
                 });
 
-                // تحديث رصيد المخزن الفعلي للقطع فوراً
                 if (matchedProduct) {
                     const storeDocRef = doc(db, "inventory", matchedProduct.id);
                     const stockIncrement = isReturn ? -totalPcs : totalPcs;
