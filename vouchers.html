@@ -426,25 +426,13 @@
         receiptModalObj = new bootstrap.Modal(document.getElementById('receiptModal'));
         document.getElementById('vDate').value = new Date().toISOString().split('T')[0];
         
-        loadCache();
+        // تفريغ الذاكرة المؤقتة إجبارياً لمنع ظهور البيانات القديمة الخاطئة
+        localStorage.removeItem('cache_allVouchers');
+        localStorage.removeItem('cache_partiesMap');
+        
         await fetchPartiesData();
         await loadVouchers();
     });
-
-    function loadCache() {
-        try {
-            const cachedParties = localStorage.getItem('cache_partiesMap');
-            const cachedVouchers = localStorage.getItem('cache_allVouchers');
-            if (cachedParties) { partiesMap = JSON.parse(cachedParties); }
-            if (cachedVouchers) {
-                allVouchers = JSON.parse(cachedVouchers);
-                renderTable(allVouchers);
-                updateMethodTotals(allVouchers);
-            }
-        } catch (e) {
-            console.warn("تعذر قراءة الكاش المحلي:", e);
-        }
-    }
 
     async function fetchPartiesData() {
         try {
@@ -455,21 +443,11 @@
             
             partiesMap = {};
             supSnap.forEach(doc => {
-                partiesMap[doc.id] = {
-                    name: doc.data().name,
-                    type: 'مورد',
-                    initialBalance: Number(doc.data().initialBalance || 0)
-                };
+                partiesMap[doc.id] = { name: doc.data().name, type: 'مورد', initialBalance: Number(doc.data().initialBalance || 0) };
             });
             custSnap.forEach(doc => {
-                partiesMap[doc.id] = {
-                    name: doc.data().name,
-                    type: 'عميل',
-                    initialBalance: Number(doc.data().initialBalance || 0)
-                };
+                partiesMap[doc.id] = { name: doc.data().name, type: 'عميل', initialBalance: Number(doc.data().initialBalance || 0) };
             });
-            
-            localStorage.setItem('cache_partiesMap', JSON.stringify(partiesMap));
         } catch (err) {
             console.error("Error fetching parties:", err);
         }
@@ -516,9 +494,7 @@
     document.getElementById('partySearch').addEventListener('input', window.searchParty);
 
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.search-container')) {
-            document.getElementById('partyResults').style.display = 'none';
-        }
+        if (!e.target.closest('.search-container')) { document.getElementById('partyResults').style.display = 'none'; }
     });
 
     async function loadVouchers() {
@@ -530,11 +506,8 @@
             querySnapshot.forEach((doc) => {
                 const d = doc.data();
                 
-                // البحث الذكي عن الآي دي بأي مسمى
-                let actualPartyId = d.partyId || d.customerId || d.supplierId || d.clientId || d.party_id || "";
-                
-                // البحث الذكي عن الاسم
-                let savedName = d.customerName || d.partyName || d.supplierName || d.clientName || d.name || "";
+                let actualPartyId = d.partyId || d.customerId || d.supplierId || d.clientId || d.party_id || d.customer_id || d.client_id || "";
+                let savedName = d.customerName || d.partyName || d.supplierName || d.clientName || d.name || d.ClientName || d.CustomerName || d.client_name || d.customer_name || d.party_name || "";
                 
                 let resolvedName = "عميل غير مسجل";
                 let resolvedPartyType = d.partyType || (d.customerId ? 'عميل' : (d.supplierId ? 'مورد' : 'عميل'));
@@ -555,12 +528,10 @@
 
                 const isValidVoucherType = (d.type === 'قبض' || d.type === 'صرف');
                 
-                // --- نظام الحماية الجديد: استبعاد دفع الفواتير من الظهور هنا ---
-                // أي حركة فيها invoiceId أو كلمة فاتورة في البيان سيتم تجاهلها ولن تُعرض
+                // تحديث فلتر الفواتير ليشمل "فاتور" (بدون تاء أو هاء) لاصطياد كل الحالات
                 const isInvoicePayment = d.invoiceId || d.purchaseId || d.billId || d.isInvoicePayment || 
-                                         (d.note && (d.note.includes('فاتورة') || d.note.includes('فواتير')));
+                                         (d.note && (d.note.includes('فاتور') || d.note.includes('فواتير')));
                 
-                // إضافة الحركة فقط إذا كانت سند (وليس سداد فاتورة)
                 if (isValidVoucherType && !isInvoicePayment) {
                     allVouchers.push({
                         id: doc.id,
@@ -575,10 +546,6 @@
                     });
                 }
             });
-            
-            try {
-                localStorage.setItem('cache_allVouchers', JSON.stringify(allVouchers));
-            } catch (e) { }
             
             filterData();
         } catch (err) {
@@ -610,11 +577,16 @@
             const badgeClass = v.type === 'قبض' ? 'badge-receipt' : 'badge-payment';
             const methodClass = v.method === 'محفظة' ? 'badge-wallet' : 'badge-cash';
             
+            // في حالة كان الاسم لا يزال "عميل غير مسجل" بسبب عدم وجود أي بيانات قديمة له، نظلل الاسم لتوضيحه
+            const nameDisplay = v.resolvedName === 'عميل غير مسجل' 
+                ? `<span class="text-danger opacity-75">${escapeHtml(v.resolvedName)}</span>` 
+                : `<span class="text-dark">${escapeHtml(v.resolvedName)}</span>`;
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><span class="text-secondary fw-bold">${escapeHtml(v.date)}</span></td>
                 <td><span class="badge-type ${badgeClass}">${escapeHtml(v.type)}</span></td>
-                <td class="text-end fw-bold text-dark">${escapeHtml(v.resolvedName)}</td>
+                <td class="text-end fw-bold">${nameDisplay}</td>
                 <td class="text-end text-muted small">${escapeHtml(v.note)}</td>
                 <td class="fw-bold ${v.type === 'قبض' ? 'text-success' : 'text-danger'}">${v.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م</td>
                 <td><span class="badge-method ${methodClass}">${escapeHtml(v.method)}</span></td>
@@ -661,7 +633,10 @@
         document.getElementById('vType').value = voucher.type;
         document.getElementById('partyType').value = voucher.partyType;
         document.getElementById('partyId').value = voucher.partyId;
-        document.getElementById('partySearch').value = voucher.resolvedName;
+        
+        // إذا كان الاسم غير مسجل، نتركه فارغاً ليقوم المستخدم باختياره
+        document.getElementById('partySearch').value = voucher.resolvedName === 'عميل غير مسجل' ? '' : voucher.resolvedName;
+        
         document.getElementById('vDate').value = voucher.date;
         document.getElementById('vAmount').value = voucher.amount;
         document.getElementById('vMethod').value = voucher.method || 'نقدى';
@@ -1046,14 +1021,6 @@
             btn.disabled = false;
         }
     };
-
-    async function init() {
-        loadCache(); 
-        await fetchPartiesData(); 
-        await loadVouchers(); 
-    }
-    
-    init();
 </script>
 </body>
 </html>
