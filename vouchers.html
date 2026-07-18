@@ -101,7 +101,6 @@
         .form-label { margin-bottom: 3px; font-size: 0.75rem !important; }
         .form-control-sm, .form-select-sm { padding: 6px 10px; font-size: 0.8rem !important; border-radius: 8px; }
 
-        /* حماية القوائم المنسدلة من التداخل والقطع على الموبايل */
         @media (max-width: 576px) {
             .form-select-sm {
                 padding-left: 16px !important;
@@ -271,14 +270,12 @@
             </div>
         </div>
 
-        <!-- حاوية الفلاتر والفرز المعدلة والمحمية بالكامل ضد التداخل -->
+        <!-- حاوية الفلاتر -->
         <div class="card-custom py-2">
             <div class="row g-2 align-items-center">
-                <!-- قسم عنوان الفلترة -->
                 <div class="col-12 col-md-auto d-flex align-items-center gap-1">
                     <span class="small fw-bold text-muted" style="font-size: 0.78rem; white-space: nowrap;"><i class="fas fa-filter"></i> تصفية:</span>
                 </div>
-                <!-- قسم الفلاتر التفاعلية (مقسمة بالتساوي على الموبايل) -->
                 <div class="col-12 col-md-auto flex-grow-1">
                     <div class="row g-1">
                         <div class="col-4 col-md-auto">
@@ -304,7 +301,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- إجمالي العمليات المفلترة -->
                 <div class="col-12 col-md-auto text-md-end text-center mt-2 mt-md-0">
                     <span class="small fw-bold opacity-75" style="font-size: 0.75rem;">المعروض: </span>
                     <span id="vouchersTotal" class="fw-bold text-success" style="font-size: 0.9rem;">0.00 ج.م</span>
@@ -538,25 +534,42 @@
             allVouchers = [];
             querySnapshot.forEach((doc) => {
                 const d = doc.data();
+                
+                // تحديث ذكي للسجلات القديمة التي كانت تحفظ customerId أو supplierId بدل partyId
+                const actualPartyId = d.partyId || d.customerId || d.supplierId || "";
+                
+                // حفظ الاسم كاحتياطي لتفادي رسالة (غير مسجل) للسجلات السابقة
+                const savedName = d.customerName || d.partyName || d.supplierName || d.name || 'عميل غير مسجل';
+
+                let resolvedPartyType = d.partyType;
+                if (!resolvedPartyType && actualPartyId && partiesMap[actualPartyId]) {
+                    resolvedPartyType = partiesMap[actualPartyId].type;
+                } else if (!resolvedPartyType) {
+                    resolvedPartyType = d.customerId ? 'عميل' : (d.supplierId ? 'مورد' : 'عميل');
+                }
+
                 const isValidVoucherType = (d.type === 'قبض' || d.type === 'صرف');
-                const resolvedPartyType = d.partyType || (partiesMap[d.partyId] ? partiesMap[d.partyId].type : null);
-                const isValidParty = !!d.partyId && (resolvedPartyType === 'عميل' || resolvedPartyType === 'مورد');
-                if (isValidVoucherType && isValidParty) {
+                
+                // إضافة الحركة حتى لو كانت قديمة طالما أنها قبض أو صرف
+                if (isValidVoucherType) {
                     allVouchers.push({
                         id: doc.id,
                         date: d.date,
                         type: d.type,
-                        partyId: d.partyId,
+                        partyId: actualPartyId,
                         partyType: resolvedPartyType,
-                        amount: Number(d.amount || 0),
-                        method: d.method || 'نقدى',
+                        savedName: savedName, 
+                        amount: Number(d.amount || d.total || 0),
+                        method: d.method || d.paymentMethod || 'نقدى',
                         note: d.note || d.notes || ''
                     });
                 }
             });
+            
             try {
                 localStorage.setItem('cache_allVouchers', JSON.stringify(allVouchers));
             } catch (e) { /* تجاهل فشل الكاش */ }
+            
             filterData();
         } catch (err) {
             console.error(err);
@@ -583,9 +596,13 @@
         }
         data.forEach(v => {
             total += v.amount;
-            const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
+            
+            // الاعتماد على الاسم من partiesMap أو الاسم المحفوظ احتياطياً
+            let pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : v.savedName;
+            
             const badgeClass = v.type === 'قبض' ? 'badge-receipt' : 'badge-payment';
             const methodClass = v.method === 'محفظة' ? 'badge-wallet' : 'badge-cash';
+            
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><span class="text-secondary fw-bold">${escapeHtml(v.date)}</span></td>
@@ -612,9 +629,10 @@
         if (!id) return;
         const voucher = allVouchers.find(v => v.id === id);
         if (!voucher) return;
+        
         if (btn.dataset.action === 'edit') window.startEditVoucher(id);
         if (btn.dataset.action === 'delete') window.deleteVoucher(id);
-        if (btn.dataset.action === 'share') window.openReceiptModal(voucher.type, voucher.date, voucher.amount, voucher.partyId);
+        if (btn.dataset.action === 'share') window.openReceiptModal(voucher.type, voucher.date, voucher.amount, voucher.partyId, voucher.savedName);
     });
 
     function updateMethodTotals(data) {
@@ -631,15 +649,19 @@
     window.startEditVoucher = (id) => {
         const voucher = allVouchers.find(v => v.id === id);
         if (!voucher) return;
+        
+        let pName = partiesMap[voucher.partyId] ? partiesMap[voucher.partyId].name : voucher.savedName;
+        
         document.getElementById('editVoucherId').value = voucher.id;
         document.getElementById('vType').value = voucher.type;
         document.getElementById('partyType').value = voucher.partyType;
         document.getElementById('partyId').value = voucher.partyId;
-        document.getElementById('partySearch').value = partiesMap[voucher.partyId] ? partiesMap[voucher.partyId].name : '';
+        document.getElementById('partySearch').value = pName;
         document.getElementById('vDate').value = voucher.date;
         document.getElementById('vAmount').value = voucher.amount;
         document.getElementById('vMethod').value = voucher.method || 'نقدى';
         document.getElementById('vNote').value = voucher.note;
+        
         document.getElementById('formTitle').innerHTML = '<i class="fas fa-edit me-1"></i> تعديل وتحديث الحركة المحددة';
         const submitBtn = document.getElementById('btnSubmitForm');
         submitBtn.innerText = "تحديث البيانات الآن";
@@ -656,6 +678,7 @@
         document.getElementById('vMethod').value = 'نقدى';
         document.getElementById('partyId').value = '';
         document.getElementById('formTitle').innerHTML = '<i class="fas fa-plus-circle me-1"></i> تسجيل عملية جديدة';
+        
         const submitBtn = document.getElementById('btnSubmitForm');
         submitBtn.innerText = "حفظ البيانات";
         submitBtn.classList.remove('edit-mode');
@@ -677,12 +700,14 @@
     };
 
     async function calculateCustomerBalance(partyId) {
+        if (!partyId) return 0; // حماية إضافية
         const pType = partiesMap[partyId] ? partiesMap[partyId].type : 'عميل';
         const collectionName = pType === 'مورد' ? 'suppliers' : 'customers';
         try {
             const partyDoc = await getDoc(doc(db, collectionName, partyId));
             if (!partyDoc.exists()) return 0;
             let balance = Number(partyDoc.data().initialBalance || 0);
+            
             if (collectionName === 'customers') {
                 const invoicesSnap = await getDocs(query(collection(db, "invoices"), where("customerId", "==", partyId)));
                 invoicesSnap.forEach(inv => { balance += Number(inv.data().remaining || 0); });
@@ -692,8 +717,12 @@
                     supplierInvoicesSnap.forEach(inv => { balance += Number(inv.data().remaining || 0); });
                 } catch(e) { console.log("لا توجد فواتير معلقة للمورد"); }
             }
-            const transSnap = await getDocs(query(collection(db, "transactions"), where("partyId", "==", partyId)));
-            transSnap.forEach(tr => {
+            
+            // مراجعة كل الترانزاكشن لدقة الحساب
+            const transSnap1 = await getDocs(query(collection(db, "transactions"), where("partyId", "==", partyId)));
+            const transSnap2 = await getDocs(query(collection(db, "transactions"), where("customerId", "==", partyId))); // للدعم القديم
+            
+            let processTransaction = (tr) => {
                 const t = tr.data();
                 if (pType === 'عميل') {
                     if (t.type === 'قبض') balance -= Number(t.amount || 0);
@@ -702,7 +731,11 @@
                     if (t.type === 'صرف') balance -= Number(t.amount || 0);
                     if (t.type === 'قبض') balance += Number(t.amount || 0);
                 }
-            });
+            };
+            
+            transSnap1.forEach(processTransaction);
+            transSnap2.forEach(processTransaction);
+            
             return balance;
         } catch (err) {
             console.error("خطأ بحساب الرصيد الفعلي:", err);
@@ -710,16 +743,19 @@
         }
     }
 
-    window.openReceiptModal = async (type, date, amount, partyId) => {
+    window.openReceiptModal = async (type, date, amount, partyId, savedName) => {
         const pType = partiesMap[partyId] ? partiesMap[partyId].type : 'عميل';
-        const pName = partiesMap[partyId] ? partiesMap[partyId].name : 'حساب غير معروف';
+        let pName = partiesMap[partyId] ? partiesMap[partyId].name : (savedName || 'عميل غير مسجل');
+        
         document.getElementById('recType').innerText = type === 'قبض' ? 'سند قبض' : 'سند صرف';
         document.getElementById('recDate').innerText = date;
         document.getElementById('recPartyName').innerText = pName;
         document.getElementById('recAmount').innerText = `${Number(amount).toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
         document.getElementById('recStatusText').innerText = type === 'قبض' ? 'تم الاستلام بنجاح' : 'تم الصرف بنجاح';
+        
         const currentBalance = await calculateCustomerBalance(partyId);
         let prevBalance = currentBalance;
+        
         if (pType === 'عميل') {
             if (type === 'قبض') { prevBalance = currentBalance + Number(amount); }
             else { prevBalance = currentBalance - Number(amount); }
@@ -727,8 +763,10 @@
             if (type === 'صرف') { prevBalance = currentBalance + Number(amount); }
             else { prevBalance = currentBalance - Number(amount); }
         }
+        
         document.getElementById('recPrevBalance').innerText = `${prevBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
         document.getElementById('recNewBalance').innerText = `${currentBalance.toLocaleString('en-US', {minimumFractionDigits: 2})} ج.م`;
+        
         receiptModalObj.show();
     };
 
@@ -771,6 +809,7 @@
         const type = document.getElementById('vType').value;
         const partyType = document.getElementById('partyType').value;
         const partyId = document.getElementById('partyId').value;
+        const customerName = document.getElementById('partySearch').value;
         const date = document.getElementById('vDate').value;
         const amount = Number(document.getElementById('vAmount').value);
         const method = document.getElementById('vMethod').value;
@@ -792,7 +831,18 @@
             alert("خطأ: يرجى إدخال مبلغ صحيح أكبر من صفر.");
             return;
         }
-        const docData = { date, type, partyId, partyType, amount, method, note };
+        
+        const docData = { 
+            date, 
+            type, 
+            partyId, 
+            partyType, 
+            customerName: customerName, // حفظ الاسم لحل مشكلة السجلات القديمة مستقبلاً
+            amount, 
+            method, 
+            note 
+        };
+        
         try {
             if (editId) {
                 await updateDoc(doc(db, "transactions", editId), docData);
@@ -800,7 +850,7 @@
             } else {
                 await addDoc(collection(db, "transactions"), docData);
                 alert("تم حفظ السند الجديد بنجاح بقاعدة البيانات.");
-                await openReceiptModal(type, date, amount, partyId);
+                await openReceiptModal(type, date, amount, partyId, customerName);
             }
             resetVoucherForm();
             await loadVouchers();
@@ -854,7 +904,7 @@
         }
 
         const excelRows = displayedVouchers.map(v => {
-            const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
+            let pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : v.savedName;
 
             let movementLabel = '';
             if (v.type === 'قبض') {
@@ -919,7 +969,7 @@
             for (let i = 0; i < displayedVouchers.length; i++) {
                 const v = displayedVouchers[i];
                 const pType = partiesMap[v.partyId] ? partiesMap[v.partyId].type : 'عميل';
-                const pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : 'حساب غير معروف';
+                let pName = partiesMap[v.partyId] ? partiesMap[v.partyId].name : v.savedName;
 
                 const currentBalance = await calculateCustomerBalance(v.partyId);
                 let prevBalance = currentBalance;
