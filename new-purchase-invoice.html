@@ -220,7 +220,6 @@
 </head>
 <body>
 
-<!-- القائمة المنسدلة الموحدة التي ستحتوي على مقترحات مخزون الأصناف -->
 <datalist id="productsData"></datalist>
 
 <div class="header">
@@ -394,7 +393,6 @@
             invSnap.forEach(d => {
                 const data = d.data();
                 allInventory.push({ id: d.id, ...data });
-                // ربط الأصناف بالـ datalist الموحدة لتظهر كقائمة منسدلة خيارات
                 prodDataList.innerHTML += `<option value="${data.name}">`;
             });
 
@@ -481,8 +479,13 @@
     window.addNewItemRow = (itemData = null) => {
         const id = Date.now() + Math.random();
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
-        const isReturnChecked = itemData && itemData.returnQty > 0;
+        const isReturnChecked = itemData && (itemData.returnQty > 0 || itemData.isReturn);
         isDataChanged = true;
+
+        let displayQty = 1;
+        if (itemData) {
+            displayQty = (itemData.qty > 0) ? itemData.qty : (itemData.returnQty || 1);
+        }
 
         const html = `
             <div class="item-row ${isReturnChecked ? 'is-return' : ''}" id="row_${id}">
@@ -490,14 +493,13 @@
                 <div class="row g-2">
                     <div class="col-12">
                         <label><i class="fas fa-tag"></i> اسم الصنف (قائمة منسدلة خيارات)</label>
-                        <!-- تم إضافة الـ list لترتبط بالقائمة المنسدلة مباشرة بمتصفحات الموبايل والكمبيوتر -->
                         <input type="text" list="productsData" class="form-control item-name" value="${itemData ? itemData.name : ''}" placeholder="اكتب أول حرف لتظهر قائمة الأصناف فوراً...">
                     </div>
                     <div class="col-6">
                         <label><i class="fas fa-boxes-stacked"></i> نوع الوحدة</label>
                         <select class="form-select item-unit">
                             <option value="كرتونة" ${currentUnit === 'كرتونة' ? 'selected' : ''}>كرتونة</option>
-                            <option value="قطعة" ${currentUnit === 'قطعة' ? 'selected' : ''}>قطعة</option>
+                            <option value="قطعة" ${currentUnit === 'قطعة' ? 'selected' : ''}>قطعة (جركن)</option>
                         </select>
                     </div>
                     <div class="col-6 d-flex flex-column justify-content-end">
@@ -509,11 +511,11 @@
                         </div>
                     </div>
                     <div class="col-6">
-                        <label class="text-success" id="label_qty_${id}">العدد الحالي (${currentUnit})</label>
-                        <input type="number" step="0.01" class="form-control item-qty" value="${itemData ? (isReturnChecked ? itemData.returnQty : itemData.qty) : '1'}">
+                        <label class="text-success" id="label_qty_${id}">العدد الحالي (${currentUnit === 'كرتونة' ? 'كرتونة' : 'جركن'})</label>
+                        <input type="number" step="0.01" class="form-control item-qty" value="${displayQty}">
                     </div>
                     <div class="col-6">
-                        <label id="label_price_${id}">سعر الـ (${currentUnit})</label>
+                        <label id="label_price_${id}">سعر الـ (${currentUnit === 'كرتونة' ? 'كرتونة' : 'جركن'})</label>
                         <input type="number" step="0.01" class="form-control item-buy" value="${itemData ? itemData.buy : ''}" placeholder="0.00">
                     </div>
                     <div class="col-12 mt-2">
@@ -543,17 +545,28 @@
 
         unitSelect.addEventListener('change', (e) => {
             const val = e.target.value;
-            document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (${val})`;
-            document.getElementById(`label_price_${id}`).innerText = `سعر الـ (${val})`;
+            const unitText = val === 'كرتونة' ? 'كرتونة' : 'جركن';
+            document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (${unitText})`;
+            document.getElementById(`label_price_${id}`).innerText = `سعر الـ (${unitText})`;
+            
+            // تحديث السعر تلقائيًا بناء على الوحدة ومعامل التحويل
+            const found = allInventory.find(p => p.name === nameInput.value);
+            if(found) {
+                if (val === 'كرتونة') {
+                    row.querySelector('.item-buy').value = found.buy || 0;
+                } else {
+                    const factor = Number(found.unitFactor) || 1;
+                    row.querySelector('.item-buy').value = ((found.buy || 0) / factor).toFixed(2);
+                }
+            }
             window.calculateTotal();
         });
 
-        // آلية تعبئة البيانات التلقائية عند اختيار صنف من القائمة المنسدلة المنبثقة
         nameInput.addEventListener('change', (e) => {
             const found = allInventory.find(p => p.name === e.target.value);
             if(found) {
-                row.querySelector('.item-buy').value = found.buy || 0;
                 unitSelect.value = "كرتونة";
+                row.querySelector('.item-buy').value = found.buy || 0;
                 unitSelect.dispatchEvent(new Event('change'));
             } else if (e.target.value !== "") {
                 alert("الصنف غير مسجل بالنظام! يرجى اختيار صنف صحيح من القائمة المنسدلة.");
@@ -648,47 +661,57 @@
 
                 if (Array.isArray(oldInvoiceData.items)) {
                     for (const oldItem of oldInvoiceData.items) {
-                        const oldModifier = (typeof oldItem.totalPieces === 'number') ? oldItem.totalPieces : ((Number(oldItem.qty) || 0) - (Number(oldItem.returnQty) || 0));
+                        const oldModifier = Number(oldItem.totalPieces) || 0;
                         if (!oldModifier) continue;
                         const qOld = query(collection(db, "inventory"), where("name", "==", oldItem.name));
                         const qOldSnap = await getDocs(qOld);
                         if (!qOldSnap.empty) {
-                            await updateDoc(doc(db, "inventory", qOldSnap.docs[0].id), { qty: increment(-oldModifier), totalPcs: increment(-oldModifier) });
+                            const isOldReturn = oldItem.isReturn || oldItem.returnQty > 0;
+                            const finalOldMod = isOldReturn ? -oldModifier : oldModifier;
+                            await updateDoc(doc(db, "inventory", qOldSnap.docs[0].id), { 
+                                qty: increment(-finalOldMod), 
+                                totalPcs: increment(-finalOldMod) 
+                            });
                         }
                     }
                 }
             }
 
-           // استبدل كود معالجة الأصناف وحساب الكميات داخل btnSaveInvoice.addEventListener بهذا المنطق:
+            const items = [];
+            for (const row of rows) {
+                const name = row.querySelector('.item-name').value;
+                const qtyInput = parseFloat(row.querySelector('.item-qty').value) || 0;
+                const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
+                const unitName = row.querySelector('.item-unit').value; 
+                const isReturn = row.querySelector('.item-is-return').checked;
 
-const items = [];
-for (const row of rows) {
-    const name = row.querySelector('.item-name').value;
-    const qtyInput = parseFloat(row.querySelector('.item-qty').value) || 0;
-    const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
-    const unitName = row.querySelector('.item-unit').value; // 'كرتونة' أو 'قطعة'
-    const isReturn = row.querySelector('.item-is-return').checked;
+                const matchedProduct = allInventory.find(p => p.name === name);
+                const factor = Number(matchedProduct?.unitFactor) || 1;
 
-    const matchedProduct = allInventory.find(p => p.name === name);
-    // جلب معامل التحويل من المخزن (افتراضي 1 إذا لم يوجد)
-    const factor = Number(matchedProduct?.unitFactor) || 1;
+                // احتساب قطع المخزن الكلية بناء على معامل الصنف والوحدة المحددة
+                const totalPcs = unitName === 'كرتونة' ? qtyInput * factor : qtyInput;
 
-    // حساب إجمالي القطع (إذا كانت كرتونة تُضرب في المعامل، إذا كانت قطعة تظل كما هي)
-    const totalPcs = unitName === 'كرتونة' 
-        ? qtyInput * factor 
-        : qtyInput;
+                items.push({
+                    name,
+                    qty: unitName === 'كرتونة' ? qtyInput : 0,    
+                    returnQty: unitName === 'قطعة' ? qtyInput : 0, 
+                    buy,
+                    unitName,
+                    unitFactor: factor,
+                    totalPieces: totalPcs,
+                    isReturn: isReturn
+                });
 
-    items.push({
-        name,
-        qty: unitName === 'كرتونة' ? qtyInput : 0,    // عدد الكراتين
-        returnQty: unitName === 'قطعة' ? qtyInput : 0, // عدد القطع (الجراكن)
-        buy,
-        unitName,
-        unitFactor: factor,
-        totalPieces: totalPcs // الإجمالي بالقطع للتأثير في المخزن
-    });
-}
-            
+                // تحديث رصيد المخزن الفعلي للقطع فوراً
+                if (matchedProduct) {
+                    const storeDocRef = doc(db, "inventory", matchedProduct.id);
+                    const stockIncrement = isReturn ? -totalPcs : totalPcs;
+                    await updateDoc(storeDocRef, {
+                        qty: increment(stockIncrement),
+                        totalPcs: increment(stockIncrement)
+                    });
+                }
+            }
 
             let finalPaymentType = "آجل";
             if(cashPaid > 0 && walletPaid > 0) finalPaymentType = "مشترك (كاش + محفظة)";
