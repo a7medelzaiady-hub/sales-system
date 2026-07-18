@@ -525,8 +525,8 @@
     </div>
 
     <script type="module">
-        import { initializeApp } from "./firebase-shim.js";
-        import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "./firebase-shim.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -588,12 +588,36 @@
                     getDocs(collection(db, 'supplier_transactions'))
                 ]);
 
+                // ----------------------------------------------------
+                // تعديل هنا: قراءة رصيد المحفظة أيضاً من ملف الصندوق cash_logs
+                // ----------------------------------------------------
                 serverActualCash = 0;
+                serverActualWallet = 0; // تم نقل التصفير هنا ليجمع من الصندوق وغيره
+
                 cashLogsSnap.forEach(doc => {
                     const data = doc.data();
                     const amt = parseSignedNumber(data.amount);
-                    if (data.type === 'in' || data.type === 'قبض') serverActualCash += amt;
-                    else if (data.type === 'out' || data.type === 'صرف') serverActualCash -= amt;
+                    
+                    // تحديد ما إذا كانت العملية نقدية أم محفظة
+                    let method = data.method || data.paymentMethod || 'نقدي';
+                    if (data.note && (data.note.includes('محفظة') || data.note.includes('wallet'))) {
+                        method = 'محفظة';
+                    }
+
+                    if (data.type === 'in' || data.type === 'قبض') {
+                        if (method === 'محفظة' || method === 'wallet') {
+                            serverActualWallet += amt;
+                        } else {
+                            serverActualCash += amt;
+                        }
+                    } 
+                    else if (data.type === 'out' || data.type === 'صرف') {
+                        if (method === 'محفظة' || method === 'wallet') {
+                            serverActualWallet -= amt;
+                        } else {
+                            serverActualCash -= amt;
+                        }
+                    }
                 });
 
                 serverActualInv = 0;
@@ -610,7 +634,7 @@
                 const customerDebtMap = {};
                 const supplierDebtMap = {};
                 const supplierCreditMap = {};
-                serverActualWallet = 0;
+                // تم إزالة تصفير serverActualWallet من هنا لأنه تم بالأعلى
 
                 invoicesSnap.forEach(doc => {
                     const data = doc.data();

@@ -45,7 +45,6 @@
             padding-bottom: 30px; 
         }
 
-        /* حاوية الجوال السحرية لمنع التمدد */
         .app-container {
             max-width: 500px;
             margin: 0 auto;
@@ -61,7 +60,6 @@
             font-weight: 800; 
         }
 
-        /* ===== Premium Glass Header ===== */
         .header-nav { 
             background: var(--primary-gradient); 
             color: white; 
@@ -90,9 +88,7 @@
         }
         .back-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.25); }
 
-        .header-title {
-            text-align: center;
-        }
+        .header-title { text-align: center; }
         .header-title span {
             font-size: 0.65rem;
             letter-spacing: 1.5px;
@@ -107,7 +103,6 @@
             margin: 3px 0 0;
         }
 
-        /* ===== Nav Tabs ===== */
         .nav-tabs { 
             border: none; 
             background: white; 
@@ -135,7 +130,6 @@
             box-shadow: 0 4px 12px rgba(11, 94, 61, 0.2);
         }
 
-        /* ===== Cards ===== */
         .card-custom { 
             background: white; 
             border-radius: var(--radius-lg); 
@@ -180,7 +174,6 @@
         }
         .btn-save:active { transform: scale(0.97); }
 
-        /* ===== Toolbar actions ===== */
         .toolbar-box {
             display: flex;
             gap: 8px;
@@ -217,7 +210,6 @@
         }
         .btn-clear-all:active { transform: scale(0.9); background-color: #fee2e2; }
 
-        /* ===== Expense Item ===== */
         .expense-item { 
             display: flex; 
             align-items: center; 
@@ -285,6 +277,15 @@
         <!-- تبويب الإضافة -->
         <div class="tab-pane fade show active" id="addContent">
             <div class="card-custom">
+                
+                <div class="input-group-custom">
+                    <label class="label-custom">نوع السداد</label>
+                    <select id="paymentMethod" class="input-field">
+                        <option value="نقدي">نقدي</option>
+                        <option value="محفظة">محفظة</option>
+                    </select>
+                </div>
+
                 <div class="input-group-custom">
                     <label class="label-custom">نوع المصروف</label>
                     <select id="expType" class="input-field" onchange="toggleOtherField(this.value)">
@@ -325,7 +326,6 @@
 
         <!-- تبويب العرض والتصدير -->
         <div class="tab-pane fade" id="listContent">
-            <!-- شريط العمليات للجوال -->
             <div class="toolbar-box">
                 <button class="btn-excel" onclick="exportToExcel()">
                     <i class="fas fa-file-excel"></i> تصدير البيانات Excel
@@ -345,11 +345,9 @@
     </div>
 </div>
 
-<div id="thermalInvoiceHidden"></div>
-
 <script type="module">
-    import { initializeApp } from "./firebase-shim.js";
-    import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, serverTimestamp } from "./firebase-shim.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -372,6 +370,7 @@
     };
 
     window.saveExpense = async () => {
+        const paymentMethod = document.getElementById('paymentMethod').value;
         let type = document.getElementById('expType').value;
         const otherVal = document.getElementById('otherTypeInput').value;
         
@@ -389,7 +388,8 @@
 
         try {
             const expenseRef = await addDoc(collection(db, "expenses"), { 
-                type, 
+                type,
+                paymentMethod,
                 amount: amt, 
                 note, 
                 date, 
@@ -398,7 +398,7 @@
             
             await addDoc(collection(db, "cash_logs"), { 
                 amount: amt, 
-                note: `مصروف: ${type} ${note ? '(' + note + ')' : ''}`, 
+                note: `مصروف (${paymentMethod}): ${type} ${note ? '(' + note + ')' : ''}`, 
                 type: 'out', 
                 timestamp: serverTimestamp(), 
                 date: date,
@@ -434,7 +434,8 @@
                     type: data.type,
                     amount: Number(data.amount) || 0,
                     date: data.date,
-                    note: data.note || ''
+                    note: data.note || '',
+                    paymentMethod: data.paymentMethod || 'نقدي' // افتراضي للحركات القديمة
                 };
                 allExpenses.push(expItem);
 
@@ -444,6 +445,7 @@
                             <span class="expense-type">${expItem.type}</span>
                             <span class="expense-meta">
                                 <i class="far fa-calendar-alt me-1"></i> <span class="num">${expItem.date}</span> 
+                                | <i class="fas fa-wallet ms-1 me-1"></i> ${expItem.paymentMethod}
                                 ${expItem.note ? ` | <i class="far fa-sticky-note ms-1 me-1"></i> ${expItem.note}` : ''}
                             </span>
                         </div>
@@ -472,7 +474,7 @@
             const logsSnap = await getDocs(query(collection(db, "cash_logs"), orderBy("timestamp", "desc")));
             for (const logDoc of logsSnap.docs) {
                 const logData = logDoc.data();
-                if(logData.expenseId === id || (logData.note && logData.note.includes(`مصروف:`) && logData.amount === allExpenses.find(e => e.id === id)?.amount)) {
+                if(logData.expenseId === id || (logData.note && logData.note.includes(`مصروف`) && logData.amount === allExpenses.find(e => e.id === id)?.amount)) {
                     await deleteDoc(doc(db, "cash_logs", logDoc.id));
                 }
             }
@@ -496,7 +498,6 @@
         }
     };
 
-    // دالة مسح كافة المصروفات نهائياً
     window.clearAllExpenses = async () => {
         if (allExpenses.length === 0) return alert("سجل المصروفات فارغ بالفعل!");
         
@@ -506,18 +507,16 @@
         const confirm2 = confirm(`تأكيد أخير:\nهل تريد أيضاً حذف سجلات النقدية المرتبطة بها من الدرج؟`);
         
         try {
-            // 1. مسح مستندات المصروفات
             const expSnap = await getDocs(collection(db, "expenses"));
             for (const expDoc of expSnap.docs) {
                 await deleteDoc(doc(db, "expenses", expDoc.id));
             }
 
-            // 2. مسح سجلات النقدية المرتبطة بالدرج في حال الموافقة
             if (confirm2) {
                 const logsSnap = await getDocs(collection(db, "cash_logs"));
                 for (const logDoc of logsSnap.docs) {
                     const logData = logDoc.data();
-                    if (logData.expenseId || (logData.note && logData.note.includes("مصروف:"))) {
+                    if (logData.expenseId || (logData.note && logData.note.includes("مصروف"))) {
                         await deleteDoc(doc(db, "cash_logs", logDoc.id));
                     }
                 }
@@ -536,12 +535,13 @@
             return alert("لا توجد بيانات مصروفات لتصديرها حالياً!");
         }
 
-        const formattedData = allExpenses.map((exp, index) => ({
-            "م.": index + 1,
-            "تاريخ المصروف": exp.date,
+        // الترتيب المطلوب: التاريخ - نوع المصروف - البيان - المبلغ - نوع السداد
+        const formattedData = allExpenses.map((exp) => ({
+            "التاريخ": exp.date,
             "نوع المصروف": exp.type,
-            "القيمة (ج.م)": exp.amount,
-            "البيان والملاحظات": exp.note
+            "البيان": exp.note,
+            "المبلغ": exp.amount,
+            "نوع السداد": exp.paymentMethod
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(formattedData);
