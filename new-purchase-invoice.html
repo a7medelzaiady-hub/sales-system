@@ -667,21 +667,31 @@
                 const unitName = row.querySelector('.item-unit').value;
                 const isReturn = row.querySelector('.item-is-return').checked;
 
-                let qty = isReturn ? 0 : qtyInput;
-                let returnQty = isReturn ? qtyInput : 0;
-                const finalQtyModifier = isReturn ? -qtyInput : qtyInput;
+             const matchedProduct = allInventory.find(p => p.name === name);
 
-                items.push({ name, qty, returnQty, buy, unitName, unitFactor: 1, totalPieces: finalQtyModifier });
+const factor = Number(matchedProduct?.unitFactor) || 1;
 
-                const q = query(collection(db, "inventory"), where("name", "==", name));
-                const qSnap = await getDocs(q);
-                if(!qSnap.empty) {
-                    await updateDoc(doc(db, "inventory", qSnap.docs[0].id), {
-                        qty: increment(finalQtyModifier), totalPcs: increment(finalQtyModifier),
-                        buy: buy, unitName: unitName, lastUpdate: serverTimestamp()
-                    });
-                }
-            }
+// تحويل الكمية إلى قطع إذا كانت الوحدة كرتونة
+const qtyPcs = unitName === 'كرتونة'
+    ? qtyInput * factor
+    : qtyInput;
+
+// الكمية التى ستؤثر فى المخزون
+const finalQtyModifier = isReturn ? -qtyPcs : qtyPcs;
+
+let qty = isReturn ? 0 : qtyInput;
+let returnQty = isReturn ? qtyInput : 0;
+
+items.push({
+    name,
+    qty,
+    returnQty,
+    buy,
+    unitName,
+    unitFactor: factor,
+    totalPieces: qtyPcs
+});
+            
 
             let finalPaymentType = "آجل";
             if(cashPaid > 0 && walletPaid > 0) finalPaymentType = "مشترك (كاش + محفظة)";
