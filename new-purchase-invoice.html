@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>فاتورة شراء احترافية - شركة الزيادى</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;500;600;700;800&family=Montserrat:wght=500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
@@ -353,11 +353,8 @@
     cashInput.addEventListener('input', () => { window.calculateTotal(); });
     walletInput.addEventListener('input', () => { window.calculateTotal(); });
 
-    // مراجعة وهيكلة عملية جلب البيانات لتعمل تحت أي ظرف ومستعرض بدقة
     async function loadData() {
         const supSelect = document.getElementById('supplierSelect');
-
-        // 1. جلب الموردين بشكل فوري ومستقل تماماً للتأكد من تعبئتها أولاً
         try {
             const supSnap = await getDocs(collection(db, "suppliers"));
             supSelect.innerHTML = '<option value="">-- اختر اسم المورد المستحق --</option>';
@@ -368,11 +365,10 @@
                 supSelect.innerHTML += `<option value="${d.id}">${data.name}</option>`;
             });
         } catch (err) {
-            console.error("خطأ جلب الموردين: ", err);
+            console.error(err);
             supSelect.innerHTML = '<option value="">❌ فشل تحميل قائمة الموردين</option>';
         }
 
-        // 2. جلب الحركات المالية المتبقية والمخازن بالتوازي
         try {
             const [transSnap, voucherSnap, invSnap] = await Promise.all([
                 getDocs(query(collection(db, "supplier_transactions"), orderBy("timestamp", "asc"))),
@@ -381,9 +377,7 @@
             ]);
 
             globalVouchersHistory = [];
-            voucherSnap.forEach(v => {
-                globalVouchersHistory.push({ id: v.id, ...v.data() });
-            });
+            voucherSnap.forEach(v => { globalVouchersHistory.push({ id: v.id, ...v.data() }); });
 
             allInvoicesHistory = [];
             transSnap.forEach(doc => {
@@ -393,15 +387,9 @@
                 const walletP = Number(data.walletPaid || 0);
                 const directPaid = data.totalPaid ? Number(data.totalPaid) : (cashP + walletP || Number(data.paidAmount) || 0);
 
-                allInvoicesHistory.push({
-                    id: doc.id,
-                    ...data,
-                    displayGross: amt,
-                    displayNetPending: amt - directPaid
-                });
+                allInvoicesHistory.push({ id: doc.id, ...data, displayGross: amt, displayNetPending: amt - directPaid });
             });
 
-            // تعبئة مصفوفة وقائمة المخزن الكلية للأصناف
             allInventory = [];
             const prodDataList = document.getElementById('productsData');
             prodDataList.innerHTML = "";
@@ -411,36 +399,21 @@
                 prodDataList.innerHTML += `<option value="${data.name}">`;
             });
 
-        } catch (err) {
-            console.error("خطأ جلب المخزن والتاريخ: ", err);
-        }
+        } catch (err) { console.error(err); }
 
         supSelect.addEventListener('change', () => { window.calculateTotal(); });
 
-        if (editId) {
-            await loadInvoiceForEdit();
-        } else if (orderId) {
-            await loadOrderData(orderId);
-        } else {
-            addNewItemRow();
-        }
+        if (editId) { await loadInvoiceForEdit(); }
+        else if (orderId) { await loadOrderData(orderId); }
+        else { addNewItemRow(); }
 
         window.calculateTotal();
-
-        setTimeout(() => {
-            document.querySelectorAll('input, select').forEach(el => {
-                el.addEventListener('change', () => { isDataChanged = true; });
-                el.addEventListener('input', () => { isDataChanged = true; });
-            });
-        }, 800);
     }
 
     function calculateHistoricalPreviousBalance(supId, invoiceTimestamp) {
         if (!supId || !suppliersBase[supId]) return 0;
         const supplier = suppliersBase[supId];
-
-        let debt = 0;
-        let credit = 0;
+        let debt = 0; let credit = 0;
         const targetSeconds = invoiceTimestamp?.seconds || (Date.now() / 1000);
 
         globalVouchersHistory.forEach(v => {
@@ -453,14 +426,12 @@
 
         allInvoicesHistory.forEach(inv => {
             if (editId && inv.id === editId) return;
-
             if (inv.supplierId === supId && inv.timestamp && inv.timestamp.seconds < targetSeconds) {
                 const amt = inv.displayGross;
                 if (inv.type === "شراء" || inv.type === "فاتورة شراء") debt += amt;
                 else if (inv.type === "مرتجع شراء") credit += amt;
             }
         });
-
         return (supplier.openingBalance + debt) - credit;
     }
 
@@ -474,9 +445,7 @@
 
         if (invSnap.exists()) {
             oldInvoiceData = invSnap.data();
-            if (oldInvoiceData.supplierId) {
-                document.getElementById('supplierSelect').value = oldInvoiceData.supplierId;
-            }
+            if (oldInvoiceData.supplierId) { document.getElementById('supplierSelect').value = oldInvoiceData.supplierId; }
             document.getElementById('invDate').value = oldInvoiceData.date;
             document.getElementById('cashAmount').value = oldInvoiceData.cashPaid || '0.00';
             document.getElementById('walletAmount').value = oldInvoiceData.walletPaid || '0.00';
@@ -494,12 +463,10 @@
             const orderSnap = await getDoc(doc(db, "purchase_orders", id));
             if (orderSnap.exists()) {
                 const data = orderSnap.data();
-                if (data.supplierId) {
-                    document.getElementById('supplierSelect').value = data.supplierId;
-                }
+                if (data.supplierId) { document.getElementById('supplierSelect').value = data.supplierId; }
                 document.getElementById('itemsList').innerHTML = "";
                 data.items.forEach(item => {
-                    addNewItemRow({ name: item.name, qty: item.qty, returnQty: item.returnQty || 0, buy: item.buy || 0, unitName: item.unitName || 'كرتونة' });
+                    addNewItemRow({ name: item.name, qty: item.qty, returnQty: item.returnQty || 0, buy: item.buy || 0, unitName: item.unitName || 'كرتونة', isReturn: item.isReturn || false });
                 });
                 window.calculateTotal();
             }
@@ -507,16 +474,21 @@
     }
 
     window.addNewItemRow = (itemData = null) => {
-        const id = Date.now() + Math.random();
+        const id = Date.now() + Math.random().toString(36).substring(2, 7);
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
-        const isReturnChecked = itemData && itemData.returnQty > 0;
+        
+        // تم الإصلاح الجذري هنا: الاعتماد الكلي على حقل المرتجع الفعلي لملف المبيعات مننعاً للتنشيط الذاتي
+        const isReturnChecked = itemData ? (itemData.isReturn === true) : false;
         isDataChanged = true;
+
+        let displayQty = 1;
+        if (itemData) {
+            displayQty = (currentUnit === 'كرتونة') ? (itemData.qty || 1) : (itemData.returnQty || 1);
+        }
 
         const html = `
             <div class="item-row ${isReturnChecked ? 'is-return' : ''}" id="row_${id}">
-                <div class="btn-remove" onclick="this.parentElement.remove(); window.calculateTotal();">
-                    <i class="fas fa-times"></i>
-                </div>
+                <div class="btn-remove" onclick="this.parentElement.remove(); window.calculateTotal();"><i class="fas fa-times"></i></div>
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
                         <label><i class="fas fa-tag"></i> اسم الصنف</label>
@@ -524,9 +496,9 @@
                     </div>
                     <div class="col-6 col-md-3">
                         <label><i class="fas fa-boxes-stacked"></i> نوع الوحدة</label>
-                        <select class="form-select item-unit">
+                        <select class="form-select item-unit" id="unit_${id}">
                             <option value="كرتونة" ${currentUnit === 'كرتونة' ? 'selected' : ''}>كرتونة</option>
-                            <option value="قطعة" ${currentUnit === 'قطعة' ? 'selected' : ''}>قطعة</option>
+                            <option value="قطعة" ${currentUnit === 'قطعة' ? 'selected' : ''}>قطعة (جركن)</option>
                         </select>
                     </div>
                     <div class="col-6 col-md-3 d-flex flex-column justify-content-end">
@@ -540,11 +512,11 @@
                 </div>
                 <div class="row g-3 mt-1">
                     <div class="col-6 col-md-4">
-                        <label class="text-success fw-bold" id="label_qty_${id}">العدد الحالي (${currentUnit})</label>
-                        <input type="number" step="0.01" class="form-control item-qty" value="${itemData ? (isReturnChecked ? itemData.returnQty : itemData.qty) : '1'}">
+                        <label class="text-success fw-bold" id="label_qty_${id}">العدد الحالي (${currentUnit === 'كرتونة' ? 'كرتونة' : 'جركن'})</label>
+                        <input type="number" step="0.01" class="form-control item-qty" value="${displayQty}">
                     </div>
                     <div class="col-6 col-md-4">
-                        <label id="label_price_${id}">سعر شراء الـ (${currentUnit})</label>
+                        <label id="label_price_${id}">سعر شراء الـ (${currentUnit === 'كرتونة' ? 'كرتونة' : 'جركن'})</label>
                         <input type="number" step="0.01" class="form-control item-buy" value="${itemData ? itemData.buy : ''}" placeholder="0.00">
                     </div>
                     <div class="col-12 col-md-4 d-flex flex-column justify-content-end align-items-end">
@@ -574,30 +546,31 @@
 
         unitSelect.addEventListener('change', (e) => {
             const val = e.target.value;
-            document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (${val})`;
-            document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (${val})`;
+            const unitText = val === 'كرتونة' ? 'كرتونة' : 'جركن';
+            document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (${unitText})`;
+            document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (${unitText})`;
+            
+            const found = allInventory.find(p => p.name === nameInput.value);
+            if(found) {
+                if (val === 'كرتونة') {
+                    row.querySelector('.item-buy').value = found.buy || 0;
+                } else {
+                    const factor = Number(found.unitFactor) || 1;
+                    row.querySelector('.item-buy').value = ((found.buy || 0) / factor).toFixed(2);
+                }
+            }
             window.calculateTotal();
         });
 
-        // آلية الإكمال التلقائي المعدلة والمضمونة (تعتمد على الفحص الفوري للمصفوفة بالأحرف الأولى)
         nameInput.addEventListener('keyup', (e) => {
-            // تجاهل أزرار التحكم مثل مسح الحروف أو الانتقال للحفاظ على تجربة كتابة سلسلة
             if (["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
-
             const inputVal = e.target.value;
             if (!inputVal || inputVal.trim() === "") return;
-
-            // البحث داخل مصفوفة الأصناف الكلية التي جُلبت من السيرفر
             const match = allInventory.find(p => p.name.toLowerCase().startsWith(inputVal.toLowerCase()));
-
             if (match && match.name !== inputVal) {
                 const startSelection = inputVal.length;
                 e.target.value = match.name;
-
-                // تحديد النص المتبقي المكمل تلقائياً لتسهيل المتابعة أو الحذف
                 e.target.setSelectionRange(startSelection, match.name.length);
-
-                // تعبئة الحقول الأساسية فورياً وتحديث الحسابات
                 row.querySelector('.item-buy').value = match.buy || 0;
                 unitSelect.value = "كرتونة";
                 document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (كرتونة)`;
@@ -671,14 +644,11 @@
         const btn = document.getElementById('btnSaveInvoice');
         const supplierId = document.getElementById('supplierSelect').value;
         const grossTotal = parseFloat(document.getElementById('grossTotal').innerText) || 0;
-
         const cashPaid = parseFloat(document.getElementById('cashAmount').value) || 0;
         const walletPaid = parseFloat(document.getElementById('walletAmount').value) || 0;
         const totalPaid = cashPaid + walletPaid;
-
         const invoiceDate = document.getElementById('invDate').value;
         const pendingAmount = grossTotal - totalPaid;
-
         const rows = document.querySelectorAll('.item-row');
 
         if(!supplierId) return alert("برجاء اختيار اسم المورد أولاً");
@@ -688,7 +658,7 @@
             const name = row.querySelector('.item-name').value.trim();
             const isExist = allInventory.some(p => p.name === name);
             if (!isExist || name === "") {
-                alert(`خطأ: الصنف "${name}" غير مسجل بقاعدة البيانات! يرجى اختيار صنف صحيح من القائمة المنسدلة للتمكن من الحفظ.`);
+                alert(`خطأ: الصنف "${name}" غير مسجل بقاعدة البيانات!`);
                 return;
             }
         }
@@ -697,8 +667,6 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل والموازنة الحالية...';
 
         try {
-            // ── مراجعة وإصلاح: عند التعديل يجب أولاً عكس تأثير الأصناف القديمة على المخزون
-            // قبل تطبيق الكميات الجديدة، وإلا يحدث ازدواج فى تحديث رصيد المخزن.
             if (editId && oldInvoiceData) {
                 const oldGross = Number(oldInvoiceData.grossTotal || oldInvoiceData.total || 0);
                 const oldCash = Number(oldInvoiceData.cashPaid || 0);
@@ -710,16 +678,16 @@
 
                 if (Array.isArray(oldInvoiceData.items)) {
                     for (const oldItem of oldInvoiceData.items) {
-                        const oldModifier = (typeof oldItem.totalPieces === 'number')
-                            ? oldItem.totalPieces
-                            : ((Number(oldItem.qty) || 0) - (Number(oldItem.returnQty) || 0));
+                        const oldModifier = Number(oldItem.totalPieces) || 0;
                         if (!oldModifier) continue;
                         const qOld = query(collection(db, "inventory"), where("name", "==", oldItem.name));
                         const qOldSnap = await getDocs(qOld);
                         if (!qOldSnap.empty) {
+                            const isOldReturn = oldItem.isReturn === true;
+                            const finalOldMod = isOldReturn ? -oldModifier : oldModifier;
                             await updateDoc(doc(db, "inventory", qOldSnap.docs[0].id), {
-                                qty: increment(-oldModifier),
-                                totalPcs: increment(-oldModifier)
+                                qty: increment(-finalOldMod),
+                                totalPcs: increment(-finalOldMod)
                             });
                         }
                     }
@@ -735,19 +703,30 @@
                 const unitName = row.querySelector('.item-unit').value;
                 const isReturn = row.querySelector('.item-is-return').checked;
 
-                let qty = isReturn ? 0 : qtyInput;
-                let returnQty = isReturn ? qtyInput : 0;
-                const finalQtyModifier = isReturn ? -qtyInput : qtyInput;
+                const matchedProduct = allInventory.find(p => p.name === name);
+                const factor = Number(matchedProduct?.unitFactor) || 1;
 
-                items.push({ name, qty, returnQty, buy, unitName, unitFactor: 1, totalPieces: finalQtyModifier });
+                // احتساب دقيق لقطع المخزن الكلية (الكرتونة تضرب في المعامل، القطعة تظل كما هي)
+                const totalPcs = unitName === 'كرتونة' ? qtyInput * factor : qtyInput;
 
-                const q = query(collection(db, "inventory"), where("name", "==", name));
-                const qSnap = await getDocs(q);
+                // تم الإصلاح الجذري: إسناد القيم لأعمدة مستقلة ومنفصلة تماماً حسب رغبتك لعدم الاختفاء
+                items.push({ 
+                    name, 
+                    qty: unitName === 'كرتونة' ? qtyInput : 0, 
+                    returnQty: unitName === 'قطعة' ? qtyInput : 0, 
+                    buy, 
+                    unitName, 
+                    unitFactor: factor, 
+                    totalPieces: totalPcs,
+                    isReturn: isReturn
+                });
 
-                if(!qSnap.empty) {
-                    await updateDoc(doc(db, "inventory", qSnap.docs[0].id), {
-                        qty: increment(finalQtyModifier),
-                        totalPcs: increment(finalQtyModifier),
+                if(matchedProduct) {
+                    const storeDocRef = doc(db, "inventory", matchedProduct.id);
+                    const stockIncrement = isReturn ? -totalPcs : totalPcs;
+                    await updateDoc(storeDocRef, {
+                        qty: increment(stockIncrement),
+                        totalPcs: increment(stockIncrement),
                         buy: buy, unitName: unitName, lastUpdate: serverTimestamp()
                     });
                 }
