@@ -659,38 +659,35 @@
                 }
             }
 
-            const items = [];
-            for (const row of rows) {
-                const name = row.querySelector('.item-name').value;
-                const qtyInput = parseFloat(row.querySelector('.item-qty').value) || 0;
-                const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
-                const unitName = row.querySelector('.item-unit').value;
-                const isReturn = row.querySelector('.item-is-return').checked;
+           // استبدل كود معالجة الأصناف وحساب الكميات داخل btnSaveInvoice.addEventListener بهذا المنطق:
 
-             const matchedProduct = allInventory.find(p => p.name === name);
+const items = [];
+for (const row of rows) {
+    const name = row.querySelector('.item-name').value;
+    const qtyInput = parseFloat(row.querySelector('.item-qty').value) || 0;
+    const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
+    const unitName = row.querySelector('.item-unit').value; // 'كرتونة' أو 'قطعة'
+    const isReturn = row.querySelector('.item-is-return').checked;
 
-const factor = Number(matchedProduct?.unitFactor) || 1;
+    const matchedProduct = allInventory.find(p => p.name === name);
+    // جلب معامل التحويل من المخزن (افتراضي 1 إذا لم يوجد)
+    const factor = Number(matchedProduct?.unitFactor) || 1;
 
-// تحويل الكمية إلى قطع إذا كانت الوحدة كرتونة
-const qtyPcs = unitName === 'كرتونة'
-    ? qtyInput * factor
-    : qtyInput;
+    // حساب إجمالي القطع (إذا كانت كرتونة تُضرب في المعامل، إذا كانت قطعة تظل كما هي)
+    const totalPcs = unitName === 'كرتونة' 
+        ? qtyInput * factor 
+        : qtyInput;
 
-// الكمية التى ستؤثر فى المخزون
-const finalQtyModifier = isReturn ? -qtyPcs : qtyPcs;
-
-let qty = isReturn ? 0 : qtyInput;
-let returnQty = isReturn ? qtyInput : 0;
-
-items.push({
-    name,
-    qty,
-    returnQty,
-    buy,
-    unitName,
-    unitFactor: factor,
-    totalPieces: qtyPcs
-});
+    items.push({
+        name,
+        qty: unitName === 'كرتونة' ? qtyInput : 0,    // عدد الكراتين
+        returnQty: unitName === 'قطعة' ? qtyInput : 0, // عدد القطع (الجراكن)
+        buy,
+        unitName,
+        unitFactor: factor,
+        totalPieces: totalPcs // الإجمالي بالقطع للتأثير في المخزن
+    });
+}
             
 
             let finalPaymentType = "آجل";
