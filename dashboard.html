@@ -195,7 +195,6 @@
 
         .deviation-bar { background: var(--surface-alt); border-radius: 10px; padding: 8px; text-align: center; font-size: 0.75rem; font-weight: 700; border: 1px solid var(--border-soft); }
 
-        /* ستايل الملخصات التحليلية */
         .stats-summary {
             font-size: 0.65rem;
             color: var(--ink-muted);
@@ -307,7 +306,7 @@
                     </div>
                 </div>
                 <div class="deviation-bar" id="diffCash">—</div>
-                <div class="stats-summary" id="statsCash"></div> <!-- ملخص تحليلي -->
+                <div class="stats-summary" id="statsCash"></div>
             </div>
 
             <!-- 2. المحفظة -->
@@ -330,7 +329,7 @@
                     </div>
                 </div>
                 <div class="deviation-bar" id="diffWallet">—</div>
-                <div class="stats-summary" id="statsWallet"></div> <!-- ملخص تحليلي -->
+                <div class="stats-summary" id="statsWallet"></div>
             </div>
 
             <!-- 3. المخزون -->
@@ -353,7 +352,7 @@
                     </div>
                 </div>
                 <div class="deviation-bar" id="diffInv">—</div>
-                <div class="stats-summary" id="statsInv"></div> <!-- ملخص تحليلي -->
+                <div class="stats-summary" id="statsInv"></div>
             </div>
 
             <!-- 4. العملاء -->
@@ -376,7 +375,7 @@
                     </div>
                 </div>
                 <div class="deviation-bar" id="diffCust">—</div>
-                <div class="stats-summary" id="statsCust"></div> <!-- ملخص تحليلي -->
+                <div class="stats-summary" id="statsCust"></div>
             </div>
 
             <!-- 5. الموردين -->
@@ -399,7 +398,7 @@
                     </div>
                 </div>
                 <div class="deviation-bar" id="diffSup">—</div>
-                <div class="stats-summary" id="statsSup"></div> <!-- ملخص تحليلي -->
+                <div class="stats-summary" id="statsSup"></div>
             </div>
         </div>
     </div>
@@ -438,8 +437,10 @@
 
         function isWalletMethod(text) {
             if (!text) return false;
-            const t = String(text);
-            return t.includes('محفظة') || t.toLowerCase().includes('wallet') || t.includes('فودافون') || t.includes('فوري') || t.includes('انستاباي');
+            const t = String(text).trim().toLowerCase();
+            return t.includes('محفظة') || t.includes('محفظه') || t.includes('wallet') || 
+                   t.includes('فودافون') || t.includes('فوري') || t.includes('فورتي') || 
+                   t.includes('انستاباي') || t.includes('instapay');
         }
 
         function showStatus(msg, ok = true) {
@@ -459,7 +460,6 @@
         let netCashFlow = 0, netWalletFlow = 0;
         let actualInv = 0, actualCust = 0, actualSup = 0;
 
-        // حالة التحليلات التفصيلية
         let analytics = {
             cash: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
             wallet: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
@@ -513,7 +513,6 @@
             try {
                 setLoading(true, "جاري مزامنة الحسابات الفعلية...");
 
-                // تصفير التحليلات
                 analytics = {
                     cash: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
                     wallet: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
@@ -539,7 +538,7 @@
 
                 const [
                     inventorySnap, invoicesSnap,
-                    customersSnap, suppliersSnap, cashLogsSnap, expensesSnap, supplierTransSnap
+                    customersSnap, suppliersSnap, cashLogsSnap, expensesSnap, supplierTransSnap, transactionsSnap
                 ] = await Promise.all([
                     getDocs(collection(db, 'inventory')),
                     getDocs(collection(db, 'invoices')),
@@ -548,6 +547,7 @@
                     getDocs(collection(db, 'cash_logs')),
                     getDocs(collection(db, 'expenses')),
                     getDocs(collection(db, 'supplier_transactions')),
+                    getDocs(collection(db, 'transactions')),
                 ]);
 
                 netCashFlow = 0;
@@ -573,10 +573,14 @@
                     analytics.wallet.purchases += num(data.walletPaid);
                 });
 
+                const processedMovements = new Set();
+
                 /* ---- حركات الصندوق اليدوية ---- */
                 cashLogsSnap.forEach(docItem => {
                     const data = docItem.data();
                     if (data.invoiceId) return; 
+
+                    processedMovements.add(docItem.id);
 
                     const amt = num(data.amount);
                     const methodText = data.method || data.paymentMethod || '';
@@ -594,6 +598,28 @@
                     }
                 });
 
+                /* ---- سندات القبض والصرف اليدوية ---- */
+                transactionsSnap.forEach(docItem => {
+                    if (processedMovements.has(docItem.id)) return;
+                    
+                    const data = docItem.data();
+                    if (data.isInvoicePayment || data.invoiceId) return;
+                    
+                    processedMovements.add(docItem.id);
+
+                    const amt = num(data.amount || data.total);
+                    const methodText = data.method || data.paymentMethod || '';
+                    const toWallet = isWalletMethod(methodText) || isWalletMethod(data.note);
+
+                    if (data.type === 'قبض') {
+                        if (toWallet) { netWalletFlow += amt; analytics.wallet.manualIn += amt; } 
+                        else { netCashFlow += amt; analytics.cash.manualIn += amt; }
+                    } else if (data.type === 'صرف') {
+                        if (toWallet) { netWalletFlow -= amt; analytics.wallet.manualOut += amt; } 
+                        else { netCashFlow -= amt; analytics.cash.manualOut += amt; }
+                    }
+                });
+
                 /* ---- المصروفات ---- */
                 expensesSnap.forEach(docItem => {
                     const data = docItem.data();
@@ -604,18 +630,16 @@
                     else { netCashFlow -= amt; analytics.cash.expenses += amt; }
                 });
 
-                /* ---- المخزون (تم تصحيح حقل qty بناءً على لقطة الشاشة) ---- */
+                /* ---- المخزون: (الكمية الحالية qty × سعر الشراء buy) مباشرة وتجميعها ---- */
                 actualInv = 0;
                 inventorySnap.forEach(docItem => {
                     const data = docItem.data();
                     if (data.isDeleted === true) return;
                     
-                    const factor = num(data.unitFactor) || 1;
-                    // الاعتماد على حقل qty كما هو موضح بقاعدة البيانات، مع ترك totalPcs كبديل احترازي
-                    const itemQty = num(data.qty) || num(data.totalPcs) || 0; 
+                    const itemQty = num(data.qty); 
                     const buyPrice = num(data.buy);
                     
-                    actualInv += (itemQty / factor) * buyPrice;
+                    actualInv += itemQty * buyPrice;
 
                     analytics.inventory.totalItems++;
                     if(itemQty > 0) analytics.inventory.activeItems++;
@@ -727,7 +751,7 @@
             document.getElementById('statsInv').innerHTML = `
                 <div><span>إجمالي الأصناف المسجلة:</span> <span class="val">${analytics.inventory.totalItems} صنف</span></div>
                 <div><span>الأصناف المتوفرة حالياً:</span> <span class="val text-success">${analytics.inventory.activeItems} صنف</span></div>
-                <div class="full-width">💡 القيمة الإجمالية = (الكمية ÷ معامل الوحدة) × سعر الشراء</div>
+                <div class="full-width">💡 القيمة الإجمالية = الكمية الحالية (qty) × سعر الشراء (buy)</div>
             `;
 
             // العملاء
