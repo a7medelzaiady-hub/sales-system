@@ -195,6 +195,29 @@
 
         .deviation-bar { background: var(--surface-alt); border-radius: 10px; padding: 8px; text-align: center; font-size: 0.75rem; font-weight: 700; border: 1px solid var(--border-soft); }
 
+        /* ستايل الملخصات التحليلية */
+        .stats-summary {
+            font-size: 0.65rem;
+            color: var(--ink-muted);
+            margin-top: 10px;
+            padding: 10px;
+            background: #fcfdfc;
+            border-radius: 10px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px 12px;
+            border: 1px dashed var(--border);
+        }
+        .stats-summary div { 
+            display: flex; justify-content: space-between; align-items: center; 
+            border-bottom: 1px dashed var(--border-soft); padding-bottom: 4px; 
+        }
+        .stats-summary div:last-child, .stats-summary div:nth-last-child(2):nth-child(odd) {
+            border-bottom: none; padding-bottom: 0;
+        }
+        .stats-summary span.val { font-weight: 700; color: var(--ink); font-family: 'Montserrat', sans-serif; }
+        .stats-summary .full-width { grid-column: span 2; justify-content: center; font-size: 0.6rem; color: var(--ink-faint); border-bottom: none !important;}
+
         .loading-overlay {
             position: fixed; inset: 0; background: var(--bg); display: flex;
             justify-content: center; align-items: center; flex-direction: column; gap: 12px; z-index: 9999;
@@ -256,7 +279,7 @@
         </button>
 
         <button class="btn-danger-reset" onclick="factoryResetDatabase()">
-            <i class="fas fa-trash-can"></i> ⚠️ إخلاء وتصفير قاعدة البيانات بالكامل (ضبط المصنع)
+            <i class="fas fa-trash-can"></i> ⚠️ إخلاء وتصفير قاعدة البيانات بالكامل
         </button>
 
         <div id="statusAlert" class="status-alert"></div>
@@ -284,13 +307,14 @@
                     </div>
                 </div>
                 <div class="deviation-bar" id="diffCash">—</div>
+                <div class="stats-summary" id="statsCash"></div> <!-- ملخص تحليلي -->
             </div>
 
             <!-- 2. المحفظة -->
             <div class="account-card wallet">
                 <div class="card-title-row">
                     <span class="icon-badge"><i class="fas fa-wallet"></i></span>
-                    <span>رصيد المحفظة (فودافون كاش / فوري)</span>
+                    <span>رصيد المحفظة (فودافون / فوري)</span>
                 </div>
                 <div class="balance-grid">
                     <div class="balance-box">
@@ -306,6 +330,7 @@
                     </div>
                 </div>
                 <div class="deviation-bar" id="diffWallet">—</div>
+                <div class="stats-summary" id="statsWallet"></div> <!-- ملخص تحليلي -->
             </div>
 
             <!-- 3. المخزون -->
@@ -328,6 +353,7 @@
                     </div>
                 </div>
                 <div class="deviation-bar" id="diffInv">—</div>
+                <div class="stats-summary" id="statsInv"></div> <!-- ملخص تحليلي -->
             </div>
 
             <!-- 4. العملاء -->
@@ -350,6 +376,7 @@
                     </div>
                 </div>
                 <div class="deviation-bar" id="diffCust">—</div>
+                <div class="stats-summary" id="statsCust"></div> <!-- ملخص تحليلي -->
             </div>
 
             <!-- 5. الموردين -->
@@ -372,6 +399,7 @@
                     </div>
                 </div>
                 <div class="deviation-bar" id="diffSup">—</div>
+                <div class="stats-summary" id="statsSup"></div> <!-- ملخص تحليلي -->
             </div>
         </div>
     </div>
@@ -408,16 +436,10 @@
             return isNaN(n) ? 0 : n;
         }
 
-        // يحدد هل طريقة الدفع نقدية أم محفظة إلكترونية من نص عربي حر
         function isWalletMethod(text) {
             if (!text) return false;
             const t = String(text);
             return t.includes('محفظة') || t.toLowerCase().includes('wallet') || t.includes('فودافون') || t.includes('فوري') || t.includes('انستاباي');
-        }
-        function isDeferredMethod(text) {
-            if (!text) return false;
-            const t = String(text);
-            return t.includes('آجل') || t.includes('اجل') || t.includes('ذمم');
         }
 
         function showStatus(msg, ok = true) {
@@ -437,10 +459,19 @@
         let netCashFlow = 0, netWalletFlow = 0;
         let actualInv = 0, actualCust = 0, actualSup = 0;
 
+        // حالة التحليلات التفصيلية
+        let analytics = {
+            cash: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
+            wallet: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
+            inventory: { totalItems: 0, activeItems: 0 },
+            customers: { count: 0, totalDebt: 0 },
+            suppliers: { count: 0, totalDebt: 0 }
+        };
+
         /* ============ Factory Reset ============ */
 
         window.factoryResetDatabase = async function () {
-            const firstConfirm = confirm("⚠️ تنبيه مالي خطير جداً:\nهل أنت متأكد تماماً من رغبتك في تفريغ قاعدة البيانات بالكامل؟ هذا الإجراء سيقوم بحذف كافة الفواتير القديمة، المبيعات، حركات الصندوق، الديون، والمخزون بشكل نهائي ولا يمكن الرجوع عنه.");
+            const firstConfirm = confirm("⚠️ تنبيه مالي خطير جداً:\nهل أنت متأكد تماماً من رغبتك في تفريغ قاعدة البيانات بالكامل؟");
             if (!firstConfirm) return;
             const secondConfirm = confirm("تأكيد أخير: اكتب في ذهنك (نعم) إذا كنت متأكداً 100%. سيتم حذف كل شيء الآن.");
             if (!secondConfirm) return;
@@ -482,7 +513,15 @@
             try {
                 setLoading(true, "جاري مزامنة الحسابات الفعلية...");
 
-                // أرصدة أول المدة المحفوظة يدوياً
+                // تصفير التحليلات
+                analytics = {
+                    cash: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
+                    wallet: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
+                    inventory: { totalItems: 0, activeItems: 0 },
+                    customers: { count: 0, totalDebt: 0 },
+                    suppliers: { count: 0, totalDebt: 0 }
+                };
+
                 const initDoc = await getDoc(doc(db, 'settings', 'initial_balances'));
                 const initVals = initDoc.exists()
                     ? initDoc.data()
@@ -511,72 +550,92 @@
                     getDocs(collection(db, 'supplier_transactions')),
                 ]);
 
-                /* ---- 1) النقدية والمحفظة: من حقول cashAmount / walletAmount في كل فاتورة مباشرة ---- */
                 netCashFlow = 0;
                 netWalletFlow = 0;
 
+                /* ---- المبيعات ---- */
                 invoicesSnap.forEach(docItem => {
                     const data = docItem.data();
                     netCashFlow += num(data.cashAmount);
                     netWalletFlow += num(data.walletAmount);
+                    
+                    analytics.cash.sales += num(data.cashAmount);
+                    analytics.wallet.sales += num(data.walletAmount);
                 });
 
-                /* ---- 1ب) المشتريات ومدفوعات الموردين: تقلل النقدية والمحفظة بمقدار ما دُفع فعلياً ---- */
+                /* ---- المشتريات ---- */
                 supplierTransSnap.forEach(docItem => {
                     const data = docItem.data();
                     netCashFlow -= num(data.cashPaid);
                     netWalletFlow -= num(data.walletPaid);
+
+                    analytics.cash.purchases += num(data.cashPaid);
+                    analytics.wallet.purchases += num(data.walletPaid);
                 });
 
-                /* ---- 2) حركات الخزينة اليدوية (قبض/صرف) التي ليست مرتبطة بفاتورة ---- */
+                /* ---- حركات الصندوق اليدوية ---- */
                 cashLogsSnap.forEach(docItem => {
                     const data = docItem.data();
+                    if (data.invoiceId) return; 
+
                     const amt = num(data.amount);
                     const methodText = data.method || data.paymentMethod || '';
                     const toWallet = isWalletMethod(methodText) || isWalletMethod(data.note);
-
-                    if (data.invoiceId) return; // تم احتسابها بالفعل ضمن الفاتورة نفسها
 
                     const isIncoming = ['in', 'قبض', 'إيراد', 'ايراد'].includes(data.type);
                     const isOutgoing = ['out', 'صرف', 'مصروف'].includes(data.type);
 
                     if (isIncoming) {
-                        if (toWallet) netWalletFlow += amt; else netCashFlow += amt;
+                        if (toWallet) { netWalletFlow += amt; analytics.wallet.manualIn += amt; } 
+                        else { netCashFlow += amt; analytics.cash.manualIn += amt; }
                     } else if (isOutgoing) {
-                        if (toWallet) netWalletFlow -= amt; else netCashFlow -= amt;
+                        if (toWallet) { netWalletFlow -= amt; analytics.wallet.manualOut += amt; } 
+                        else { netCashFlow -= amt; analytics.cash.manualOut += amt; }
                     }
                 });
 
-                /* ---- 3) المصروفات ---- */
+                /* ---- المصروفات ---- */
                 expensesSnap.forEach(docItem => {
                     const data = docItem.data();
                     const amt = num(data.amount || data.total);
-                    const methodText = data.paymentMethod || data.method || '';
-                    const toWallet = isWalletMethod(methodText) || isWalletMethod(data.note);
+                    const toWallet = isWalletMethod(data.paymentMethod || data.method) || isWalletMethod(data.note);
 
-                    if (toWallet) netWalletFlow -= amt; else netCashFlow -= amt;
+                    if (toWallet) { netWalletFlow -= amt; analytics.wallet.expenses += amt; } 
+                    else { netCashFlow -= amt; analytics.cash.expenses += amt; }
                 });
 
-                /* ---- 4) المخزون: مطابق تماماً لمعادلة صفحة الجرد الرسمية (totalPcs فقط بدون أي fallback) ---- */
+                /* ---- المخزون (تم تصحيح حقل qty بناءً على لقطة الشاشة) ---- */
                 actualInv = 0;
                 inventorySnap.forEach(docItem => {
                     const data = docItem.data();
                     if (data.isDeleted === true) return;
+                    
                     const factor = num(data.unitFactor) || 1;
-                    const totalPcs = num(data.totalPcs);
+                    // الاعتماد على حقل qty كما هو موضح بقاعدة البيانات، مع ترك totalPcs كبديل احترازي
+                    const itemQty = num(data.qty) || num(data.totalPcs) || 0; 
                     const buyPrice = num(data.buy);
-                    actualInv += (totalPcs / factor) * buyPrice;
+                    
+                    actualInv += (itemQty / factor) * buyPrice;
+
+                    analytics.inventory.totalItems++;
+                    if(itemQty > 0) analytics.inventory.activeItems++;
                 });
 
-                /* ---- 5) العملاء والموردين: كل مستند يحتفظ برصيده الحالي المحدّث تلقائياً في currentBalance ---- */
+                /* ---- العملاء والموردين ---- */
                 actualCust = 0;
                 customersSnap.forEach(docItem => {
-                    actualCust += num(docItem.data().currentBalance);
+                    const bal = num(docItem.data().currentBalance);
+                    actualCust += bal;
+                    analytics.customers.totalDebt += bal;
+                    if(bal > 0) analytics.customers.count++;
                 });
 
                 actualSup = 0;
                 suppliersSnap.forEach(docItem => {
-                    actualSup += num(docItem.data().currentBalance);
+                    const bal = num(docItem.data().currentBalance);
+                    actualSup += bal;
+                    analytics.suppliers.totalDebt += bal;
+                    if(bal > 0) analytics.suppliers.count++;
                 });
 
                 window.calculateFinancialTotals();
@@ -628,6 +687,8 @@
             renderDeviation('diffInv', actualInv - iInv, 'تضخم مخزون 📦', 'انخفاض مخزون 📉');
             renderDeviation('diffCust', actualCust - iCust, 'ارتفاع ديون ⚠️', 'صافي تحصيل ✔️', true);
             renderDeviation('diffSup', actualSup - iSup, 'زيادة ديون ⚠️', 'صافي تسوية ✔️', true);
+
+            renderAnalyticsUI();
         };
 
         function renderDeviation(elementId, val, positiveTxt, negativeTxt, isDebt = false) {
@@ -639,6 +700,47 @@
             } else {
                 el.innerHTML = `<span style="color: ${isDebt ? 'var(--success)' : 'var(--danger)'}; font-size:0.75rem;">▼ ${negativeTxt}: (${Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2 })}) ج.م</span>`;
             }
+        }
+
+        function renderAnalyticsUI() {
+            const fS = (v) => Math.abs(v).toLocaleString('en-US');
+
+            // نقدية الصندوق
+            document.getElementById('statsCash').innerHTML = `
+                <div><span>إجمالي المبيعات:</span> <span class="val text-success">${fS(analytics.cash.sales)}</span></div>
+                <div><span>مشتريات نقدية:</span> <span class="val text-danger">${fS(analytics.cash.purchases)}</span></div>
+                <div><span>مصروفات:</span> <span class="val text-danger">${fS(analytics.cash.expenses)}</span></div>
+                <div><span>إيداع يدوي:</span> <span class="val text-success">${fS(analytics.cash.manualIn)}</span></div>
+                <div><span>سحب يدوي:</span> <span class="val text-danger">${fS(analytics.cash.manualOut)}</span></div>
+            `;
+
+            // المحفظة
+            document.getElementById('statsWallet').innerHTML = `
+                <div><span>إجمالي المبيعات:</span> <span class="val text-success">${fS(analytics.wallet.sales)}</span></div>
+                <div><span>مدفوعات فوري:</span> <span class="val text-danger">${fS(analytics.wallet.purchases)}</span></div>
+                <div><span>مصروفات:</span> <span class="val text-danger">${fS(analytics.wallet.expenses)}</span></div>
+                <div><span>شحن رصيد:</span> <span class="val text-success">${fS(analytics.wallet.manualIn)}</span></div>
+                <div><span>سحب رصيد:</span> <span class="val text-danger">${fS(analytics.wallet.manualOut)}</span></div>
+            `;
+
+            // المخزون
+            document.getElementById('statsInv').innerHTML = `
+                <div><span>إجمالي الأصناف المسجلة:</span> <span class="val">${analytics.inventory.totalItems} صنف</span></div>
+                <div><span>الأصناف المتوفرة حالياً:</span> <span class="val text-success">${analytics.inventory.activeItems} صنف</span></div>
+                <div class="full-width">💡 القيمة الإجمالية = (الكمية ÷ معامل الوحدة) × سعر الشراء</div>
+            `;
+
+            // العملاء
+            document.getElementById('statsCust').innerHTML = `
+                <div><span>عدد العملاء المديونين:</span> <span class="val text-warning">${analytics.customers.count} عميل</span></div>
+                <div><span>إجمالي المديونية عليهم:</span> <span class="val text-warning">${fS(analytics.customers.totalDebt)} ج.م</span></div>
+            `;
+
+            // الموردين
+            document.getElementById('statsSup').innerHTML = `
+                <div><span>عدد الموردين الدائنين:</span> <span class="val text-warning">${analytics.suppliers.count} مورد</span></div>
+                <div><span>إجمالي المستحقات لهم:</span> <span class="val text-warning">${fS(analytics.suppliers.totalDebt)} ج.م</span></div>
+            `;
         }
 
         /* ============ Save ============ */
