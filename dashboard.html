@@ -540,7 +540,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // تنسيق المبالغ مع نظام الأقواس للسالب ومحاذاة العملة
+        // تنسيق المبالغ
         const fmtC = (v, customColorClass = '') => {
             const numVal = Number(v || 0);
             const formatted = Math.abs(numVal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -552,7 +552,9 @@
             }
         };
 
-        let serverActualCash = 0, serverActualWallet = 0, serverActualInv = 0, serverActualCust = 0, serverActualSup = 0;
+        // المتغيرات الجلوبال للتدفقات والأرصدة
+        let netCashFlow = 0, netWalletFlow = 0;
+        let serverActualInv = 0, serverActualCust = 0, serverActualSup = 0;
 
         function parseSignedNumber(val) {
             if (val === null || val === undefined || val === '') return 0;
@@ -588,38 +590,28 @@
                     getDocs(collection(db, 'supplier_transactions'))
                 ]);
 
-                // ----------------------------------------------------
-                // تعديل هنا: قراءة رصيد المحفظة أيضاً من ملف الصندوق cash_logs
-                // ----------------------------------------------------
-                serverActualCash = 0;
-                serverActualWallet = 0; // تم نقل التصفير هنا ليجمع من الصندوق وغيره
+                // تصفير التدفقات في كل مرة نعيد التحميل
+                netCashFlow = 0;
+                netWalletFlow = 0;
 
+                // 1. حساب حركات سجل اليومية (النقدية والمحفظة)
                 cashLogsSnap.forEach(doc => {
                     const data = doc.data();
                     const amt = parseSignedNumber(data.amount);
-                    
-                    // تحديد ما إذا كانت العملية نقدية أم محفظة
                     let method = data.method || data.paymentMethod || 'نقدي';
-                    if (data.note && (data.note.includes('محفظة') || data.note.includes('wallet'))) {
-                        method = 'محفظة';
-                    }
+                    if (data.note && (data.note.includes('محفظة') || data.note.includes('wallet'))) method = 'محفظة';
 
                     if (data.type === 'in' || data.type === 'قبض') {
-                        if (method === 'محفظة' || method === 'wallet') {
-                            serverActualWallet += amt;
-                        } else {
-                            serverActualCash += amt;
-                        }
+                        if (method === 'محفظة' || method === 'wallet') netWalletFlow += amt;
+                        else netCashFlow += amt;
                     } 
                     else if (data.type === 'out' || data.type === 'صرف') {
-                        if (method === 'محفظة' || method === 'wallet') {
-                            serverActualWallet -= amt;
-                        } else {
-                            serverActualCash -= amt;
-                        }
+                        if (method === 'محفظة' || method === 'wallet') netWalletFlow -= amt;
+                        else netCashFlow -= amt;
                     }
                 });
 
+                // 2. المخزون الفعلي
                 serverActualInv = 0;
                 inventorySnap.forEach(doc => {
                     const data = doc.data();
@@ -634,48 +626,71 @@
                 const customerDebtMap = {};
                 const supplierDebtMap = {};
                 const supplierCreditMap = {};
-                // تم إزالة تصفير serverActualWallet من هنا لأنه تم بالأعلى
 
+                // 3. الفواتير (تسميع التدفقات النقدية والمحفظة بجانب الديون)
                 invoicesSnap.forEach(doc => {
                     const data = doc.data();
                     const cid = data.customerId;
+                    const paidAmt = parseSignedNumber(data.total) - parseSignedNumber(data.remaining);
+                    
                     if (cid) {
                         customerDebtMap[cid] = (customerDebtMap[cid] || 0) + parseSignedNumber(data.remaining);
-                        if (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet') {
-                            serverActualWallet += (parseSignedNumber(data.total) - parseSignedNumber(data.remaining));
-                        }
+                    }
+
+                    if (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet') {
+                        netWalletFlow += paidAmt;
+                    } else if (data.paymentMethod !== 'آجل' && data.paymentMethod !== 'اجل') {
+                        netCashFlow += paidAmt; // إضافة حصيلة الفواتير النقدية للدرج
                     }
                 });
 
+                // 4. العمليات وسداد العملاء والموردين
                 transactionsSnap.forEach(doc => {
                     const data = doc.data();
                     const pid = data.partyId;
+                    const amtNum = Number(data.amount) || 0;
+
                     if (pid) {
                         let effect = 0;
-                        const amtParsed = parseSignedNumber(data.amount);
-                        if (data.type === 'قبض') effect = -Math.abs(amtParsed);
-                        else if (data.type === 'صرف') effect = Math.abs(amtParsed);
+                        if (data.type === 'قبض') effect = -Math.abs(amtNum);
+                        else if (data.type === 'صرف') effect = Math.abs(amtNum);
                         customerDebtMap[pid] = (customerDebtMap[pid] || 0) + effect;
 
-                        const amtNum = Number(data.amount) || 0;
                         if (data.type === 'صرف') supplierCreditMap[pid] = (supplierCreditMap[pid] || 0) + amtNum;
                         else if (data.type === 'قبض') supplierDebtMap[pid] = (supplierDebtMap[pid] || 0) + amtNum;
+                    }
 
-                        if (data.method === 'محفظة' || data.paymentMethod === 'محفظة') {
-                            if (data.type === 'قبض') serverActualWallet += amtNum;
-                            else if (data.type === 'صرف') serverActualWallet -= amtNum;
-                        }
+                    if (data.method === 'محفظة' || data.paymentMethod === 'محفظة' || data.method === 'wallet') {
+                        if (data.type === 'قبض') netWalletFlow += amtNum;
+                        else if (data.type === 'صرف') netWalletFlow -= amtNum;
+                    } else {
+                        if (data.type === 'قبض') netCashFlow += amtNum;
+                        else if (data.type === 'صرف') netCashFlow -= amtNum;
                     }
                 });
 
+                // 5. فواتير الموردين
                 supTransSnap.forEach(doc => {
                     const data = doc.data();
                     const sid = data.supplierId;
+                    const amt = Number(data.total) || Number(data.amount) || 0;
+
                     if (sid) {
-                        const amt = Number(data.total) || Number(data.amount) || 0;
                         if (data.type === "شراء" || data.type === "فاتورة شراء") supplierDebtMap[sid] = (supplierDebtMap[sid] || 0) + amt;
                         else if (data.type === "مرتجع شراء") supplierCreditMap[sid] = (supplierCreditMap[sid] || 0) + amt;
-                        if (data.paymentMethod === 'محفظة' && (data.type === "شراء" || data.type === "فاتورة شراء")) serverActualWallet -= amt;
+                    }
+
+                    const isWallet = (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet');
+                    const isCredit = (data.paymentMethod === 'آجل' || data.paymentMethod === 'اجل');
+
+                    if (!isCredit) {
+                        if (isWallet) {
+                            if (data.type === "شراء" || data.type === "فاتورة شراء") netWalletFlow -= amt;
+                            else if (data.type === "مرتجع شراء") netWalletFlow += amt;
+                        } else {
+                            if (data.type === "شراء" || data.type === "فاتورة شراء") netCashFlow -= amt;
+                            else if (data.type === "مرتجع شراء") netCashFlow += amt;
+                        }
                     }
                 });
 
@@ -691,12 +706,6 @@
                     serverActualSup += ((Number(data.openingBalance) || 0) + (supplierDebtMap[doc.id] || 0) - (supplierCreditMap[doc.id] || 0));
                 });
 
-                document.getElementById('currCash').innerHTML = fmtC(serverActualCash);
-                document.getElementById('currWallet').innerHTML = fmtC(serverActualWallet);
-                document.getElementById('currInv').innerHTML = fmtC(serverActualInv);
-                document.getElementById('currCust').innerHTML = fmtC(serverActualCust);
-                document.getElementById('currSup').innerHTML = fmtC(serverActualSup);
-
                 window.calculateFinancialTotals();
             } catch (err) {
                 console.error(err);
@@ -705,6 +714,7 @@
             }
         };
 
+        // التحديث الديناميكي الشامل
         window.calculateFinancialTotals = function() {
             const iCash = Number(document.getElementById('initCash').value) || 0;
             const iWallet = Number(document.getElementById('initWallet').value) || 0;
@@ -712,12 +722,26 @@
             const iCust = Number(document.getElementById('initCust').value) || 0;
             const iSup = Number(document.getElementById('initSup').value) || 0;
 
+            // الرصيد الحالي الفعلي = رصيد أول المدة + صافي التدفقات الداخلة والخارجة
+            const currentCash = iCash + netCashFlow;
+            const currentWallet = iWallet + netWalletFlow;
+
+            // إظهار الأرصدة الحالية في الكروت
+            document.getElementById('currCash').innerHTML = fmtC(currentCash);
+            document.getElementById('currWallet').innerHTML = fmtC(currentWallet);
+            document.getElementById('currInv').innerHTML = fmtC(serverActualInv);
+            document.getElementById('currCust').innerHTML = fmtC(serverActualCust);
+            document.getElementById('currSup').innerHTML = fmtC(serverActualSup);
+
+            // المركز المالي أول المدة
             const totalInitialNet = (iCash + iWallet + iInv + iCust) - iSup;
             document.getElementById('netInitial').innerHTML = fmtC(totalInitialNet);
 
-            const totalActualNet = (serverActualCash + serverActualWallet + serverActualInv + serverActualCust) - serverActualSup;
+            // المركز المالي الحالي الفعلي
+            const totalActualNet = (currentCash + currentWallet + serverActualInv + serverActualCust) - serverActualSup;
             document.getElementById('netActual').innerHTML = fmtC(totalActualNet, 'text-success');
 
+            // حساب انحراف النمو
             const growthDeviation = totalActualNet - totalInitialNet;
             const growthEl = document.getElementById('netGrowthDeviation');
             if (Math.abs(growthDeviation) < 0.1) {
@@ -728,8 +752,9 @@
                 growthEl.innerHTML = `<div>${fmtC(growthDeviation, 'text-danger')}<span class="currency-label" style="color: var(--danger); margin-right:5px;">تراجع ▼</span></div>`;
             }
 
-            renderDeviation('diffCash', serverActualCash - iCash, 'صعود نقدي 📈', 'عجز نقدي 📉');
-            renderDeviation('diffWallet', serverActualWallet - iWallet, 'تدفق وارد 📱', 'تدفق صادر 📉');
+            // تحديث الانحرافات الفرعية
+            renderDeviation('diffCash', netCashFlow, 'صعود نقدي 📈', 'عجز نقدي 📉');
+            renderDeviation('diffWallet', netWalletFlow, 'تدفق وارد 📱', 'تدفق صادر 📉');
             renderDeviation('diffInv', serverActualInv - iInv, 'تضخم مخزون 📦', 'انخفاض مخزون 📉');
             renderDeviation('diffCust', serverActualCust - iCust, 'ارتفاع ديون ⚠️', 'صافي تحصيل ✔️', true);
             renderDeviation('diffSup', serverActualSup - iSup, 'زيادة ديون ⚠️', 'صافي تسوية ✔️', true);
@@ -765,4 +790,4 @@
         loadAllData();
     </script>
 </body>
-</html> 
+</html>
