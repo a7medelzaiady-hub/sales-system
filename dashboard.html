@@ -206,7 +206,6 @@
         }
         .icon-hourglass { background: var(--blue-tint); color: var(--blue); }
         .icon-scale { background: var(--gold-tint); color: var(--gold); }
-        .icon-history { background: var(--purple-tint); color: var(--purple); }
         .net-val .num { font-size: 0.92rem; }
 
         #netGrowthDeviation { font-size: 0.78rem; }
@@ -407,10 +406,6 @@
                 <div id="netActual">0.00</div>
             </div>
             <div class="net-row">
-                <span class="net-title"><i class="fas fa-clock-rotate-left icon-history"></i> المركز المالي السابق (قبل آخر تحديث)</span>
-                <div id="netPrevious">—</div>
-            </div>
-            <div class="net-row">
                 <span class="net-title"><i class="fas fa-hourglass-start icon-hourglass"></i> صافي ثروة أول المدة الافتتاحية</span>
                 <div id="netInitial">0.00</div>
             </div>
@@ -424,7 +419,6 @@
             <i class="fas fa-floppy-disk"></i> حفظ وتطبيق أرصدة أول المدة الجديدة
         </button>
 
-        <!-- زر إعادة ضبط المصنع الجديد -->
         <button class="btn-danger-reset" onclick="factoryResetDatabase()">
             <i class="fas fa-trash-can"></i> ⚠️ إخلاء وتصفير قاعدة البيانات بالكامل (ضبط المصنع)
         </button>
@@ -575,7 +569,6 @@
 
         let netCashFlow = 0, netWalletFlow = 0;
         let serverActualInv = 0, serverActualCust = 0, serverActualSup = 0;
-        let periodStartDate = null;
 
         function parseSignedNumber(val) {
             if (val === null || val === undefined || val === '') return 0;
@@ -589,16 +582,6 @@
             return isNaN(n) ? 0 : (negative ? -n : n);
         }
 
-        // تحويل أي قيمة تاريخ/توقيت قادمة من فايرستور (Timestamp أو نص أو Date) إلى كائن Date موحّد
-        function toJsDate(val) {
-            if (!val) return null;
-            if (typeof val.toDate === 'function') return val.toDate(); // Firestore Timestamp
-            if (val instanceof Date) return val;
-            const d = new Date(val);
-            return isNaN(d.getTime()) ? null : d;
-        }
-
-        // دالة إعادة ضبط المصنع ومسح كافة البيانات بشكل كامل
         window.factoryResetDatabase = async function() {
             const firstConfirm = confirm("⚠️ تنبيه مالي خطير جداً:\nهل أنت متأكد تماماً من رغبتك في تفريغ قاعدة البيانات بالكامل؟ هذا الإجراء سيقوم بحذف كافة الفواتير القديمة، المبيعات، حركات الصندوق، الديون، والمخزون بشكل نهائي ولا يمكن الرجوع عنه.");
             if (!firstConfirm) return;
@@ -610,15 +593,8 @@
                 document.getElementById('loadingOverlay').style.display = 'flex';
                 document.getElementById('loadingText').innerText = "جاري تصفير وإخلاء قاعدة البيانات (ضبط المصنع)...";
 
-                // قائمة المجموعات المراد تنظيفها بالكامل
                 const collectionsToClear = [
-                    'cash_logs', 
-                    'inventory', 
-                    'invoices', 
-                    'transactions', 
-                    'customers', 
-                    'suppliers', 
-                    'supplier_transactions'
+                    'cash_logs', 'inventory', 'invoices', 'transactions', 'customers', 'suppliers', 'supplier_transactions'
                 ];
 
                 for (const colName of collectionsToClear) {
@@ -630,18 +606,16 @@
                     await Promise.all(deletePromises);
                 }
 
-                // تصفير إعدادات رصيد أول المدة الافتتاحية أيضاً للبدء من جديد
                 await setDoc(doc(db, 'settings', 'initial_balances'), {
                     cash: 0, wallet: 0, inventory: 0, customers: 0, suppliers: 0,
-                    previousNet: 0,
                     savedAt: 'تمت إعادة تعيين النظام الفعال', timestamp: new Date()
                 });
 
                 alert("✅ تم بنجاح عمل إعادة ضبط المصنع وتصفير كافة الحسابات والملفات التاريخية القديمة بنجاح.");
                 loadAllData();
             } catch (err) {
-                console.error("خطأ أثناء تصفير السيرفر: ", err);
-                alert("حدث خطأ أثناء الاتصال بالسيرفر، يرجى المحاولة لاحقاً.");
+                console.error(err);
+                alert("حدث خطأ أثناء الاتصال بالسيرفر.");
             } finally {
                 document.getElementById('loadingOverlay').style.display = 'none';
                 document.getElementById('loadingText').innerText = "جاري مزامنة الحسابات الفعالة...";
@@ -660,15 +634,6 @@
                 document.getElementById('initCust').value = initVals.customers || 0;
                 document.getElementById('initSup').value = initVals.suppliers || 0;
 
-                // المركز المالي السابق (اللي كان موجود قبل آخر مرة تم فيها حفظ أرصدة أول مدة جديدة)
-                document.getElementById('netPrevious').innerHTML = (initVals.previousNet !== undefined && initVals.previousNet !== null)
-                    ? fmtC(initVals.previousNet)
-                    : '—';
-
-                // بداية المدة الحالية: أي حركة نقدية قبل هذا التاريخ يتم تجاهلها من صافي التدفق
-                // لأنها بالفعل داخلة ضمن "رصيد أول المدة" ولا يجب حسابها مرتين
-                periodStartDate = toJsDate(initVals.timestamp);
-
                 const dateLabels = ['dateCash', 'dateWallet', 'dateInv', 'dateCust', 'dateSup'];
                 dateLabels.forEach(id => {
                     document.getElementById(id).innerText = "حُفظ في: " + (initVals.savedAt || '—');
@@ -680,31 +645,29 @@
                     getDocs(collection(db, 'supplier_transactions'))
                 ]);
 
+                // تصفير التدفقات النقدية والمحافظ للبدء بالحساب النظيف الصافي المباشر
                 netCashFlow = 0;
                 netWalletFlow = 0;
 
+                // المحاسبة الصارمة: حساب النقدية يعتمد حصرياً وبشكل كلي على الإدخالات المباشرة في شاشة الخزينة اليومية وسجل الصندوق (cash_logs)
+                // هذا يمنع احتساب الفواتير مرتين ويفصل عجز الماضي عن الحاضر.
                 cashLogsSnap.forEach(doc => {
                     const data = doc.data();
-
-                    // تجاهل أي حركة صندوق سابقة على تاريخ حفظ رصيد أول المدة الحالي
-                    // (لتفادي احتساب نفس المبلغ مرتين: مرة داخل "رصيد أول المدة" ومرة كحركة)
-                    const logDate = toJsDate(data.timestamp || data.createdAt || data.date);
-                    if (periodStartDate && logDate && logDate < periodStartDate) return;
-
                     const amt = parseSignedNumber(data.amount);
                     let method = data.method || data.paymentMethod || 'نقدي';
                     if (data.note && (data.note.includes('محفظة') || data.note.includes('wallet'))) method = 'محفظة';
 
-                    if (data.type === 'in' || data.type === 'قبض') {
+                    if (data.type === 'in' || data.type === 'قبض' || data.type === 'إيراد') {
                         if (method === 'محفظة' || method === 'wallet') netWalletFlow += amt;
-                        else netCashFlow += amt;
+                        else netCashFlow += amt; // هنا تدخل الـ 3360 ج.م كإيراد مباشر للدرج
                     } 
-                    else if (data.type === 'out' || data.type === 'صرف') {
+                    else if (data.type === 'out' || data.type === 'صرف' || data.type === 'مصروف') {
                         if (method === 'محفظة' || method === 'wallet') netWalletFlow -= amt;
-                        else netCashFlow -= amt;
+                        else netCashFlow -= amt; // هنا يتم خصم الـ 220 ج.م كمصروف مباشر من الدرج
                     }
                 });
 
+                // المخزون الحالي الفعلي
                 serverActualInv = 0;
                 inventorySnap.forEach(doc => {
                     const data = doc.data();
@@ -770,7 +733,7 @@
                 window.calculateFinancialTotals();
             } catch (err) {
                 console.error(err);
-            } finally {
+            } {
                 document.getElementById('loadingOverlay').style.display = 'none';
             }
         };
@@ -782,6 +745,7 @@
             const iCust = Number(document.getElementById('initCust').value) || 0;
             const iSup = Number(document.getElementById('initSup').value) || 0;
 
+            // الرصيد الحالي الفعلي = رصيد أول المدة الافتتاحي + صافي التدفق فقط لا غير بدون تداخل فواتير آجل أو مكررة
             const currentCash = iCash + netCashFlow;
             const currentWallet = iWallet + netWalletFlow;
 
@@ -807,6 +771,7 @@
                 growthEl.innerHTML = `<div>${fmtC(growthDeviation, 'text-danger')}<span class="currency-label" style="color: var(--danger); margin-right:5px;">تراجع ▼</span></div>`;
             }
 
+            // عرض الانحرافات الفعلية الناتجة عن الحركة الحالية فقط
             renderDeviation('diffCash', netCashFlow, 'صعود نقدي 📈', 'عجز نقدي 📉');
             renderDeviation('diffWallet', netWalletFlow, 'تدفق وارد 📱', 'تدفق صادر 📉');
             renderDeviation('diffInv', serverActualInv - iInv, 'تضخم مخزون 📦', 'انخفاض مخزون 📉');
@@ -827,14 +792,6 @@
 
         window.saveInitialBalances = async function() {
             try {
-                // نحسب المركز المالي الفعلي الحالي *قبل* استبدال أرصدة أول المدة
-                // عشان نخزنه كـ"المركز المالي السابق" ونقدر نرجع نشوفه بعد كده
-                const iCashOld = Number(document.getElementById('initCash').value) || 0;
-                const iWalletOld = Number(document.getElementById('initWallet').value) || 0;
-                const currentCashOld = iCashOld + netCashFlow;
-                const currentWalletOld = iWalletOld + netWalletFlow;
-                const previousActualNet = (currentCashOld + currentWalletOld + serverActualInv + serverActualCust) - serverActualSup;
-
                 const now = new Date();
                 const formattedDate = now.toLocaleDateString('ar-EG') + " " + now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
                 await setDoc(doc(db, 'settings', 'initial_balances'), {
@@ -843,7 +800,6 @@
                     inventory: Number(document.getElementById('initInv').value || 0),
                     customers: Number(document.getElementById('initCust').value || 0),
                     suppliers: Number(document.getElementById('initSup').value || 0),
-                    previousNet: previousActualNet,
                     savedAt: formattedDate, timestamp: now
                 });
                 loadAllData();
