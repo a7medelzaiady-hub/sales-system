@@ -647,16 +647,20 @@
 
                 netCashFlow = 0;
                 netWalletFlow = 0;
-                const todayStr = new Date().toLocaleDateString('en-US');
 
-                // 1. إعادة قراءة كاش المبيعات المباشرة من الفواتير لليوم الحالي لمنع الصفر
+                // التوقيت الحسابي الدقيق لليوم: من الساعة 12:00 صباحاً وحتى الآن لمنع سقوط العمليات
+                const now = new Date();
+                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+                // 1. حساب مبيعات الفواتير النقدية التي تمت اليوم رقمياً
                 invoicesSnap.forEach(doc => {
                     const data = doc.data();
-                    let invDateStr = "";
-                    if (data.timestamp) invDateStr = data.timestamp.toDate().toLocaleDateString('en-US');
-                    else if (data.date) invDateStr = new Date(data.date).toLocaleDateString('en-US');
+                    let invTime = 0;
+                    if (data.timestamp) invTime = data.timestamp.toDate().getTime();
+                    else if (data.date) invTime = new Date(data.date).getTime();
 
-                    if (invDateStr === todayStr || !data.timestamp) {
+                    // التقاط حركات المبيعات اليومية المباشرة (بعد تصفير المصنع)
+                    if (invTime >= startOfToday || invTime === 0) {
                         const totalAmt = parseSignedNumber(data.total);
                         const remainingAmt = parseSignedNumber(data.remaining);
                         const paidAmt = totalAmt - remainingAmt;
@@ -664,26 +668,25 @@
                         if (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet') {
                             netWalletFlow += paidAmt;
                         } else if (data.paymentMethod !== 'آجل' && data.paymentMethod !== 'اجل') {
-                            netCashFlow += paidAmt; // كاش المبيعات يسمع بالدرج هنا فوراً
+                            netCashFlow += paidAmt; // إضافة الـ 3360 ج.م مباشرة للدرج
                         }
                     }
                 });
 
-                // 2. معالجة المصاريف من السجل (تخصم الـ 220 ج.م)
+                // 2. حساب ومعالجة المصاريف من السجل رقمياً لضمان الخصم الصارم (خصم الـ 220 ج.م)
                 cashLogsSnap.forEach(doc => {
                     const data = doc.data();
-                    let logDateStr = "";
-                    if (data.timestamp) logDateStr = data.timestamp.toDate().toLocaleDateString('en-US');
-                    else if (data.date) logDateStr = new Date(data.date).toLocaleDateString('en-US');
+                    let logTime = 0;
+                    if (data.timestamp) logTime = data.timestamp.toDate().getTime();
+                    else if (data.date) logTime = new Date(data.date).getTime();
 
-                    if (logDateStr === todayStr || !data.timestamp) {
+                    if (logTime >= startOfToday || logTime === 0) {
                         const amt = parseSignedNumber(data.amount);
                         let method = data.method || data.paymentMethod || 'نقدي';
                         if (data.note && (data.note.includes('محفظة') || data.note.includes('wallet'))) method = 'محفظة';
 
-                        // نأخذ فقط حركات الخزينة الإضافية والمصروفات لمنع دبلجة الفواتير
                         if (data.type === 'in' || data.type === 'قبض' || data.type === 'إيراد') {
-                            // إذا لم يكن من الفواتير نعده
+                            // نجمعها فقط لو كانت حركة مستقلة وغير تابعة لفاتورة مبيعات مسمّعة مسبقاً لمنع التدبيل
                             if (!data.invoiceId) {
                                 if (method === 'محفظة' || method === 'wallet') netWalletFlow += amt;
                                 else netCashFlow += amt;
@@ -691,12 +694,12 @@
                         } 
                         else if (data.type === 'out' || data.type === 'صرف' || data.type === 'مصروف') {
                             if (method === 'محفظة' || method === 'wallet') netWalletFlow -= amt;
-                            else netCashFlow -= amt; // خصم المصاريف
+                            else netCashFlow -= amt; // خصم المصاريف الـ 220 ج.م بشكل إجباري وقاطع من الدرج
                         }
                     }
                 });
 
-                // 3. المخزون الحالي الفعلي
+                // المخزون الحالي الفعلي
                 serverActualInv = 0;
                 inventorySnap.forEach(doc => {
                     const data = doc.data();
