@@ -694,9 +694,8 @@
             const currentCash = iCash + netCashFlow;
             const currentWallet = iWallet + netWalletFlow;
 
-            // مقارنة انحراف الجرد الفعلي للمستودع ضد (أول المدة + المشتريات - المبيعات + المرتجعات)
-            const expectedInventoryVal = iInv + analytics.inventory.totalPurchasesVal - analytics.inventory.totalSalesVal + analytics.inventory.totalReturnsVal;
-            const inventoryDeviation = actualInv - expectedInventoryVal;
+            // شريط انحراف المخزون: فرق مباشر بين الرصيد الفعلي (بسعر الشراء) ورصيد أول المدة، بدون أي تخمين لسبب الفرق
+            const inventoryDeviation = actualInv - iInv;
 
             document.getElementById('currCash').innerHTML = fmtC(currentCash);
             document.getElementById('currWallet').innerHTML = fmtC(currentWallet);
@@ -723,8 +722,8 @@
             renderDeviation('diffCash', netCashFlow, 'صعود نقدي 📈', 'عجز نقدي 📉');
             renderDeviation('diffWallet', netWalletFlow, 'تدفق وارد 📱', 'تدفق صادر 📉');
             
-            // شريط الانحراف للمخزون يعكس العجز أو الزيادة الحقيقية بناءً على المبيعات والمشتريات
-            renderDeviation('diffInv', inventoryDeviation, 'زيادة بضاعة غير مبررة 📦', 'عجز/سحب بضاعة بالمبيعات 📉');
+            // شريط الانحراف للمخزون: الفرق المباشر بين رصيد أول المدة والرصيد الفعلي الحالي
+            renderDeviation('diffInv', inventoryDeviation, 'زيادة عن رصيد أول المدة 📦', 'نقص عن رصيد أول المدة 📉');
             
             renderDeviation('diffCust', actualCust - iCust, 'ارتفاع ديون ⚠️', 'صافي تحصيل ✔️', true);
             renderDeviation('diffSup', actualSup - iSup, 'زيادة ديون ⚠️', 'صافي تسوية ✔️', true);
@@ -763,9 +762,10 @@
             `;
 
             document.getElementById('statsInv').innerHTML = `
-                <div><span>قيمة مبيعات المخزون:</span> <span class="val text-success">${fS(analytics.inventory.totalSalesVal)} ج.م</span></div>
-                <div><span>قيمة مشتريات المخزون:</span> <span class="val text-danger">${fS(analytics.inventory.totalPurchasesVal)} ج.م</span></div>
+                <div><span>قيمة مبيعات المخزون (بسعر البيع):</span> <span class="val text-success">${fS(analytics.inventory.totalSalesVal)} ج.م</span></div>
+                <div><span>قيمة مشتريات المخزون (بسعر التكلفة):</span> <span class="val text-danger">${fS(analytics.inventory.totalPurchasesVal)} ج.م</span></div>
                 <div class="full-width"><span>إجمالي المرتجعات المالية:</span> <span class="val text-warning">${fS(analytics.inventory.totalReturnsVal)} ج.م</span></div>
+                <div class="full-width" style="color: var(--ink-faint);">ملاحظة: أرقام إعلامية فقط (مبيعات بسعر البيع)، غير مستخدمة في حساب الانحراف</div>
             `;
 
             document.getElementById('statsCust').innerHTML = `
