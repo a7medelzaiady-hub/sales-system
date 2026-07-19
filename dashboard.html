@@ -419,7 +419,6 @@
             <i class="fas fa-floppy-disk"></i> حفظ وتطبيق أرصدة أول المدة الجديدة
         </button>
 
-        <!-- زر إعادة ضبط المصنع الجديد -->
         <button class="btn-danger-reset" onclick="factoryResetDatabase()">
             <i class="fas fa-trash-can"></i> ⚠️ إخلاء وتصفير قاعدة البيانات بالكامل (ضبط المصنع)
         </button>
@@ -583,7 +582,6 @@
             return isNaN(n) ? 0 : (negative ? -n : n);
         }
 
-        // دالة إعادة ضبط المصنع ومسح كافة البيانات بشكل كامل
         window.factoryResetDatabase = async function() {
             const firstConfirm = confirm("⚠️ تنبيه مالي خطير جداً:\nهل أنت متأكد تماماً من رغبتك في تفريغ قاعدة البيانات بالكامل؟ هذا الإجراء سيقوم بحذف كافة الفواتير القديمة، المبيعات، حركات الصندوق، الديون، والمخزون بشكل نهائي ولا يمكن الرجوع عنه.");
             if (!firstConfirm) return;
@@ -595,15 +593,8 @@
                 document.getElementById('loadingOverlay').style.display = 'flex';
                 document.getElementById('loadingText').innerText = "جاري تصفير وإخلاء قاعدة البيانات (ضبط المصنع)...";
 
-                // قائمة المجموعات المراد تنظيفها بالكامل
                 const collectionsToClear = [
-                    'cash_logs', 
-                    'inventory', 
-                    'invoices', 
-                    'transactions', 
-                    'customers', 
-                    'suppliers', 
-                    'supplier_transactions'
+                    'cash_logs', 'inventory', 'invoices', 'transactions', 'customers', 'suppliers', 'supplier_transactions'
                 ];
 
                 for (const colName of collectionsToClear) {
@@ -615,7 +606,6 @@
                     await Promise.all(deletePromises);
                 }
 
-                // تصفير إعدادات رصيد أول المدة الافتتاحية أيضاً للبدء من جديد
                 await setDoc(doc(db, 'settings', 'initial_balances'), {
                     cash: 0, wallet: 0, inventory: 0, customers: 0, suppliers: 0,
                     savedAt: 'تمت إعادة تعيين النظام الفعال', timestamp: new Date()
@@ -624,8 +614,8 @@
                 alert("✅ تم بنجاح عمل إعادة ضبط المصنع وتصفير كافة الحسابات والملفات التاريخية القديمة بنجاح.");
                 loadAllData();
             } catch (err) {
-                console.error("خطأ أثناء تصفير السيرفر: ", err);
-                alert("حدث خطأ أثناء الاتصال بالسيرفر، يرجى المحاولة لاحقاً.");
+                console.error(err);
+                alert("حدث خطأ أثناء الاتصال بالسيرفر.");
             } finally {
                 document.getElementById('loadingOverlay').style.display = 'none';
                 document.getElementById('loadingText').innerText = "جاري مزامنة الحسابات الفعالة...";
@@ -658,6 +648,21 @@
                 netCashFlow = 0;
                 netWalletFlow = 0;
 
+                // 1. حساب مبيعات الفواتير النقدية والمحافظ المباشرة بدقة
+                invoicesSnap.forEach(doc => {
+                    const data = doc.data();
+                    const totalAmt = parseSignedNumber(data.total);
+                    const remainingAmt = parseSignedNumber(data.remaining);
+                    const paidAmt = totalAmt - remainingAmt; // صافي المدفوع الفعلي
+
+                    if (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet') {
+                        netWalletFlow += paidAmt;
+                    } else if (data.paymentMethod !== 'آجل' && data.paymentMethod !== 'اجل') {
+                        netCashFlow += paidAmt; // المبيعات النقدية تدخل الدرج تلقائياً
+                    }
+                });
+
+                // 2. معالجة المصاريف والحركات من السجل
                 cashLogsSnap.forEach(doc => {
                     const data = doc.data();
                     const amt = parseSignedNumber(data.amount);
@@ -670,10 +675,11 @@
                     } 
                     else if (data.type === 'out' || data.type === 'صرف') {
                         if (method === 'محفظة' || method === 'wallet') netWalletFlow -= amt;
-                        else netCashFlow -= amt;
+                        else netCashFlow -= amt; // خصم المصاريف الـ 220 ج.م هنا
                     }
                 });
 
+                // 3. المخزون الحالي الفعلي
                 serverActualInv = 0;
                 inventorySnap.forEach(doc => {
                     const data = doc.data();
