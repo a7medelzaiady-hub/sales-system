@@ -439,7 +439,7 @@
             if (!text) return false;
             const t = String(text).trim().toLowerCase();
             return t.includes('محفظة') || t.includes('محفظه') || t.includes('wallet') || 
-                   t.includes('فودافون') || t.includes('فوري') || t.includes('فوري') || 
+                   t.includes('فودافون') || t.includes('فوري') || t.includes('فورتي') || 
                    t.includes('انستاباي') || t.includes('instapay');
         }
 
@@ -630,17 +630,16 @@
                     else { netCashFlow -= amt; analytics.cash.expenses += amt; }
                 });
 
-                /* ---- المخزون ---- */
+                /* ---- المخزون: (الكمية الحالية qty × سعر الشراء buy) مباشرة وتجميعها ---- */
                 actualInv = 0;
                 inventorySnap.forEach(docItem => {
                     const data = docItem.data();
                     if (data.isDeleted === true) return;
                     
-                    const factor = num(data.unitFactor) || 1;
-                    const itemQty = num(data.qty) || num(data.totalPcs) || 0; 
+                    const itemQty = num(data.qty); 
                     const buyPrice = num(data.buy);
                     
-                    actualInv += (itemQty / factor) * buyPrice;
+                    actualInv += itemQty * buyPrice;
 
                     analytics.inventory.totalItems++;
                     if(itemQty > 0) analytics.inventory.activeItems++;
@@ -682,7 +681,6 @@
             const iCust = num(document.getElementById('initCust').value);
             const iSup = num(document.getElementById('initSup').value);
 
-            // ✅ إصلاح دمج صافي التدفقات النهائي بالشاشة مع الأرصدة الافتتاحية
             const currentCash = iCash + netCashFlow;
             const currentWallet = iWallet + netWalletFlow;
 
@@ -753,7 +751,7 @@
             document.getElementById('statsInv').innerHTML = `
                 <div><span>إجمالي الأصناف المسجلة:</span> <span class="val">${analytics.inventory.totalItems} صنف</span></div>
                 <div><span>الأصناف المتوفرة حالياً:</span> <span class="val text-success">${analytics.inventory.activeItems} صنف</span></div>
-                <div class="full-width">💡 القيمة الإجمالية = (الكمية ÷ معامل الوحدة) × سعر الشراء</div>
+                <div class="full-width">💡 القيمة الإجمالية = الكمية الحالية (qty) × سعر الشراء (buy)</div>
             `;
 
             // العملاء
