@@ -645,29 +645,58 @@
                     getDocs(collection(db, 'supplier_transactions'))
                 ]);
 
-                // تصفير التدفقات النقدية والمحافظ للبدء بالحساب النظيف الصافي المباشر
                 netCashFlow = 0;
                 netWalletFlow = 0;
+                const todayStr = new Date().toLocaleDateString('en-US');
 
-                // المحاسبة الصارمة: حساب النقدية يعتمد حصرياً وبشكل كلي على الإدخالات المباشرة في شاشة الخزينة اليومية وسجل الصندوق (cash_logs)
-                // هذا يمنع احتساب الفواتير مرتين ويفصل عجز الماضي عن الحاضر.
-                cashLogsSnap.forEach(doc => {
+                // 1. إعادة قراءة كاش المبيعات المباشرة من الفواتير لليوم الحالي لمنع الصفر
+                invoicesSnap.forEach(doc => {
                     const data = doc.data();
-                    const amt = parseSignedNumber(data.amount);
-                    let method = data.method || data.paymentMethod || 'نقدي';
-                    if (data.note && (data.note.includes('محفظة') || data.note.includes('wallet'))) method = 'محفظة';
+                    let invDateStr = "";
+                    if (data.timestamp) invDateStr = data.timestamp.toDate().toLocaleDateString('en-US');
+                    else if (data.date) invDateStr = new Date(data.date).toLocaleDateString('en-US');
 
-                    if (data.type === 'in' || data.type === 'قبض' || data.type === 'إيراد') {
-                        if (method === 'محفظة' || method === 'wallet') netWalletFlow += amt;
-                        else netCashFlow += amt; // هنا تدخل الـ 3360 ج.م كإيراد مباشر للدرج
-                    } 
-                    else if (data.type === 'out' || data.type === 'صرف' || data.type === 'مصروف') {
-                        if (method === 'محفظة' || method === 'wallet') netWalletFlow -= amt;
-                        else netCashFlow -= amt; // هنا يتم خصم الـ 220 ج.م كمصروف مباشر من الدرج
+                    if (invDateStr === todayStr || !data.timestamp) {
+                        const totalAmt = parseSignedNumber(data.total);
+                        const remainingAmt = parseSignedNumber(data.remaining);
+                        const paidAmt = totalAmt - remainingAmt;
+
+                        if (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet') {
+                            netWalletFlow += paidAmt;
+                        } else if (data.paymentMethod !== 'آجل' && data.paymentMethod !== 'اجل') {
+                            netCashFlow += paidAmt; // كاش المبيعات يسمع بالدرج هنا فوراً
+                        }
                     }
                 });
 
-                // المخزون الحالي الفعلي
+                // 2. معالجة المصاريف من السجل (تخصم الـ 220 ج.م)
+                cashLogsSnap.forEach(doc => {
+                    const data = doc.data();
+                    let logDateStr = "";
+                    if (data.timestamp) logDateStr = data.timestamp.toDate().toLocaleDateString('en-US');
+                    else if (data.date) logDateStr = new Date(data.date).toLocaleDateString('en-US');
+
+                    if (logDateStr === todayStr || !data.timestamp) {
+                        const amt = parseSignedNumber(data.amount);
+                        let method = data.method || data.paymentMethod || 'نقدي';
+                        if (data.note && (data.note.includes('محفظة') || data.note.includes('wallet'))) method = 'محفظة';
+
+                        // نأخذ فقط حركات الخزينة الإضافية والمصروفات لمنع دبلجة الفواتير
+                        if (data.type === 'in' || data.type === 'قبض' || data.type === 'إيراد') {
+                            // إذا لم يكن من الفواتير نعده
+                            if (!data.invoiceId) {
+                                if (method === 'محفظة' || method === 'wallet') netWalletFlow += amt;
+                                else netCashFlow += amt;
+                            }
+                        } 
+                        else if (data.type === 'out' || data.type === 'صرف' || data.type === 'مصروف') {
+                            if (method === 'محفظة' || method === 'wallet') netWalletFlow -= amt;
+                            else netCashFlow -= amt; // خصم المصاريف
+                        }
+                    }
+                });
+
+                // 3. المخزون الحالي الفعلي
                 serverActualInv = 0;
                 inventorySnap.forEach(doc => {
                     const data = doc.data();
@@ -733,7 +762,7 @@
                 window.calculateFinancialTotals();
             } catch (err) {
                 console.error(err);
-            } {
+            } finally {
                 document.getElementById('loadingOverlay').style.display = 'none';
             }
         };
@@ -745,7 +774,6 @@
             const iCust = Number(document.getElementById('initCust').value) || 0;
             const iSup = Number(document.getElementById('initSup').value) || 0;
 
-            // الرصيد الحالي الفعلي = رصيد أول المدة الافتتاحي + صافي التدفق فقط لا غير بدون تداخل فواتير آجل أو مكررة
             const currentCash = iCash + netCashFlow;
             const currentWallet = iWallet + netWalletFlow;
 
@@ -771,7 +799,6 @@
                 growthEl.innerHTML = `<div>${fmtC(growthDeviation, 'text-danger')}<span class="currency-label" style="color: var(--danger); margin-right:5px;">تراجع ▼</span></div>`;
             }
 
-            // عرض الانحرافات الفعلية الناتجة عن الحركة الحالية فقط
             renderDeviation('diffCash', netCashFlow, 'صعود نقدي 📈', 'عجز نقدي 📉');
             renderDeviation('diffWallet', netWalletFlow, 'تدفق وارد 📱', 'تدفق صادر 📉');
             renderDeviation('diffInv', serverActualInv - iInv, 'تضخم مخزون 📦', 'انخفاض مخزون 📉');
