@@ -500,7 +500,7 @@
 
                 const [
                     inventorySnap, invoicesSnap,
-                    customersSnap, suppliersSnap, cashLogsSnap, expensesSnap
+                    customersSnap, suppliersSnap, cashLogsSnap, expensesSnap, supplierTransSnap
                 ] = await Promise.all([
                     getDocs(collection(db, 'inventory')),
                     getDocs(collection(db, 'invoices')),
@@ -508,6 +508,7 @@
                     getDocs(collection(db, 'suppliers')),
                     getDocs(collection(db, 'cash_logs')),
                     getDocs(collection(db, 'expenses')),
+                    getDocs(collection(db, 'supplier_transactions')),
                 ]);
 
                 /* ---- 1) النقدية والمحفظة: من حقول cashAmount / walletAmount في كل فاتورة مباشرة ---- */
@@ -518,6 +519,13 @@
                     const data = docItem.data();
                     netCashFlow += num(data.cashAmount);
                     netWalletFlow += num(data.walletAmount);
+                });
+
+                /* ---- 1ب) المشتريات ومدفوعات الموردين: تقلل النقدية والمحفظة بمقدار ما دُفع فعلياً ---- */
+                supplierTransSnap.forEach(docItem => {
+                    const data = docItem.data();
+                    netCashFlow -= num(data.cashPaid);
+                    netWalletFlow -= num(data.walletPaid);
                 });
 
                 /* ---- 2) حركات الخزينة اليدوية (قبض/صرف) التي ليست مرتبطة بفاتورة ---- */
