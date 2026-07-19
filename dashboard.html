@@ -347,7 +347,7 @@
                         </div>
                     </div>
                     <div class="balance-box">
-                        <span class="title">الرصيد الفعلي الحالي</span>
+                        <span class="title">الرصيد الفعلي الحالي (الجرد الحي)</span>
                         <div style="margin-top:4px;" id="currInv">0.00</div>
                     </div>
                 </div>
@@ -467,7 +467,7 @@
             suppliers: { count: 0, totalDebt: 0 }
         };
 
-        /* ============ Factory Reset ============ */
+        /* ============ factory reset ============ */
 
         window.factoryResetDatabase = async function () {
             const firstConfirm = confirm("⚠️ تنبيه مالي خطير جداً:\nهل أنت متأكد تماماً من رغبتك في تفريغ قاعدة البيانات بالكامل؟");
@@ -561,7 +561,6 @@
                     analytics.cash.sales += num(data.cashAmount);
                     analytics.wallet.sales += num(data.walletAmount);
 
-                    // تحليلات المخزون: تجميع قيم المبيعات الكلية والمرتجعات إن وجدت
                     if (data.type === 'مرتجع' || data.isReturn === true) {
                         analytics.inventory.totalReturnsVal += num(data.total || data.grandTotal);
                     } else {
@@ -642,7 +641,7 @@
                     else { netCashFlow -= amt; analytics.cash.expenses += amt; }
                 });
 
-                /* ---- المخزون: الحساب الفعلي (الكمية الحالية qty × سعر الشراء buy) مباشرة ---- */
+                /* ---- المخزون: الحساب الفعلي (الكمية الحالية qty × سعر الشراء buy) ---- */
                 actualInv = 0;
                 inventorySnap.forEach(docItem => {
                     const data = docItem.data();
@@ -693,9 +692,13 @@
             const currentCash = iCash + netCashFlow;
             const currentWallet = iWallet + netWalletFlow;
 
+            // ✅ المنطق المحاسبي الجديد: مقارنة انحراف الجرد الفعلي للمستودع ضد (أول المدة + المشتريات - المبيعات)
+            const expectedInventoryVal = iInv + analytics.inventory.totalPurchasesVal - analytics.inventory.totalSalesVal + analytics.inventory.totalReturnsVal;
+            const inventoryDeviation = actualInv - expectedInventoryVal;
+
             document.getElementById('currCash').innerHTML = fmtC(currentCash);
             document.getElementById('currWallet').innerHTML = fmtC(currentWallet);
-            document.getElementById('currInv').innerHTML = fmtC(actualInv);
+            document.getElementById('currInv').innerHTML = fmtC(actualInv); // جرد المخزن الحي
             document.getElementById('currCust').innerHTML = fmtC(actualCust);
             document.getElementById('currSup').innerHTML = fmtC(actualSup);
 
@@ -717,7 +720,10 @@
 
             renderDeviation('diffCash', netCashFlow, 'صعود نقدي 📈', 'عجز نقدي 📉');
             renderDeviation('diffWallet', netWalletFlow, 'تدفق وارد 📱', 'تدفق صادر 📉');
-            renderDeviation('diffInv', actualInv - iInv, 'تضخم مخزون 📦', 'انخفاض مخزون 📉');
+            
+            // ✅ تصحيح شريط الانحراف للمخزون ليعكس العجز أو الزيادة الحقيقية بناءً على المبيعات والمشتريات
+            renderDeviation('diffInv', inventoryDeviation, 'زيادة بضاعة غير مبررة 📦', 'عجز/سحب بضاعة بالمبيعات 📉');
+            
             renderDeviation('diffCust', actualCust - iCust, 'ارتفاع ديون ⚠️', 'صافي تحصيل ✔️', true);
             renderDeviation('diffSup', actualSup - iSup, 'زيادة ديون ⚠️', 'صافي تسوية ✔️', true);
 
@@ -726,7 +732,7 @@
 
         function renderDeviation(elementId, val, positiveTxt, negativeTxt, isDebt = false) {
             const el = document.getElementById(elementId);
-            if (Math.abs(val) < 0.01) {
+            if (Math.abs(val) < 0.1) {
                 el.innerHTML = `<span style="color: var(--success); font-size:0.75rem;"><i class="fas fa-circle-check"></i> متطابق تماماً</span>`;
             } else if (val > 0) {
                 el.innerHTML = `<span style="color: ${isDebt ? 'var(--orange)' : 'var(--success)'}; font-size:0.75rem;">▲ ${positiveTxt}: +${Math.abs(val).toLocaleString('en-US', { minimumFractionDigits: 2 })} ج.م</span>`;
@@ -738,7 +744,6 @@
         function renderAnalyticsUI() {
             const fS = (v) => Math.abs(v).toLocaleString('en-US');
 
-            // نقدية الصندوق
             document.getElementById('statsCash').innerHTML = `
                 <div><span>إجمالي المبيعات:</span> <span class="val text-success">${fS(analytics.cash.sales)}</span></div>
                 <div><span>مشتريات نقدية:</span> <span class="val text-danger">${fS(analytics.cash.purchases)}</span></div>
@@ -747,7 +752,6 @@
                 <div><span>سحب يدوي:</span> <span class="val text-danger">${fS(analytics.cash.manualOut)}</span></div>
             `;
 
-            // المحفظة
             document.getElementById('statsWallet').innerHTML = `
                 <div><span>إجمالي المبيعات:</span> <span class="val text-success">${fS(analytics.wallet.sales)}</span></div>
                 <div><span>مدفوعات فوري:</span> <span class="val text-danger">${fS(analytics.wallet.purchases)}</span></div>
@@ -756,20 +760,17 @@
                 <div><span>سحب رصيد:</span> <span class="val text-danger">${fS(analytics.wallet.manualOut)}</span></div>
             `;
 
-            // المخزون: مبيعات ومشتريات ومرتجعات بالقيم المالية مباشرة
             document.getElementById('statsInv').innerHTML = `
                 <div><span>قيمة مبيعات المخزون:</span> <span class="val text-success">${fS(analytics.inventory.totalSalesVal)} ج.م</span></div>
                 <div><span>قيمة مشتريات المخزون:</span> <span class="val text-danger">${fS(analytics.inventory.totalPurchasesVal)} ج.م</span></div>
                 <div class="full-width"><span>إجمالي المرتجعات المالية:</span> <span class="val text-warning">${fS(analytics.inventory.totalReturnsVal)} ج.م</span></div>
             `;
 
-            // العملاء
             document.getElementById('statsCust').innerHTML = `
                 <div><span>عدد العملاء المديونين:</span> <span class="val text-warning">${analytics.customers.count} عميل</span></div>
                 <div><span>إجمالي المديونية عليهم:</span> <span class="val text-warning">${fS(analytics.customers.totalDebt)} ج.م</span></div>
             `;
 
-            // الموردين
             document.getElementById('statsSup').innerHTML = `
                 <div><span>عدد الموردين الدائنين:</span> <span class="val text-warning">${analytics.suppliers.count} مورد</span></div>
                 <div><span>إجمالي المستحقات لهم:</span> <span class="val text-warning">${fS(analytics.suppliers.totalDebt)} ج.م</span></div>
