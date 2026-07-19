@@ -531,7 +531,7 @@
                         </div>
                     </div>
                     <div class="balance-box">
-                        <span class="title">إجمالي حسابات الموردين</span>
+                        <span class="title">الرصيد الفعلي الحالي</span>
                         <div style="margin-top:4px;" id="currSup">0.00</div>
                     </div>
                 </div>
@@ -586,15 +586,12 @@
             const firstConfirm = confirm("⚠️ تنبيه مالي خطير جداً:\nهل أنت متأكد تماماً من رغبتك في تفريغ قاعدة البيانات بالكامل؟ هذا الإجراء سيقوم بحذف كافة الفواتير القديمة، المبيعات، حركات الصندوق، الديون، والمخزون بشكل نهائي ولا يمكن الرجوع عنه.");
             if (!firstConfirm) return;
 
-            const secondConfirm = confirm("🔒 تأكيد أخير قبل الحذف المباشر:\nتأكيد تصفير حسابات شركة الزيادي والبدء من جديد؟");
-            if (!secondConfirm) return;
-
             try {
                 document.getElementById('loadingOverlay').style.display = 'flex';
                 document.getElementById('loadingText').innerText = "جاري تصفير وإخلاء قاعدة البيانات (ضبط المصنع)...";
 
                 const collectionsToClear = [
-                    'cash_logs', 'inventory', 'invoices', 'transactions', 'customers', 'suppliers', 'supplier_transactions'
+                    'cash_logs', 'inventory', 'invoices', 'transactions', 'customers', 'suppliers', 'supplier_transactions', 'expenses'
                 ];
 
                 for (const colName of collectionsToClear) {
@@ -639,16 +636,17 @@
                     document.getElementById(id).innerText = "حُفظ في: " + (initVals.savedAt || '—');
                 });
 
-                const [cashLogsSnap, inventorySnap, invoicesSnap, transactionsSnap, customersSnap, suppliersSnap, supTransSnap] = await Promise.all([
+                // تعديل هنا: إضافة قراءة مجموعة expenses المخصصة للمصروفات الفوق سيرفر
+                const [cashLogsSnap, inventorySnap, invoicesSnap, transactionsSnap, customersSnap, suppliersSnap, supTransSnap, expensesSnap] = await Promise.all([
                     getDocs(collection(db, 'cash_logs')), getDocs(collection(db, 'inventory')), getDocs(collection(db, 'invoices')),
                     getDocs(collection(db, 'transactions')), getDocs(collection(db, 'customers')), getDocs(collection(db, 'suppliers')),
-                    getDocs(collection(db, 'supplier_transactions'))
+                    getDocs(collection(db, 'supplier_transactions')), getDocs(collection(db, 'expenses'))
                 ]);
 
                 netCashFlow = 0;
                 netWalletFlow = 0;
 
-                // 1. قراءة الفواتير النقدية مباشرة بعد التصفير الشامل لقاعدة البيانات
+                // 1. قراءة الفواتير النقدية والمبيعات المباشرة بالكامل
                 invoicesSnap.forEach(doc => {
                     const data = doc.data();
                     const totalAmt = parseSignedNumber(data.total);
@@ -658,11 +656,11 @@
                     if (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet') {
                         netWalletFlow += paidAmt;
                     } else if (data.paymentMethod !== 'آجل' && data.paymentMethod !== 'اجل') {
-                        netCashFlow += paidAmt; // المبيعات (1250 + 3360) تدخل هنا بالكامل
+                        netCashFlow += paidAmt;
                     }
                 });
 
-                // 2. قراءة كل المصاريف والحركات الإضافية من السجل بدون شروط تاريخ قاسية تسقط الحركات
+                // 2. قراءة وقسم حركات الخزينة وسجل اليومية الإضافية
                 cashLogsSnap.forEach(doc => {
                     const data = doc.data();
                     const amt = parseSignedNumber(data.amount);
@@ -670,18 +668,32 @@
                     if (data.note && (data.note.includes('محفظة') || data.note.includes('wallet'))) method = 'محفظة';
 
                     if (data.type === 'in' || data.type === 'قبض' || data.type === 'إيراد') {
-                        if (!data.invoiceId) { // التأكد من عدم تكرار الفواتير النقدي
+                        if (!data.invoiceId) {
                             if (method === 'محفظة' || method === 'wallet') netWalletFlow += amt;
                             else netCashFlow += amt;
                         }
                     } 
                     else if (data.type === 'out' || data.type === 'صرف' || data.type === 'مصروف') {
                         if (method === 'محفظة' || method === 'wallet') netWalletFlow -= amt;
-                        else netCashFlow -= amt; // هنا يتم التقاط وخصم الـ 220 ج.م مصروفات إجبارياً
+                        else netCashFlow -= amt;
                     }
                 });
 
-                // 3. المخزون الحالي الفعلي
+                // 3. قراءة مجموعة المصروفات المنفصلة (expenses) لخصم الـ 220 ج.م بشكل قاطع!
+                expensesSnap.forEach(doc => {
+                    const data = doc.data();
+                    const amt = parseSignedNumber(data.amount || data.total);
+                    let method = data.paymentMethod || data.method || 'نقدي';
+                    if (data.note && (data.note.includes('محفظة') || data.note.includes('wallet'))) method = 'محفظة';
+
+                    if (method === 'محفظة' || method === 'wallet') {
+                        netWalletFlow -= amt;
+                    } else {
+                        netCashFlow -= amt; // خصم الـ 220 ج.م من الصندوق والدرج فوراً وبدون شروط
+                    }
+                });
+
+                // المخزون الفعلي
                 serverActualInv = 0;
                 inventorySnap.forEach(doc => {
                     const data = doc.data();
@@ -709,7 +721,6 @@
                     const data = doc.data();
                     const pid = data.partyId;
                     const amtNum = Number(data.amount) || 0;
-
                     if (pid) {
                         let effect = 0;
                         if (data.type === 'قبض') effect = -Math.abs(amtNum);
@@ -718,17 +729,6 @@
 
                         if (data.type === 'صرف') supplierCreditMap[pid] = (supplierCreditMap[pid] || 0) + amtNum;
                         else if (data.type === 'قبض') supplierDebtMap[pid] = (supplierDebtMap[pid] || 0) + amtNum;
-                    }
-                });
-
-                supTransSnap.forEach(doc => {
-                    const data = doc.data();
-                    const sid = data.supplierId;
-                    const amt = Number(data.total) || Number(data.amount) || 0;
-
-                    if (sid) {
-                        if (data.type === "شراء" || data.type === "فاتورة شراء") supplierDebtMap[sid] = (supplierDebtMap[sid] || 0) + amt;
-                        else if (data.type === "مرتجع شراء") supplierCreditMap[sid] = (supplierCreditMap[sid] || 0) + amt;
                     }
                 });
 
