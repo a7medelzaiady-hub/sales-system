@@ -641,16 +641,18 @@
                     else { netCashFlow -= amt; analytics.cash.expenses += amt; }
                 });
 
-                /* ---- المخزون: الحساب الفعلي (الكمية الحالية qty × سعر الشراء buy) ---- */
+                /* ---- المخزون: مطابق تماماً لمعادلة صفحة الجرد الرسمية ---- */
+                /* (totalPcs ÷ unitFactor) × buy — بدون أي استخدام لحقل qty، لأن totalPcs هو مصدر الحقيقة الوحيد المعتمد في صفحة الجرد */
                 actualInv = 0;
                 inventorySnap.forEach(docItem => {
                     const data = docItem.data();
                     if (data.isDeleted === true) return;
-                    
-                    const itemQty = num(data.qty); 
+
+                    const factor = num(data.unitFactor) || 1;
+                    const totalPcs = num(data.totalPcs);
                     const buyPrice = num(data.buy);
-                    
-                    actualInv += itemQty * buyPrice;
+
+                    actualInv += (totalPcs / factor) * buyPrice;
                 });
 
                 /* ---- العملاء والموردين ---- */
@@ -692,7 +694,7 @@
             const currentCash = iCash + netCashFlow;
             const currentWallet = iWallet + netWalletFlow;
 
-            // ✅ المنطق المحاسبي الجديد: مقارنة انحراف الجرد الفعلي للمستودع ضد (أول المدة + المشتريات - المبيعات)
+            // مقارنة انحراف الجرد الفعلي للمستودع ضد (أول المدة + المشتريات - المبيعات + المرتجعات)
             const expectedInventoryVal = iInv + analytics.inventory.totalPurchasesVal - analytics.inventory.totalSalesVal + analytics.inventory.totalReturnsVal;
             const inventoryDeviation = actualInv - expectedInventoryVal;
 
@@ -721,7 +723,7 @@
             renderDeviation('diffCash', netCashFlow, 'صعود نقدي 📈', 'عجز نقدي 📉');
             renderDeviation('diffWallet', netWalletFlow, 'تدفق وارد 📱', 'تدفق صادر 📉');
             
-            // ✅ تصحيح شريط الانحراف للمخزون ليعكس العجز أو الزيادة الحقيقية بناءً على المبيعات والمشتريات
+            // شريط الانحراف للمخزون يعكس العجز أو الزيادة الحقيقية بناءً على المبيعات والمشتريات
             renderDeviation('diffInv', inventoryDeviation, 'زيادة بضاعة غير مبررة 📦', 'عجز/سحب بضاعة بالمبيعات 📉');
             
             renderDeviation('diffCust', actualCust - iCust, 'ارتفاع ديون ⚠️', 'صافي تحصيل ✔️', true);
