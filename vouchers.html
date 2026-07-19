@@ -195,7 +195,6 @@
 
         .deviation-bar { background: var(--surface-alt); border-radius: 10px; padding: 8px; text-align: center; font-size: 0.75rem; font-weight: 700; border: 1px solid var(--border-soft); }
 
-        /* ستايل الملخصات التحليلية */
         .stats-summary {
             font-size: 0.65rem;
             color: var(--ink-muted);
@@ -436,10 +435,13 @@
             return isNaN(n) ? 0 : n;
         }
 
+        // تحسين الفلترة الذكية لتشمل كل احتمالات الكتابة للمحافظ الإلكترونية وسندات السداد
         function isWalletMethod(text) {
             if (!text) return false;
-            const t = String(text);
-            return t.includes('محفظة') || t.toLowerCase().includes('wallet') || t.includes('فودافون') || t.includes('فوري') || t.includes('انستاباي');
+            const t = String(text).trim().toLowerCase();
+            return t.includes('محفظة') || t.includes('محفظه') || t.includes('wallet') || 
+                   t.includes('فودافون') || t.includes('فوري') || t.includes('فوري') || 
+                   t.includes('انستاباي') || t.includes('instapay');
         }
 
         function showStatus(msg, ok = true) {
@@ -535,7 +537,6 @@
                     document.getElementById(id).innerText = "حُفظ في: " + (initVals.savedAt || '—');
                 });
 
-                // ✅ تمت إضافة جلب السندات اليدوية (transactions) إلى المركز المالي
                 const [
                     inventorySnap, invoicesSnap,
                     customersSnap, suppliersSnap, cashLogsSnap, expensesSnap, supplierTransSnap, transactionsSnap
@@ -573,10 +574,10 @@
                     analytics.wallet.purchases += num(data.walletPaid);
                 });
 
-                // مجموعة للاحتفاظ بمعرفات العمليات اليدوية لتجنب حساب نفس العملية مرتين (إن سُجلت في الجدولين)
+                // تجميع الحركات اليدوية الفريدة لمنع الحساب المزدوج
                 const processedMovements = new Set();
 
-                /* ---- حركات الصندوق اليدوية (إن وجدت) ---- */
+                /* ---- حركات الصندوق اليدوية ---- */
                 cashLogsSnap.forEach(docItem => {
                     const data = docItem.data();
                     if (data.invoiceId) return; 
@@ -599,14 +600,12 @@
                     }
                 });
 
-                /* ---- ✅ سندات القبض والصرف (transactions) ---- */
+                /* ---- سندات القبض والصرف اليدوية ---- */
                 transactionsSnap.forEach(docItem => {
-                    // تجنب الحساب المزدوج إذا كان السند سُجل في الدفترين
                     if (processedMovements.has(docItem.id)) return;
                     
                     const data = docItem.data();
-                    // استبعاد سداد الفواتير لتجنب التكرار
-                    if (data.isInvoicePayment || data.invoiceId || (data.note && (data.note.includes('فاتورة') || data.note.includes('فواتير')))) return;
+                    if (data.isInvoicePayment || data.invoiceId) return;
                     
                     processedMovements.add(docItem.id);
 
