@@ -531,7 +531,7 @@
                         </div>
                     </div>
                     <div class="balance-box">
-                        <span class="title">الرصيد الفعلي الحالي</span>
+                        <span class="title">إجمالي حسابات الموردين</span>
                         <div style="margin-top:4px;" id="currSup">0.00</div>
                     </div>
                 </div>
@@ -648,58 +648,40 @@
                 netCashFlow = 0;
                 netWalletFlow = 0;
 
-                // التوقيت الحسابي الدقيق لليوم: من الساعة 12:00 صباحاً وحتى الآن لمنع سقوط العمليات
-                const now = new Date();
-                const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-
-                // 1. حساب مبيعات الفواتير النقدية التي تمت اليوم رقمياً
+                // 1. قراءة الفواتير النقدية مباشرة بعد التصفير الشامل لقاعدة البيانات
                 invoicesSnap.forEach(doc => {
                     const data = doc.data();
-                    let invTime = 0;
-                    if (data.timestamp) invTime = data.timestamp.toDate().getTime();
-                    else if (data.date) invTime = new Date(data.date).getTime();
+                    const totalAmt = parseSignedNumber(data.total);
+                    const remainingAmt = parseSignedNumber(data.remaining);
+                    const paidAmt = totalAmt - remainingAmt;
 
-                    // التقاط حركات المبيعات اليومية المباشرة (بعد تصفير المصنع)
-                    if (invTime >= startOfToday || invTime === 0) {
-                        const totalAmt = parseSignedNumber(data.total);
-                        const remainingAmt = parseSignedNumber(data.remaining);
-                        const paidAmt = totalAmt - remainingAmt;
-
-                        if (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet') {
-                            netWalletFlow += paidAmt;
-                        } else if (data.paymentMethod !== 'آجل' && data.paymentMethod !== 'اجل') {
-                            netCashFlow += paidAmt; // إضافة الـ 3360 ج.م مباشرة للدرج
-                        }
+                    if (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet') {
+                        netWalletFlow += paidAmt;
+                    } else if (data.paymentMethod !== 'آجل' && data.paymentMethod !== 'اجل') {
+                        netCashFlow += paidAmt; // المبيعات (1250 + 3360) تدخل هنا بالكامل
                     }
                 });
 
-                // 2. حساب ومعالجة المصاريف من السجل رقمياً لضمان الخصم الصارم (خصم الـ 220 ج.م)
+                // 2. قراءة كل المصاريف والحركات الإضافية من السجل بدون شروط تاريخ قاسية تسقط الحركات
                 cashLogsSnap.forEach(doc => {
                     const data = doc.data();
-                    let logTime = 0;
-                    if (data.timestamp) logTime = data.timestamp.toDate().getTime();
-                    else if (data.date) logTime = new Date(data.date).getTime();
+                    const amt = parseSignedNumber(data.amount);
+                    let method = data.method || data.paymentMethod || 'نقدي';
+                    if (data.note && (data.note.includes('محفظة') || data.note.includes('wallet'))) method = 'محفظة';
 
-                    if (logTime >= startOfToday || logTime === 0) {
-                        const amt = parseSignedNumber(data.amount);
-                        let method = data.method || data.paymentMethod || 'نقدي';
-                        if (data.note && (data.note.includes('محفظة') || data.note.includes('wallet'))) method = 'محفظة';
-
-                        if (data.type === 'in' || data.type === 'قبض' || data.type === 'إيراد') {
-                            // نجمعها فقط لو كانت حركة مستقلة وغير تابعة لفاتورة مبيعات مسمّعة مسبقاً لمنع التدبيل
-                            if (!data.invoiceId) {
-                                if (method === 'محفظة' || method === 'wallet') netWalletFlow += amt;
-                                else netCashFlow += amt;
-                            }
-                        } 
-                        else if (data.type === 'out' || data.type === 'صرف' || data.type === 'مصروف') {
-                            if (method === 'محفظة' || method === 'wallet') netWalletFlow -= amt;
-                            else netCashFlow -= amt; // خصم المصاريف الـ 220 ج.م بشكل إجباري وقاطع من الدرج
+                    if (data.type === 'in' || data.type === 'قبض' || data.type === 'إيراد') {
+                        if (!data.invoiceId) { // التأكد من عدم تكرار الفواتير النقدي
+                            if (method === 'محفظة' || method === 'wallet') netWalletFlow += amt;
+                            else netCashFlow += amt;
                         }
+                    } 
+                    else if (data.type === 'out' || data.type === 'صرف' || data.type === 'مصروف') {
+                        if (method === 'محفظة' || method === 'wallet') netWalletFlow -= amt;
+                        else netCashFlow -= amt; // هنا يتم التقاط وخصم الـ 220 ج.م مصروفات إجبارياً
                     }
                 });
 
-                // المخزون الحالي الفعلي
+                // 3. المخزون الحالي الفعلي
                 serverActualInv = 0;
                 inventorySnap.forEach(doc => {
                     const data = doc.data();
