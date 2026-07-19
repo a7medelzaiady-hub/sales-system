@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>مطابقة الارصدة والارباح - شركة الزيادي</title>
+    <title>مطابقة أرصدة أول المدة - شركة الزيادي</title>
     <!-- Google Fonts: Cairo & Montserrat -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;850;900&family=Montserrat:wght@500;600;700;800&display=swap" rel="stylesheet">
     <!-- Font Awesome 6 -->
@@ -11,7 +11,6 @@
 
     <style>
         :root {
-            /* ===== Core palette — deep forest green (trust/finance) + warm oil-amber accent ===== */
             --bg: #eef1ef;
             --surface: #ffffff;
             --surface-alt: #f6f8f7;
@@ -77,7 +76,6 @@
             padding-bottom: 44px;
         }
 
-        /* أرقام باتجاه ثابت يمنع تداخل الرموز مع المستخدمين */
         .num-container {
             display: inline-flex;
             align-items: baseline;
@@ -95,7 +93,6 @@
             color: var(--ink-muted);
         }
 
-        /* ===== Header ===== */
         header {
             background: linear-gradient(155deg, var(--brand-900) 0%, var(--brand-700) 55%, var(--brand-500) 100%);
             padding: 22px 18px 52px;
@@ -151,7 +148,6 @@
             display: flex; align-items: center; justify-content: center;
         }
 
-        /* ===== Hero / Summary Card ===== */
         .net-summary-card {
             background: var(--surface);
             border-radius: var(--radius-md);
@@ -214,13 +210,12 @@
 
         #netGrowthDeviation { font-size: 0.78rem; }
 
-        /* ===== Save button ===== */
         .btn-save {
             background: linear-gradient(135deg, var(--brand-700), var(--brand-500));
             color: #fff;
             border: none;
             width: calc(100% - 28px);
-            margin: 4px 14px 18px;
+            margin: 4px 14px 10px;
             padding: 13px;
             border-radius: var(--radius-sm);
             cursor: pointer;
@@ -239,7 +234,27 @@
             box-shadow: 0 3px 8px rgba(15, 92, 66, 0.22);
         }
 
-        /* ===== Section label ===== */
+        .btn-danger-reset {
+            background: linear-gradient(135deg, #bd2117, var(--danger));
+            color: #fff;
+            border: none;
+            width: calc(100% - 28px);
+            margin: 4px 14px 18px;
+            padding: 13px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-weight: 800;
+            font-size: 0.82rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 6px 14px rgba(209, 72, 63, 0.25);
+            transition: transform 0.12s ease;
+            font-family: 'Cairo', sans-serif;
+        }
+        .btn-danger-reset:active { transform: translateY(1px); }
+
         .section-label {
             font-size: 0.72rem;
             font-weight: 800;
@@ -257,7 +272,6 @@
             background: var(--border);
         }
 
-        /* ===== Accounts List ===== */
         .accounts-list { padding: 0 14px; display: flex; flex-direction: column; gap: 12px; }
 
         .account-card {
@@ -361,7 +375,6 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* ===== Status text colors used by JS ===== */
         .text-success { color: var(--success) !important; }
         .text-danger { color: var(--danger) !important; }
         .text-muted { color: var(--ink-muted) !important; }
@@ -372,7 +385,7 @@
 
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
-        <p style="color: var(--ink-muted); font-size: 0.75rem; font-weight: 700;">جاري مزامنة الحسابات الفعالة...</p>
+        <p id="loadingText" style="color: var(--ink-muted); font-size: 0.75rem; font-weight: 700;">جاري مزامنة الحسابات الفعالة...</p>
     </div>
 
     <div class="app-container">
@@ -387,14 +400,13 @@
             </div>
         </header>
 
-        <!-- كارت الصافي والمركز المالي -->
         <div class="net-summary-card">
             <div class="net-hero">
                 <div class="eyebrow"><i class="fas fa-chart-line"></i> المركز المالي الفعلي الحالي</div>
                 <div id="netActual">0.00</div>
             </div>
             <div class="net-row">
-                <span class="net-title"><i class="fas fa-hourglass-start icon-hourglass"></i> صافي رصيد أول المدة </span>
+                <span class="net-title"><i class="fas fa-hourglass-start icon-hourglass"></i> صافي ثروة أول المدة الافتتاحية</span>
                 <div id="netInitial">0.00</div>
             </div>
             <div class="net-row">
@@ -405,6 +417,11 @@
 
         <button class="btn-save" onclick="saveInitialBalances()">
             <i class="fas fa-floppy-disk"></i> حفظ وتطبيق أرصدة أول المدة الجديدة
+        </button>
+
+        <!-- زر إعادة ضبط المصنع الجديد -->
+        <button class="btn-danger-reset" onclick="factoryResetDatabase()">
+            <i class="fas fa-trash-can"></i> ⚠️ إخلاء وتصفير قاعدة البيانات بالكامل (ضبط المصنع)
         </button>
 
         <div id="statusAlert"></div>
@@ -526,7 +543,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -540,7 +557,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // تنسيق المبالغ
         const fmtC = (v, customColorClass = '') => {
             const numVal = Number(v || 0);
             const formatted = Math.abs(numVal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -552,7 +568,6 @@
             }
         };
 
-        // المتغيرات الجلوبال للتدفقات والأرصدة
         let netCashFlow = 0, netWalletFlow = 0;
         let serverActualInv = 0, serverActualCust = 0, serverActualSup = 0;
 
@@ -568,8 +583,58 @@
             return isNaN(n) ? 0 : (negative ? -n : n);
         }
 
+        // دالة إعادة ضبط المصنع ومسح كافة البيانات بشكل كامل
+        window.factoryResetDatabase = async function() {
+            const firstConfirm = confirm("⚠️ تنبيه مالي خطير جداً:\nهل أنت متأكد تماماً من رغبتك في تفريغ قاعدة البيانات بالكامل؟ هذا الإجراء سيقوم بحذف كافة الفواتير القديمة، المبيعات، حركات الصندوق، الديون، والمخزون بشكل نهائي ولا يمكن الرجوع عنه.");
+            if (!firstConfirm) return;
+
+            const secondConfirm = confirm("🔒 تأكيد أخير قبل الحذف المباشر:\nتأكيد تصفير حسابات شركة الزيادي والبدء من جديد؟");
+            if (!secondConfirm) return;
+
+            try {
+                document.getElementById('loadingOverlay').style.display = 'flex';
+                document.getElementById('loadingText').innerText = "جاري تصفير وإخلاء قاعدة البيانات (ضبط المصنع)...";
+
+                // قائمة المجموعات المراد تنظيفها بالكامل
+                const collectionsToClear = [
+                    'cash_logs', 
+                    'inventory', 
+                    'invoices', 
+                    'transactions', 
+                    'customers', 
+                    'suppliers', 
+                    'supplier_transactions'
+                ];
+
+                for (const colName of collectionsToClear) {
+                    const snap = await getDocs(collection(db, colName));
+                    const deletePromises = [];
+                    snap.forEach(docItem => {
+                        deletePromises.push(deleteDoc(doc(db, colName, docItem.id)));
+                    });
+                    await Promise.all(deletePromises);
+                }
+
+                // تصفير إعدادات رصيد أول المدة الافتتاحية أيضاً للبدء من جديد
+                await setDoc(doc(db, 'settings', 'initial_balances'), {
+                    cash: 0, wallet: 0, inventory: 0, customers: 0, suppliers: 0,
+                    savedAt: 'تمت إعادة تعيين النظام الفعال', timestamp: new Date()
+                });
+
+                alert("✅ تم بنجاح عمل إعادة ضبط المصنع وتصفير كافة الحسابات والملفات التاريخية القديمة بنجاح.");
+                loadAllData();
+            } catch (err) {
+                console.error("خطأ أثناء تصفير السيرفر: ", err);
+                alert("حدث خطأ أثناء الاتصال بالسيرفر، يرجى المحاولة لاحقاً.");
+            } finally {
+                document.getElementById('loadingOverlay').style.display = 'none';
+                document.getElementById('loadingText').innerText = "جاري مزامنة الحسابات الفعالة...";
+            }
+        };
+
         window.loadAllData = async function() {
             try {
+                document.getElementById('loadingOverlay').style.display = 'flex';
                 const initDoc = await getDoc(doc(db, 'settings', 'initial_balances'));
                 const initVals = initDoc.exists() ? initDoc.data() : { cash: 0, wallet: 0, inventory: 0, customers: 0, suppliers: 0, savedAt: '—' };
 
@@ -590,11 +655,9 @@
                     getDocs(collection(db, 'supplier_transactions'))
                 ]);
 
-                // تصفير التدفقات في كل مرة نعيد التحميل
                 netCashFlow = 0;
                 netWalletFlow = 0;
 
-                // 1. حساب حركات سجل اليومية (النقدية والمحفظة)
                 cashLogsSnap.forEach(doc => {
                     const data = doc.data();
                     const amt = parseSignedNumber(data.amount);
@@ -611,7 +674,6 @@
                     }
                 });
 
-                // 2. المخزون الفعلي
                 serverActualInv = 0;
                 inventorySnap.forEach(doc => {
                     const data = doc.data();
@@ -627,24 +689,14 @@
                 const supplierDebtMap = {};
                 const supplierCreditMap = {};
 
-                // 3. الفواتير (تسميع التدفقات النقدية والمحفظة بجانب الديون)
                 invoicesSnap.forEach(doc => {
                     const data = doc.data();
                     const cid = data.customerId;
-                    const paidAmt = parseSignedNumber(data.total) - parseSignedNumber(data.remaining);
-                    
                     if (cid) {
                         customerDebtMap[cid] = (customerDebtMap[cid] || 0) + parseSignedNumber(data.remaining);
                     }
-
-                    if (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet') {
-                        netWalletFlow += paidAmt;
-                    } else if (data.paymentMethod !== 'آجل' && data.paymentMethod !== 'اجل') {
-                        netCashFlow += paidAmt; // إضافة حصيلة الفواتير النقدية للدرج
-                    }
                 });
 
-                // 4. العمليات وسداد العملاء والموردين
                 transactionsSnap.forEach(doc => {
                     const data = doc.data();
                     const pid = data.partyId;
@@ -659,17 +711,8 @@
                         if (data.type === 'صرف') supplierCreditMap[pid] = (supplierCreditMap[pid] || 0) + amtNum;
                         else if (data.type === 'قبض') supplierDebtMap[pid] = (supplierDebtMap[pid] || 0) + amtNum;
                     }
-
-                    if (data.method === 'محفظة' || data.paymentMethod === 'محفظة' || data.method === 'wallet') {
-                        if (data.type === 'قبض') netWalletFlow += amtNum;
-                        else if (data.type === 'صرف') netWalletFlow -= amtNum;
-                    } else {
-                        if (data.type === 'قبض') netCashFlow += amtNum;
-                        else if (data.type === 'صرف') netCashFlow -= amtNum;
-                    }
                 });
 
-                // 5. فواتير الموردين
                 supTransSnap.forEach(doc => {
                     const data = doc.data();
                     const sid = data.supplierId;
@@ -678,19 +721,6 @@
                     if (sid) {
                         if (data.type === "شراء" || data.type === "فاتورة شراء") supplierDebtMap[sid] = (supplierDebtMap[sid] || 0) + amt;
                         else if (data.type === "مرتجع شراء") supplierCreditMap[sid] = (supplierCreditMap[sid] || 0) + amt;
-                    }
-
-                    const isWallet = (data.paymentMethod === 'محفظة' || data.paymentMethod === 'wallet');
-                    const isCredit = (data.paymentMethod === 'آجل' || data.paymentMethod === 'اجل');
-
-                    if (!isCredit) {
-                        if (isWallet) {
-                            if (data.type === "شراء" || data.type === "فاتورة شراء") netWalletFlow -= amt;
-                            else if (data.type === "مرتجع شراء") netWalletFlow += amt;
-                        } else {
-                            if (data.type === "شراء" || data.type === "فاتورة شراء") netCashFlow -= amt;
-                            else if (data.type === "مرتجع شراء") netCashFlow += amt;
-                        }
                     }
                 });
 
@@ -714,7 +744,6 @@
             }
         };
 
-        // التحديث الديناميكي الشامل
         window.calculateFinancialTotals = function() {
             const iCash = Number(document.getElementById('initCash').value) || 0;
             const iWallet = Number(document.getElementById('initWallet').value) || 0;
@@ -722,26 +751,21 @@
             const iCust = Number(document.getElementById('initCust').value) || 0;
             const iSup = Number(document.getElementById('initSup').value) || 0;
 
-            // الرصيد الحالي الفعلي = رصيد أول المدة + صافي التدفقات الداخلة والخارجة
             const currentCash = iCash + netCashFlow;
             const currentWallet = iWallet + netWalletFlow;
 
-            // إظهار الأرصدة الحالية في الكروت
             document.getElementById('currCash').innerHTML = fmtC(currentCash);
             document.getElementById('currWallet').innerHTML = fmtC(currentWallet);
             document.getElementById('currInv').innerHTML = fmtC(serverActualInv);
             document.getElementById('currCust').innerHTML = fmtC(serverActualCust);
             document.getElementById('currSup').innerHTML = fmtC(serverActualSup);
 
-            // المركز المالي أول المدة
             const totalInitialNet = (iCash + iWallet + iInv + iCust) - iSup;
             document.getElementById('netInitial').innerHTML = fmtC(totalInitialNet);
 
-            // المركز المالي الحالي الفعلي
             const totalActualNet = (currentCash + currentWallet + serverActualInv + serverActualCust) - serverActualSup;
             document.getElementById('netActual').innerHTML = fmtC(totalActualNet, 'text-success');
 
-            // حساب انحراف النمو
             const growthDeviation = totalActualNet - totalInitialNet;
             const growthEl = document.getElementById('netGrowthDeviation');
             if (Math.abs(growthDeviation) < 0.1) {
@@ -752,7 +776,6 @@
                 growthEl.innerHTML = `<div>${fmtC(growthDeviation, 'text-danger')}<span class="currency-label" style="color: var(--danger); margin-right:5px;">تراجع ▼</span></div>`;
             }
 
-            // تحديث الانحرافات الفرعية
             renderDeviation('diffCash', netCashFlow, 'صعود نقدي 📈', 'عجز نقدي 📉');
             renderDeviation('diffWallet', netWalletFlow, 'تدفق وارد 📱', 'تدفق صادر 📉');
             renderDeviation('diffInv', serverActualInv - iInv, 'تضخم مخزون 📦', 'انخفاض مخزون 📉');
