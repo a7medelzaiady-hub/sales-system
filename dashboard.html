@@ -439,8 +439,7 @@
             if (!text) return false;
             const t = String(text).trim().toLowerCase();
             return t.includes('محفظة') || t.includes('محفظه') || t.includes('wallet') || 
-                   t.includes('فودافون') || t.includes('فوري') || t.includes('فورتي') || 
-                   t.includes('انستاباي') || t.includes('instapay');
+                   t.includes('فودافون') || t.includes('فوري') || t.includes('انستاباي') || t.includes('instapay');
         }
 
         function showStatus(msg, ok = true) {
@@ -463,7 +462,7 @@
         let analytics = {
             cash: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
             wallet: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
-            inventory: { totalItems: 0, activeItems: 0 },
+            inventory: { totalSalesVal: 0, totalPurchasesVal: 0, totalReturnsVal: 0 },
             customers: { count: 0, totalDebt: 0 },
             suppliers: { count: 0, totalDebt: 0 }
         };
@@ -516,7 +515,7 @@
                 analytics = {
                     cash: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
                     wallet: { sales: 0, purchases: 0, expenses: 0, manualIn: 0, manualOut: 0 },
-                    inventory: { totalItems: 0, activeItems: 0 },
+                    inventory: { totalSalesVal: 0, totalPurchasesVal: 0, totalReturnsVal: 0 },
                     customers: { count: 0, totalDebt: 0 },
                     suppliers: { count: 0, totalDebt: 0 }
                 };
@@ -561,9 +560,16 @@
                     
                     analytics.cash.sales += num(data.cashAmount);
                     analytics.wallet.sales += num(data.walletAmount);
+
+                    // تحليلات المخزون: تجميع قيم المبيعات الكلية والمرتجعات إن وجدت
+                    if (data.type === 'مرتجع' || data.isReturn === true) {
+                        analytics.inventory.totalReturnsVal += num(data.total || data.grandTotal);
+                    } else {
+                        analytics.inventory.totalSalesVal += num(data.total || data.grandTotal);
+                    }
                 });
 
-                /* ---- المشتريات ---- */
+                /* ---- المشتريات والمدفوعات للموردين ---- */
                 supplierTransSnap.forEach(docItem => {
                     const data = docItem.data();
                     netCashFlow -= num(data.cashPaid);
@@ -571,6 +577,12 @@
 
                     analytics.cash.purchases += num(data.cashPaid);
                     analytics.wallet.purchases += num(data.walletPaid);
+                    
+                    if (data.type === 'مرتجع' || data.isReturn === true) {
+                        analytics.inventory.totalReturnsVal += num(data.total || data.amount);
+                    } else {
+                        analytics.inventory.totalPurchasesVal += num(data.total || data.amount);
+                    }
                 });
 
                 const processedMovements = new Set();
@@ -598,7 +610,7 @@
                     }
                 });
 
-                /* ---- سندات القبض والصرف اليدوية ---- */
+                /* ---- سندات القبض والصرف اليدوية (transactions) ---- */
                 transactionsSnap.forEach(docItem => {
                     if (processedMovements.has(docItem.id)) return;
                     
@@ -630,7 +642,7 @@
                     else { netCashFlow -= amt; analytics.cash.expenses += amt; }
                 });
 
-                /* ---- المخزون: (الكمية الحالية qty × سعر الشراء buy) مباشرة وتجميعها ---- */
+                /* ---- المخزون: الحساب الفعلي (الكمية الحالية qty × سعر الشراء buy) مباشرة ---- */
                 actualInv = 0;
                 inventorySnap.forEach(docItem => {
                     const data = docItem.data();
@@ -640,9 +652,6 @@
                     const buyPrice = num(data.buy);
                     
                     actualInv += itemQty * buyPrice;
-
-                    analytics.inventory.totalItems++;
-                    if(itemQty > 0) analytics.inventory.activeItems++;
                 });
 
                 /* ---- العملاء والموردين ---- */
@@ -747,11 +756,11 @@
                 <div><span>سحب رصيد:</span> <span class="val text-danger">${fS(analytics.wallet.manualOut)}</span></div>
             `;
 
-            // المخزون
+            // المخزون: مبيعات ومشتريات ومرتجعات بالقيم المالية مباشرة
             document.getElementById('statsInv').innerHTML = `
-                <div><span>إجمالي الأصناف المسجلة:</span> <span class="val">${analytics.inventory.totalItems} صنف</span></div>
-                <div><span>الأصناف المتوفرة حالياً:</span> <span class="val text-success">${analytics.inventory.activeItems} صنف</span></div>
-                <div class="full-width">💡 القيمة الإجمالية = الكمية الحالية (qty) × سعر الشراء (buy)</div>
+                <div><span>قيمة مبيعات المخزون:</span> <span class="val text-success">${fS(analytics.inventory.totalSalesVal)} ج.م</span></div>
+                <div><span>قيمة مشتريات المخزون:</span> <span class="val text-danger">${fS(analytics.inventory.totalPurchasesVal)} ج.م</span></div>
+                <div class="full-width"><span>إجمالي المرتجعات المالية:</span> <span class="val text-warning">${fS(analytics.inventory.totalReturnsVal)} ج.م</span></div>
             `;
 
             // العملاء
