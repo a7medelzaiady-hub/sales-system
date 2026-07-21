@@ -7,6 +7,9 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- مكتبة SheetJS لتصدير ملفات إكسل -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
 <style>
 :root{
   --g8:#0b4e33;--g7:#0f6e48;--g6:#16a34a;
@@ -203,7 +206,6 @@ body{
 .kpi-s .kpi-val{color:var(--g7)}
 .kpi-val.negative{color:var(--r7);}
 
-/* تصميم كروت المتوسطات والإحصائيات للأرشيف */
 .archive-stats-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -305,6 +307,24 @@ table.inv tfoot td{
 }
 table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
 
+.btn-export-excel {
+  background: #107c41;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: .72rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.2s;
+}
+.btn-export-excel:hover {
+  background: #0b5c30;
+}
+
 .profit-pos{color:var(--g7); background:#f0fdf4;}
 .profit-neg{color:var(--r7); background:#fef2f2;}
 .badge-pct{
@@ -348,6 +368,7 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
   </div>
   <div class="tb-btns">
     <button class="tb-btn save-btn-active" onclick="triggerManualSave()" title="حفظ الأرباح في السجل"><i class="fas fa-save"></i></button>
+    <button class="tb-btn" onclick="exportTodayToExcel()" title="تصدير مبيعات اليوم إلى إكسل"><i class="fas fa-file-excel"></i></button>
     <button class="tb-btn" onclick="scrollToArchive()" title="سجل الأرباح المرحلة"><i class="fas fa-archive"></i></button>
     <button class="tb-btn" onclick="window.print()" title="طباعة"><i class="fas fa-print"></i></button>
     <a href="index.html" class="tb-btn" title="الرئيسية"><i class="fas fa-home"></i></a>
@@ -416,13 +437,16 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
 </div>
 
 <div class="sec-hdr">
-  <button class="sec-ttl-btn" onclick="toggleTableGrid()">
-    <div class="sec-ttl-right">
-      <span class="sec-dot"></span>
-      <span>تفصيل المبيعات والأرباح <small style="font-weight:700; color:var(--g7);">(مرتبة بالأعلى ربحاً)</small></span>
-    </div>
-    <i class="fas fa-chevron-down table-toggle-icon" id="tableToggleIcon"></i>
-  </button>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <button class="sec-ttl-btn" onclick="toggleTableGrid()">
+      <div class="sec-ttl-right">
+        <span class="sec-dot"></span>
+        <span>تفصيل المبيعات والأرباح <small style="font-weight:700; color:var(--g7);">(مرتبة بالأعلى ربحاً)</small></span>
+      </div>
+      <i class="fas fa-chevron-down table-toggle-icon" id="tableToggleIcon"></i>
+    </button>
+    <button class="btn-export-excel ms-2" onclick="exportTodayToExcel()"><i class="fas fa-file-excel"></i> تصدير إكسل</button>
+  </div>
 </div>
 
 <div class="tbl-card" id="tableCardContainer">
@@ -478,17 +502,19 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
 <div class="divider-line" id="archiveAnchor"></div>
 
 <div class="sec-hdr">
-  <button class="sec-ttl-btn" onclick="toggleArchiveSection()">
-    <div class="sec-ttl-right">
-      <span class="sec-dot" style="background: var(--s5);"></span>
-      <span><i class="fas fa-archive"></i> سجل الأرباح المُرحّلة للتواريخ السابقة (تحديث تلقائي)</span>
-    </div>
-    <i class="fas fa-chevron-down table-toggle-icon collapsed" id="archiveToggleIcon"></i>
-  </button>
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <button class="sec-ttl-btn" onclick="toggleArchiveSection()">
+      <div class="sec-ttl-right">
+        <span class="sec-dot" style="background: var(--s5);"></span>
+        <span><i class="fas fa-archive"></i> سجل الأرباح المُرحّلة للتواريخ السابقة (تحديث تلقائي)</span>
+      </div>
+      <i class="fas fa-chevron-down table-toggle-icon collapsed" id="archiveToggleIcon"></i>
+    </button>
+    <button class="btn-export-excel ms-2" onclick="exportArchiveToExcel()"><i class="fas fa-file-excel"></i> تصدير السجل</button>
+  </div>
 </div>
 
 <div class="tbl-card" id="archiveSectionContainer" style="display: none;">
-  <!-- قسم الإحصائيات والمتوسطات الخاص بالأرشيف -->
   <div class="archive-stats-row">
     <div class="astat-card">
       <div class="astat-lbl"><i class="fas fa-calendar-alt me-1"></i> أعدَاد الأيام</div>
@@ -733,6 +759,8 @@ let currentDaySummary = null;
 let factorMap = {};     
 let currentBuyMap = {}; 
 let globalInvoices = [];
+let tableRowsData = [];
+let archivedRowsData = []; // للشيء الخاص ببيانات الأرشيف التصديرية
 
 function renderExpenses() {
   const container = document.getElementById("expList");
@@ -761,8 +789,6 @@ function parseDate(df,ts){
   if(ts?.seconds)return new Date(ts.seconds*1000).toISOString().slice(0,10);
   return "";
 }
-
-let tableRowsData = [];
 
 function renderTable(filter){
   const tbody = document.getElementById("tbody");
@@ -808,6 +834,96 @@ window.filterTable = function(){
   renderTable(val);
 };
 
+// ** دالة تصدير تقرير المبيعات اليومية إلى Excel **
+function exportTodayToExcel() {
+  if (!tableRowsData || tableRowsData.length === 0) {
+    alert("لا توجد بيانات مبيعات للتصدير في هذا اليوم المحدد.");
+    return;
+  }
+
+  const dateVal = document.getElementById("dateIn").value || "اليوم";
+  
+  // تحضير صفوف البيانات
+  const excelData = tableRowsData.map(r => ({
+    "الصنف": r.name,
+    "كمية (كرتونة)": r.qtyBox,
+    "كمية (جركن)": r.qtyPiece,
+    "سعر الشراء (كرتونة)": r.buyBox > 0 ? r.buyBox : 0,
+    "سعر الشراء (جركن)": r.buyPiece > 0 ? r.buyPiece : 0,
+    "متوسط البيع (كرتونة)": r.sellBox > 0 ? r.sellBox : 0,
+    "متوسط البيع (جركن)": r.sellPiece > 0 ? r.sellPiece : 0,
+    "إجمالي المشتريات (ج)": r.totalCost,
+    "إجمالي المبيعات (ج)": r.totalSales,
+    "ربح الصنف (ج)": r.profit,
+    "نسبة الربح %": `${r.margin.toFixed(1)}%`
+  }));
+
+  // إضافة صف الملخص النهائي
+  if (currentDaySummary) {
+    excelData.push({}); // صف فارغ
+    excelData.push({
+      "الصنف": "إجمالي مبيعات اليوم",
+      "إجمالي المشتريات (ج)": currentDaySummary.cost,
+      "إجمالي المبيعات (ج)": currentDaySummary.sales,
+      "ربح الصنف (ج)": currentDaySummary.sales - currentDaySummary.cost
+    });
+    excelData.push({
+      "الصنف": "المصروفات اليومية الثابتة",
+      "ربح الصنف (ج)": -currentDaySummary.expenses
+    });
+    excelData.push({
+      "الصنف": "صافي الربح النهائي اليومي",
+      "ربح الصنف (ج)": currentDaySummary.netProfit
+    });
+  }
+
+  const worksheet = XLSX.utils.json_to_sheet(excelData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "مبيعات اليوم");
+
+  XLSX.writeFile(workbook, `تقرير_مبيعات_الزيادي_${dateVal}.xlsx`);
+}
+window.exportTodayToExcel = exportTodayToExcel;
+
+// ** دالة تصدير أرشيف الأرباح التراكمية إلى Excel **
+function exportArchiveToExcel() {
+  if (!archivedRowsData || archivedRowsData.length === 0) {
+    alert("سجل الأرباح فارغ حالياً.");
+    return;
+  }
+
+  const excelData = archivedRowsData.map(r => ({
+    "تاريخ التقرير": r.date,
+    "إجمالي المبيعات (ج)": r.sales,
+    "إجمالي المشتريات (ج)": r.cost,
+    "المصروفات (ج)": r.expenses,
+    "صافي الربح النهائي (ج)": r.netProfit
+  }));
+
+  const daysCount = archivedRowsData.length;
+  const grandSales = archivedRowsData.reduce((a, b) => a + b.sales, 0);
+  const grandProfit = archivedRowsData.reduce((a, b) => a + b.netProfit, 0);
+
+  excelData.push({});
+  excelData.push({
+    "تاريخ التقرير": "الإجمالي الكلي للسجل",
+    "إجمالي المبيعات (ج)": grandSales,
+    "صافي الربح النهائي (ج)": grandProfit
+  });
+  excelData.push({
+    "تاريخ التقرير": `المتوسط اليومي (${daysCount} أيام)`,
+    "إجمالي المبيعات (ج)": (grandSales / daysCount),
+    "صافي الربح النهائي (ج)": (grandProfit / daysCount)
+  });
+
+  const worksheet = XLSX.utils.json_to_sheet(excelData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "سجل الأرباح المؤرشفة");
+
+  XLSX.writeFile(workbook, `سجل_الأرباح_المؤرشفة_الزيادي.xlsx`);
+}
+window.exportArchiveToExcel = exportArchiveToExcel;
+
 // تشغيل الاستماع اللحظي لسجل الأرباح المؤرشفة وحساب المتوسطات تلقائياً
 function setupArchiveRealtime() {
   const tbody = document.getElementById("archiveTbody");
@@ -816,21 +932,20 @@ function setupArchiveRealtime() {
     let grandTotalProfit = 0;
     let grandTotalSales = 0;
     
-    const docsArray = [];
+    archivedRowsData = [];
     snap.forEach(d => {
-      docsArray.push({ id: d.id, ...d.data() });
+      archivedRowsData.push({ id: d.id, ...d.data() });
     });
     
-    // ترتيب الأرشيف تنازلياً من الأحدث للأقدم
-    docsArray.sort((a, b) => {
+    archivedRowsData.sort((a, b) => {
       const dateA = a.date || "";
       const dateB = b.date || "";
       return dateB.localeCompare(dateA);
     });
 
-    const daysCount = docsArray.length;
+    const daysCount = archivedRowsData.length;
 
-    docsArray.forEach(data => {
+    archivedRowsData.forEach(data => {
       let salesVal = data.sales || 0;
       let netProfitVal = data.netProfit || 0;
       
@@ -863,7 +978,6 @@ function setupArchiveRealtime() {
     tbody.innerHTML = html;
     document.getElementById("archiveGrandTotal").innerText = `${grandTotalProfit.toFixed(2)} ج`;
 
-    // حساب وعرض المتوسطات بدقة
     const avgProfit = daysCount > 0 ? (grandTotalProfit / daysCount) : 0;
     const avgSales = daysCount > 0 ? (grandTotalSales / daysCount) : 0;
 
