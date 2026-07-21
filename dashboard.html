@@ -181,7 +181,6 @@
         .balance-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
         .balance-box { background: var(--surface-alt); border: 1px solid var(--border-soft); padding: 8px; border-radius: 12px; text-align: center; }
         .balance-box .title { font-size: 0.65rem; color: var(--ink-muted); font-weight: 700; display: block; margin-bottom: 5px; }
-        .balance-box .val { font-size: 0.85rem; font-weight: 700; }
 
         .manual-input {
             background: #ffffff; border: 1.5px solid var(--border); color: var(--ink);
@@ -467,21 +466,22 @@
             suppliers: { count: 0, totalDebt: 0 }
         };
 
-        /* ============ factory reset ============ */
+        /* ============ factory reset (مستثنى منها سجل الأرباح archived_profits) ============ */
 
         window.factoryResetDatabase = async function () {
             const firstConfirm = confirm("⚠️ تنبيه مالي خطير جداً:\nهل أنت متأكد تماماً من رغبتك في تفريغ قاعدة البيانات بالكامل؟");
             if (!firstConfirm) return;
-            const secondConfirm = confirm("تأكيد أخير: اكتب في ذهنك (نعم) إذا كنت متأكداً 100%. سيتم حذف كل شيء الآن.");
+            const secondConfirm = confirm("تأكيد أخير: اكتب في ذهنك (نعم) إذا كنت متأكداً 100%. سيتم حذف جميع البيانات مع الحفاظ التام على سجل الأرباح المؤرشفة.");
             if (!secondConfirm) return;
 
             try {
-                setLoading(true, "جاري تصفير وإخلاء قاعدة البيانات (ضبط المصنع)...");
+                setLoading(true, "جاري تصفير وإخلاء قاعدة البيانات (مع الحفاظ على سجل الأرباح)...");
 
+                // 🛡️ تم حذف 'archived_profits' تماماً لحمايتها من أي عملية مسح
                 const collectionsToClear = [
                     'cash_logs', 'inventory', 'invoices', 'transactions', 'customers',
                     'suppliers', 'supplier_transactions', 'expenses', 'orders',
-                    'purchase_orders', 'quotations', 'shortages', 'journalEntries', 'archived_profits'
+                    'purchase_orders', 'quotations', 'shortages', 'journalEntries'
                 ];
 
                 for (const colName of collectionsToClear) {
@@ -496,11 +496,11 @@
                     savedAt: 'تمت إعادة تعيين النظام', timestamp: new Date()
                 });
 
-                showStatus("تم عمل إعادة ضبط المصنع وتصفير كافة الحسابات بنجاح.", true);
+                showStatus("تم إعادة ضبط المصنع وتصفير السيستم بنجاح (مع الاحتفاظ بسجل الأرباح المؤرشفة).", true);
                 loadAllData();
             } catch (err) {
                 console.error(err);
-                showStatus("حدث خطأ أثناء الاتصال بالسيرفر.", false);
+                showStatus("حدث خطأ أثناء الاتصال بالسيرفر: " + err.message, false);
             } finally {
                 setLoading(false);
             }
@@ -609,7 +609,7 @@
                     }
                 });
 
-                /* ---- سندات القبض والصرف اليدوية (transactions) ---- */
+                /* ---- سندات القبض والصرف اليدوية ---- */
                 transactionsSnap.forEach(docItem => {
                     if (processedMovements.has(docItem.id)) return;
                     
@@ -641,8 +641,7 @@
                     else { netCashFlow -= amt; analytics.cash.expenses += amt; }
                 });
 
-                /* ---- المخزون: مطابق تماماً لمعادلة صفحة الجرد الرسمية ---- */
-                /* (totalPcs ÷ unitFactor) × buy — بدون أي استخدام لحقل qty، لأن totalPcs هو مصدر الحقيقة الوحيد المعتمد في صفحة الجرد */
+                /* ---- المخزون ---- */
                 actualInv = 0;
                 inventorySnap.forEach(docItem => {
                     const data = docItem.data();
@@ -694,12 +693,11 @@
             const currentCash = iCash + netCashFlow;
             const currentWallet = iWallet + netWalletFlow;
 
-            // شريط انحراف المخزون: فرق مباشر بين الرصيد الفعلي (بسعر الشراء) ورصيد أول المدة، بدون أي تخمين لسبب الفرق
             const inventoryDeviation = actualInv - iInv;
 
             document.getElementById('currCash').innerHTML = fmtC(currentCash);
             document.getElementById('currWallet').innerHTML = fmtC(currentWallet);
-            document.getElementById('currInv').innerHTML = fmtC(actualInv); // جرد المخزن الحي
+            document.getElementById('currInv').innerHTML = fmtC(actualInv);
             document.getElementById('currCust').innerHTML = fmtC(actualCust);
             document.getElementById('currSup').innerHTML = fmtC(actualSup);
 
@@ -721,10 +719,7 @@
 
             renderDeviation('diffCash', netCashFlow, 'صعود نقدي 📈', 'عجز نقدي 📉');
             renderDeviation('diffWallet', netWalletFlow, 'تدفق وارد 📱', 'تدفق صادر 📉');
-            
-            // شريط الانحراف للمخزون: الفرق المباشر بين رصيد أول المدة والرصيد الفعلي الحالي
             renderDeviation('diffInv', inventoryDeviation, 'زيادة عن رصيد أول المدة 📦', 'نقص عن رصيد أول المدة 📉');
-            
             renderDeviation('diffCust', actualCust - iCust, 'ارتفاع ديون ⚠️', 'صافي تحصيل ✔️', true);
             renderDeviation('diffSup', actualSup - iSup, 'زيادة ديون ⚠️', 'صافي تسوية ✔️', true);
 
