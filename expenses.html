@@ -27,6 +27,8 @@
             --danger: #ef4444;
             --danger-light: #fee2e2;
             --success: #10b981;
+            --warning: #f59e0b;
+            --warning-light: #fef3c7;
             --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
             --radius-sm: 12px;
             --radius-md: 16px;
@@ -86,7 +88,6 @@
             text-decoration: none !important;
             transition: 0.2s ease;
         }
-        .back-btn:active { transform: scale(0.9); background: rgba(255,255,255,0.25); }
 
         .header-title { text-align: center; }
         .header-title span {
@@ -172,7 +173,30 @@
             box-shadow: 0 4px 15px rgba(11, 94, 61, 0.3);
             transition: 0.2s;
         }
-        .btn-save:active { transform: scale(0.97); }
+        .btn-update {
+            background: var(--warning); 
+            color: white; 
+            width: 100%; 
+            border: none; 
+            padding: 14px; 
+            border-radius: var(--radius-sm); 
+            font-weight: 800; 
+            font-size: 0.95rem;
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+            transition: 0.2s;
+        }
+        .btn-cancel {
+            background: var(--bg-light);
+            color: var(--text-dark);
+            width: 100%;
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: var(--radius-sm);
+            font-weight: 800;
+            font-size: 0.85rem;
+            margin-top: 10px;
+            display: none;
+        }
 
         .toolbar-box {
             display: flex;
@@ -193,10 +217,7 @@
             gap: 6px; 
             text-decoration: none !important; 
             justify-content: center; 
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
         }
-        .btn-excel:active { transform: scale(0.96); }
-
         .btn-clear-all {
             background: var(--danger-light);
             color: var(--danger);
@@ -206,9 +227,26 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: 0.2s;
         }
-        .btn-clear-all:active { transform: scale(0.9); background-color: #fee2e2; }
+
+        /* تنسيقات ملخص البنود */
+        .summary-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 0 16px 16px;
+        }
+        .summary-card {
+            background: white;
+            flex: 1 1 calc(50% - 5px);
+            padding: 12px;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(0,0,0,0.03);
+            box-shadow: var(--card-shadow);
+            border-right: 4px solid var(--primary);
+        }
+        .summary-title { font-size: 0.75rem; color: var(--text-muted); font-weight: 800; margin-bottom: 2px;}
+        .summary-value { font-size: 1rem; color: var(--text-dark); font-weight: 900;}
 
         .expense-item { 
             display: flex; 
@@ -228,36 +266,28 @@
             border-radius: 0 var(--radius-md) var(--radius-md) 0;
         }
         .expense-info { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 0; padding-right: 6px; }
-        .expense-type { font-weight: 800; color: var(--text-dark); font-size: 0.95rem; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+        .expense-type { font-weight: 800; color: var(--text-dark); font-size: 0.95rem; }
         .expense-meta { font-size: 0.72rem; color: var(--text-muted); font-weight: 700; }
         
-        .expense-amount-wrapper {
+        .expense-actions-wrapper {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
             flex-shrink: 0;
         }
-        .expense-amount { font-weight: 800; color: var(--danger); font-size: 1rem; text-align: center; }
-        .btn-delete { 
-            background: var(--danger-light); 
-            border: 1px solid rgba(239, 68, 68, 0.15); 
-            color: var(--danger); 
-            width: 32px;
-            height: 32px;
-            border-radius: 10px;
-            font-size: 0.85rem; 
-            transition: 0.15s; 
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .expense-amount { font-weight: 800; color: var(--danger); font-size: 1rem; text-align: center; margin-left: 5px;}
+        
+        .action-btn {
+            width: 30px; height: 30px; border-radius: 8px; font-size: 0.8rem;
+            display: flex; align-items: center; justify-content: center; border: none;
         }
-        .btn-delete:active { transform: scale(0.9); }
+        .btn-edit-item { background: var(--warning-light); color: var(--warning); }
+        .btn-delete { background: var(--danger-light); color: var(--danger); }
     </style>
 </head>
 <body>
 
 <div class="app-container">
-    <!-- رأس الصفحة الفخم -->
     <div class="header-nav">
         <div style="width: 36px;"></div>
         <div class="header-title">
@@ -267,14 +297,13 @@
         <a href="index1.html" class="back-btn"><i class="fas fa-arrow-left"></i></a>
     </div>
 
-    <!-- أزرار التبويبات -->
     <ul class="nav nav-tabs" id="expenseTabs" role="tablist">
         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#addContent" type="button">إضافة مصروف</button></li>
         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#listContent" type="button">المصروفات المسجلة</button></li>
     </ul>
 
     <div class="tab-content">
-        <!-- تبويب الإضافة -->
+        <!-- تبويب الإضافة / التعديل -->
         <div class="tab-pane fade show active" id="addContent">
             <div class="card-custom">
                 
@@ -321,11 +350,13 @@
                 </div>
 
                 <button class="btn-save" id="btnSave" onclick="saveExpense()">تأكيد وحفظ الحركة</button>
+                <button class="btn-cancel" id="btnCancelEdit" onclick="cancelEdit()">إلغاء التعديل</button>
             </div>
         </div>
 
         <!-- تبويب العرض والتصدير -->
         <div class="tab-pane fade" id="listContent">
+            
             <div class="toolbar-box">
                 <button class="btn-excel" onclick="exportToExcel()">
                     <i class="fas fa-file-excel"></i> تصدير البيانات Excel
@@ -334,11 +365,14 @@
                     <i class="fas fa-trash-can"></i>
                 </button>
             </div>
+
+            <!-- حاوية ملخص المصروفات -->
+            <div id="summaryContainer" class="summary-container"></div>
             
             <div id="expensesList">
                 <div class="text-center text-muted py-5">
                     <div class="spinner-border text-success" role="status" style="width: 1.5rem; height: 1.5rem;"></div>
-                    <p class="mt-2 fw-bold" style="font-size: 0.8rem;">جاري تحميل المصروفات الحالية...</p>
+                    <p class="mt-2 fw-bold" style="font-size: 0.8rem;">جاري تحميل المصروفات...</p>
                 </div>
             </div>
         </div>
@@ -347,7 +381,8 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    // إضافة updateDoc للمستوردات
+    import { getFirestore, collection, addDoc, getDocs, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -364,9 +399,24 @@
 
     document.getElementById('expDate').valueAsDate = new Date();
     let allExpenses = [];
+    let currentEditId = null; // متغير لحفظ الـ ID عند التعديل
 
     window.toggleOtherField = (val) => {
         document.getElementById('otherTypeDiv').style.display = (val === 'أخرى') ? 'block' : 'none';
+    };
+
+    // دالة تفريغ الحقول وإلغاء وضع التعديل
+    window.cancelEdit = () => {
+        currentEditId = null;
+        document.getElementById('btnSave').textContent = "تأكيد وحفظ الحركة";
+        document.getElementById('btnSave').className = "btn-save";
+        document.getElementById('btnCancelEdit').style.display = "none";
+        
+        document.getElementById('expAmount').value = '';
+        document.getElementById('expNote').value = '';
+        document.getElementById('expDate').valueAsDate = new Date();
+        document.getElementById('expType').value = 'جاز';
+        toggleOtherField('جاز');
     };
 
     window.saveExpense = async () => {
@@ -387,40 +437,98 @@
         if(!date) return alert("يرجى اختيار تاريخ الحركة");
 
         try {
-            const expenseRef = await addDoc(collection(db, "expenses"), { 
-                type,
-                paymentMethod,
-                amount: amt, 
-                note, 
-                date, 
-                timestamp: serverTimestamp() 
-            });
-            
-            await addDoc(collection(db, "cash_logs"), { 
-                amount: amt, 
-                note: `مصروف (${paymentMethod}): ${type} ${note ? '(' + note + ')' : ''}`, 
-                type: 'out', 
-                timestamp: serverTimestamp(), 
-                date: date,
-                expenseId: expenseRef.id 
-            });
+            if (currentEditId) {
+                // ---------- تحديث مصروف موجود ----------
+                await updateDoc(doc(db, "expenses", currentEditId), {
+                    type, paymentMethod, amount: amt, note, date
+                });
 
-            alert("تم حفظ المصروف وتسجيل المعاملة بنجاح ✅");
-            location.reload();
+                // تحديث سجل النقدية المرتبط (cash_logs)
+                const logsSnap = await getDocs(query(collection(db, "cash_logs")));
+                for (const logDoc of logsSnap.docs) {
+                    if (logDoc.data().expenseId === currentEditId) {
+                        await updateDoc(doc(db, "cash_logs", logDoc.id), {
+                            amount: amt,
+                            note: `مصروف (${paymentMethod}): ${type} ${note ? '(' + note + ')' : ''}`,
+                            date: date
+                        });
+                    }
+                }
+                alert("تم تحديث المصروف بنجاح ✅");
+                cancelEdit();
+                location.reload(); // إعادة التحميل لتحديث القوائم
+
+            } else {
+                // ---------- إضافة مصروف جديد ----------
+                const expenseRef = await addDoc(collection(db, "expenses"), { 
+                    type, paymentMethod, amount: amt, note, date, timestamp: serverTimestamp() 
+                });
+                
+                await addDoc(collection(db, "cash_logs"), { 
+                    amount: amt, 
+                    note: `مصروف (${paymentMethod}): ${type} ${note ? '(' + note + ')' : ''}`, 
+                    type: 'out', 
+                    timestamp: serverTimestamp(), 
+                    date: date,
+                    expenseId: expenseRef.id 
+                });
+
+                alert("تم حفظ المصروف وتسجيل المعاملة بنجاح ✅");
+                location.reload();
+            }
         } catch (e) { 
             console.error(e);
             alert("خطأ أثناء الاتصال بقاعدة البيانات!"); 
         }
     };
 
+    // نقل بيانات المصروف لنموذج الإضافة لتعديله
+    window.editExpense = (id) => {
+        const exp = allExpenses.find(e => e.id === id);
+        if(!exp) return;
+
+        // تعبئة البيانات في الحقول
+        document.getElementById('paymentMethod').value = exp.paymentMethod;
+        document.getElementById('expAmount').value = exp.amount;
+        document.getElementById('expDate').value = exp.date;
+        document.getElementById('expNote').value = exp.note;
+
+        // التحقق من نوع المصروف (إذا كان في القائمة أو "أخرى")
+        const typeSelect = document.getElementById('expType');
+        const options = Array.from(typeSelect.options).map(o => o.value);
+        if (options.includes(exp.type)) {
+            typeSelect.value = exp.type;
+            toggleOtherField(exp.type);
+        } else {
+            typeSelect.value = 'أخرى';
+            toggleOtherField('أخرى');
+            document.getElementById('otherTypeInput').value = exp.type;
+        }
+
+        // تغيير حالة الزر إلى "تحديث"
+        currentEditId = id;
+        document.getElementById('btnSave').textContent = "تحديث البيانات";
+        document.getElementById('btnSave').className = "btn-update";
+        document.getElementById('btnCancelEdit').style.display = "block";
+
+        // الانتقال لتبويب الإضافة
+        const addTab = new bootstrap.Tab(document.querySelector('button[data-bs-target="#addContent"]'));
+        addTab.show();
+    };
+
     async function loadExpenses() {
         const expensesContainer = document.getElementById('expensesList');
+        const summaryContainer = document.getElementById('summaryContainer');
+        
         try {
             const q = query(collection(db, "expenses"), orderBy("date", "desc"));
             const querySnapshot = await getDocs(q);
             
             allExpenses = [];
+            let categoryTotals = {}; // مصفوفة لحساب إجمالي كل بند
+
             expensesContainer.innerHTML = '';
+            summaryContainer.innerHTML = '';
 
             if (querySnapshot.empty) {
                 expensesContainer.innerHTML = `<div class="text-center text-muted py-5 fw-bold" style="font-size:0.85rem;">لا توجد مصروفات مسجلة حتى الآن</div>`;
@@ -435,9 +543,12 @@
                     amount: Number(data.amount) || 0,
                     date: data.date,
                     note: data.note || '',
-                    paymentMethod: data.paymentMethod || 'نقدي' // افتراضي للحركات القديمة
+                    paymentMethod: data.paymentMethod || 'نقدي'
                 };
                 allExpenses.push(expItem);
+
+                // تجميع مجاميع البنود
+                categoryTotals[expItem.type] = (categoryTotals[expItem.type] || 0) + expItem.amount;
 
                 const itemHtml = `
                     <div class="expense-item" id="item-${expItem.id}">
@@ -449,15 +560,30 @@
                                 ${expItem.note ? ` | <i class="far fa-sticky-note ms-1 me-1"></i> ${expItem.note}` : ''}
                             </span>
                         </div>
-                        <div class="expense-amount-wrapper">
-                            <span class="expense-amount num">-${expItem.amount.toLocaleString('en-US', {minimumFractionDigits: 2})} <small style="font-size:0.65rem; font-weight:800;">ج.م</small></span>
-                            <button class="btn-delete" onclick="deleteExpense('${expItem.id}')" title="حذف">
+                        <div class="expense-actions-wrapper">
+                            <span class="expense-amount num">${expItem.amount.toLocaleString('en-US')}</span>
+                            <button class="action-btn btn-edit-item" onclick="editExpense('${expItem.id}')" title="تعديل">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="action-btn btn-delete" onclick="deleteExpense('${expItem.id}')" title="حذف">
                                 <i class="fas fa-trash-alt"></i>
                             </button>
                         </div>
                     </div>`;
                 expensesContainer.insertAdjacentHTML('beforeend', itemHtml);
             });
+
+            // عرض البطاقات الخاصة بإجمالي كل بند (إخفاء البنود الصفرية)
+            for (const [type, total] of Object.entries(categoryTotals)) {
+                if (total > 0) {
+                    summaryContainer.insertAdjacentHTML('beforeend', `
+                        <div class="summary-card">
+                            <div class="summary-title">إجمالي ${type}</div>
+                            <div class="summary-value num">${total.toLocaleString('en-US')} ج.م</div>
+                        </div>
+                    `);
+                }
+            }
 
         } catch (e) {
             console.error(e);
@@ -471,27 +597,15 @@
         try {
             await deleteDoc(doc(db, "expenses", id));
             
-            const logsSnap = await getDocs(query(collection(db, "cash_logs"), orderBy("timestamp", "desc")));
+            const logsSnap = await getDocs(query(collection(db, "cash_logs")));
             for (const logDoc of logsSnap.docs) {
                 const logData = logDoc.data();
                 if(logData.expenseId === id || (logData.note && logData.note.includes(`مصروف`) && logData.amount === allExpenses.find(e => e.id === id)?.amount)) {
                     await deleteDoc(doc(db, "cash_logs", logDoc.id));
                 }
             }
-
-            const el = document.getElementById('item-' + id);
-            if(el) {
-                el.style.transition = "all 0.3s ease";
-                el.style.opacity = "0";
-                el.style.transform = "scale(0.95)";
-                setTimeout(() => el.remove(), 300);
-            }
-            
-            allExpenses = allExpenses.filter(e => e.id !== id);
-            if (allExpenses.length === 0) {
-                document.getElementById('expensesList').innerHTML = `<div class="text-center text-muted py-5 fw-bold" style="font-size:0.85rem;">لا توجد مصروفات مسجلة حتى الآن</div>`;
-            }
             alert("تم الحذف بنجاح ✅");
+            location.reload(); // إعادة تحميل الصفحة لتحديث المجاميع
         } catch (e) {
             console.error(e);
             alert("فشل حذف المستند!");
@@ -501,10 +615,8 @@
     window.clearAllExpenses = async () => {
         if (allExpenses.length === 0) return alert("سجل المصروفات فارغ بالفعل!");
         
-        const confirm1 = confirm(`🚨 تحذير هام للغاية:\nهل أنت متأكد من رغبتك في مسح كافة المصروفات المسجلة نهائياً (${allExpenses.length} مصروف)؟ لا يمكن التراجع عن هذه الخطوة!`);
+        const confirm1 = confirm(`🚨 تحذير هام للغاية:\nهل أنت متأكد من مسح كافة المصروفات المسجلة نهائياً (${allExpenses.length} مصروف)؟ لا يمكن التراجع عن هذه الخطوة!`);
         if(!confirm1) return;
-        
-        const confirm2 = confirm(`تأكيد أخير:\nهل تريد أيضاً حذف سجلات النقدية المرتبطة بها من الدرج؟`);
         
         try {
             const expSnap = await getDocs(collection(db, "expenses"));
@@ -512,13 +624,11 @@
                 await deleteDoc(doc(db, "expenses", expDoc.id));
             }
 
-            if (confirm2) {
-                const logsSnap = await getDocs(collection(db, "cash_logs"));
-                for (const logDoc of logsSnap.docs) {
-                    const logData = logDoc.data();
-                    if (logData.expenseId || (logData.note && logData.note.includes("مصروف"))) {
-                        await deleteDoc(doc(db, "cash_logs", logDoc.id));
-                    }
+            const logsSnap = await getDocs(collection(db, "cash_logs"));
+            for (const logDoc of logsSnap.docs) {
+                const logData = logDoc.data();
+                if (logData.expenseId || (logData.note && logData.note.includes("مصروف"))) {
+                    await deleteDoc(doc(db, "cash_logs", logDoc.id));
                 }
             }
 
@@ -535,22 +645,20 @@
             return alert("لا توجد بيانات مصروفات لتصديرها حالياً!");
         }
 
-        // الترتيب المطلوب: التاريخ - نوع المصروف - البيان - المبلغ - نوع السداد
+        // الترتيب الجديد: التاريخ - نوع المصروف - نوع الكاش - البيان - المبلغ
         const formattedData = allExpenses.map((exp) => ({
             "التاريخ": exp.date,
             "نوع المصروف": exp.type,
+            "نوع الكاش": exp.paymentMethod,
             "البيان": exp.note,
-            "المبلغ": exp.amount,
-            "نوع السداد": exp.paymentMethod
+            "المبلغ": exp.amount
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(formattedData);
         const workbook = XLSX.utils.book_new();
         
         worksheet['!dir'] = "rtl";
-
         XLSX.utils.book_append_sheet(workbook, worksheet, "تقرير المصروفات");
-        
         XLSX.writeFile(workbook, `تقرير_مصروفات_شركة_الزيادي_${new Date().toISOString().slice(0,10)}.xlsx`);
     };
 
