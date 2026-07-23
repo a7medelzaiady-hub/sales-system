@@ -186,6 +186,7 @@
             min-width: 100px;
             text-align: center;
             border: 1px dashed #cbd5e1;
+            direction: ltr;
         }
 
         .val-diff {
@@ -410,6 +411,7 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+    
     // Variables to hold current fetched data
     let currentData = {
         cash: 0,
@@ -419,51 +421,141 @@
         stock: 0
     };
 
+    function num(v) {
+        const n = Number(v);
+        return isNaN(n) ? 0 : n;
+    }
+
+    function isWalletMethod(text) {
+        if (!text) return false;
+        const t = String(text).trim().toLowerCase();
+        return t.includes('محفظة') || t.includes('محفظه') || t.includes('wallet') || 
+               t.includes('فودافون') || t.includes('فوري') || t.includes('انستاباي') || t.includes('instapay');
+    }
+
     async function fetchSystemBalances() {
         document.getElementById('loadingOverlay').style.display = 'flex';
         
         try {
-            // 1. Fetch Customers Balance (sum of currentBalance)
-            const custSnap = await getDocs(collection(db, "customers"));
-            let totalCustomers = 0;
-            custSnap.forEach(doc => {
-                const data = doc.data();
-                if(data.currentBalance) totalCustomers += Number(data.currentBalance);
+            let netCashFlow = 0;
+            let netWalletFlow = 0;
+            let actualInv = 0;
+            let actualCust = 0;
+            let actualSup = 0;
+
+            const [
+                inventorySnap, invoicesSnap,
+                customersSnap, suppliersSnap, cashLogsSnap, expensesSnap, supplierTransSnap, transactionsSnap
+            ] = await Promise.all([
+                getDocs(collection(db, 'inventory')),
+                getDocs(collection(db, 'invoices')),
+                getDocs(collection(db, 'customers')),
+                getDocs(collection(db, 'suppliers')),
+                getDocs(collection(db, 'cash_logs')),
+                getDocs(collection(db, 'expenses')),
+                getDocs(collection(db, 'supplier_transactions')),
+                getDocs(collection(db, 'transactions')),
+            ]);
+
+            /* ---- المبيعات ---- */
+            invoicesSnap.forEach(docItem => {
+                const data = docItem.data();
+                netCashFlow += num(data.cashAmount);
+                netWalletFlow += num(data.walletAmount);
             });
-            currentData.customers = totalCustomers;
 
-            // 2. Fetch Suppliers Balance
-            const suppSnap = await getDocs(collection(db, "suppliers"));
-            let totalSuppliers = 0;
-            suppSnap.forEach(doc => {
-                const data = doc.data();
-                if(data.currentBalance) totalSuppliers += Number(data.currentBalance);
+            /* ---- المشتريات والمدفوعات للموردين ---- */
+            supplierTransSnap.forEach(docItem => {
+                const data = docItem.data();
+                netCashFlow -= num(data.cashPaid);
+                netWalletFlow -= num(data.walletPaid);
             });
-            currentData.suppliers = totalSuppliers;
 
-            // 3. Fetch Inventory Value (qty * buy price)
-            const invSnap = await getDocs(collection(db, "inventory"));
-            let totalStockValue = 0;
-            invSnap.forEach(doc => {
-                const data = doc.data();
-                if(data.qty && data.buy) totalStockValue += (Number(data.qty) * Number(data.buy));
+            const processedMovements = new Set();
+
+            /* ---- حركات الصندوق اليدوية ---- */
+            cashLogsSnap.forEach(docItem => {
+                const data = docItem.data();
+                if (data.invoiceId) return; 
+
+                processedMovements.add(docItem.id);
+
+                const amt = num(data.amount);
+                const methodText = data.method || data.paymentMethod || '';
+                const toWallet = isWalletMethod(methodText) || isWalletMethod(data.note);
+
+                const isIncoming = ['in', 'قبض', 'إيراد', 'ايراد'].includes(data.type);
+                const isOutgoing = ['out', 'صرف', 'مصروف'].includes(data.type);
+
+                if (isIncoming) {
+                    if (toWallet) { netWalletFlow += amt; } 
+                    else { netCashFlow += amt; }
+                } else if (isOutgoing) {
+                    if (toWallet) { netWalletFlow -= amt; } 
+                    else { netCashFlow -= amt; }
+                }
             });
-            currentData.stock = totalStockValue;
 
-            // 4. Fetch Cash & Wallet
-            const accountDoc = await getDoc(doc(db, "accounts", "main"));
-            if(accountDoc.exists()) {
-                const d = accountDoc.data();
-                currentData.cash = Number(d.cashBalance || 0);
-                currentData.wallet = Number(d.walletBalance || 0);
-            }
+            /* ---- سندات القبض والصرف اليدوية ---- */
+            transactionsSnap.forEach(docItem => {
+                if (processedMovements.has(docItem.id)) return;
+                
+                const data = docItem.data();
+                if (data.isInvoicePayment || data.invoiceId) return;
+                
+                processedMovements.add(docItem.id);
 
-            // Update UI
-            document.getElementById('curr_cash').innerText = currentData.cash.toLocaleString();
-            document.getElementById('curr_wallet').innerText = currentData.wallet.toLocaleString();
-            document.getElementById('curr_customers').innerText = currentData.customers.toLocaleString();
-            document.getElementById('curr_suppliers').innerText = currentData.suppliers.toLocaleString();
-            document.getElementById('curr_stock').innerText = currentData.stock.toLocaleString();
+                const amt = num(data.amount || data.total);
+                const methodText = data.method || data.paymentMethod || '';
+                const toWallet = isWalletMethod(methodText) || isWalletMethod(data.note);
+
+                if (data.type === 'قبض') {
+                    if (toWallet) { netWalletFlow += amt; } 
+                    else { netCashFlow += amt; }
+                } else if (data.type === 'صرف') {
+                    if (toWallet) { netWalletFlow -= amt; } 
+                    else { netCashFlow -= amt; }
+                }
+            });
+
+            /* ---- المصروفات ---- */
+            expensesSnap.forEach(docItem => {
+                const data = docItem.data();
+                const amt = num(data.amount || data.total);
+                const toWallet = isWalletMethod(data.paymentMethod || data.method) || isWalletMethod(data.note);
+
+                if (toWallet) { netWalletFlow -= amt; } 
+                else { netCashFlow -= amt; }
+            });
+
+            /* ---- المخزون ---- */
+            inventorySnap.forEach(docItem => {
+                const data = docItem.data();
+                if (data.isDeleted === true) return;
+
+                const factor = num(data.unitFactor) || 1;
+                const totalPcs = num(data.totalPcs);
+                const buyPrice = num(data.buy);
+
+                actualInv += (totalPcs / factor) * buyPrice;
+            });
+
+            /* ---- العملاء والموردين ---- */
+            customersSnap.forEach(docItem => {
+                actualCust += num(docItem.data().currentBalance);
+            });
+
+            suppliersSnap.forEach(docItem => {
+                actualSup += num(docItem.data().currentBalance);
+            });
+
+            // Update currentData object
+            currentData.inventory = actualInv;
+            currentData.customers = actualCust;
+            currentData.suppliers = actualSup;
+            // Note: cash and wallet need the initial balances to be added to the flow. This will be done in calculateDifferences.
+            currentData.netCashFlow = netCashFlow;
+            currentData.netWalletFlow = netWalletFlow;
 
             // Fetch last saved beginning balances
             await loadSavedStartingBalances();
@@ -478,51 +570,92 @@
 
     async function loadSavedStartingBalances() {
         try {
-            const startDoc = await getDoc(doc(db, "system_metadata", "beginning_balances"));
+            // First check the dashboard's save location 'settings/initial_balances'
+            let startDoc = await getDoc(doc(db, "settings", "initial_balances"));
+            
+            // Fallback to older location if settings doesn't exist
+            if (!startDoc.exists()) {
+                startDoc = await getDoc(doc(db, "system_metadata", "beginning_balances"));
+            }
+
             if (startDoc.exists()) {
                 const data = startDoc.data();
                 document.getElementById('start_cash').value = data.cash || 0;
                 document.getElementById('start_wallet').value = data.wallet || 0;
                 document.getElementById('start_customers').value = data.customers || 0;
                 document.getElementById('start_suppliers').value = data.suppliers || 0;
-                document.getElementById('start_stock').value = data.stock || 0;
+                // Support both 'inventory' (dashboard) and 'stock' (balances page) keys
+                document.getElementById('start_stock').value = data.inventory || data.stock || 0; 
                 
-                if (data.updatedAt) {
+                let dateStr = 'غير معروف', timeStr = '';
+                
+                if (data.savedAt) {
+                    dateStr = data.savedAt;
+                } else if (data.updatedAt && data.updatedAt.toDate) {
                     const date = data.updatedAt.toDate();
-                    const dateStr = date.toLocaleDateString('ar-EG');
-                    const timeStr = date.toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'});
-                    document.getElementById('historyCard').style.display = 'block';
-                    document.getElementById('lastSaveDate').innerText = `${dateStr} - ${timeStr}`;
+                    dateStr = date.toLocaleDateString('ar-EG');
+                    timeStr = ' - ' + date.toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'});
+                } else if (data.timestamp && data.timestamp.toDate) {
+                     const date = data.timestamp.toDate();
+                     dateStr = date.toLocaleDateString('ar-EG');
+                     timeStr = ' - ' + date.toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'});
                 }
                 
-                window.calculateDifferences();
+                document.getElementById('historyCard').style.display = 'block';
+                document.getElementById('lastSaveDate').innerText = dateStr + timeStr;
             }
+            window.calculateDifferences();
         } catch (e) {
             console.log("No previous beginning balances found or error reading.");
+            window.calculateDifferences(); // Still calculate with 0s
         }
     }
 
     window.calculateDifferences = function() {
-        const fields = ['cash', 'wallet', 'customers', 'suppliers', 'stock'];
-        
-        fields.forEach(field => {
-            const startVal = Number(document.getElementById(`start_${field}`).value) || 0;
-            const currVal = currentData[field];
-            const diff = currVal - startVal;
-            
-            const diffEl = document.getElementById(`diff_${field}`);
-            
-            // Format number with sign
-            const sign = diff > 0 ? "+" : "";
-            diffEl.innerText = `${sign}${diff.toLocaleString()}`;
-            
-            // Apply styling
-            diffEl.className = "val-diff";
-            if (diff > 0) diffEl.classList.add("diff-positive");
-            else if (diff < 0) diffEl.classList.add("diff-negative");
-            else diffEl.classList.add("diff-zero");
-        });
+        const startCash = num(document.getElementById('start_cash').value);
+        const startWallet = num(document.getElementById('start_wallet').value);
+        const startCust = num(document.getElementById('start_customers').value);
+        const startSup = num(document.getElementById('start_suppliers').value);
+        const startStock = num(document.getElementById('start_stock').value);
+
+        // Calculate current balances based on initial + flows
+        const currentCash = startCash + currentData.netCashFlow;
+        const currentWallet = startWallet + currentData.netWalletFlow;
+        const currentInv = currentData.inventory;
+        const currentCust = currentData.customers;
+        const currentSup = currentData.suppliers;
+
+        // Update UI for current balances
+        document.getElementById('curr_cash').innerText = currentCash.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('curr_wallet').innerText = currentWallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('curr_customers').innerText = currentCust.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('curr_suppliers').innerText = currentSup.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        document.getElementById('curr_stock').innerText = currentInv.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        // Calculate and update differences
+        updateDiff('diff_cash', currentCash - startCash);
+        updateDiff('diff_wallet', currentWallet - startWallet);
+        updateDiff('diff_customers', currentCust - startCust);
+        updateDiff('diff_suppliers', currentSup - startSup);
+        updateDiff('diff_stock', currentInv - startStock);
     };
+    
+    function updateDiff(elementId, diff) {
+        const diffEl = document.getElementById(elementId);
+        
+        if (Math.abs(diff) < 0.1) {
+            diffEl.innerText = "0";
+            diffEl.className = "val-diff diff-zero";
+            return;
+        }
+
+        const sign = diff > 0 ? "+" : "";
+        diffEl.innerText = `${sign}${diff.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        
+        diffEl.className = "val-diff";
+        if (diff > 0) diffEl.classList.add("diff-positive");
+        else if (diff < 0) diffEl.classList.add("diff-negative");
+    }
 
     window.saveStartingBalances = async function() {
         const btn = document.getElementById('saveBtn');
@@ -530,23 +663,46 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحفظ...';
         
         try {
+            const now = new Date();
+            const formattedDate = now.toLocaleDateString('ar-EG') + " " + now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+            
+            const cashVal = num(document.getElementById('start_cash').value);
+            const walletVal = num(document.getElementById('start_wallet').value);
+            const custVal = num(document.getElementById('start_customers').value);
+            const supVal = num(document.getElementById('start_suppliers').value);
+            const stockVal = num(document.getElementById('start_stock').value);
+
             const dataToSave = {
-                cash: Number(document.getElementById('start_cash').value) || 0,
-                wallet: Number(document.getElementById('start_wallet').value) || 0,
-                customers: Number(document.getElementById('start_customers').value) || 0,
-                suppliers: Number(document.getElementById('start_suppliers').value) || 0,
-                stock: Number(document.getElementById('start_stock').value) || 0,
-                updatedAt: serverTimestamp()
+                cash: cashVal,
+                wallet: walletVal,
+                customers: custVal,
+                suppliers: supVal,
+                stock: stockVal,
+                savedAt: formattedDate,
+                updatedAt: serverTimestamp() 
             };
 
+            // Saving to BOTH locations to keep dashboard and balances page in sync
             await setDoc(doc(db, "system_metadata", "beginning_balances"), dataToSave, { merge: true });
+            await setDoc(doc(db, 'settings', 'initial_balances'), {
+                cash: cashVal,
+                wallet: walletVal,
+                inventory: stockVal, // dashboard uses 'inventory' instead of 'stock'
+                customers: custVal,
+                suppliers: supVal,
+                savedAt: formattedDate, 
+                timestamp: serverTimestamp()
+            }, { merge: true });
             
             // Update UI Last save time
-            const now = new Date();
             document.getElementById('historyCard').style.display = 'block';
-            document.getElementById('lastSaveDate').innerText = `${now.toLocaleDateString('ar-EG')} - ${now.toLocaleTimeString('ar-EG', {hour: '2-digit', minute:'2-digit'})}`;
+            document.getElementById('lastSaveDate').innerText = formattedDate;
             
             alert("تم حفظ أرصدة أول المدة بنجاح!");
+            
+            // Recalculate to ensure everything is in sync after saving
+            window.calculateDifferences();
+            
         } catch (error) {
             console.error("Error saving:", error);
             alert("حدث خطأ أثناء الحفظ. تأكد من اتصال الإنترنت وصلاحيات قاعدة البيانات.");
