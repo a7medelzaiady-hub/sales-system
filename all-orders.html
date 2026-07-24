@@ -385,15 +385,15 @@ text-align: center;
 #thermalReceiptArea { background: #ffffff; width: 380px; padding: 18px; color: #000000; font-family: 'Cairo', sans-serif; }
 .receipt-header { text-align: center; border-bottom: 2px dashed #000000; padding-bottom: 12px; margin-bottom: 12px; }
 .receipt-header h3 { margin: 0; font-size: 21px; font-weight: 800; }
-.receipt-header p { margin: 4px 0 0; font-size: 13px; font-weight: 700; }
+.receipt-header p { margin: 4px 0 8px; font-size: 13px; font-weight: 700; }
+.receipt-header .order-prep-badge { font-size: 15px; font-weight: 800; border: 1.5px solid #000; padding: 4px 10px; border-radius: 6px; display: inline-block; margin-top: 5px;}
 .receipt-info { font-size: 13px; font-weight: 700; border-bottom: 1px dashed #000000; padding-bottom: 10px; margin-bottom: 12px; }
-.receipt-info-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
 .receipt-info-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
 .receipt-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
 .receipt-table th { border-bottom: 2px solid #000000; text-align: right; font-size: 13px; font-weight: 800; padding: 4px 0; }
 .receipt-table td { padding: 7px 0; font-size: 13px; font-weight: 700; border-bottom: 1px dashed #cccccc; }
 .receipt-total-row { border-top: 2px dashed #000000; padding-top: 10px; font-size: 16px; font-weight: 800; display: flex; justify-content: space-between; }
-.receipt-footer { text-align: center; margin-top: 20px; font-size: 12px; font-weight: 700; border-top: 1px dashed #000000; padding-top: 10px; }
+.receipt-footer-note { text-align: center; margin-top: 15px; font-size: 12.5px; font-weight: 800; border-top: 1px dashed #ccc; padding-top: 10px; }
 
 .toast-notification {
 position: fixed;
@@ -488,23 +488,28 @@ max-width: 320px;
 </div>
 </div>
 
+<!-- منطقة الفاتورة الحرارية للشير -->
 <div class="thermal-capture-container">
 <div id="thermalReceiptArea">
 <div class="receipt-header">
 <h3>شركة الزيادي</h3>
-<p>لزيوت وفلاتر السيارات </p>
+<p>لزيوت وفلاتر السيارات</p>
+<span class="order-prep-badge">قائمة بتجهيز الطلبية</span>
 </div>
 <div class="receipt-info">
 <div class="receipt-info-row"><span>رقم الطلب: <span id="thOrderId">0000</span></span><span>التاريخ: <span id="thOrderDate">0000</span></span></div>
 <div class="receipt-info-row"><span>العميل: <strong id="thCustomerName">—</strong></span></div>
+<div class="receipt-info-row"><span>الحساب السابق: <strong id="thPreviousBalance">0.00 ج.م</strong></span></div>
 </div>
 <table class="receipt-table">
 <thead><tr><th>الصنف</th><th class="text-center">الكمية</th><th class="text-start">الإجمالي</th></tr></thead>
 <tbody id="thReceiptItems"></tbody>
 </table>
 <div class="receipt-total-row"><span>الإجمالي النهائي:</span><span id="thFinalTotal">0.00 ج.م</span></div>
+<div class="receipt-footer-note">
+برجاء مراجعة الأصناف والأعداد والأسعار جيدا وتأكيدها معنا
 </div>
-    
+</div>
 </div>
 
 <script type="module">
@@ -524,13 +529,21 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 let allOrders = [];
+let allCustomers = []; // إضافة مصفوفة العملاء لجلب الرصيد السابق
 let currentFilter = 'all';
 let pendingOrderForConvert = null;
 
 async function init() {
 try {
-const querySnapshot = await getDocs(collection(db, 'orders'));
-allOrders = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+// جلب الطلبات والعملاء معاً
+const [ordersSnap, customersSnap] = await Promise.all([
+    getDocs(collection(db, 'orders')),
+    getDocs(collection(db, 'customers'))
+]);
+
+allOrders = ordersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+allCustomers = customersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
 updateChips();
 triggerOrderNotification();
 renderOrders();
@@ -569,29 +582,24 @@ renderOrders();
 
 window.filterOrders = () => renderOrders();
 
-// دالة الحساب الذكية والمُحدثة لمنع أي لخبطة في ترتيب قراءة التاريخ تماماً
 function calculateRemainingDays(dateStr) {
 if (!dateStr) return 9999;
 try {
 const cleanDateStr = dateStr.split(' ')[0].trim();
 const today = moment().startOf('day');
 
-// المحاولة الأولى: قراءة التاريخ كـ يوم-شهر-سنة (مثل: 22-06-2026)
 let target = moment(cleanDateStr, 'DD-MM-YYYY', true).startOf('day');
 
-// المحاولة الثانية: لو الصيغة الأولى منجحتش، يقرأه كـ سنة-شهر-يوم (مثل: 2026-06-22)
 if (!target.isValid()) {
     target = moment(cleanDateStr, 'YYYY-MM-DD', true).startOf('day');
 }
 
-// المحاولة الثالثة: محاولة مرنة أخيرة بدون قيود صارمة إذا كان التنسيق مختلف
 if (!target.isValid()) {
     target = moment(cleanDateStr).startOf('day');
 }
 
 if (!target.isValid()) return 9999;
 
-// حساب الفارق الفعلي بالأيام
 return target.diff(today, 'days');
 } catch (e) { 
 return 9999; 
@@ -736,10 +744,16 @@ updateChips(); renderOrders();
 window.shareAsThermalInvoice = (orderId) => {
 const order = allOrders.find(o => o.id === orderId);
 if (!order) return;
+
+// جلب الرصيد السابق للعميل بناءً على الـ ID الخاص به
+const customer = allCustomers.find(c => c.id === order.customerId || c.name === order.customerName);
+const prevBalance = customer ? Number(customer.balance || customer.previousBalance || 0).toFixed(2) : "0.00";
+
 document.getElementById('shareLoadingModal').style.display = 'flex';
 document.getElementById('thOrderId').innerText = order.id.substring(0, 6).toUpperCase();
 document.getElementById('thOrderDate').innerText = order.date ? order.date.split(' ')[0] : '—';
 document.getElementById('thCustomerName').innerText = order.customerName || 'عميل';
+document.getElementById('thPreviousBalance').innerText = `${prevBalance} ج.م`; // إضافة الرصيد السابق
 document.getElementById('thFinalTotal').innerText = `${Number(order.total || 0).toFixed(2)} ج.م`;
 
 document.getElementById('thReceiptItems').innerHTML = order.items?.map(i => {
