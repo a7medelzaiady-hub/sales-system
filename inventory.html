@@ -6,6 +6,10 @@
     <title>شركة الزيادى | الأصناف</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- مكتبة تحويل HTML إلى PDF عالي الجودة -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
     <style>
         :root {
             --bg: #f4f7f5;
@@ -44,17 +48,17 @@
             background: var(--header);
             padding: 16px 20px;
             display: grid;
-            grid-template-columns: 1fr auto 1fr;
+            grid-template-columns: auto 1fr auto;
             align-items: center;
             position: sticky; 
             top: 0; 
             z-index: 100;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
             border-radius: 0 0 25px 25px;
+            gap: 10px;
         }
-        .header-right-blank { /* عمود وهمي لوزن الجهة اليمنى مقابل زر رجوع */ }
         .header-center { text-align: center; }
-        .header-left-btn { display: flex; justify-content: flex-end; }
+        .header-left-btn { display: flex; justify-content: flex-end; gap: 8px; }
 
         .h-title { 
             font-size: 16px; 
@@ -69,24 +73,26 @@
             font-weight: 600; 
             margin-top: 3px; 
         }
-        .back-btn {
+        .back-btn, .pdf-btn {
             background: rgba(255,255,255,0.15);
             color: #fff; 
             border: 1px solid rgba(255,255,255,0.25);
             border-radius: 12px; 
-            padding: 8px 16px;
+            padding: 8px 14px;
             font-family: 'Cairo', sans-serif; 
             font-size: 13px; 
             font-weight: 700;
             cursor: pointer; 
-            display: flex; 
+            display: inline-flex; 
             align-items: center; 
             gap: 6px;
             text-decoration: none; 
             white-space: nowrap;
             transition: all 0.2s;
         }
-        .back-btn:active { transform: scale(0.95); }
+        .pdf-btn { background: #d97706; border-color: #f59e0b; color: #fff; }
+        .pdf-btn:hover { background: #b45309; }
+        .back-btn:active, .pdf-btn:active { transform: scale(0.95); }
 
         /* الـ Stats المتوازنة */
         .stats {
@@ -183,16 +189,16 @@
         .card-top { 
             display: flex; 
             align-items: flex-start; 
-            justify-content: space-between; /* يوزع المحتوى يمين ويسار لمنع الميلان */
+            justify-content: space-between;
             gap: 6px; 
         }
 
-        /* معلومات الصنف - متجهة لليمين بالكامل */
+        /* معلومات الصنف */
         .row-info { 
             flex: 1; 
             min-width: 0; 
             text-align: right; 
-            padding-right: 12px; /* مساحة لنقطة الحالة */
+            padding-right: 12px;
         }
         .row-name { 
             font-size: 12px; 
@@ -215,7 +221,7 @@
         }
         .price-tag.no-price { background: #f1f5f9; color: var(--sub); font-weight: 700; }
 
-        /* الأرقام والأيقونات - منجرفة لليسار تماماً */
+        /* الأرقام والأيقونات */
         .row-widgets {
             display: flex;
             align-items: center;
@@ -232,7 +238,7 @@
         .zero-row .row-icon { background: rgba(225,29,72,0.07); color: var(--danger); }
         .low-row  .row-icon { background: rgba(217,119,6,0.08); color: var(--gold); }
 
-        /* نقطة الحالة في أقصى اليمين */
+        /* نقطة الحالة */
         .status-dot {
             width: 8px; height: 8px; border-radius: 50%; 
             position: absolute; top: 16px; right: 10px;
@@ -241,7 +247,7 @@
         .status-dot.low  { background: var(--gold);    box-shadow: 0 0 6px rgba(217,119,6,0.5); }
         .status-dot.zero { background: var(--danger);  box-shadow: 0 0 6px rgba(225,29,72,0.5); }
 
-        /* شريط الكمية بالأسفل - كرتونة وقطع منفصلة + الإجمالي */
+        /* شريط الكمية بالأسفل */
         .row-qty {
             border-top: 1px dashed #e2e8f0;
             padding-top: 9px;
@@ -323,7 +329,7 @@
         .close-modal { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .modal-body { padding: 12px 16px 20px; overflow-y: auto; flex: 1; background: #f8fafc; }
         
-        /* تصميم كروت الـ Dashboard داخل المودال */
+        /* تصميم كروت الداشبورد داخل المودال */
         .modal-dashboard {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -348,7 +354,6 @@
         .mini-val { font-size: 18px; font-weight: 800; line-height: 1.2; }
         .mini-lbl { font-size: 10.5px; color: var(--sub); font-weight: 700; margin-top: 2px; }
         
-        /* ألوان كروت الداشبورد للمودال */
         .mc-init i { background: rgba(100, 116, 139, 0.08); color: var(--sub); }
         .mc-init .mini-val { color: var(--text); }
         
@@ -371,7 +376,6 @@
         .mc-current .mini-val { color: var(--accent); font-size: 20px; font-weight: 900; }
         .mc-current .mini-lbl { color: var(--accent); font-weight: 800; }
 
-        /* عنوان جدول الحركات */
         .section-title {
             font-size: 12.5px;
             font-weight: 800;
@@ -401,6 +405,16 @@
         .tx-amount.plus { color: #0284c7; }
         .tx-amount.minus { color: var(--danger); }
 
+        /* حاوية طباعة المخزن المنظمة لتوليد PDF */
+        #pdfExportTemplate {
+            display: none;
+            padding: 20px;
+            background: #ffffff;
+            font-family: 'Cairo', sans-serif;
+            color: #000;
+            direction: rtl;
+        }
+
         @media (max-width: 400px) {
             #listBody { grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; }
             .row-name { font-size: 11.5px; height: 32px; }
@@ -420,7 +434,11 @@
 <body>
 
 <header>
-    <div class="header-right-blank"></div>
+    <div>
+        <button class="pdf-btn" onclick="exportInventoryPDF()">
+            <i class="fas fa-file-pdf"></i> تصدير PDF
+        </button>
+    </div>
     <div class="header-center">
         <div class="h-title">شركة <span>الزيادى</span> | الأصناف</div>
         <div class="h-sub" id="syncTime">جاري المزامنة...</div>
@@ -458,7 +476,7 @@
     </div>
 </div>
 
-<!-- المودال المتطور والمحترف لعرض تفاصيل حركات الصنف والداشبورد -->
+<!-- المودال لعرض تفاصيل حركات الصنف والداشبورد -->
 <div class="modal-overlay" id="historyModal" onclick="closeHistoryModal()">
     <div class="modal-card" onclick="event.stopPropagation()">
         <div class="modal-header">
@@ -468,6 +486,9 @@
         <div class="modal-body" id="modalBody"></div>
     </div>
 </div>
+
+<!-- قوالب توليد PDF الخفية -->
+<div id="pdfExportTemplate"></div>
 
 <script type="module">
     import { initializeApp }   from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
@@ -502,7 +523,6 @@
             if (data.isDeleted !== true) allItems.push({ id: d.id, ...data });
         });
 
-        // ترتيب مخصص: المتوفر أولاً (الكمية الأعلى للأقل)، ثم الأصناف النافذة والسالبة في الأسفل
         allItems.sort((a, b) => {
             const qa = Number(a.totalPcs) || 0;
             const qb = Number(b.totalPcs) || 0;
@@ -535,7 +555,7 @@
             const totalPcs = Number(item.totalPcs)   || 0;
             const minPcs   = (Number(item.min) || 0) * factor;
             
-            if (totalPcs <= 0)          zero++; // يدخل السالب أيضاً هنا
+            if (totalPcs <= 0)          zero++;
             else if (totalPcs <= minPcs) low++;
             else                         ok++;
         });
@@ -565,7 +585,6 @@
 
         listBody.classList.remove('full-width');
 
-        // فصل المنتجات: المتوفرة (أكبر من صفر)، والنافذة أو السالبة (أصغر من أو تساوي صفر)
         const withQty = list.filter(i => (Number(i.totalPcs) || 0) > 0);
         const zeroQty = list.filter(i => (Number(i.totalPcs) || 0) <= 0);
 
@@ -591,7 +610,6 @@
         const factor     = hasCartons ? Number(rawFactor) : 1;
         const minPcs = (Number(item.min) || 0) * (hasCartons ? factor : 1);
 
-        // حساب الكراتين والقطع بدقة لدعم القيم السالبة
         let boxes = 0;
         let jars  = 0;
         
@@ -603,7 +621,7 @@
         }
 
         let status = 'ok';
-        if (totalPcs <= 0)          status = 'zero'; // حالة النفاد أو السالب
+        if (totalPcs <= 0)          status = 'zero';
         else if (totalPcs <= minPcs) status = 'low';
 
         const normalizeAr = (s) => String(s || '').trim()
@@ -690,9 +708,23 @@
         const modalTitle = document.getElementById('modalItemName');
         const modalBody = document.getElementById('modalBody');
 
-        modalTitle.innerHTML = `<span style="color:#ffce31; font-weight:800; display:block; font-size:11px;">تفاصيل وتحليل الصنف:</span> ${itemName}
-            <i class="fas fa-rotate" title="تحديث البيانات" style="font-size:13px; cursor:pointer; margin-right:10px; opacity:.9; background:rgba(255,255,255,0.15); padding:6px; border-radius:50%;"
-               onclick="event.stopPropagation(); window.showItemHistory('${itemId}', '${itemName}', true, ${currentStock}, ${initialStock})"></i>`;
+        const safeItemName = itemName.replace(/'/g, "\\'");
+
+        modalTitle.innerHTML = `
+            <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+                <div>
+                    <span style="color:#ffce31; font-weight:800; display:block; font-size:11px;">تفاصيل وتحليل الصنف:</span> ${itemName}
+                </div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                    <button onclick="event.stopPropagation(); exportModalPDF('${safeItemName}', ${currentStock}, ${initialStock})" 
+                            style="background:#d97706; border:none; color:#fff; padding:4px 10px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </button>
+                    <i class="fas fa-rotate" title="تحديث البيانات" style="font-size:13px; cursor:pointer; opacity:.9; background:rgba(255,255,255,0.15); padding:6px; border-radius:50%;"
+                       onclick="event.stopPropagation(); window.showItemHistory('${itemId}', '${safeItemName}', true, ${currentStock}, ${initialStock})"></i>
+                </div>
+            </div>`;
+        
         modalBody.innerHTML = `<div class="loading"><div class="spinner"></div><p>${forceRefresh ? 'جاري إعادة جلب البيانات الحية...' : 'جاري فحص بناء لوحة التحليل...'}</p></div>`;
         modal.style.display = 'flex';
 
@@ -769,7 +801,6 @@
                 }
             });
 
-            // تجميع وتحليل البيانات الإحصائية (المبيعات، المشتريات، المرتجعات، التوالف)
             let totalPurchases = 0;
             let totalSales = 0;
             let totalReturns = 0;
@@ -803,9 +834,7 @@
                 return parseDate(b) - parseDate(a); 
             });
 
-            // بناء الهيكل المتطور للمودال (داشبورد كروت + جدول الحركات المكتمل)
             let html = `
-            <!-- كروت المؤشرات الإحصائية السريعة للـ KPI -->
             <div class="modal-dashboard">
                 <div class="mini-card mc-init">
                     <i class="fas fa-hourglass-start"></i>
@@ -856,7 +885,7 @@
                 return;
             }
 
-            html += '<div class="history-list">';
+            html += '<div class="history-list" id="modalHistoryList">';
             uniqueTransactions.forEach(tx => {
                 let typeClass = 'sale';
                 let typeText = 'بيع';
@@ -904,6 +933,104 @@
 
     window.closeHistoryModal = function() {
         document.getElementById('historyModal').style.display = 'none';
+    };
+
+    /* ==========================================================
+       دوال تصدير الـ PDF المحترفة (للمخزن بالكامل أو لصنف مستقل)
+       ========================================================== */
+
+    // 1. تصدير جرد الأصناف بالكامل
+    window.exportInventoryPDF = function() {
+        if (!allItems || allItems.length === 0) {
+            alert('لا توجد أصناف لتصديرها!');
+            return;
+        }
+
+        const dateStr = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+        
+        let tableRows = '';
+        allItems.forEach((item, index) => {
+            const totalPcs = Number(item.totalPcs) || 0;
+            const price = (item.sell !== undefined && item.sell !== null && item.sell !== '') ? `${Number(item.sell).toLocaleString()} ج.م` : 'غير محدد';
+            
+            tableRows += `
+                <tr style="border-bottom: 1px solid #e2e8f0; text-align: center;">
+                    <td style="padding: 8px;">${index + 1}</td>
+                    <td style="padding: 8px; text-align: right; font-weight: bold;">${item.name || 'بدون اسم'}</td>
+                    <td style="padding: 8px;">${item.category || 'عام'}</td>
+                    <td style="padding: 8px; font-weight: bold; color: #0b5e3d;">${price}</td>
+                    <td style="padding: 8px; font-weight: bold; ${totalPcs <= 0 ? 'color:#e11d48;' : ''}">${totalPcs.toLocaleString()}</td>
+                </tr>
+            `;
+        });
+
+        const template = document.getElementById('pdfExportTemplate');
+        template.style.display = 'block';
+        template.innerHTML = `
+            <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0b5e3d; padding-bottom: 10px;">
+                <h2 style="color: #0b5e3d; margin-bottom: 4px;">شركة الزيادى لزيوت السيارات</h2>
+                <h4 style="color: #64748b; font-weight: bold;">تقرير جرد الأصناف والمخزون الحقيقي</h4>
+                <div style="font-size: 11px; color: #94a3b8; margin-top: 5px;">تاريخ التقرير: ${dateStr} | إجمالي الأصناف: ${allItems.length}</div>
+            </div>
+
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px;">
+                <thead>
+                    <tr style="background: #0b5e3d; color: #ffffff;">
+                        <th style="padding: 8px; width: 40px;">#</th>
+                        <th style="padding: 8px; text-align: right;">اسم الصنف</th>
+                        <th style="padding: 8px;">التصنيف</th>
+                        <th style="padding: 8px;">سعر البيع</th>
+                        <th style="padding: 8px;">الرصيد المتاح</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${tableRows}
+                </tbody>
+            </table>
+        `;
+
+        const opt = {
+            margin:       10,
+            filename:     `جرد_الأصناف_شركة_الزيادي_${new Date().toISOString().slice(0,10)}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(template).save().then(() => {
+            template.style.display = 'none';
+        });
+    };
+
+    // 2. تصدير تفاصيل وحركات الصنف المحدد من داخل المودال
+    window.exportModalPDF = function(itemName, currentStock, initialStock) {
+        const modalBody = document.getElementById('modalBody');
+        if (!modalBody) return;
+
+        const dateStr = new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' });
+        const template = document.getElementById('pdfExportTemplate');
+        
+        template.style.display = 'block';
+        template.innerHTML = `
+            <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0b5e3d; padding-bottom: 10px;">
+                <h2 style="color: #0b5e3d; margin-bottom: 4px;">شركة الزيادى لزيوت السيارات</h2>
+                <h3 style="color: #d97706;">تقرير حركة الصنف: ${itemName}</h3>
+                <div style="font-size: 11px; color: #64748b; margin-top: 4px;">تاريخ التصدير: ${dateStr}</div>
+            </div>
+            ${modalBody.innerHTML}
+        `;
+
+        const opt = {
+            margin:       10,
+            filename:     `حركة_صنف_${itemName.replace(/\s+/g, '_')}.pdf`,
+            image:        { type: 'jpeg', quality: 0.98 },
+            html2canvas:  { scale: 2, useCORS: true },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(template).save().then(() => {
+            template.style.display = 'none';
+        });
     };
 </script>
 </body>
