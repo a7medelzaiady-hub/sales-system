@@ -79,7 +79,7 @@
             z-index: 1000;
             border-bottom-left-radius: 20px;
             border-bottom-right-radius: 20px;
-            border-bottom: 4px solid var(--germany-red); /* دمج الشريط الأحمر بوضوح */
+            border-bottom: 4px solid var(--germany-red);
         }
         .header-nav h6 { 
             font-weight: 900; 
@@ -1047,52 +1047,70 @@
                     <p class="mt-3 fw-bold">برجاء الانتظار جاري التحميل...</p>
                 </div>`;
         }
+
         try {
+            // إضافة وقت أقصى (Timeout) لمنع الشاشة من التعليق
+            const fetchWithTimeout = (promise, ms = 8000) => {
+                return Promise.race([
+                    promise,
+                    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
+                ]);
+            };
+
+            // جلب البيانات بشكل آمن لمنع تعطل النظام بالكامل إذا فشلت مجموعة واحدة
             const [custSnap, transSnap, invSnap] = await Promise.all([
-                db.collection("customers").get(),
-                db.collection("transactions").get(),
-                db.collection("invoices").get()
+                fetchWithTimeout(db.collection("customers").get()).catch(e => { console.warn("العملاء لم تتحمل:", e); return null; }),
+                fetchWithTimeout(db.collection("transactions").get()).catch(e => { console.warn("المعاملات لم تتحمل:", e); return null; }),
+                fetchWithTimeout(db.collection("invoices").get()).catch(e => { console.warn("الفواتير لم تتحمل:", e); return null; })
             ]);
 
+            if (!invSnap) {
+                throw new Error("فشل الاتصال بقاعدة البيانات. برجاء التأكد من الإنترنت أو صلاحيات القراءة.");
+            }
+
             customersData = {};
-            custSnap.forEach(d => {
-                customersData[d.id] = { id: d.id, name: d.data().name, initialBalance: Number(d.data().initialBalance) || 0 };
-            });
+            if (custSnap) {
+                custSnap.forEach(d => {
+                    customersData[d.id] = { id: d.id, name: d.data().name, initialBalance: Number(d.data().initialBalance) || 0 };
+                });
+            }
 
             let transByCustomer = {};
             allReceiptVouchers = [];
-            transSnap.forEach(d => {
-                const tr = d.data();
-                if (tr.isDeleted === true) return;
-                if (!transByCustomer[tr.partyId]) transByCustomer[tr.partyId] = 0;
-                if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);
-                else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);
+            if (transSnap) {
+                transSnap.forEach(d => {
+                    const tr = d.data();
+                    if (tr.isDeleted === true) return;
+                    if (!transByCustomer[tr.partyId]) transByCustomer[tr.partyId] = 0;
+                    if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);
+                    else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);
 
-                const isCustomerVoucher = tr.partyType === 'عميل' || (!tr.partyType && customersData[tr.partyId]);
-                if (tr.type === 'قبض' && isCustomerVoucher) {
-                    let cashAmount = 0;
-                    let walletAmount = 0;
-                    if (tr.cashPaid !== undefined || tr.walletPaid !== undefined) {
-                        cashAmount = Number(tr.cashPaid) || 0;
-                        walletAmount = Number(tr.walletPaid) || 0;
-                    } else if (tr.method !== undefined) {
-                        const amt = Number(tr.amount) || 0;
-                        if (tr.method === 'محفظة' || tr.method === 'محفظه') walletAmount = amt;
-                        else cashAmount = amt;
-                    } else {
-                        cashAmount = Number(tr.amount) || 0;
+                    const isCustomerVoucher = tr.partyType === 'عميل' || (!tr.partyType && customersData[tr.partyId]);
+                    if (tr.type === 'قبض' && isCustomerVoucher) {
+                        let cashAmount = 0;
+                        let walletAmount = 0;
+                        if (tr.cashPaid !== undefined || tr.walletPaid !== undefined) {
+                            cashAmount = Number(tr.cashPaid) || 0;
+                            walletAmount = Number(tr.walletPaid) || 0;
+                        } else if (tr.method !== undefined) {
+                            const amt = Number(tr.amount) || 0;
+                            if (tr.method === 'محفظة' || tr.method === 'محفظه') walletAmount = amt;
+                            else cashAmount = amt;
+                        } else {
+                            cashAmount = Number(tr.amount) || 0;
+                        }
+                        const customerName = (customersData[tr.partyId] && customersData[tr.partyId].name) || 'عميل غير معروف';
+                        allReceiptVouchers.push({
+                            id: d.id,
+                            date: tr.date,
+                            cashAmount,
+                            walletAmount,
+                            customerName,
+                            note: tr.note || tr.notes || ''
+                        });
                     }
-                    const customerName = (customersData[tr.partyId] && customersData[tr.partyId].name) || 'عميل غير معروف';
-                    allReceiptVouchers.push({
-                        id: d.id,
-                        date: tr.date,
-                        cashAmount,
-                        walletAmount,
-                        customerName,
-                        note: tr.note || tr.notes || ''
-                    });
-                }
-            });
+                });
+            }
 
             let runningBalances = {};
             let tempInvoices = [];
@@ -1137,7 +1155,13 @@
 
         } catch (e) {
             console.error(e);
-            container.innerHTML = `<div class="alert alert-danger text-center p-3" style="border-radius: 12px;">حدث خطأ في تحميل البيانات من السيرفر. تأكد من اتصال الإنترنت وصلاحيات قاعدة البيانات.</div>`;
+            container.innerHTML = `
+                <div class="alert alert-danger text-center p-3 my-3" style="border-radius: 14px; font-weight:700;">
+                    <i class="fas fa-exclamation-triangle fa-2x mb-2 d-block"></i>
+                    تعدّر جلب الفواتير حالياً.
+                    <br><small class="fw-normal text-secondary">تأكد من اتصالك بالإنترنت أو أعد تحميل الصفحة.</small>
+                    <br><button class="btn btn-sm btn-dark mt-2 fw-bold" onclick="loadData(true)"><i class="fas fa-sync-alt me-1"></i> إعادة المحاولة</button>
+                </div>`;
         }
     }
 
