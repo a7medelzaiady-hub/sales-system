@@ -381,18 +381,21 @@ padding: 20px 16px;
 text-align: center;
 }
 
+/* تنسيقات منطقة הפاتورة الحرارية */
 .thermal-capture-container { position: absolute; left: -9999px; top: 0; }
 #thermalReceiptArea { background: #ffffff; width: 380px; padding: 18px; color: #000000; font-family: 'Cairo', sans-serif; }
 .receipt-header { text-align: center; border-bottom: 2px dashed #000000; padding-bottom: 12px; margin-bottom: 12px; }
 .receipt-header h3 { margin: 0; font-size: 21px; font-weight: 800; }
 .receipt-header p { margin: 4px 0 8px; font-size: 13px; font-weight: 700; }
 .receipt-header .order-prep-badge { font-size: 15px; font-weight: 800; border: 1.5px solid #000; padding: 4px 10px; border-radius: 6px; display: inline-block; margin-top: 5px;}
-.receipt-info { font-size: 13px; font-weight: 700; border-bottom: 1px dashed #000000; padding-bottom: 10px; margin-bottom: 12px; }
-.receipt-info-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+.receipt-info { font-size: 13.5px; font-weight: 800; border-bottom: 1px dashed #000000; padding-bottom: 10px; margin-bottom: 12px; }
+.receipt-info-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
 .receipt-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-.receipt-table th { border-bottom: 2px solid #000000; text-align: right; font-size: 13px; font-weight: 800; padding: 4px 0; }
-.receipt-table td { padding: 7px 0; font-size: 13px; font-weight: 700; border-bottom: 1px dashed #cccccc; }
-.receipt-total-row { border-top: 2px dashed #000000; padding-top: 10px; font-size: 16px; font-weight: 800; display: flex; justify-content: space-between; }
+.receipt-table th { border-bottom: 2px solid #000000; text-align: right; font-size: 13.5px; font-weight: 800; padding: 4px 0; }
+.receipt-table td { padding: 7px 0; font-size: 13.5px; font-weight: 700; border-bottom: 1px dashed #cccccc; }
+.receipt-totals { border-top: 2px dashed #000000; padding-top: 8px; margin-top: 10px; }
+.receipt-total-row { padding-top: 4px; font-size: 14px; font-weight: 800; display: flex; justify-content: space-between; color: #333;}
+.receipt-total-row.grand-total { border-top: 1px solid #000; margin-top: 8px; padding-top: 8px; font-size: 17px; font-weight: 900; color: #000;}
 .receipt-footer-note { text-align: center; margin-top: 15px; font-size: 12.5px; font-weight: 800; border-top: 1px dashed #ccc; padding-top: 10px; }
 
 .toast-notification {
@@ -497,17 +500,23 @@ max-width: 320px;
 <span class="order-prep-badge">قائمة بتجهيز الطلبية</span>
 </div>
 <div class="receipt-info">
-<div class="receipt-info-row"><span>رقم الطلب: <span id="thOrderId">0000</span></span><span>التاريخ: <span id="thOrderDate">0000</span></span></div>
+<div class="receipt-info-row"><span>تاريخ الطلبية: <span id="thOrderDate">0000</span></span></div>
+<div class="receipt-info-row"><span>موعد التسليم: <strong id="thRemainingDays">—</strong></span></div>
 <div class="receipt-info-row"><span>العميل: <strong id="thCustomerName">—</strong></span></div>
-<div class="receipt-info-row"><span>الحساب السابق: <strong id="thPreviousBalance">0.00 ج.م</strong></span></div>
 </div>
 <table class="receipt-table">
 <thead><tr><th>الصنف</th><th class="text-center">الكمية</th><th class="text-start">الإجمالي</th></tr></thead>
 <tbody id="thReceiptItems"></tbody>
 </table>
-<div class="receipt-total-row"><span>الإجمالي النهائي:</span><span id="thFinalTotal">0.00 ج.م</span></div>
+<div class="receipt-totals">
+    <div class="receipt-total-row"><span>الإجمالي:</span><span id="thFinalTotal">0.00 ج.م</span></div>
+    <div class="receipt-total-row"><span>الحساب السابق:</span><span id="thPreviousBalance">0.00 ج.م</span></div>
+    <div class="receipt-total-row grand-total"><span>إجمالي الحساب:</span><span id="thGrandTotal">0.00 ج.م</span></div>
+</div>
 <div class="receipt-footer-note">
 برجاء مراجعة الأصناف والأعداد والأسعار جيدا وتأكيدها معنا
+<br>
+<span style="font-size: 15px; font-weight: 900; margin-top: 8px; display: inline-block;">01027830834</span>
 </div>
 </div>
 </div>
@@ -529,13 +538,12 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 let allOrders = [];
-let allCustomers = []; // إضافة مصفوفة العملاء لجلب الرصيد السابق
+let allCustomers = []; 
 let currentFilter = 'all';
 let pendingOrderForConvert = null;
 
 async function init() {
 try {
-// جلب الطلبات والعملاء معاً
 const [ordersSnap, customersSnap] = await Promise.all([
     getDocs(collection(db, 'orders')),
     getDocs(collection(db, 'customers'))
@@ -745,16 +753,30 @@ window.shareAsThermalInvoice = (orderId) => {
 const order = allOrders.find(o => o.id === orderId);
 if (!order) return;
 
-// جلب الرصيد السابق للعميل بناءً على الـ ID الخاص به
 const customer = allCustomers.find(c => c.id === order.customerId || c.name === order.customerName);
-const prevBalance = customer ? Number(customer.balance || customer.previousBalance || 0).toFixed(2) : "0.00";
+const prevBalance = Number(customer ? (customer.balance || customer.previousBalance || 0) : 0);
+const currentTotal = Number(order.total || 0);
+const grandTotal = prevBalance + currentTotal;
 
 document.getElementById('shareLoadingModal').style.display = 'flex';
-document.getElementById('thOrderId').innerText = order.id.substring(0, 6).toUpperCase();
 document.getElementById('thOrderDate').innerText = order.date ? order.date.split(' ')[0] : '—';
 document.getElementById('thCustomerName').innerText = order.customerName || 'عميل';
-document.getElementById('thPreviousBalance').innerText = `${prevBalance} ج.م`; // إضافة الرصيد السابق
-document.getElementById('thFinalTotal').innerText = `${Number(order.total || 0).toFixed(2)} ج.م`;
+
+// حساب الأيام المتبقية كنص
+const daysRemaining = calculateRemainingDays(order.date);
+let remainingText = '';
+if (daysRemaining === 9999) remainingText = 'غير محدد';
+else if (daysRemaining === 0) remainingText = 'اليوم';
+else if (daysRemaining === 1) remainingText = 'غداً';
+else if (daysRemaining === 2) remainingText = 'بعد غد';
+else if (daysRemaining > 2) remainingText = `بعد ${daysRemaining} أيام`;
+else if (daysRemaining < 0) remainingText = `متأخر منذ ${Math.abs(daysRemaining)} يوم`;
+
+document.getElementById('thRemainingDays').innerText = remainingText;
+
+document.getElementById('thFinalTotal').innerText = `${currentTotal.toFixed(2)} ج.م`;
+document.getElementById('thPreviousBalance').innerText = `${prevBalance.toFixed(2)} ج.م`; 
+document.getElementById('thGrandTotal').innerText = `${grandTotal.toFixed(2)} ج.م`;
 
 document.getElementById('thReceiptItems').innerHTML = order.items?.map(i => {
     const qty = Number(i.quantity || i.qty || 0);
