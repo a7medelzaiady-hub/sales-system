@@ -291,7 +291,7 @@
             font-size: 0.85rem;
         }
 
-        /* Success modal */
+        /* Modals */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -341,6 +341,23 @@
 </head>
 <body>
 
+<!-- Date Prompt Modal (إجباري عند بداية فتح الصفحة) -->
+<div class="modal-overlay" id="datePromptModal">
+    <div class="modal-box">
+        <div class="modal-icon" style="background: #fff3cd; color: var(--warning);">
+            <i class="fas fa-calendar-day" style="font-size: 2rem;"></i>
+        </div>
+        <h5 class="fw-bold mb-2">تأكيد تاريخ الطلبية</h5>
+        <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 15px;">
+            الرجاء تحديد تاريخ الطلبية لتجنب نسيانه، يمكنك تعديله لاحقاً.
+        </p>
+        <input type="date" id="promptDateInput" class="form-control mb-3 text-center" style="font-size: 1rem; font-weight: bold;">
+        <button class="btn-submit m-0" onclick="confirmInitialDate()">
+            <i class="fas fa-check"></i> تأكيد والبدء
+        </button>
+    </div>
+</div>
+
 <!-- Floating items count -->
 <div class="floating-badge" id="floatingBadge">
     <i class="fas fa-boxes"></i>
@@ -389,7 +406,7 @@
                 </div>
             </div>
 
-            <!-- Date (تعديل: جعل حقل التاريخ يدوي وقابل للاختيار) -->
+            <!-- Date -->
             <div class="col-5">
                 <label class="sub-lbl"><i class="fas fa-calendar-alt me-1"></i> التاريخ</label>
                 <input type="date" id="orderDate" class="form-control" style="font-size: 0.78rem;">
@@ -458,12 +475,15 @@
         <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 20px;">
             تم حفظ طلبية العميل <b id="successCustomerName"></b> بنجاح
         </p>
-        <div class="d-flex gap-2">
-            <button class="btn btn-success w-100 fw-bold py-2" style="border-radius: 10px; font-size: 0.9rem;" onclick="goToOrders()">
-                <i class="fas fa-list me-1"></i> عرض كل الطلبات
+        <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-success flex-fill fw-bold py-2" style="border-radius: 10px; font-size: 0.85rem;" onclick="goToOrders()">
+                <i class="fas fa-list me-1"></i> كل الطلبات
             </button>
-            <button class="btn btn-light w-100 fw-bold py-2 text-success" style="border-radius: 10px; border: 1.5px solid #c3e6cb; font-size: 0.9rem;" onclick="resetForm()">
+            <button class="btn btn-light flex-fill fw-bold py-2 text-success" style="border-radius: 10px; border: 1.5px solid #c3e6cb; font-size: 0.85rem;" onclick="resetForm()">
                 <i class="fas fa-plus me-1"></i> طلبية جديدة
+            </button>
+            <button class="btn btn-outline-dark flex-fill fw-bold py-2" style="border-radius: 10px; border: 1.5px solid #dce3de; font-size: 0.85rem;" onclick="window.location.href='index.html'">
+                <i class="fas fa-home me-1"></i> الرئيسية
             </button>
         </div>
     </div>
@@ -497,12 +517,22 @@
     let customers = [];
     let inventory = [];
     let rowCounter = 0;
-    let editOrderId = null;
+    
+    // فحص ما إذا كانت الصفحة في وضع التعديل لعدم إظهار نافذة التاريخ الإجبارية
+    const params = new URLSearchParams(window.location.search);
+    let editOrderId = params.get("editOrderId");
 
     // ---------- init ----------
     async function init() {
-        // تعديل: ضبط تاريخ اليوم بتنسيق متوافق مع الحقل اليدوي القياسي (YYYY-MM-DD)
-        document.getElementById('orderDate').value = new Date().toISOString().split('T')[0];
+        const today = new Date().toISOString().split('T')[0];
+        
+        // إعداد التاريخ الافتراضي في نافذة الإدخال الإجباري
+        document.getElementById('promptDateInput').value = today;
+
+        if (!editOrderId) {
+            // إظهار نافذة التاريخ في حالة طلبية جديدة
+            document.getElementById('datePromptModal').style.display = 'flex';
+        }
 
         // load cache first
         const cCache = localStorage.getItem('cache_customers');
@@ -522,6 +552,17 @@
         localStorage.setItem('cache_customers', JSON.stringify(customers));
         localStorage.setItem('cache_inventory', JSON.stringify(inventory));
     }
+
+    // دالة تأكيد التاريخ من النافذة الإجبارية
+    window.confirmInitialDate = () => {
+        const selectedDate = document.getElementById('promptDateInput').value;
+        if (!selectedDate) {
+            alert('الرجاء تحديد التاريخ للمتابعة.');
+            return;
+        }
+        document.getElementById('orderDate').value = selectedDate;
+        document.getElementById('datePromptModal').style.display = 'none';
+    };
 
     // ---------- customer search ----------
     window.filterCustomers = (input) => {
@@ -715,11 +756,21 @@
 
         const customerId = document.getElementById('customerId').value;
         const customerName = document.getElementById('customerInput').value.trim();
+        const orderDate = document.getElementById('orderDate').value;
 
+        // التحقق من العميل
         if (!customerId) {
             document.getElementById('customerInput').classList.add('field-error');
             document.getElementById('customerError').style.display = 'block';
             valid = false;
+        }
+
+        // التحقق من التاريخ
+        if (!orderDate) {
+            document.getElementById('orderDate').classList.add('field-error');
+            valid = false;
+        } else {
+            document.getElementById('orderDate').classList.remove('field-error');
         }
 
         const rows = document.querySelectorAll('.item-row');
@@ -742,7 +793,10 @@
             document.getElementById('itemsError').style.display = 'none';
         }
 
-        if (!valid) return;
+        if (!valid) {
+            if(!orderDate) alert("الرجاء التأكد من إدخال تاريخ الطلبية.");
+            return;
+        }
 
         const btn = document.getElementById('submitBtn');
         btn.disabled = true;
@@ -750,29 +804,26 @@
 
         try {
             const total = items.reduce((s, i) => s + i.qty * i.price, 0);
-const orderData = {
-    customerId,
-    customerName,
-    items,
-    total,
-    notes: document.getElementById('orderNotes').value.trim(),
-    date: document.getElementById('orderDate').value,
-    timestamp: serverTimestamp(),
-    status: 'pending'
-};
+            const orderData = {
+                customerId,
+                customerName,
+                items,
+                total,
+                notes: document.getElementById('orderNotes').value.trim(),
+                date: orderDate,
+                timestamp: serverTimestamp(),
+                status: 'pending'
+            };
 
-if (editOrderId) {
-    await updateDoc(doc(db, 'orders', editOrderId), orderData);
-} else {
-    await addDoc(collection(db, 'orders'), orderData);
-}
+            if (editOrderId) {
+                await updateDoc(doc(db, 'orders', editOrderId), orderData);
+            } else {
+                await addDoc(collection(db, 'orders'), orderData);
+            }
 
-           document.getElementById('successCustomerName').innerText = customerName;
-
-document.querySelector('.modal-box h5').innerText =
-    editOrderId ? 'تم تعديل الطلبية!' : 'تم تسجيل الطلبية!';
-
-document.getElementById('successModal').style.display = 'flex';
+            document.getElementById('successCustomerName').innerText = customerName;
+            document.querySelector('.modal-box h5').innerText = editOrderId ? 'تم تعديل الطلبية!' : 'تم تسجيل الطلبية!';
+            document.getElementById('successModal').style.display = 'flex';
 
         } catch (e) {
             console.error(e);
@@ -792,12 +843,21 @@ document.getElementById('successModal').style.display = 'flex';
         document.getElementById('customerInput').value = '';
         document.getElementById('customerId').value = '';
         document.getElementById('orderNotes').value = '';
-        // تعديل: ضبط التصفير هنا أيضاً ليتوافق مع الحقل اليدوي الجديد بصيغة الموبايل القياسية
-        document.getElementById('orderDate').value = new Date().toISOString().split('T')[0];
+        
+        // إظهار نافذة التاريخ الإجبارية مرة أخرى عند طلب تسجيل طلبية جديدة
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('promptDateInput').value = today;
+        document.getElementById('orderDate').value = ''; 
+        document.getElementById('datePromptModal').style.display = 'flex';
+
         document.getElementById('itemsContainer').innerHTML = '';
         hideBadge();
         rowCounter = 0;
         editOrderId = null;
+        
+        // إزالة معاملات التعديل من الرابط إن وجدت
+        window.history.replaceState({}, document.title, window.location.pathname);
+
         addItemRow();
         recalc();
         document.getElementById('submitBtn').innerHTML = '<i class="fas fa-paper-plane"></i> تسجيل الطلبية';
@@ -805,9 +865,6 @@ document.getElementById('successModal').style.display = 'flex';
 
     // ------------------ تحميل الطلبية للتعديل ------------------
     async function loadOrderForEdit() {
-        const params = new URLSearchParams(window.location.search);
-        editOrderId = params.get("editOrderId");
-
         if (!editOrderId) return;
 
         try {
@@ -860,4 +917,3 @@ document.getElementById('successModal').style.display = 'flex';
 </script>
 </body>
 </html>
-
