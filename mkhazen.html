@@ -337,13 +337,27 @@
             (i.barcode && i.barcode.includes(term))
         );
 
-        // 2. الترتيب: الأصناف التي كميتها 0 تذهب للأسفل
+        // 2. الترتيب الجديد:
+        // الأولوية الأولى: الأصناف التي لديها كميات (موجبة أو سالبة) وليس لديها سعر (سعرها 0)
+        // الأولوية الثانية: الأصناف التي لديها أسعار
+        // الأولوية الأخيرة: الأصناف المنتهية (كميتها 0)
         filtered.sort((a, b) => {
             const qtyA = Number(a.totalPcs) || 0;
             const qtyB = Number(b.totalPcs) || 0;
-            
-            if (qtyA === 0 && qtyB > 0) return 1;
-            if (qtyB === 0 && qtyA > 0) return -1;
+            const priceA = Number(a.sell) || 0;
+            const priceB = Number(b.sell) || 0;
+
+            const isPriorityA = (qtyA !== 0) && (priceA === 0);
+            const isPriorityB = (qtyB !== 0) && (priceB === 0);
+
+            // رفع الأصناف التي لديها كميات وبدون سعر إلى الأعلى
+            if (isPriorityA && !isPriorityB) return -1;
+            if (!isPriorityA && isPriorityB) return 1;
+
+            // تحريك الأصناف المنتهية (كميتها 0) إلى النهاية
+            if (qtyA === 0 && qtyB !== 0) return 1;
+            if (qtyA !== 0 && qtyB === 0) return -1;
+
             return 0;
         });
 
