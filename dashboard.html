@@ -404,7 +404,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, getDocs, doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, getDocs, doc, setDoc, getDoc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -453,6 +453,33 @@
             if (text) document.getElementById('loadingText').innerText = text;
         }
 
+        /* دالة جلب الرصيد الحقيقي للمورد الواحدة بناءً على السندات والمشتريات */
+        async function getSupplierRealBalance(supId, openingBal) {
+            const [snapTrans, snapItems] = await Promise.all([
+                getDocs(query(collection(db, "transactions"), where("partyId", "==", supId))),
+                getDocs(query(collection(db, "supplier_transactions"), where("supplierId", "==", supId)))
+            ]);
+
+            let debt = 0;   
+            let credit = 0; 
+
+            snapTrans.forEach(doc => {
+                const d = doc.data();
+                const amt = Number(d.amount) || 0;
+                if (d.type === "صرف") credit += amt;
+                else if (d.type === "قبض") debt += amt;
+            });
+
+            snapItems.forEach(doc => {
+                const d = doc.data();
+                const amt = Number(d.total) || Number(d.amount) || 0;
+                if (d.type === "شراء" || d.type === "فاتورة شراء") debt += amt;
+                else if (d.type === "مرتجع شراء") credit += amt;
+            });
+
+            return (Number(openingBal || 0) + debt) - credit;
+        }
+
         /* ============ State ============ */
 
         let netCashFlow = 0, netWalletFlow = 0;
@@ -466,7 +493,7 @@
             suppliers: { count: 0, totalDebt: 0 }
         };
 
-        /* ============ factory reset (مستثنى منها سجل الأرباح archived_profits) ============ */
+        /* ============ factory reset ============ */
 
         window.factoryResetDatabase = async function () {
             const firstConfirm = confirm("⚠️ تنبيه مالي خطير جداً:\nهل أنت متأكد تماماً من رغبتك في تفريغ قاعدة البيانات بالكامل؟");
@@ -477,7 +504,6 @@
             try {
                 setLoading(true, "جاري تصفير وإخلاء قاعدة البيانات (مع الحفاظ على سجل الأرباح)...");
 
-                // 🛡️ تم حذف 'archived_profits' تماماً لحمايتها من أي عملية مسح
                 const collectionsToClear = [
                     'cash_logs', 'inventory', 'invoices', 'transactions', 'customers',
                     'suppliers', 'supplier_transactions', 'expenses', 'orders',
@@ -654,7 +680,7 @@
                     actualInv += (totalPcs / factor) * buyPrice;
                 });
 
-                /* ---- العملاء والموردين ---- */
+                /* ---- العملاء ---- */
                 actualCust = 0;
                 customersSnap.forEach(docItem => {
                     const bal = num(docItem.data().currentBalance);
@@ -663,12 +689,19 @@
                     if(bal > 0) analytics.customers.count++;
                 });
 
+                /* ---- الموردين (التحديث الجديد للربط المباشر بصفحة الموردين) ---- */
                 actualSup = 0;
-                suppliersSnap.forEach(docItem => {
-                    const bal = num(docItem.data().currentBalance);
+                const supBalancePromises = suppliersSnap.docs.map(async (docItem) => {
+                    const data = docItem.data();
+                    const balance = await getSupplierRealBalance(docItem.id, data.openingBalance);
+                    return balance;
+                });
+
+                const supBalances = await Promise.all(supBalancePromises);
+                supBalances.forEach(bal => {
                     actualSup += bal;
                     analytics.suppliers.totalDebt += bal;
-                    if(bal > 0) analytics.suppliers.count++;
+                    if (bal > 0.1) analytics.suppliers.count++;
                 });
 
                 window.calculateFinancialTotals();
