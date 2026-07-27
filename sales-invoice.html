@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
-       :root {
+        :root {
             /* تطبيق ألوان علم ألمانيا الرسمية (الأسود - الأحمر - الذهبي) */
             --accent: #000000;              /* الأسود الألماني */
             --accent-light: #252525;        /* أسود مخفف ناعم */
@@ -293,44 +293,6 @@
             border-radius: 20px !important; font-size: 0.85rem !important; font-weight: 800 !important;
         }
 
-        .image-preview-gallery {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            justify-content: center;
-            margin-top: 12px;
-        }
-        .gallery-item {
-            position: relative;
-            width: 80px;
-            height: 80px;
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        .gallery-item img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        .gallery-item .btn-delete-img {
-            position: absolute;
-            top: 2px;
-            right: 2px;
-            background: rgba(255, 0, 0, 0.9);
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 18px;
-            height: 18px;
-            font-size: 0.65rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-        }
-
         @keyframes scaleUp { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
 </head>
@@ -417,19 +379,6 @@
         <button class="btn btn-add-item w-100 mb-3" onclick="addNewRow()">
             <i class="fas fa-plus-circle me-1"></i> إضافة صنف جديد
         </button>
-
-        <div class="mb-3 p-3 text-center" style="background: #fafafa; border: 1.5px dashed var(--germany-black); border-radius: var(--card-radius);">
-            <span class="sub-lbl mb-2 text-center" style="font-size: 0.85rem; font-weight: 700; color: var(--accent);"><i class="fas fa-camera me-1"></i> تصوير البضاعة للمراجعة (متعدد)</span>
-            <button type="button" class="btn btn-outline-dark w-100 fw-bold" onclick="document.getElementById('cargoImageInput').click()" style="border-radius: var(--input-radius);">
-                📸 التقط صورة بضاعة جديدة
-            </button>
-            <input type="file" id="cargoImageInput" accept="image/*" capture="environment" style="display: none;" onchange="previewCargoImage(event)">
-            
-            <div id="imagePreviewContainer" style="display: none; margin-top: 12px;">
-                <div class="image-preview-gallery" id="imagesGallery"></div>
-                <div class="text-dark fw-bold small mt-2"><i class="fas fa-check-circle"></i> تم إدراج الصور بنجاح ✅</div>
-            </div>
-        </div>
 
         <div class="payment-box">
             <div class="row g-2 mb-2">
@@ -723,7 +672,6 @@
     let isChanged = false;
     let currentFetchedOldBalance = 0;
     let originalInvoiceTime = "";
-    let cargoImagesArray = []; 
     let originalInvoiceDataForLogs = null; 
 
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
@@ -764,81 +712,6 @@
         document.getElementById('customAlertModal').style.display = 'none';
     };
 
-    function resizeAndCompressImage(file, maxWidth, maxHeight, quality, callback) {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = function(event) {
-            const img = new Image();
-            img.src = event.target.result;
-            img.onload = function() {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-
-                if (width > height) {
-                    if (width > maxWidth) {
-                        height = Math.round((height * maxWidth) / width);
-                        width = maxWidth;
-                    }
-                } else {
-                    if (height > maxHeight) {
-                        width = Math.round((width * maxHeight) / height);
-                        height = maxHeight;
-                    }
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
-                callback(compressedBase64);
-            };
-        };
-    }
-
-    window.previewCargoImage = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-            if (cargoImagesArray.length >= 5) {
-                window.showCustomAlert("الحد الأقصى للتصوير هو 5 صور للفاتورة الواحدة.");
-                return;
-            }
-            resizeAndCompressImage(file, 800, 800, 0.5, (compressedBase64) => {
-                cargoImagesArray.push(compressedBase64);
-                renderImagesGallery();
-                isChanged = true;
-            });
-        }
-    };
-
-    function renderImagesGallery() {
-        const container = document.getElementById("imagePreviewContainer");
-        const gallery = document.getElementById("imagesGallery");
-        gallery.innerHTML = "";
-
-        if (cargoImagesArray.length > 0) {
-            container.style.display = "block";
-            cargoImagesArray.forEach((imgSrc, index) => {
-                const item = document.createElement("div");
-                item.className = "gallery-item";
-                item.innerHTML = `
-                    <img src="${imgSrc}" alt="بضاعة ${index + 1}">
-                    <button type="button" class="btn-delete-img" onclick="removeCargoImage(${index})">×</button>
-                `;
-                gallery.appendChild(item);
-            });
-        } else {
-            container.style.display = "none";
-        }
-    }
-
-    window.removeCargoImage = (index) => {
-        cargoImagesArray.splice(index, 1);
-        renderImagesGallery();
-        isChanged = true;
-    };
-
     function collectDraftPayload() {
         const items = [];
         document.querySelectorAll('.product-row').forEach(r => {
@@ -862,7 +735,6 @@
             paidAmount: document.getElementById('paidAmount').value,
             oldBalance: currentFetchedOldBalance,
             items,
-            cargoImages: cargoImagesArray, 
             savedAt: new Date().toISOString()
         };
     }
@@ -891,9 +763,6 @@
         currentFetchedOldBalance = Number(payload.oldBalance) || 0;
         showBalance(currentFetchedOldBalance);
         if (payload.customerId) document.getElementById('customerBalanceInfo').style.display = 'block';
-
-        cargoImagesArray = payload.cargoImages || [];
-        renderImagesGallery();
 
         document.getElementById('itemsContainer').innerHTML = '';
         (payload.items || []).forEach(item => window.addNewRow(item));
@@ -1441,12 +1310,6 @@
 
         if (validItemsCount === 0) { return window.showCustomAlert("الرجاء إضافة أصناف للفاتورة"); }
 
-        if (cargoImagesArray.length === 0) {
-            window.showCustomAlert("⚠️ تنبيه: يرجى تصوير البضاعة والاحتفاظ بصورها على البرنامج أولاً للرجوع إليها وقت المراجعة!");
-            document.getElementById("cargoImageInput").click(); 
-            return;
-        }
-
         document.getElementById('revCustomerName').innerText = customerName;
         document.getElementById('revItemsCount').innerText = `${validItemsCount} صنف`;
         document.getElementById('revCartonsCount').innerText = `${totalCartons} كرتونة`;
@@ -1568,8 +1431,7 @@
                 cashAmount: Number(finalCash) || 0,
                 walletAmount: Number(finalWallet) || 0,
                 items, time: currentInvoiceTime, 
-                notes: finalNotes, 
-                cargoImages: cargoImagesArray 
+                notes: finalNotes
             };
 
             if (!editId) {
@@ -1890,12 +1752,6 @@
                     document.getElementById('walletAmount').value = data.walletAmount || 0;
                     document.getElementById('paidAmount').value = data.paid || 0;
                     document.getElementById('discountAmount').value = data.discount || 0;
-
-                    cargoImagesArray = data.cargoImages || [];
-                    if (data.cargoImage && cargoImagesArray.length === 0) {
-                        cargoImagesArray.push(data.cargoImage);
-                    }
-                    renderImagesGallery();
 
                     if (data.customerId) {
                         const cust = customers.find(c => c.id === data.customerId);
