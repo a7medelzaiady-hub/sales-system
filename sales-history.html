@@ -380,77 +380,10 @@
         .empty-state { text-align: center; padding: 60px 10px; color: var(--text-secondary); }
         .empty-state i { color: #cbd5e1; }
 
-        .cargo-gallery-overlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(15, 23, 42, 0.9); 
-            z-index: 20000; 
-            display: flex;
-            align-items: center; 
-            justify-content: center; 
-            backdrop-filter: blur(5px);
-        }
-        .cargo-gallery-box {
-            background: #fff; 
-            width: 92%; 
-            max-width: 440px; 
-            border-radius: 24px;
-            overflow: hidden; 
-            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
-            animation: scaleUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); 
-            display: flex; 
-            flex-direction: column;
-        }
-        .cargo-gallery-header {
-            background: var(--germany-black); 
-            color: white; 
-            padding: 14px 18px;
-            display: flex; 
-            align-items: center; 
-            justify-content: space-between;
-            border-bottom: 3px solid var(--germany-red);
-        }
-        .cargo-gallery-body {
-            padding: 16px; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center;
-            background: #0f172a; 
-            justify-content: center; 
-            min-height: 280px; 
-            position: relative;
-        }
-        .cargo-gallery-img {
-            max-width: 100%; 
-            max-height: 360px; 
-            border-radius: 12px;
-            object-fit: contain; 
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-        }
-        .cargo-gallery-footer {
-            background: #f8fafc; 
-            padding: 14px 18px; 
-            display: flex;
-            align-items: center; 
-            justify-content: space-between; 
-            gap: 10px;
-        }
-        .gallery-nav-btn {
-            background: var(--germany-black); 
-            color: white; 
-            border: none;
-            border-radius: 10px; 
-            padding: 8px 16px; 
-            font-weight: 800; 
-            cursor: pointer;
-            font-size: 0.8rem;
-        }
-        .gallery-nav-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
-
         #thermalPrintSection { display: none; }
         @media print {
             body { background: white; color: black; padding: 0; margin: 0; }
-            #content-to-export, .header-nav, .control-panel-card, .stats-section-title, .row, .filter-status-bar, #customGlobalModal, .invoice-item, .recon-card, .cargo-gallery-overlay { display: none !important; }
+            #content-to-export, .header-nav, .control-panel-card, .stats-section-title, .row, .filter-status-bar, #customGlobalModal, .invoice-item, .recon-card { display: none !important; }
             #thermalPrintSection { display: block !important; width: 80mm; max-width: 80mm; padding: 4mm 2mm; margin: 0 auto; direction: rtl; font-family: 'Cairo', sans-serif; }
         }
 
@@ -549,7 +482,7 @@
                 </div>
             </div>
             <div class="action-buttons-group">
-                <button class="btn btn-outline-dark" onclick="downloadInvoicesImagesByDate()" title="تحميل الفواتير وصور البضاعة وملحوظاتها">
+                <button class="btn btn-outline-dark" onclick="downloadInvoicesImagesByDate()" title="تحميل الفواتير وملحوظاتها">
                     <i class="fas fa-images"></i> صور الفواتير ZIP
                 </button>
                 <button class="btn btn-dark text-white" onclick="printDailyComprehensiveReport()" title="تقرير مالي للمبيعات والمخزن اليومي">
@@ -568,28 +501,6 @@
 </div>
 
 <div id="thermalPrintSection"></div>
-
-<div id="cargoGalleryModal" class="cargo-gallery-overlay" style="display: none;">
-    <div class="cargo-gallery-box">
-        <div class="cargo-gallery-header">
-            <span class="fw-bold" style="font-size: 0.9rem;"><i class="fas fa-camera me-1"></i> معاينة صور البضاعة الملتقطة</span>
-            <button type="button" class="btn-close btn-close-white" onclick="closeCargoGallery()"></button>
-        </div>
-        <div class="cargo-gallery-body">
-            <img id="modalGalleryImg" class="cargo-gallery-img" src="" alt="بضاعة الفاتورة">
-        </div>
-        <div class="cargo-gallery-footer">
-            <div>
-                <button id="btnPrevGallery" class="gallery-nav-btn" onclick="navigateGallery(-1)"><i class="fas fa-arrow-right"></i> السابق</button>
-                <button id="btnNextGallery" class="gallery-nav-btn" onclick="navigateGallery(1)">التالي <i class="fas fa-arrow-left"></i></button>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-                <span id="galleryCounter" class="fw-bold small text-muted">0 / 0</span>
-                <button id="btnDownloadGallery" class="btn btn-sm btn-outline-dark py-1 px-2" onclick="downloadCurrentImage()"><i class="fas fa-download"></i> تنزيل</button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">
     <div class="custom-popup-box">
@@ -615,7 +526,6 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    // تفعيل التخزين المؤقت في المتصفح لتسريع التحميل الفوري
     firebase.firestore().enablePersistence({ synchronizeTabs: true }).catch(() => {});
 
     let allInvoices = [];
@@ -623,9 +533,6 @@
     let currentFilterType = null;
     let currentRenderedInvoices = [];
     let allReceiptVouchers = [];
-    
-    let currentGalleryImages = [];
-    let currentGalleryIndex = 0;
 
     window.globalExpectedTodayCash = 0;
 
@@ -785,13 +692,6 @@
 
             const modificationNotes = inv.notes || "";
             const isModified = modificationNotes.trim() !== "" && modificationNotes !== "معدلة";
-            
-            const hasImages = (inv.cargoImages && inv.cargoImages.length > 0) || (inv.cargoImage && inv.cargoImage.trim() !== "");
-            const viewImagesBtn = hasImages ? `
-                <button class="btn btn-outline-dark" onclick="openCargoGallery('${inv.id}')" title="مشاهدة صور البضاعة">
-                    <i class="fas fa-camera"></i>
-                </button>
-            ` : '';
 
             const viewModificationsBtn = isModified ? `
                 <button class="btn btn-outline-dark" onclick="toggleModificationsBox('${inv.id}')" title="عرض سجل التعديل">
@@ -827,7 +727,6 @@
                     <div class="invoice-actions-group">
                         <button class="btn btn-outline-dark" onclick="toggleDetails('${inv.id}')" title="عرض الأصناف"><i class="fas fa-eye"></i></button>
                         ${viewModificationsBtn}
-                        ${viewImagesBtn}
                         <button class="btn btn-outline-dark" onclick="window.printThermalInvoice('${inv.id}')" title="طباعة حرارية 80"><i class="fas fa-print"></i></button>
                         <button class="btn btn-outline-dark" onclick="window.shareThermalInvoice('${inv.id}')" title="مشاركة الفاتورة"><i class="fas fa-share-alt"></i></button>
                         <button class="btn btn-outline-dark" onclick="editInvoice('${inv.id}')" title="تعديل الفاتورة"><i class="fas fa-edit"></i></button>
@@ -877,64 +776,6 @@
         }
 
         container.innerHTML = invoicesHtml + dividerHtml + vouchersHtml;
-    };
-
-    window.openCargoGallery = (invoiceId) => {
-        const inv = allInvoices.find(i => i.id === invoiceId);
-        if (!inv) return;
-
-        currentGalleryImages = [];
-        currentGalleryIndex = 0;
-
-        if (inv.cargoImages && inv.cargoImages.length > 0) {
-            currentGalleryImages = [...inv.cargoImages];
-        } else if (inv.cargoImage && inv.cargoImage.trim() !== "") {
-            currentGalleryImages.push(inv.cargoImage);
-        }
-
-        if (currentGalleryImages.length === 0) {
-            window.showCustomUi({ title: "تنبيه", message: "لا توجد صور ملتقطة لهذه الفاتورة.", icon: "info" });
-            return;
-        }
-
-        document.getElementById('cargoGalleryModal').style.display = 'flex';
-        updateGalleryView();
-    };
-
-    window.closeCargoGallery = () => {
-        document.getElementById('cargoGalleryModal').style.display = 'none';
-    };
-
-    function updateGalleryView() {
-        const imgEl = document.getElementById('modalGalleryImg');
-        const counterEl = document.getElementById('galleryCounter');
-        const btnPrev = document.getElementById('btnPrevGallery');
-        const btnNext = document.getElementById('btnNextGallery');
-
-        imgEl.src = currentGalleryImages[currentGalleryIndex];
-        counterEl.innerText = `${currentGalleryIndex + 1} / ${currentGalleryImages.length}`;
-
-        btnPrev.disabled = (currentGalleryIndex === 0);
-        btnNext.disabled = (currentGalleryIndex === currentGalleryImages.length - 1);
-    }
-
-    window.navigateGallery = (direction) => {
-        currentGalleryIndex += direction;
-        if (currentGalleryIndex < 0) currentGalleryIndex = 0;
-        if (currentGalleryIndex >= currentGalleryImages.length) currentGalleryIndex = currentGalleryImages.length - 1;
-        updateGalleryView();
-    };
-
-    window.downloadCurrentImage = () => {
-        const currentSrc = currentGalleryImages[currentGalleryIndex];
-        if (!currentSrc) return;
-
-        const a = document.createElement('a');
-        a.href = currentSrc;
-        a.download = `بضاعة_معاينة_${currentGalleryIndex + 1}.jpeg`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
     };
 
     function calculateStats() {
@@ -1039,14 +880,14 @@
         }
     }
 
-    // دالة جلب البيانات السريعة بعد التعديل
+    // دالة جلب البيانات المحسّنة والسريعة
     async function loadData(showSpinner = true, loadAllArchive = false) {
         const container = document.getElementById('invoicesList');
         if (showSpinner) {
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
-                    <p class="mt-3 fw-bold">جاري تحميل البيانات بسرعة...</p>
+                    <p class="mt-3 fw-bold">جاري جلب البيانات من السحابة...</p>
                 </div>`;
         }
 
@@ -1054,6 +895,7 @@
             const filterInput = document.getElementById('dateFilterInput')?.value;
             const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
 
+            // 1. إعداد استعلام الفواتير والمعاملات الأساسية
             let invQuery = db.collection("invoices").where("isDeleted", "==", false);
             let transQuery = db.collection("transactions").where("isDeleted", "==", false);
 
@@ -1062,23 +904,18 @@
                 transQuery = transQuery.where("date", "==", targetDate);
             }
 
-            const fetchWithTimeout = (promise, ms = 4000) => {
-                return Promise.race([
-                    promise,
-                    new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
-                ]);
-            };
-
+            // 2. جلب البيانات بدون مهلة تعسفية وبطريقة سلسة
             const [custSnap, transSnap, invSnap] = await Promise.all([
-                fetchWithTimeout(db.collection("customers").get()).catch(() => null),
-                fetchWithTimeout(transQuery.get()).catch(() => null),
-                fetchWithTimeout(invQuery.get()).catch(() => null)
+                db.collection("customers").get().catch(err => { console.warn("العملاء:", err); return null; }),
+                transQuery.get().catch(err => { console.warn("المعاملات:", err); return null; }),
+                invQuery.get().catch(err => { console.error("الفواتير:", err); return null; })
             ]);
 
             if (!invSnap) {
-                throw new Error("تعذر جلب البيانات بسرعة.");
+                throw new Error("لم يتم استرجاع أي بيانات للفواتير.");
             }
 
+            // 3. معالجة بيانات العملاء
             customersData = {};
             if (custSnap) {
                 custSnap.forEach(d => {
@@ -1086,15 +923,11 @@
                 });
             }
 
-            let transByCustomer = {};
+            // 4. معالجة سندات القبض والمعاملات
             allReceiptVouchers = [];
             if (transSnap) {
                 transSnap.forEach(d => {
                     const tr = d.data();
-                    if (!transByCustomer[tr.partyId]) transByCustomer[tr.partyId] = 0;
-                    if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);
-                    else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);
-
                     const isCustomerVoucher = tr.partyType === 'عميل' || (!tr.partyType && customersData[tr.partyId]);
                     if (tr.type === 'قبض' && isCustomerVoucher) {
                         let cashAmount = Number(tr.cashPaid ?? (tr.method !== 'محفظة' ? tr.amount : 0)) || 0;
@@ -1113,6 +946,7 @@
                 });
             }
 
+            // 5. معالجة الفواتير
             let tempInvoices = [];
             invSnap.forEach(d => {
                 const data = d.data();
@@ -1128,7 +962,12 @@
                 });
             });
 
-            allInvoices = tempInvoices.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+            // ترتيب الفواتير برمجياً داخل المتصفح لتجنب الحاجة لـ Index في Firebase
+            allInvoices = tempInvoices.sort((a, b) => {
+                const timeA = a.timestamp?.seconds || 0;
+                const timeB = b.timestamp?.seconds || 0;
+                return timeB - timeA;
+            });
 
             applyCurrentView();
 
@@ -1137,8 +976,8 @@
             container.innerHTML = `
                 <div class="alert alert-danger text-center p-3 my-3" style="border-radius: 14px; font-weight:700;">
                     <i class="fas fa-exclamation-triangle fa-2x mb-2 d-block"></i>
-                    تعدّر جلب الفواتير بسرعة.
-                    <br><small class="fw-normal text-secondary">تأكد من اتصالك بالإنترنت أو أعد تحميل الصفحة.</small>
+                    حدث خطأ أو لا توجد فواتير مسجلة لهذا اليوم (${document.getElementById('dateFilterInput')?.value || 'اليوم'}).
+                    <br><small class="fw-normal text-secondary">جرب اختيار تاريخ آخر أو اضغط على "جلب كل الفواتير السابقة".</small>
                     <br><button class="btn btn-sm btn-dark mt-2 fw-bold" onclick="loadData(true)"><i class="fas fa-sync-alt me-1"></i> إعادة المحاولة</button>
                 </div>`;
         }
@@ -1259,58 +1098,6 @@
         });
     }
 
-    async function convertToBlob(source) {
-        if (!source) return null;
-        if (source.startsWith('http://') || source.startsWith('https://')) {
-            try {
-                const response = await fetch(source);
-                return await response.blob();
-            } catch (err) {
-                console.error("خطأ CORS أثناء جلب الصورة مباشرة، محاولة التحويل البديل:", err);
-                return null;
-            }
-        }
-        if (source.startsWith('data:image')) {
-            try {
-                const parts = source.split(',');
-                const contentType = parts[0].split(':')[1].split(';')[0];
-                const byteCharacters = atob(parts[1]);
-                const byteArrays = [];
-                for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-                    const slice = byteCharacters.slice(offset, offset + 512);
-                    const byteNumbers = new Array(slice.length);
-                    for (let i = 0; i < slice.length; i++) {
-                        byteNumbers[i] = slice.charCodeAt(i);
-                    }
-                    const byteArray = new Uint8Array(byteNumbers);
-                    byteArrays.push(byteArray);
-                }
-                return new Blob(byteArrays, { type: contentType });
-            } catch (err) {
-                console.error("فشل تحويل كود الـ Base64 لـ Blob:", err);
-                return null;
-            }
-        }
-
-        try {
-            const byteCharacters = atob(source);
-            const byteArrays = [];
-            for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-                const slice = byteCharacters.slice(offset, offset + 512);
-                const byteNumbers = new Array(slice.length);
-                for (let i = 0; i < slice.length; i++) {
-                    byteNumbers[i] = slice.charCodeAt(i);
-                }
-                const byteArray = new Uint8Array(byteNumbers);
-                byteArrays.push(byteArray);
-            }
-            return new Blob(byteArrays, { type: 'image/jpeg' });
-        } catch (err) {
-            console.error("فشل القراءة البديلة لبيانات الصورة:", err);
-            return null;
-        }
-    }
-
     window.downloadInvoicesImagesByDate = async () => {
         const filterInput = document.getElementById('dateFilterInput').value;
         const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
@@ -1324,7 +1111,7 @@
 
         window.showCustomUi({ 
             title: "جاري التجميع والتحميل...", 
-            message: `جاري تجميع الفواتير وصور بضاعتها لليوم.\nيرجى الانتظار لحين الانتهاء وتوليد الملف...`, 
+            message: `جاري تجميع الفواتير لليوم.\nيرجى الانتظار لحين الانتهاء وتوليد الملف...`, 
             type: "alert", 
             icon: "info" 
         });
@@ -1358,25 +1145,6 @@
                 } catch (e) {
                     console.error("تخطي توليد صورة فاتورة للعميل: " + safeCustomerName, e);
                 }
-
-                let tempImages = [];
-                if (inv.cargoImages && inv.cargoImages.length > 0) {
-                    tempImages = [...inv.cargoImages];
-                } else if (inv.cargoImage && inv.cargoImage.trim() !== "") {
-                    tempImages.push(inv.cargoImage);
-                }
-
-                for (let imgIndex = 0; imgIndex < tempImages.length; imgIndex++) {
-                    const base64Str = tempImages[imgIndex];
-                    try {
-                        const cargoBlob = await convertToBlob(base64Str);
-                        if (cargoBlob) {
-                            folder.file(`بضاعة_${imgIndex + 1}_${safeCustomerName}_${i + 1}.jpeg`, cargoBlob);
-                        }
-                    } catch (err) {
-                        console.error("تخطي صورة بضاعة للعميل " + safeCustomerName, err);
-                    }
-                }
             }
 
             if (!hasAnyNotes) {
@@ -1394,7 +1162,7 @@
             a.click();
             URL.revokeObjectURL(url);
             
-            window.showCustomUi({ title: "اكتمل التنزيل", message: "تم تنزيل ملف ZIP بنجاح.\nالملف يحتوي على:\n1. صور الفواتير الحرارية.\n2. صور البضاعة الملتقطة.\n3. ملف تقرير الملحوظات النصي.", icon: "success" });
+            window.showCustomUi({ title: "اكتمل التنزيل", message: "تم تنزيل ملف ZIP بنجاح.\nالملف يحتوي على:\n1. صور الفواتير الحرارية.\n2. ملف تقرير الملحوظات النصي.", icon: "success" });
         } catch (error) {
             console.error(error);
             window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء تجميع وضغط الملفات.", icon: "danger" });
