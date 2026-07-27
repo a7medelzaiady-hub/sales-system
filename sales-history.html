@@ -17,21 +17,19 @@
 
     <style>
         :root {
-            /* تطبيق ألوان علم ألمانيا الرسمية (الأسود - الأحمر - الذهبي) */
-            --accent: #000000;              /* الأسود الألماني */
-            --accent-light: #252525;        /* أسود مخفف ناعم */
+            --accent: #000000;
+            --accent-light: #252525;
             --accent-deep: #000000;
             --header-bg: linear-gradient(135deg, #000000, #252525 80%);
-            --bg-light: #f5f6f6;            /* خلفية النظام العامة مريحة للعين */
-            --text-primary: #000000;        /* النصوص الأساسية */
-            --text-secondary: #4a4a4a;      /* النصوص التوضيحية */
-            --border: #dcdcdc;              /* حدود الحقول */
+            --bg-light: #f5f6f6;
+            --text-primary: #000000;
+            --text-secondary: #4a4a4a;
+            --border: #dcdcdc;
             --white: #ffffff;
             
-            /* ألوان العلم الرسمية والمستهدفة لعناصر الإجراءات */
             --germany-black: #000000;
-            --germany-red: #FF0000;         /* الأحمر الألماني الصريح */
-            --germany-gold: #FFCC00;        /* الذهبي / الأصفر الألماني الصريح */
+            --germany-red: #FF0000;
+            --germany-gold: #FFCC00;
             
             --danger: #FF0000;
             --danger-bg: #fff1f1;
@@ -617,6 +615,9 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
+    // تفعيل التخزين المؤقت في المتصفح لتسريع التحميل الفوري
+    firebase.firestore().enablePersistence({ synchronizeTabs: true }).catch(() => {});
+
     let allInvoices = [];
     let customersData = {};
     let currentFilterType = null;
@@ -1038,34 +1039,44 @@
         }
     }
 
-    async function loadData(showSpinner = true) {
+    // دالة جلب البيانات السريعة بعد التعديل
+    async function loadData(showSpinner = true, loadAllArchive = false) {
         const container = document.getElementById('invoicesList');
         if (showSpinner) {
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
-                    <p class="mt-3 fw-bold">برجاء الانتظار جاري التحميل...</p>
+                    <p class="mt-3 fw-bold">جاري تحميل البيانات بسرعة...</p>
                 </div>`;
         }
 
         try {
-            // إضافة وقت أقصى (Timeout) لمنع الشاشة من التعليق
-            const fetchWithTimeout = (promise, ms = 8000) => {
+            const filterInput = document.getElementById('dateFilterInput')?.value;
+            const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
+
+            let invQuery = db.collection("invoices").where("isDeleted", "==", false);
+            let transQuery = db.collection("transactions").where("isDeleted", "==", false);
+
+            if (!loadAllArchive) {
+                invQuery = invQuery.where("date", "==", targetDate);
+                transQuery = transQuery.where("date", "==", targetDate);
+            }
+
+            const fetchWithTimeout = (promise, ms = 4000) => {
                 return Promise.race([
                     promise,
                     new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), ms))
                 ]);
             };
 
-            // جلب البيانات بشكل آمن لمنع تعطل النظام بالكامل إذا فشلت مجموعة واحدة
             const [custSnap, transSnap, invSnap] = await Promise.all([
-                fetchWithTimeout(db.collection("customers").get()).catch(e => { console.warn("العملاء لم تتحمل:", e); return null; }),
-                fetchWithTimeout(db.collection("transactions").get()).catch(e => { console.warn("المعاملات لم تتحمل:", e); return null; }),
-                fetchWithTimeout(db.collection("invoices").get()).catch(e => { console.warn("الفواتير لم تتحمل:", e); return null; })
+                fetchWithTimeout(db.collection("customers").get()).catch(() => null),
+                fetchWithTimeout(transQuery.get()).catch(() => null),
+                fetchWithTimeout(invQuery.get()).catch(() => null)
             ]);
 
             if (!invSnap) {
-                throw new Error("فشل الاتصال بقاعدة البيانات. برجاء التأكد من الإنترنت أو صلاحيات القراءة.");
+                throw new Error("تعذر جلب البيانات بسرعة.");
             }
 
             customersData = {};
@@ -1080,26 +1091,16 @@
             if (transSnap) {
                 transSnap.forEach(d => {
                     const tr = d.data();
-                    if (tr.isDeleted === true) return;
                     if (!transByCustomer[tr.partyId]) transByCustomer[tr.partyId] = 0;
                     if (tr.type === 'قبض') transByCustomer[tr.partyId] -= (Number(tr.amount) || 0);
                     else if (tr.type === 'صرف') transByCustomer[tr.partyId] += (Number(tr.amount) || 0);
 
                     const isCustomerVoucher = tr.partyType === 'عميل' || (!tr.partyType && customersData[tr.partyId]);
                     if (tr.type === 'قبض' && isCustomerVoucher) {
-                        let cashAmount = 0;
-                        let walletAmount = 0;
-                        if (tr.cashPaid !== undefined || tr.walletPaid !== undefined) {
-                            cashAmount = Number(tr.cashPaid) || 0;
-                            walletAmount = Number(tr.walletPaid) || 0;
-                        } else if (tr.method !== undefined) {
-                            const amt = Number(tr.amount) || 0;
-                            if (tr.method === 'محفظة' || tr.method === 'محفظه') walletAmount = amt;
-                            else cashAmount = amt;
-                        } else {
-                            cashAmount = Number(tr.amount) || 0;
-                        }
+                        let cashAmount = Number(tr.cashPaid ?? (tr.method !== 'محفظة' ? tr.amount : 0)) || 0;
+                        let walletAmount = Number(tr.walletPaid ?? (tr.method === 'محفظة' ? tr.amount : 0)) || 0;
                         const customerName = (customersData[tr.partyId] && customersData[tr.partyId].name) || 'عميل غير معروف';
+
                         allReceiptVouchers.push({
                             id: d.id,
                             date: tr.date,
@@ -1112,53 +1113,31 @@
                 });
             }
 
-            let runningBalances = {};
             let tempInvoices = [];
-
             invSnap.forEach(d => {
                 const data = d.data();
-                if (data.isDeleted === true) return;
-
-                const cid = data.customerId;
-                if (!runningBalances[cid]) {
-                    runningBalances[cid] = (customersData[cid]?.initialBalance || 0) + (transByCustomer[cid] || 0);
-                }
-                const previousBalance = runningBalances[cid];
-                runningBalances[cid] += (Number(data.remaining) || 0);
-
-                let cPaid = 0; let wPaid = 0;
-                if (data.cashAmount !== undefined || data.walletAmount !== undefined) {
-                    cPaid = Number(data.cashAmount) || 0;
-                    wPaid = Number(data.walletAmount) || 0;
-                } else {
-                    let p = Number(data.paid) || 0;
-                    if (data.paymentMethod === "سداد مرئية" || data.paymentMethod === "محفظه" || data.paymentMethod === "سداد محفظه") wPaid = p;
-                    else cPaid = p;
-                }
+                let cPaid = Number(data.cashAmount ?? data.paid) || 0;
+                let wPaid = Number(data.walletAmount) || 0;
 
                 tempInvoices.push({
                     id: d.id,
                     ...data,
                     calculatedCash: cPaid,
                     calculatedWallet: wPaid,
-                    previousBalance: previousBalance
+                    previousBalance: customersData[data.customerId]?.initialBalance || 0
                 });
             });
 
-            allInvoices = tempInvoices.sort((a, b) => {
-                const timeA = a.timestamp?.seconds || 0;
-                const timeB = b.timestamp?.seconds || 0;
-                return timeA - timeB;
-            }).reverse();
-            
+            allInvoices = tempInvoices.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+
             applyCurrentView();
 
         } catch (e) {
-            console.error(e);
+            console.error("خطأ جلب البيانات:", e);
             container.innerHTML = `
                 <div class="alert alert-danger text-center p-3 my-3" style="border-radius: 14px; font-weight:700;">
                     <i class="fas fa-exclamation-triangle fa-2x mb-2 d-block"></i>
-                    تعدّر جلب الفواتير حالياً.
+                    تعدّر جلب الفواتير بسرعة.
                     <br><small class="fw-normal text-secondary">تأكد من اتصالك بالإنترنت أو أعد تحميل الصفحة.</small>
                     <br><button class="btn btn-sm btn-dark mt-2 fw-bold" onclick="loadData(true)"><i class="fas fa-sync-alt me-1"></i> إعادة المحاولة</button>
                 </div>`;
@@ -1168,7 +1147,7 @@
     document.getElementById('refreshBtn').onclick = () => loadData(true);
     
     document.getElementById('loadAllArchiveBtn').onclick = () => {
-        window.renderInvoices(allInvoices);
+        loadData(true, true);
         document.getElementById('filterStatusText').innerText = `جميع فواتير النظام الأرشيفية (${allInvoices.length} فاتورة)`;
         document.getElementById('filterStatusBar').style.display = "flex";
     };
@@ -1925,7 +1904,8 @@
         XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
     };
       
-    loadData(true);
+    // بدء جلب بيانات اليوم فورتحميل الصفحة بسرعة
+    loadData(true, false);
 </script>
 </body>
 </html>
