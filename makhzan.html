@@ -25,7 +25,7 @@
             font-family: 'Cairo', sans-serif; 
             color: var(--text-dark);
             margin: 0;
-            padding-bottom: 90px; /* مساحة للفوتر */
+            padding-bottom: 90px;
         }
 
         /* الهيدر */
@@ -196,34 +196,6 @@
             z-index: 1000;
         }
         .fab:hover { background: #0a5234; transform: translateY(-3px); color: white;}
-
-        /* تحسين منطقة التمرير في المودال */
-        .modal-body-scroll {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        /* تخصيص شكل الـ Scrollbar ليكون متناسقاً */
-        .modal-body-scroll::-webkit-scrollbar {
-            width: 6px;
-        }
-        .modal-body-scroll::-webkit-scrollbar-track {
-            background: #f1f5f9;
-        }
-        .modal-body-scroll::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 10px;
-        }
-        .modal-body-scroll::-webkit-scrollbar-thumb:hover {
-            background: var(--text-muted);
-        }
-
-        /* تنسيق إضافي لتوضيح تغيرات الرصيد */
-        .balance-text {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            display: block;
-            margin-top: 2px;
-        }
     </style>
 </head>
 <body>
@@ -259,43 +231,11 @@
     <i class="fas fa-plus"></i>
 </a>
 
-<!-- المودال المحدث مع التمرير ورصيد ما قبل الحركة -->
-<div class="modal fade" id="transactionsModal" tabindex="-1" aria-labelledby="transactionsModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content" style="border-radius: 20px; border: none;">
-      <div class="modal-header" style="background: var(--bg-light); border-radius: 20px 20px 0 0; border-bottom: 1px solid var(--border-color);">
-        <h5 class="modal-title fw-bold" id="transactionsModalLabel" style="color: var(--primary-green);">سجل حركات الصنف وتطور الرصيد</h5>
-        <button type="button" class="btn-close m-0" data-bs-dismiss="modal" aria-label="Close"></button>
-      </div>
-      <div class="modal-body p-0 modal-body-scroll">
-        <div class="table-responsive">
-            <table class="table table-hover text-center mb-0" style="font-size: 0.9rem;">
-                <thead class="table-light" style="position: sticky; top: 0; z-index: 10; font-size: 0.85rem; color: var(--text-muted);">
-                    <tr>
-                        <th>التاريخ</th>
-                        <th>النوع</th>
-                        <th>الكمية وتغير الرصيد</th>
-                        <th>السعر</th>
-                    </tr>
-                </thead>
-                <tbody id="transactionsBody">
-                    <!-- سيتم تعبئة الحركات هنا برمجياً -->
-                </tbody>
-            </table>
-        </div>
-      </div>
-      <div class="modal-footer" style="border-top: 1px solid var(--border-color);">
-        <button type="button" class="btn btn-secondary" style="border-radius: 10px;" data-bs-dismiss="modal">إغلاق</button>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, onSnapshot, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -337,10 +277,7 @@
             (i.barcode && i.barcode.includes(term))
         );
 
-        // 2. الترتيب الجديد:
-        // الأولوية الأولى: الأصناف التي لديها كميات (موجبة أو سالبة) وليس لديها سعر (سعرها 0)
-        // الأولوية الثانية: الأصناف التي لديها أسعار
-        // الأولوية الأخيرة: الأصناف المنتهية (كميتها 0)
+        // 2. الترتيب
         filtered.sort((a, b) => {
             const qtyA = Number(a.totalPcs) || 0;
             const qtyB = Number(b.totalPcs) || 0;
@@ -350,11 +287,9 @@
             const isPriorityA = (qtyA !== 0) && (priceA === 0);
             const isPriorityB = (qtyB !== 0) && (priceB === 0);
 
-            // رفع الأصناف التي لديها كميات وبدون سعر إلى الأعلى
             if (isPriorityA && !isPriorityB) return -1;
             if (!isPriorityA && isPriorityB) return 1;
 
-            // تحريك الأصناف المنتهية (كميتها 0) إلى النهاية
             if (qtyA === 0 && qtyB !== 0) return 1;
             if (qtyA !== 0 && qtyB === 0) return -1;
 
@@ -367,7 +302,6 @@
             const factor = Number(item.unitFactor) || 1;
             const total = Number(item.totalPcs) || 0;
             
-            // إصلاح دقيق لطريقة التقسيم والكسور عند وجود أرصدة سالبة في المخزن
             const absTotal = Math.abs(total);
             const sign = total < 0 ? -1 : 1;
 
@@ -412,83 +346,9 @@
         document.getElementById('totalCount').innerText = filtered.length;
     };
 
-    // دالة عرض تفاصيل حركات الصنف مع حساب وتوضيح الأرصدة التراكمية (قبل وبعد)
-    window.goToDetails = async function(id) {
-        const modalElement = document.getElementById('transactionsModal');
-        const modalInstance = new bootstrap.Modal(modalElement);
-        modalInstance.show();
-
-        const tbody = document.getElementById('transactionsBody');
-        tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-muted"><i class="fas fa-spinner fa-spin me-2"></i> جاري تحميل البيانات وحساب الأرصدة...</td></tr>';
-
-        try {
-            // 1. جلب الحركات الخاصة بالمنتج المحدد
-            const q = query(
-                collection(db, "transactions"),
-                where("productId", "==", id)
-            );
-            
-            const querySnapshot = await getDocs(q);
-
-            if (querySnapshot.empty) {
-                tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-danger fw-bold">لا توجد حركات مسجلة لهذا الصنف.</td></tr>';
-                return;
-            }
-
-            // 2. تجميع الحركات في مصفوفة لترتيبها زمنياً بشكل تصاعدي
-            let txList = [];
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                let rawDate = data.date?.toDate ? data.date.toDate() : new Date(data.date || 0);
-                txList.push({ ...data, actualDate: rawDate });
-            });
-
-            // الترتيب من الأقدم إلى الأحدث لضمان دقة العمليات الحسابية التراكمية للرصيد
-            txList.sort((a, b) => a.actualDate - b.actualDate);
-
-            // 3. حساب حركة الرصيد (قبل وبعد) وبناء الجدول
-            let currentRunningBalance = 0;
-            let rowsHtml = [];
-
-            txList.forEach((tx) => {
-                const qty = Number(tx.quantity || tx.qty || 0);
-                const isSale = tx.type === 'sale';
-                
-                // رصيد ما قبل هذه الحركة
-                const balanceBefore = currentRunningBalance;
-                
-                // تحديث رصيد ما بعد هذه الحركة
-                if (isSale) {
-                    currentRunningBalance -= qty;
-                } else {
-                    currentRunningBalance += qty;
-                }
-
-                const typeText = isSale ? '<span class="badge bg-danger">بيع</span>' : '<span class="badge bg-success">شراء</span>';
-                const dateStr = tx.actualDate.toLocaleDateString('ar-EG');
-
-                const row = `
-                    <tr>
-                        <td class="align-middle">${dateStr}</td>
-                        <td class="align-middle">${typeText}</td>
-                        <td class="align-middle">
-                            <span class="fw-bold text-dark d-block">الكمية: ${qty}</span>
-                            <span class="balance-text">قبل: ${balanceBefore} | بعد: ${currentRunningBalance}</span>
-                        </td>
-                        <td class="align-middle text-success fw-bold">${Number(tx.price || 0).toLocaleString('en-US')}</td>
-                    </tr>
-                `;
-                
-                // نضع الحركة الأحدث في الأعلى لراحة التصفح للمستخدم
-                rowsHtml.unshift(row);
-            });
-
-            tbody.innerHTML = rowsHtml.join('');
-
-        } catch (error) {
-            console.error("خطأ في جلب الحركات وحساب الأرصدة: ", error);
-            tbody.innerHTML = '<tr><td colspan="4" class="py-4 text-danger">حدث خطأ أثناء الاتصال بقاعدة البيانات.</td></tr>';
-        }
+    // الانتقال إلى صفحة التفاصيل مع تمرير المعرف
+    window.goToDetails = function(id) {
+        window.location.href = `product-details.html?id=${id}`;
     };
 </script>
 </body>
