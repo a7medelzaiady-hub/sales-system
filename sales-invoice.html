@@ -1839,34 +1839,39 @@
             if (fromOrderId) {
                 document.getElementById('modeText').innerText = "من طلبية";
 
-                const paramCustomerId = urlParams.get('customerId');
-                const paramCustomerName = urlParams.get('customerName');
+                let paramCustomerId = urlParams.get('customerId') || '';
+                const paramCustomerName = urlParams.get('customerName') || '';
                 const paramItems = JSON.parse(urlParams.get('items') || '[]');
 
                 const banner = document.getElementById('orderSourceBanner');
                 banner.style.display = 'flex';
                 document.getElementById('orderSourceText').innerText = `طلبية ${paramCustomerName} — يمكنك التعديل قبل الحفظ`;
 
-                document.getElementById('customerSearch').value = paramCustomerName || '';
-                document.getElementById('customerSelect').value = paramCustomerId || '';
-
-                if (paramCustomerId) {
-                    const cust = customers.find(c => c.id === paramCustomerId);
-                    if (cust) {
-                        const startBalance = getCustomerBaseBalance(cust);
-                        const realB = await getRealBalance(cust.id, startBalance);
-                        currentFetchedOldBalance = realB;
-                        showBalance(realB);
-                    } else {
-                        currentFetchedOldBalance = 0;
-                        showBalance(0);
-                    }
+                // البحث عن العميل بمعرفه أو باسمه لضمان الربط الصحيح
+                let cust = customers.find(c => c.id === paramCustomerId || c.name === paramCustomerName);
+                
+                if (cust) {
+                    paramCustomerId = cust.id;
+                    document.getElementById('customerSelect').value = cust.id;
+                    document.getElementById('customerSearch').value = cust.name;
+                    
+                    const startBalance = getCustomerBaseBalance(cust);
+                    const realB = await getRealBalance(cust.id, startBalance);
+                    currentFetchedOldBalance = realB;
+                    showBalance(realB);
                     document.getElementById('customerBalanceInfo').style.display = 'block';
+                } else {
+                    document.getElementById('customerSearch').value = paramCustomerName;
+                    document.getElementById('customerSelect').value = paramCustomerId;
+                    currentFetchedOldBalance = 0;
+                    showBalance(0);
                 }
 
                 document.getElementById("itemsContainer").innerHTML = "";
                 paramItems.forEach(item => window.addNewRow(item));
                 isChanged = true;
+                
+                // حساب الفاتورة وتحديث البطاقة السفلية فوراً
                 calc();
 
             } else if (editId) {
