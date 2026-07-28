@@ -302,7 +302,8 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, doc, getDoc, updateDoc, increment, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    // إضافة writeBatch ضمن الاستدعاءات
+    import { getFirestore, collection, getDocs, addDoc, doc, getDoc, updateDoc, increment, query, where, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -644,6 +645,7 @@
         document.getElementById('totalSupplierBalance').innerText = totalSupplierFinal.toFixed(2);
     };
 
+    // --- التعديل الذهبي في فاتورة المشتريات (تطبيق Batches + تجميد التحويل) ---
     document.getElementById('btnSaveInvoice').addEventListener('click', async () => {
         const btn = document.getElementById('btnSaveInvoice');
         const supplierId = document.getElementById('supplierSelect').value;
@@ -658,6 +660,7 @@
         if(!supplierId) return alert("برجاء اختيار اسم المورد أولاً");
         if(rows.length === 0) return alert("برجاء إضافة الأصناف أولاً");
 
+        // التأكد من أن كل الأصناف مسجلة
         for (const row of rows) {
             const name = row.querySelector('.item-name').value.trim();
             const isExist = allInventory.some(p => p.name === name);
@@ -671,26 +674,11 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل والموازنة الحالية...';
 
         try {
-            if (editId && oldInvoiceData) {
-                if (Array.isArray(oldInvoiceData.items)) {
-                    for (const oldItem of oldInvoiceData.items) {
-                        const oldModifier = Number(oldItem.totalPieces) || 0;
-                        if (!oldModifier) continue;
-                        const qOld = query(collection(db, "inventory"), where("name", "==", oldItem.name));
-                        const qOldSnap = await getDocs(qOld);
-                        if (!qOldSnap.empty) {
-                            const isOldReturn = oldItem.isReturn === true;
-                            const finalOldMod = isOldReturn ? -oldModifier : oldModifier;
-                            await updateDoc(doc(db, "inventory", qOldSnap.docs[0].id), {
-                                totalPcs: increment(-finalOldMod)
-                            });
-                        }
-                    }
-                }
-            }
+            // 1. تفعيل نظام الـ Batch لحماية البيانات من انقطاع الإنترنت
+            const batch = writeBatch(db);
 
+            // 2. تجميع وتجميد البيانات
             const items = [];
-
             for (const row of rows) {
                 const name = row.querySelector('.item-name').value;
                 const qtyInput = parseFloat(row.querySelector('.item-qty').value) || 0;
@@ -701,35 +689,69 @@
                 const matchedProduct = allInventory.find(p => p.name === name);
                 const factor = Number(matchedProduct?.unitFactor) || 1;
 
-                const totalPcs = unitName === 'كرتونة' ? qtyInput * factor : qtyInput;
+                const totalPcs = unitName === 'كرتونة' ? (qtyInput * factor) : qtyInput;
+                const baseCartonPrice = unitName === 'قطعة' ? (buy * factor) : buy;
 
                 items.push({ 
                     name, 
+                    stockId: matchedProduct.id, 
                     qty: unitName === 'كرتونة' ? qtyInput : 0, 
                     returnQty: unitName === 'قطعة' ? qtyInput : 0, 
                     buy, 
                     unitName, 
                     unitFactor: factor, 
                     totalPieces: totalPcs,
-                    isReturn: isReturn
+                    isReturn: isReturn,
+                    baseCartonPrice: baseCartonPrice
                 });
+            }
 
-                if(matchedProduct) {
-                    const storeDocRef = doc(db, "inventory", matchedProduct.id);
-                    const stockIncrement = isReturn ? -totalPcs : totalPcs;
+            // 3. إرجاع الأرصدة القديمة في حالة التعديل
+            if (editId && oldInvoiceData && Array.isArray(oldInvoiceData.items)) {
+                for (const oldItem of oldInvoiceData.items) {
+                    const oldModifier = Number(oldItem.totalPieces) || 0;
+                    if (!oldModifier) continue;
                     
-                    // تحويل السعر يدوياً لأصله كـ (سعر كرتونة) إذا تم الإدخال بالقطعة
-                    const baseCartonPrice = unitName === 'قطعة' ? (buy * factor) : buy;
+                    let matchedOldProduct = null;
+                    if (oldItem.stockId) {
+                        matchedOldProduct = allInventory.find(p => p.id === oldItem.stockId);
+                    }
+                    if (!matchedOldProduct) {
+                        matchedOldProduct = allInventory.find(p => p.name === oldItem.name);
+                    }
 
-                    await updateDoc(storeDocRef, {
+                    if (matchedOldProduct) {
+                        const itemRef = doc(db, "inventory", matchedOldProduct.id);
+                        const isOldReturn = oldItem.isReturn === true;
+                        
+                        // الفاتورة القديمة شراء (إضافة للمخزن) نعكسها بخصم، والمرتجع (خصم) نعكسه بإضافة
+                        const finalOldMod = isOldReturn ? oldModifier : -oldModifier; 
+                        
+                        batch.update(itemRef, {
+                            totalPcs: increment(finalOldMod)
+                        });
+                    }
+                }
+            }
+
+            // 4. تطبيق الأرصدة والأسعار الجديدة للمخزن
+            for (const item of items) {
+                if (item.stockId) {
+                    const storeDocRef = doc(db, "inventory", item.stockId);
+                    
+                    // الفاتورة الحالية: شراء = زيادة للمخزن (+)، مرتجع = خصم من المخزن (-)
+                    const stockIncrement = item.isReturn ? -item.totalPieces : item.totalPieces;
+                    
+                    batch.update(storeDocRef, {
                         totalPcs: increment(stockIncrement),
-                        buy: baseCartonPrice, // ✅ يُحفظ السعر دائماً للكرتونة لمنع انهيار رصيد المخزن والأسعار العشوائية
-                        unitName: unitName, 
+                        buy: item.baseCartonPrice, // حفظ السعر دائماً للكرتونة لمنع الانهيار السعري
+                        unitName: item.unitName, 
                         lastUpdate: serverTimestamp()
                     });
                 }
             }
 
+            // 5. إعداد وحفظ مستند الفاتورة
             let finalPaymentType = "آجل";
             if(cashPaid > 0 && walletPaid > 0) finalPaymentType = "مشترك (كاش + محفظة)";
             else if(cashPaid > 0) finalPaymentType = "نقدي (كاش)";
@@ -739,19 +761,24 @@
                 supplierId: supplierId,
                 total: grossTotal, grossTotal: grossTotal,
                 cashPaid: cashPaid, walletPaid: walletPaid, totalPaid: totalPaid, netTotal: pendingAmount,
-                items, type: "شراء", paymentType: finalPaymentType, date: invoiceDate, timestamp: editId ? oldInvoiceData.timestamp : serverTimestamp()
+                items, type: "شراء", paymentType: finalPaymentType, date: invoiceDate, 
+                timestamp: editId ? oldInvoiceData.timestamp : serverTimestamp()
             };
 
             let currentDocId = editId;
             if (editId) {
-                await updateDoc(doc(db, "supplier_transactions", editId), invoiceObj);
+                const invRef = doc(db, "supplier_transactions", editId);
+                batch.update(invRef, invoiceObj);
             } else {
-                const newDocRef = await addDoc(collection(db, "supplier_transactions"), invoiceObj);
-                currentDocId = newDocRef.id;
+                const newInvRef = doc(collection(db, "supplier_transactions"));
+                batch.set(newInvRef, invoiceObj);
+                currentDocId = newInvRef.id;
             }
 
+            // 6. تسجيل المعاملات المالية
             if (cashPaid > 0) {
-                await addDoc(collection(db, "transactions"), {
+                const newTransRef = doc(collection(db, "transactions"));
+                batch.set(newTransRef, {
                     amount: cashPaid, type: "صرف", actionType: "سداد مورد",
                     details: `سداد نقدي (كاش) مقابل فاتورة شراء رقم (${currentDocId.substring(0,6)})`,
                     date: invoiceDate, supplierId: supplierId, invoiceId: currentDocId,
@@ -760,13 +787,17 @@
             }
 
             if (walletPaid > 0) {
-                await addDoc(collection(db, "transactions"), {
+                const newTransRef2 = doc(collection(db, "transactions"));
+                batch.set(newTransRef2, {
                     amount: walletPaid, type: "صرف", actionType: "سداد مورد",
                     details: `سداد محفظة إلكترونية مقابل فاتورة شراء رقم (${currentDocId.substring(0,6)})`,
                     date: invoiceDate, supplierId: supplierId, invoiceId: currentDocId,
                     paymentMethod: "wallet", timestamp: serverTimestamp()
                 });
             }
+
+            // 7. تنفيذ العملية المجمعة بالكامل بضربة واحدة!
+            await batch.commit();
 
             isSubmitting = true;
             alert("تم حفظ الفاتورة بنجاح وتحديث الحسابات والمخزن بشكل دقيق وموازن 🚀");
