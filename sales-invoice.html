@@ -650,7 +650,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where, orderBy, limit, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where, orderBy, limit, deleteDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -1373,6 +1373,125 @@
         return logs.length > 0 ? logs.join(' | ') : "تم فتح الفاتورة وحفظها بدون إجراء تغييرات جوهرية";
     }
 
+    // ===================================================================
+    // === دالة مساعدة: حساب صافي التغيير بالقطع لكل صنف (تجميع الأصناف المكررة) ===
+    // ===================================================================
+    function buildDeltaMap(itemsList, isReversal) {
+        // isReversal = true تعني إننا بنلغي أثر عملية سابقة (عكس الاتجاه)
+        const deltaMap = {};
+        itemsList.forEach(item => {
+            if (!item.stockId) return;
+            const p = inventory.find(inv => inv.id === item.stockId);
+            const factor = p ? (Number(p.unitFactor) || 1) : 1;
+            const qtyPcs = item.unit === 'box' ? Number(item.qty) * factor : Number(item.qty);
+
+            // العملية الطبيعية: بيع => خصم (سالب) | مرتجع => إضافة (موجب)
+            let change = item.isReturn ? qtyPcs : -qtyPcs;
+            // لو إحنا بنلغي (نعكس) عملية سابقة، نعكس الإشارة
+            if (isReversal) change = -change;
+
+            deltaMap[item.stockId] = (deltaMap[item.stockId] || 0) + change;
+        });
+        return deltaMap;
+    }
+
+    function mergeDeltaMaps(mapA, mapB) {
+        const merged = { ...mapA };
+        Object.keys(mapB).forEach(key => {
+            merged[key] = (merged[key] || 0) + mapB[key];
+        });
+        return merged;
+    }
+
+    // ===================================================================
+    // === حفظ فاتورة جديدة وخصم المخزون داخل Transaction واحدة متكاملة ===
+    // === (لو أي خطوة فشلت، تتراجع كل العملية ولا تُحفظ الفاتورة أبدًا) ===
+    // ===================================================================
+    async function saveNewInvoiceWithStock(items, newInvoiceData) {
+        const deltaMap = buildDeltaMap(items, false);
+        const stockIds = Object.keys(deltaMap);
+        const invoiceRef = doc(collection(db, "invoices"));
+
+        await runTransaction(db, async (transaction) => {
+            // 1) كل عمليات القراءة أولاً (شرط أساسي في Firestore Transactions)
+            const refs = stockIds.map(id => doc(db, "inventory", id));
+            const snaps = await Promise.all(refs.map(ref => transaction.get(ref)));
+
+            // 2) تحقق من وجود كل الأصناف قبل أي كتابة
+            snaps.forEach((snap, i) => {
+                if (!snap.exists()) {
+                    throw new Error(`تعذر حفظ الفاتورة: الصنف بالمعرّف (${stockIds[i]}) لم يعد موجودًا في المخزن. لم تُحفظ الفاتورة ولم يتأثر المخزون.`);
+                }
+            });
+
+            // 3) كتابة تحديثات المخزون
+            snaps.forEach((snap, i) => {
+                const currentTotal = Number(snap.data().totalPcs) || 0;
+                const newTotal = currentTotal + deltaMap[stockIds[i]];
+                transaction.update(refs[i], { totalPcs: newTotal });
+            });
+
+            // 4) كتابة الفاتورة نفسها في نفس المعاملة
+            transaction.set(invoiceRef, newInvoiceData);
+        });
+
+        // تحديث الكاش المحلي لعرض أرقام مخزون صحيحة فورًا (بدون إعادة تحميل)
+        stockIds.forEach(id => {
+            const p = inventory.find(inv => inv.id === id);
+            if (p) p.totalPcs = (Number(p.totalPcs) || 0) + deltaMap[id];
+        });
+
+        return invoiceRef.id;
+    }
+
+    // ===================================================================
+    // === تعديل فاتورة موجودة: عكس أثر الأصناف القديمة + تطبيق الجديدة ===
+    // === كل ده وتحديث الفاتورة نفسها داخل Transaction واحدة ذرّية       ===
+    // ===================================================================
+    async function updateInvoiceWithStock(invoiceId, items, baseInvoiceData) {
+        const oldRef = doc(db, "invoices", invoiceId);
+
+        await runTransaction(db, async (transaction) => {
+            // 1) قراءة الفاتورة القديمة أولاً
+            const oldSnap = await transaction.get(oldRef);
+            if (!oldSnap.exists()) {
+                throw new Error("تعذر التعديل: الفاتورة الأصلية غير موجودة (ربما تم حذفها).");
+            }
+            const oldData = oldSnap.data();
+
+            // 2) حساب صافي التغيير: عكس القديم + تطبيق الجديد
+            const reverseOldMap = buildDeltaMap(oldData.items || [], true);
+            const applyNewMap = buildDeltaMap(items, false);
+            const deltaMap = mergeDeltaMaps(reverseOldMap, applyNewMap);
+
+            const stockIds = Object.keys(deltaMap).filter(id => deltaMap[id] !== 0);
+
+            // 3) قراءة كل مستندات المخزون المتأثرة (لازم تحصل قبل أي كتابة)
+            const refs = stockIds.map(id => doc(db, "inventory", id));
+            const snaps = await Promise.all(refs.map(ref => transaction.get(ref)));
+
+            // 4) كتابة التحديثات (لو الصنف اتحذف من المخزن، نتجاهله بأمان بدل ما نوقف التعديل بالكامل)
+            snaps.forEach((snap, i) => {
+                if (snap.exists()) {
+                    const currentTotal = Number(snap.data().totalPcs) || 0;
+                    const newTotal = currentTotal + deltaMap[stockIds[i]];
+                    transaction.update(refs[i], { totalPcs: newTotal });
+                }
+            });
+
+            // 5) تحديث بيانات الفاتورة نفسها
+            transaction.update(oldRef, baseInvoiceData);
+
+            // تحديث الكاش المحلي
+            snaps.forEach((snap, i) => {
+                if (snap.exists()) {
+                    const p = inventory.find(inv => inv.id === stockIds[i]);
+                    if (p) p.totalPcs = (Number(p.totalPcs) || 0) + deltaMap[stockIds[i]];
+                }
+            });
+        });
+    }
+
     window.saveInvoice = async () => {
         const saveBtn = document.getElementById('saveBtn');
         try {
@@ -1437,22 +1556,10 @@
             if (!editId) {
                 const newInvoiceData = { ...baseInvoiceData, timestamp: serverTimestamp() };
 
-                for (const item of items) {
-                    try {
-                        const itemDocRef = doc(db, "inventory", item.stockId);
-                        const itemSnap = await getDoc(itemDocRef);
-                        if (itemSnap.exists()) {
-                            const p = inventory.find(i => i.id === item.stockId);
-                            const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                            const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                            if (item.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) }); }
-                            else { await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) }); }
-                        }
-                    } catch (err) { console.warn(`تنبيه: صنف ممسوح: ${item.stockId}`, err); }
-                }
-
-                const newDocRef = await addDoc(collection(db, "invoices"), newInvoiceData);
-                editId = newDocRef.id;
+                // === التصحيح الأساسي: خصم المخزون + حفظ الفاتورة في معاملة واحدة ذرّية ===
+                // لو أي خطوة فشلت (صنف محذوف، مشكلة اتصال، تعارض بيانات) هترجع العملية بالكامل
+                // ولن تُحفظ الفاتورة إطلاقًا بدل ما تتسجل الفاتورة والمخزون فاضل زي ما هو
+                editId = await saveNewInvoiceWithStock(items, newInvoiceData);
 
                 if (fromOrderId) {
                     try {
@@ -1466,45 +1573,9 @@
 
                 prepareThermalReceipt(newInvoiceData, currentFetchedOldBalance);
             } else {
-                const oldRef = doc(db, "invoices", editId);
-                const oldSnap = await getDoc(oldRef);
-                if (oldSnap.exists()) {
-                    const oldData = oldSnap.data();
-                    if (oldData && oldData.items) {
-                        for (const oldItem of oldData.items) {
-                            if (oldItem.stockId) {
-                                try {
-                                    const itemDocRef = doc(db, "inventory", oldItem.stockId);
-                                    const itemSnap = await getDoc(itemDocRef);
-                                    if (itemSnap.exists()) {
-                                        const p = inventory.find(i => i.id === oldItem.stockId);
-                                        const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                                        const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * factor : oldItem.qty;
-                                        if (oldItem.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(-oldQtyPcs) }); }
-                                        else { await updateDoc(itemDocRef, { totalPcs: increment(oldQtyPcs) }); }
-                                    }
-                                } catch (err) { console.warn(`تنبيه: صنف قديم: ${oldItem.stockId}`, err); }
-                            }
-                        }
-                    }
-                    for (const item of items) {
-                        if (item.stockId) {
-                            try {
-                                const itemDocRef = doc(db, "inventory", item.stockId);
-                                const itemSnap = await getDoc(itemDocRef);
-                                if (itemSnap.exists()) {
-                                    const p = inventory.find(i => i.id === item.stockId);
-                                    const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                                    const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                                    if (item.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) }); }
-                                    else { await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) }); }
-                                }
-                            } catch (err) { console.warn(`تنبيه: صنف ممسوح: ${item.stockId}`, err); }
-                        }
-                    }
-                    await updateDoc(oldRef, baseInvoiceData);
-                    prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
-                }
+                // === نفس مبدأ الذرّية عند التعديل: عكس أثر البنود القديمة وتطبيق الجديدة معًا ===
+                await updateInvoiceWithStock(editId, items, baseInvoiceData);
+                prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
             }
 
             isChanged = false;
@@ -1513,7 +1584,7 @@
 
         } catch (e) {
             console.error("Firebase Error: ", e);
-            window.showCustomAlert("فشل حفظ التعديل\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
+            window.showCustomAlert("فشل حفظ الفاتورة، ولم يتم خصم أو تعديل أي كمية من المخزون بسبب هذا الخطأ:\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
         } finally {
             saveBtn.disabled = false;
             saveBtn.innerText = "حفظ وتحديث البيانات";
