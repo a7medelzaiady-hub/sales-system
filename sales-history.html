@@ -105,9 +105,7 @@
         .add-btn:active { transform: scale(0.92); }
         .add-btn:hover { background: rgba(255, 255, 255, 0.25); color: white; }
         .trash-nav-btn { background: var(--germany-red) !important; border-color: rgba(255, 255, 255, 0.2) !important; }
-        .trash-nav-btn:hover { opacity: 0.9 !important; }
         .add-nav-btn { background: var(--germany-gold) !important; border-color: rgba(255, 255, 255, 0.2) !important; color: #000000 !important; }
-        .add-nav-btn:hover { background: #e0b300 !important; }
 
         .control-panel-card {
             background: var(--white);
@@ -256,7 +254,6 @@
             font-weight: 700;
             line-height: 1.5;
             display: none; 
-            animation: scaleUp 0.15s ease-out;
         }
 
         .financial-grid {
@@ -295,17 +292,9 @@
             gap: 10px;
             margin-bottom: 16px;
         }
-        .filter-row .search-date-group {
-            display: flex;
-            gap: 10px;
-        }
-        .filter-row .search-date-group > div {
-            flex: 1;
-        }
-        .filter-row .action-buttons-group {
-            display: flex;
-            gap: 10px;
-        }
+        .filter-row .search-date-group { display: flex; gap: 10px; }
+        .filter-row .search-date-group > div { flex: 1; }
+        .filter-row .action-buttons-group { display: flex; gap: 10px; }
         .filter-row .action-buttons-group .btn {
             flex: 1;
             font-family: 'Cairo';
@@ -386,8 +375,6 @@
             #content-to-export, .header-nav, .control-panel-card, .stats-section-title, .row, .filter-status-bar, #customGlobalModal, .invoice-item, .recon-card { display: none !important; }
             #thermalPrintSection { display: block !important; width: 80mm; max-width: 80mm; padding: 4mm 2mm; margin: 0 auto; direction: rtl; font-family: 'Cairo', sans-serif; }
         }
-
-        @keyframes scaleUp { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
 </head>
 <body>
@@ -834,14 +821,11 @@
         
         amountParts.forEach(part => {
             const parsedNum = parseFloat(part.trim());
-            if (!isNaN(parsedNum)) {
-                actual += parsedNum;
-            }
+            if (!isNaN(parsedNum)) { actual += parsedNum; }
         });
 
         const expected = window.globalExpectedTodayCash || 0;
         const diff = actual - expected;
-
         let totalEnteredStr = amountParts.length > 1 ? `[جردك: ${actual.toFixed(1)}] ` : '';
 
         if (Math.abs(diff) < 0.1) {
@@ -849,14 +833,12 @@
             resultBox.style.background = "#f0fdf4";
             resultBox.style.border = "1px solid var(--germany-black)";
             resultBox.innerHTML = `<i class="fas fa-check-circle"></i> ${totalEnteredStr} مطابق تماماً (0.00)`;
-        } 
-        else if (diff > 0) {
+        } else if (diff > 0) {
             resultBox.className = "text-center fw-bold text-primary p-2";
             resultBox.style.background = "#eff6ff";
             resultBox.style.border = "1px solid #3b82f6";
             resultBox.innerHTML = `<i class="fas fa-circle-plus"></i> ${totalEnteredStr} زيادة (+${diff.toFixed(1)})`;
-        } 
-        else {
+        } else {
             resultBox.className = "text-center fw-bold text-danger p-2";
             resultBox.style.background = "#fff1f2";
             resultBox.style.border = "1px solid var(--germany-red)";
@@ -878,14 +860,14 @@
         }
     }
 
-    // دالة الجلب الآمنة لمنع مشاكل الفهارس المركبة (Composite Index)
+    // دالة الجلب: افتراضياً تجلب فواتير اليوم فقط، وعند الضغط على زر الجلب تجلب الأرشيف الكامل
     async function loadData(showSpinner = true, loadAllArchive = false) {
         const container = document.getElementById('invoicesList');
         if (showSpinner) {
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
-                    <p class="mt-3 fw-bold">جاري جلب البيانات من السحابة...</p>
+                    <p class="mt-3 fw-bold">${loadAllArchive ? 'جاري جلب كل الفواتير السابقة...' : 'جاري جلب فواتير اليوم فقط...'}</p>
                 </div>`;
         }
 
@@ -893,18 +875,26 @@
             const filterInput = document.getElementById('dateFilterInput')?.value;
             const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
 
-            // جلب البيانات بدون تصفية مركبة لمنع الخطأ الصامت
-            const [custSnap, transSnap, invSnap] = await Promise.all([
-                db.collection("customers").get().catch(err => { console.warn("العملاء:", err); return null; }),
-                db.collection("transactions").get().catch(err => { console.warn("المعاملات:", err); return null; }),
-                db.collection("invoices").get().catch(err => { console.error("الفواتير:", err); return null; })
-            ]);
+            let invQuery = db.collection("invoices");
 
-            if (!invSnap) {
-                throw new Error("لم يتم استرجاع بيانات الفواتير.");
+            if (!loadAllArchive) {
+                // جلب فواتير اليوم فقط بكفاءة عالية وسرعة فائقة
+                const todayStart = new Date();
+                todayStart.setHours(0, 0, 0, 0);
+                invQuery = invQuery.where("timestamp", ">=", firebase.firestore.Timestamp.fromDate(todayStart));
+            } else {
+                invQuery = invQuery.orderBy("timestamp", "desc");
             }
 
-            // 1. معالجة العملاء
+            const [custSnap, transSnap, invSnap] = await Promise.all([
+                db.collection("customers").get().catch(() => null),
+                db.collection("transactions").get().catch(() => null),
+                invQuery.get().catch(async () => {
+                    // استعلام احتياطي في حال عدم توفر مؤشر (Index)
+                    return await db.collection("invoices").orderBy("timestamp", "desc").limit(100).get();
+                })
+            ]);
+
             customersData = {};
             if (custSnap) {
                 custSnap.forEach(d => {
@@ -912,50 +902,53 @@
                 });
             }
 
-            // 2. معالجة السندات
             allReceiptVouchers = [];
             if (transSnap) {
                 transSnap.forEach(d => {
                     const tr = d.data();
                     if (tr.isDeleted === true) return;
-
                     const isCustomerVoucher = tr.partyType === 'عميل' || (!tr.partyType && customersData[tr.partyId]);
                     if (tr.type === 'قبض' && isCustomerVoucher) {
                         let cashAmount = Number(tr.cashPaid ?? (tr.method !== 'محفظة' ? tr.amount : 0)) || 0;
                         let walletAmount = Number(tr.walletPaid ?? (tr.method === 'محفظة' ? tr.amount : 0)) || 0;
                         const customerName = (customersData[tr.partyId] && customersData[tr.partyId].name) || tr.partyName || 'عميل غير معروف';
 
-                        allReceiptVouchers.push({
-                            id: d.id,
-                            date: tr.date,
-                            cashAmount,
-                            walletAmount,
-                            customerName,
-                            note: tr.note || tr.notes || ''
-                        });
+                        const vDate = parseVoucherDate(tr);
+                        if (loadAllArchive || vDate === targetDate) {
+                            allReceiptVouchers.push({
+                                id: d.id,
+                                date: tr.date,
+                                cashAmount,
+                                walletAmount,
+                                customerName,
+                                note: tr.note || tr.notes || ''
+                            });
+                        }
                     }
                 });
             }
 
-            // 3. معالجة وتصنيف الفواتير
             let tempInvoices = [];
             invSnap.forEach(d => {
                 const data = d.data();
-                if (data.isDeleted === true) return; // تصفية المحذوفات برمجياً
+                if (data.isDeleted === true) return;
 
                 let cPaid = Number(data.cashAmount ?? data.cashPaid ?? data.paid) || 0;
                 let wPaid = Number(data.walletAmount ?? data.walletPaid) || 0;
 
-                tempInvoices.push({
+                const invObj = {
                     id: d.id,
                     ...data,
                     calculatedCash: cPaid,
                     calculatedWallet: wPaid,
                     previousBalance: customersData[data.customerId]?.initialBalance || 0
-                });
+                };
+
+                if (loadAllArchive || parseInvoiceDate(invObj) === targetDate) {
+                    tempInvoices.push(invObj);
+                }
             });
 
-            // ترتيب الفواتير من الأحدث إلى الأقدم
             allInvoices = tempInvoices.sort((a, b) => {
                 const timeA = a.timestamp?.seconds || 0;
                 const timeB = b.timestamp?.seconds || 0;
@@ -975,7 +968,7 @@
         }
     }
 
-    document.getElementById('refreshBtn').onclick = () => loadData(true);
+    document.getElementById('refreshBtn').onclick = () => loadData(true, false);
     
     document.getElementById('loadAllArchiveBtn').onclick = () => {
         loadData(true, true);
@@ -1004,7 +997,6 @@
         const invDate = parseInvoiceDate(inv) || "بدون تاريخ";
         const discount = Number(inv.discount) || 0;
         const totalInvoice = Number(inv.total) || 0;
-        const totalPaid = inv.calculatedCash + inv.calculatedWallet;
         const currentRemaining = Number(inv.remaining) || 0;
         const prevBalance = Number(inv.previousBalance) || 0;
         const finalAccountTotal = prevBalance + currentRemaining;
@@ -1073,7 +1065,6 @@
             shareContainer.innerHTML = generateThermalInvoiceHtml(inv);
             
             document.body.appendChild(shareContainer);
-
             await new Promise(res => setTimeout(res, 100));
 
             const canvas = await html2canvas(shareContainer, {
@@ -1083,17 +1074,13 @@
             });
             
             document.body.removeChild(shareContainer);
-
-            canvas.toBlob((blob) => {
-                resolve(blob);
-            }, 'image/png');
+            canvas.toBlob((blob) => { resolve(blob); }, 'image/png');
         });
     }
 
     window.downloadInvoicesImagesByDate = async () => {
         const filterInput = document.getElementById('dateFilterInput').value;
         const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
-        
         const targetInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === targetDate);
 
         if (targetInvoices.length === 0) {
@@ -1111,22 +1098,18 @@
         try {
             const zip = new JSZip();
             const folder = zip.folder(`صور_الفواتير_يوم_${targetDate}`);
-
-            let modificationReportText = `تقرير ملاحظات وتعديلات الفواتير ليوم: ${targetDate}\n`;
-            modificationReportText += `==================================================\n\n`;
-
+            let modificationReportText = `تقرير ملاحظات وتعديلات الفواتير ليوم: ${targetDate}\n==================================================\n\n`;
             let hasAnyNotes = false;
 
             for (let i = 0; i < targetInvoices.length; i++) {
                 const inv = targetInvoices[i];
                 const safeCustomerName = (inv.customerName || 'عميل_نقدى').replace(/[/\\?%*:|"<>]/g, '-');
-                
                 const invNote = inv.notes || "";
+                
                 if (invNote.trim() !== "" && invNote !== "معدلة") {
                     hasAnyNotes = true;
                     modificationReportText += `[فاتورة رقم ${i + 1}] العميل: ${inv.customerName || 'عميل نقدى'}\n`;
-                    modificationReportText += `تفاصيل التعديل: ${invNote}\n`;
-                    modificationReportText += `--------------------------------------------------\n`;
+                    modificationReportText += `تفاصيل التعديل: ${invNote}\n--------------------------------------------------\n`;
                 }
 
                 try {
@@ -1135,7 +1118,7 @@
                         folder.file(`فاتورة_${safeCustomerName}_${i + 1}.png`, invoiceBlob);
                     }
                 } catch (e) {
-                    console.error("تخطي توليد صورة فاتورة للعميل: " + safeCustomerName, e);
+                    console.error("تخطي توليد صورة فاتورة:", e);
                 }
             }
 
@@ -1144,7 +1127,6 @@
             }
 
             folder.file(`سجل_تعديلات_وملحوظات_اليوم.txt`, modificationReportText);
-
             const content = await zip.generateAsync({ type: "blob" });
             
             const url = URL.createObjectURL(content);
@@ -1154,7 +1136,7 @@
             a.click();
             URL.revokeObjectURL(url);
             
-            window.showCustomUi({ title: "اكتمل التنزيل", message: "تم تنزيل ملف ZIP بنجاح.\nالملف يحتوي على:\n1. صور الفواتير الحرارية.\n2. ملف تقرير الملحوظات النصي.", icon: "success" });
+            window.showCustomUi({ title: "اكتمل التنزيل", message: "تم تنزيل ملف ZIP بنجاح.", icon: "success" });
         } catch (error) {
             console.error(error);
             window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء تجميع وضغط الملفات.", icon: "danger" });
@@ -1199,11 +1181,7 @@
                 const totalItemPrice = qty * price;
                 const rawUnit = (itm.unit || "").trim().toLowerCase();
 
-                let isCarton = false;
-                if (rawUnit === 'box' || rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه' || itemName.includes('شحم بريفيكس')) {
-                    isCarton = true;
-                }
-
+                let isCarton = (rawUnit === 'box' || rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه' || itemName.includes('شحم بريفيكس'));
                 const displayUnit = isCarton ? "كرتونة" : "جركن";
 
                 if (!itemsSummary[itemName]) {
@@ -1226,10 +1204,6 @@
             `;
         });
 
-        if (itemsSummaryHtml === "") {
-            itemsSummaryHtml = `<tr><td colspan="3" style="text-align:center; color:gray; padding:8px;">لا توجد حركة سحب كميات اليوم</td></tr>`;
-        }
-
         let invoicesDetailsHtml = "";
         targetInvoices.forEach((inv, i) => {
             const name = inv.customerName || 'عميل نقدى';
@@ -1251,15 +1225,11 @@
                         <span style="color:${rem > 0 ? 'var(--germany-red)' : '#000000'}">آجل: <b class="num">${rem.toFixed(1)}</b></span>
                     </div>
                     <div style="font-size:9px; color:#665200; margin-top:3px; background:#fffdf5; padding:2px 5px; border-radius:3px;">
-                        <i class="fas fa-edit"></i> <b>الملحظة:</b> ${noteText}
+                        <i class="fas fa-edit"></i> <b>الملحوظة:</b> ${noteText}
                     </div>
                 </div>
             `;
         });
-
-        if (invoicesDetailsHtml === "") {
-            invoicesDetailsHtml = `<div style="text-align:center; color:gray; padding:6px; font-size:11px;">لا توجد مبيعات فواتير اليوم</div>`;
-        }
 
         let vouchersDetailsHtml = "";
         targetVouchers.forEach((v, i) => {
@@ -1277,55 +1247,35 @@
             `;
         });
 
-        if (vouchersDetailsHtml === "") {
-            vouchersDetailsHtml = `<div style="text-align:center; color:gray; padding:6px; font-size:11px;">لا توجد سندات قبض اليوم</div>`;
-        }
-
         const printSection = document.getElementById('thermalPrintSection');
         printSection.innerHTML = `
             <div style="width:100%; font-family:'Cairo', sans-serif; color:#000; direction:rtl; padding:8px; background:#fff; box-sizing: border-box;">
                 <div style="text-align:center; margin-bottom:15px; border-bottom:2px solid #000; padding-bottom:8px;">
-                    <h5 style="margin:0; font-weight:800; font-size:18px; color:var(--germany-black);">شركة الزيادي لزيوت السيارات</h5>
-                    <p style="margin:3px 0; font-size:12px; font-weight:700; background:#fffdf2; display:inline-block; padding:2px 8px; border-radius:4px; border:1px solid var(--germany-gold);">تقرير اليوم المالي التفصيلي</p>
+                    <h5 style="margin:0; font-weight:800; font-size:18px;">شركة الزيادي لزيوت السيارات</h5>
+                    <p style="margin:3px 0; font-size:12px; font-weight:700;">تقرير اليوم المالي التفصيلي</p>
                     <div style="font-size:11px; margin-top:5px; font-weight:600;">تاريخ التقرير: <b>${targetDate}</b></div>
                 </div>
 
                 <div style="border:1px solid #000; padding:8px; border-radius:6px; background:#fafafa; margin-bottom:14px; font-size:11.5px; line-height:1.6;">
-                    <h6 style="margin:0 0 6px 0; font-weight:bold; font-size:12px; border-bottom:1px solid #ccc; padding-bottom:3px; color:var(--accent);">📊 إجمالي الخزنة والحركة:</h6>
-                    <div style="display:flex; justify-content:space-between;"><span>إجمالي المبيعات (المطلب اليوم):</span><b class="num" style="font-size:13px;">${totalSales.toFixed(1)} EGP</b></div>
-                    <div style="display:flex; justify-content:space-between; color:#000000;"><span>صافي المدفوع نقدًا (الكاش):</span><b class="num" style="font-size:13px;">${totalCashPaid.toFixed(1)} EGP</b></div>
-                    <div style="display:flex; justify-content:space-between; color:var(--purple);"><span>صافي المدفوع عبر المحفظة:</span><b class="num" style="font-size:13px;">${totalWalletPaid.toFixed(1)} EGP</b></div>
-                    <div style="display:flex; justify-content:space-between; color:var(--germany-red); border-top:1px dashed #bbb; padding-top:4px; margin-top:2px;"><span>إجمالي الديون الآجلة الجديدة:</span><b class="num" style="font-size:13px;">${totalRemainingDebt.toFixed(1)} EGP</b></div>
+                    <h6 style="margin:0 0 6px 0; font-weight:bold; font-size:12px; border-bottom:1px solid #ccc; padding-bottom:3px;">📊 إجمالي الخزنة والحركة:</h6>
+                    <div style="display:flex; justify-content:space-between;"><span>إجمالي المبيعات:</span><b class="num">${totalSales.toFixed(1)} EGP</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>صافي الكاش:</span><b class="num">${totalCashPaid.toFixed(1)} EGP</b></div>
+                    <div style="display:flex; justify-content:space-between;"><span>صافي المحفظة:</span><b class="num">${totalWalletPaid.toFixed(1)} EGP</b></div>
+                    <div style="display:flex; justify-content:space-between; color:var(--germany-red);"><span>إجمالي الديون الآجلة الجديدة:</span><b class="num">${totalRemainingDebt.toFixed(1)} EGP</b></div>
                 </div>
 
                 <div style="margin-bottom:14px;">
-                    <h6 style="margin:0 0 4px 0; font-weight:bold; font-size:11.5px; border-bottom:1.5px solid #000; padding-bottom:3px; color:var(--accent);"><i class="fas fa-file-invoice"></i> حركة مبيعات الفواتير وملحوظاتها (${targetInvoices.length}):</h6>
+                    <h6 style="margin:0 0 4px 0; font-weight:bold; font-size:11.5px; border-bottom:1.5px solid #000; padding-bottom:3px;">مبيعات الفواتير (${targetInvoices.length}):</h6>
                     ${invoicesDetailsHtml}
                 </div>
 
                 <div style="margin-bottom:14px;">
-                    <h6 style="margin:0 0 4px 0; font-weight:bold; font-size:11.5px; border-bottom:1.5px solid #000; padding-bottom:3px; color:var(--purple);"><i class="fas fa-hand-holding-usd"></i> حركة سندات القبض (${targetVouchers.length}):</h6>
+                    <h6 style="margin:0 0 4px 0; font-weight:bold; font-size:11.5px; border-bottom:1.5px solid #000; padding-bottom:3px;">سندات القبض (${targetVouchers.length}):</h6>
                     ${vouchersDetailsHtml}
                 </div>
 
-                <div style="margin-bottom:10px;">
-                    <h6 style="margin:0 0 5px 0; font-weight:bold; font-size:11.5px; border-bottom:1.5px solid #000; padding-bottom:3px; color:var(--accent);"><i class="fas fa-cubes"></i> حركة جرد المخزن (الكميات والمسحوبات):</h6>
-                    <table style="width:100%; font-size:10.5px; border-collapse:collapse;">
-                        <thead>
-                            <tr style="border-bottom:1px solid #000; font-weight:bold;">
-                                <th style="text-align:right; padding-bottom:4px;">الصنف والبيان</th>
-                                <th style="text-align:center; padding-bottom:4px;">الكمية</th>
-                                <th style="text-align:left; padding-bottom:4px;">القيمة المالية</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${itemsSummaryHtml}
-                        </tbody>
-                    </table>
-                </div>
-
                 <div style="text-align:center; margin-top:25px; font-size:10px; border-top:1.5px dashed #000; padding-top:8px;">
-                    <br>تصميم وإشراف محاسب / أحمد محمود الزيادي
+                    محاسب / أحمد محمود الزيادي
                 </div>
             </div>
         `;
@@ -1336,25 +1286,18 @@
     window.printThermalInvoice = (id) => {
         const inv = allInvoices.find(i => i.id === id);
         if (!inv) return;
-        const printSection = document.getElementById('thermalPrintSection');
-        printSection.innerHTML = generateThermalInvoiceHtml(inv);
+        document.getElementById('thermalPrintSection').innerHTML = generateThermalInvoiceHtml(inv);
         window.print();
     };
 
     window.shareThermalInvoice = async (id) => {
         const inv = allInvoices.find(i => i.id === id);
         if (!inv) return;
-        
         try {
             const blob = await getInvoiceImageBlob(inv);
             const file = new File([blob], `فاتورة_${inv.customerName || 'نقدى'}.png`, { type: 'image/png' });
-
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    files: [file],
-                    title: `فاتورة ${inv.customerName || 'نقدى'}`,
-                    text: `فاتورة الزيادي لزيوت السيارات`
-                });
+                await navigator.share({ files: [file], title: `فاتورة ${inv.customerName || 'نقدى'}`, text: `فاتورة الزيادي لزيوت السيارات` });
             } else {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -1365,7 +1308,7 @@
             }
         } catch (err) {
             console.error(err);
-            alert("حدث خطأ أثناء معالجة صورة الفاتورة الحرارية.");
+            alert("حدث خطأ أثناء مشاركة الفاتورة.");
         }
     };
 
@@ -1379,7 +1322,7 @@
             onConfirm: async (inputValue) => {
                 if (inputValue !== "الزيادي") {
                     setTimeout(() => {
-                        window.showCustomUi({ title: "خطأ", message: "كلمة التأكيد غير صحيحة. تم إلغاء العملية.", icon: "danger" });
+                        window.showCustomUi({ title: "خطأ", message: "كلمة التأكيد غير صحيحة.", icon: "danger" });
                     }, 300);
                     return;
                 }
@@ -1393,12 +1336,10 @@
                             try {
                                 const batch = db.batch();
                                 const collectionsToTrash = ["invoices", "transactions", "inventory", "customers", "suppliers", "purchases"];
-
                                 for (const colName of collectionsToTrash) {
                                     const snap = await db.collection(colName).get();
                                     snap.forEach(d => {
-                                        const docRef = db.collection(colName).doc(d.id);
-                                        batch.update(docRef, {
+                                        batch.update(db.collection(colName).doc(d.id), {
                                             isDeleted: true,
                                             deletedAt: firebase.firestore.FieldValue.serverTimestamp()
                                         });
@@ -1432,7 +1373,6 @@
 
     function executeFilterLogic(type, dateStr) {
         let filtered = []; let statusLabel = "";
-        
         filtered = allInvoices.filter(inv => {
             const invDateStr = parseInvoiceDate(inv);
             const isToday = (invDateStr === dateStr);
@@ -1449,9 +1389,7 @@
         if (type === 'today-cash' || type === 'today-wallet') {
             matchingVouchers = allReceiptVouchers.filter(v => {
                 const vDateStr = parseVoucherDate(v);
-                const isToday = (vDateStr === dateStr);
-                if (!isToday) return false;
-                return type === 'today-cash' ? v.cashAmount > 0 : v.walletAmount > 0;
+                return (vDateStr === dateStr) && (type === 'today-cash' ? v.cashAmount > 0 : v.walletAmount > 0);
             });
         }
 
@@ -1475,7 +1413,6 @@
 
     window.filterInvoices = () => {
         const query = document.getElementById('searchInput').value.toLowerCase().trim();
-        
         if (!query) {
             const filterInput = document.getElementById('dateFilterInput').value;
             const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
@@ -1510,42 +1447,32 @@
             icon: "danger",
             onConfirm: async () => {
                 const batch = db.batch();
-
                 try {
                     const items = inv.items || [];
                     items.forEach(item => {
                         if (item.stockId) {
                             const productRef = db.collection("inventory").doc(item.stockId);
-                            const quantityToRestore = Number(item.qty || 0);
-
-                            batch.update(productRef, {
-                                totalPcs: firebase.firestore.FieldValue.increment(quantityToRestore)
-                            });
+                            batch.update(productRef, { totalPcs: firebase.firestore.FieldValue.increment(Number(item.qty || 0)) });
                         }
                     });
 
                     const txSnapshot = await db.collection("transactions").where("invoiceId", "==", id).get();
                     txSnapshot.forEach(txDoc => {
-                        const txRef = db.collection("transactions").doc(txDoc.id);
-                        batch.update(txRef, {
+                        batch.update(db.collection("transactions").doc(txDoc.id), {
                             isDeleted: true,
                             deletedAt: firebase.firestore.FieldValue.serverTimestamp()
                         });
                     });
 
-                    const invoiceRef = db.collection("invoices").doc(id);
-                    batch.update(invoiceRef, { 
+                    batch.update(db.collection("invoices").doc(id), { 
                         isDeleted: true, 
                         deletedAt: firebase.firestore.FieldValue.serverTimestamp() 
                     });
 
                     await batch.commit();
-
-                    await loadData(false);
+                    await loadData(false, false);
                     window.showCustomUi({ title: "تم النقل", message: "تم نقل الفاتورة إلى السلة بنجاح وإعادة البضاعة للمخزن.", icon: "success" });
-                
                 } catch (err) {
-                    console.error("خطأ أثناء الحذف وإرجاع المخزون:", err);
                     window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء نقل الفاتورة للمخزن وإعادة الأصناف.", icon: "danger" });
                 }
             }
@@ -1563,108 +1490,44 @@
             const invDate = parseInvoiceDate(inv);
             const invTime = formatInvoiceTime(inv.time, inv.date);
             const invDateWithTime = `${invDate} | ${invTime}`;
-
             const customerName = inv.customerName || 'النقدى';
             const discountAmount = Number(inv.discount) || 0;
 
             if (inv.items && inv.items.length > 0) {
                 inv.items.forEach(itm => {
-                    let qtyCarton = 0;
-                    let qtyJarkan = 0;
-                    let priceCarton = 0;
-                    let priceJarkan = 0;
-
+                    let qtyCarton = 0; let qtyJarkan = 0;
+                    let priceCarton = 0; let priceJarkan = 0;
                     const isRet = itm.isReturn === true;
                     const movementType = isRet ? "مرتجع" : "بيع";
                     
                     const itemName = (itm.name || "");
                     const rawUnit = (itm.unit || "").trim().toLowerCase();
-                    
                     const rawQty = Number(itm.qty) || 0;
                     const rawPrice = Number(itm.price) || 0;
 
-                    let isCarton = false;
-                    let excelUnitDisplay = "جركن";
+                    let isCarton = (rawUnit === 'box' || rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه' || itemName.includes('شحم بريفيكس'));
+                    let excelUnitDisplay = isCarton ? "كرتونة" : "جركن";
 
-                    if (rawUnit === 'box' || rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه' || itemName.includes('شحم بريفيكس')) {
-                        isCarton = true;
-                        excelUnitDisplay = "كرتونة";
-                    }
-
-                    if (isCarton) {
-                        qtyCarton = rawQty;
-                        priceCarton = rawPrice;
-                    } else {
-                        qtyJarkan = rawQty;
-                        priceJarkan = rawPrice;
-                    }
+                    if (isCarton) { qtyCarton = rawQty; priceCarton = rawPrice; }
+                    else { qtyJarkan = rawQty; priceJarkan = rawPrice; }
 
                     excelRows.push({
-                        "التاريخ": invDateWithTime,
-                        "الحركة": movementType,
-                        "اسم العميل": customerName,
-                        "الصنف": itemName,
-                        "عدد الجركن": qtyJarkan,
-                        "عدد الكرتونة": qtyCarton,
-                        "سعر الجركن": priceJarkan,
-                        "سعر الكرتونة": priceCarton,
-                        "نوع الصنف": excelUnitDisplay
+                        "التاريخ": invDateWithTime, "الحركة": movementType, "اسم العميل": customerName,
+                        "الصنف": itemName, "عدد الجركن": qtyJarkan, "عدد الكرتونة": qtyCarton,
+                        "سعر الجركن": priceJarkan, "سعر الكرتونة": priceCarton, "نوع الصنف": excelUnitDisplay
                     });
-                });
-            }
-
-            if ((inv.calculatedCash || 0) > 0) {
-                excelRows.push({
-                    "التاريخ": invDateWithTime,
-                    "الحركة": "سداد منه نقدى",
-                    "اسم العميل": customerName,
-                    "الصنف": "سداد نقدى",
-                    "عدد الجركن": 0,
-                    "عدد الكرتونة": 1,
-                    "سعر الجركن": 0,
-                    "سعر الكرتونة": inv.calculatedCash,
-                    "نوع الصنف": "سداد"
-                });
-            }
-
-            if ((inv.calculatedWallet || 0) > 0) {
-                excelRows.push({
-                    "التاريخ": invDateWithTime,
-                    "الحركة": "سداد منه محفظه",
-                    "اسم العميل": customerName,
-                    "الصنف": "سداد نقدى",
-                    "عدد الجركن": 0,
-                    "عدد الكرتونة": 1,
-                    "سعر الجركن": 0,
-                    "سعر الكرتونة": inv.calculatedWallet,
-                    "نوع الصنف": "سداد"
-                });
-            }
-
-            if (discountAmount > 0) {
-                excelRows.push({
-                    "التاريخ": invDateWithTime,
-                    "الحركة": "بيع",
-                    "اسم العميل": customerName,
-                    "الصنف": "مبيعات اخرى",
-                    "عدد الجركن": 0,
-                    "عدد الكرتونة": -1,
-                    "سعر الجركن": 0,
-                    "سعر الكرتونة": discountAmount,
-                    "نوع الصنف": "خصم"
                 });
             }
         });
 
         const ws = XLSX.utils.json_to_sheet(excelRows);
         ws['!dir'] = "rtl";
-
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "المبيعات والأرشيف");
         XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
     };
-      
-    // بدء جلب البيانات فور تحميل الصفحة
+    
+    // عند فتح الصفحة يتم تحميل فواتير اليوم فقط افتراضياً
     loadData(true, false);
 </script>
 </body>
