@@ -1361,7 +1361,7 @@
     }
 
     // ===================================================================
-    // === دالة معدلة ومحسنة: حساب صافي التغيير بالقطعة بدقة لحسابات المخزن ===
+    // === دالة بناء تغييرات القطع لضبط المخزون ===
     // ===================================================================
     function buildDeltaMap(itemsList, isReversal) {
         const deltaMap = {};
@@ -1369,17 +1369,13 @@
             if (!item.stockId) return;
             const p = inventory.find(inv => inv.id === item.stockId);
             
-            // قراءة معامل التحويل بمرونة وتأمين القيم غير المعرفة
             let factor = p ? Number(p.unitFactor) : 1;
             if (isNaN(factor) || factor <= 0) factor = 1;
 
             const qty = Number(item.qty) || 0;
             const qtyPcs = item.unit === 'box' ? Math.round(qty * factor) : Math.round(qty);
 
-            // بيع = خصم (-) | مرتجع = إضافة (+)
             let change = item.isReturn ? qtyPcs : -qtyPcs;
-            
-            // عند إلغاء/تراجع فاتورة قديمة نعكس الإشارة
             if (isReversal) change = -change;
 
             deltaMap[item.stockId] = (deltaMap[item.stockId] || 0) + change;
@@ -1395,8 +1391,15 @@
         return merged;
     }
 
+    function clearInventoryCache() {
+        try {
+            localStorage.removeItem(CACHE_KEYS.inventory);
+            localStorage.removeItem(CACHE_KEYS.ts);
+        } catch(e){}
+    }
+
     // ===================================================================
-    // === حفظ فاتورة جديدة باستخدام التحديث التراكمي increment الذري ===
+    // === حفظ الفاتورة وتحديث totalPcs و qty معاً في قاعدة البيانات ===
     // ===================================================================
     async function saveNewInvoiceWithStock(items, newInvoiceData) {
         const deltaMap = buildDeltaMap(items, false);
@@ -1404,53 +1407,51 @@
         const invoiceRef = doc(collection(db, "invoices"));
 
         await runTransaction(db, async (transaction) => {
-            // 1) قراءة المستندات للتأكد من وجود الأصناف
             const refs = stockIds.map(id => doc(db, "inventory", id));
             const snaps = await Promise.all(refs.map(ref => transaction.get(ref)));
 
             snaps.forEach((snap, i) => {
                 if (!snap.exists()) {
-                    throw new Error(`تعذر حفظ الفاتورة: الصنف المعرف (${stockIds[i]}) غير موجود بالمخزن.`);
+                    throw new Error(`تعذر حفظ الفاتورة: الصنف المعرف غير موجود بالمخزن.`);
                 }
             });
 
-            // 2) تحديث المخزون باستخدام الخصم/الإضافة التراكمية الذرية (increment)
+            // تحديث الحقلين المزدوجين (totalPcs و qty) لضمان توافق جميع شاشات المخزون
             snaps.forEach((snap, i) => {
+                const itemData = snap.data();
+                const factor = Number(itemData.unitFactor) || 1;
+                const changePcs = deltaMap[stockIds[i]];
+                
+                const currentTotalPcs = Number(itemData.totalPcs) || 0;
+                const newTotalPcs = currentTotalPcs + changePcs;
+                const newQty = Math.floor(newTotalPcs / factor);
+
                 transaction.update(refs[i], { 
-                    totalPcs: increment(deltaMap[stockIds[i]])
+                    totalPcs: increment(changePcs),
+                    qty: newQty
                 });
             });
 
-            // 3) حفظ مستند الفاتورة
             transaction.set(invoiceRef, newInvoiceData);
         });
 
-        // تحديث البيانات المحلية للمستندات
-        stockIds.forEach(id => {
-            const p = inventory.find(inv => inv.id === id);
-            if (p) {
-                p.totalPcs = (Number(p.totalPcs) || 0) + deltaMap[id];
-            }
-        });
-
+        clearInventoryCache();
         return invoiceRef.id;
     }
 
     // ===================================================================
-    // === تعديل فاتورة مع الخصم/الإضافة التراكمية في Transaction ===
+    // === تعديل فاتورة مع تحديث الحقلين المزدوجين ذرّياً ===
     // ===================================================================
     async function updateInvoiceWithStock(invoiceId, items, baseInvoiceData) {
         const oldRef = doc(db, "invoices", invoiceId);
 
         await runTransaction(db, async (transaction) => {
-            // 1) قراءة الفاتورة القديمة
             const oldSnap = await transaction.get(oldRef);
             if (!oldSnap.exists()) {
                 throw new Error("تعذر التعديل: الفاتورة الأصلية غير موجودة.");
             }
             const oldData = oldSnap.data();
 
-            // 2) احتساب الفرق
             const reverseOldMap = buildDeltaMap(oldData.items || [], true);
             const applyNewMap = buildDeltaMap(items, false);
             const deltaMap = mergeDeltaMaps(reverseOldMap, applyNewMap);
@@ -1460,26 +1461,27 @@
             const refs = stockIds.map(id => doc(db, "inventory", id));
             const snaps = await Promise.all(refs.map(ref => transaction.get(ref)));
 
-            // 3) تطبيق التحديث الذري
             snaps.forEach((snap, i) => {
                 if (snap.exists()) {
+                    const itemData = snap.data();
+                    const factor = Number(itemData.unitFactor) || 1;
+                    const changePcs = deltaMap[stockIds[i]];
+
+                    const currentTotalPcs = Number(itemData.totalPcs) || 0;
+                    const newTotalPcs = currentTotalPcs + changePcs;
+                    const newQty = Math.floor(newTotalPcs / factor);
+
                     transaction.update(refs[i], { 
-                        totalPcs: increment(deltaMap[stockIds[i]]) 
+                        totalPcs: increment(changePcs),
+                        qty: newQty
                     });
                 }
             });
 
-            // 4) تحديث الفاتورة
             transaction.update(oldRef, baseInvoiceData);
-
-            // تحديث الكاش المحلي
-            snaps.forEach((snap, i) => {
-                if (snap.exists()) {
-                    const p = inventory.find(inv => inv.id === stockIds[i]);
-                    if (p) p.totalPcs = (Number(p.totalPcs) || 0) + deltaMap[stockIds[i]];
-                }
-            });
         });
+
+        clearInventoryCache();
     }
 
     window.saveInvoice = async () => {
@@ -1563,9 +1565,6 @@
                 await updateInvoiceWithStock(editId, items, baseInvoiceData);
                 prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
             }
-
-            // تجديد حفظ الـ Cache لإجبار النظام على تنشيط المخزون المعدل
-            persistCache();
 
             isChanged = false;
             clearDraftSilently();
