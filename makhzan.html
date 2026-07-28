@@ -180,7 +180,7 @@
 <div id="itemsContainer">
     <div class="text-center py-5 fw-bold text-muted">
         <div class="spinner-border spinner-border-sm me-2"></div>
-        جاري تحميل أرصدة المخزون...
+        جاري إعادة احتساب الأرصدة الحركية بدقة...
     </div>
 </div>
 
@@ -212,38 +212,141 @@
     const db = getFirestore(app);
     let allData = [];
 
+    // دالة فحص الوحدة للكرتونة
+    function checkIsCarton(unitName) {
+        if (!unitName) return false;
+        const u = unitName.toString().trim().toLowerCase();
+        return u === 'box' || u === 'carton' || u === 'كرتونة' || u === 'كرتونه';
+    }
+
     async function fetchRealInventoryData() {
         try {
-            // جلب مجموعة inventory مباشرةً حيث يتم تحديث totalPcs فيها أوتوماتيكياً مع كل فاتورة
-            const invSnap = await getDocs(collection(db, "inventory"));
+            const [invSnap, salesSnap, purSnap] = await Promise.all([
+                getDocs(collection(db, "inventory")),
+                getDocs(collection(db, "invoices")),
+                getDocs(collection(db, "supplier_transactions"))
+            ]);
 
-            allData = [];
+            const inventoryMap = {};
+            const nameToIdMap = {};
+
+            // 1. قراءة الأصناف وتحديد معامل التحويل الحقيقي من كارت الصنف نفسه
             invSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
 
                 const id = docSnap.id;
+                // التأكد من جلب معامل الصنف الأصلي (مثلاً 4 أو 12)
                 const factor = Number(data.unitFactor) > 0 ? Number(data.unitFactor) : 1;
 
-                // قراءة الرصيد الإجمالي المباشر بالقطع/الجراكن من الداتابيز
-                let totalPcs = 0;
-                if (data.totalPcs !== undefined && data.totalPcs !== null) {
-                    totalPcs = parseFloat(data.totalPcs);
-                } else if (data.qty !== undefined && data.qty !== null) {
-                    totalPcs = parseFloat(data.qty);
+                if (data.name) nameToIdMap[data.name.trim()] = id;
+
+                // رصيد بداية المدة الإجمالي بالقطع
+                let openingPcs = 0;
+                if (data.totalPcs !== undefined && data.totalPcs !== null && Number(data.totalPcs) !== 0) {
+                    openingPcs = parseFloat(data.totalPcs);
+                } else if (data.openingStockPcs !== undefined && data.openingStockPcs !== null) {
+                    openingPcs = parseFloat(data.openingStockPcs);
+                } else {
+                    const cartons = parseFloat(data.cartons || data.openingCartons) || 0;
+                    const jerrycans = parseFloat(data.jerrycans || data.openingJerrycans) || 0;
+                    openingPcs = (cartons * factor) + jerrycans;
                 }
 
-                allData.push({
+                inventoryMap[id] = {
                     id,
                     ...data,
                     unitFactor: factor,
-                    realTotalPcs: totalPcs
+                    openingPcs
+                };
+            });
+
+            const itemMovements = {};
+
+            // 2. تجميع المبيعات مع جلب معامل الصنف من inventoryMap بدقة
+            salesSnap.forEach(docSnap => {
+                const data = docSnap.data();
+                if (data.isDeleted) return;
+
+                const items = data.items || [];
+                items.forEach(item => {
+                    let id = item.stockId || item.id || item.itemId;
+                    if (!id && item.name) id = nameToIdMap[item.name.trim()];
+                    if (!id) return;
+
+                    if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0 };
+
+                    const mainFactor = inventoryMap[id] ? inventoryMap[id].unitFactor : 1;
+                    const qty = parseFloat(item.qty) || 0;
+                    const unitVal = item.unit || item.unitName;
+
+                    // تحويل الكمية إلى جراكن/قطع بناءً على معامل الصنف بالمخزن
+                    const pcsCount = checkIsCarton(unitVal) ? (qty * mainFactor) : qty;
+
+                    if (data.type === 'مرتجع' || item.isReturn) {
+                        itemMovements[id].soldPcs -= pcsCount;
+                    } else {
+                        itemMovements[id].soldPcs += pcsCount;
+                    }
+                });
+            });
+
+            // 3. تجميع المشتريات بنفس الطريقة الدقيقة
+            purSnap.forEach(docSnap => {
+                const data = docSnap.data();
+                if (data.isDeleted) return;
+
+                const items = data.items || [];
+                items.forEach(item => {
+                    let id = item.stockId || item.id || item.itemId;
+                    if (!id && item.name) id = nameToIdMap[item.name.trim()];
+                    if (!id) return;
+
+                    if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0 };
+
+                    const mainFactor = inventoryMap[id] ? inventoryMap[id].unitFactor : 1;
+                    const unitVal = item.unit || item.unitName;
+
+                    let qty = 0;
+                    if (item.totalPieces !== undefined && parseFloat(item.totalPieces) > 0) {
+                        qty = parseFloat(item.totalPieces);
+                        if (data.type === 'مرتجع شراء' || item.isReturn) itemMovements[id].boughtPcs -= qty;
+                        else itemMovements[id].boughtPcs += qty;
+                        return;
+                    } else if (checkIsCarton(unitVal)) {
+                        qty = parseFloat(item.qty) || 0;
+                    } else {
+                        qty = parseFloat(item.returnQty !== undefined && parseFloat(item.returnQty) > 0 ? item.returnQty : item.qty) || 0;
+                    }
+
+                    const pcsCount = checkIsCarton(unitVal) ? (qty * mainFactor) : qty;
+
+                    if (data.type === 'مرتجع شراء' || item.isReturn) {
+                        itemMovements[id].boughtPcs -= pcsCount;
+                    } else {
+                        itemMovements[id].boughtPcs += pcsCount;
+                    }
+                });
+            });
+
+            // 4. احتساب الأرصدة الصافية الحقيقية لكل صنف
+            allData = [];
+            Object.keys(inventoryMap).forEach(id => {
+                const item = inventoryMap[id];
+                const movements = itemMovements[id] || { soldPcs: 0, boughtPcs: 0 };
+                
+                // المعالجة الحاسمة: إذا كان الصنف تم التعامل عليه حركياً يُحسب تلقائياً
+                const realTotalPcs = item.openingPcs + movements.boughtPcs - movements.soldPcs;
+
+                allData.push({
+                    ...item,
+                    realTotalPcs
                 });
             });
 
             renderItems();
         } catch (e) {
-            console.error("خطأ في جلب بيانات المخزن:", e);
+            console.error("خطأ في جلب وتقاطع حركة المخزن:", e);
             document.getElementById('itemsContainer').innerHTML = 
                 `<div class="text-center text-danger mt-4 fw-bold">عذراً، تعذر تحديث بيانات المخزون.</div>`;
         }
@@ -271,7 +374,7 @@
             const factor = Number(item.unitFactor) > 0 ? Number(item.unitFactor) : 1;
             const totalPcs = Number(item.realTotalPcs) || 0;
             
-            // حساب الكراتين والجراكن المتبقية من إجمالي القطع
+            // معادلة تحويل القطع إلى كراتين وجراكن دقيقة ومحصنة من كسور الجافا سكريبت
             let cartons = 0;
             let jerrycans = 0;
 
