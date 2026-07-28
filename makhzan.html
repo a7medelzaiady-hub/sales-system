@@ -180,7 +180,7 @@
 <div id="itemsContainer">
     <div class="text-center py-5 fw-bold text-muted">
         <div class="spinner-border spinner-border-sm me-2"></div>
-        جاري جلب أرصدة المخزون المباشرة...
+        جاري جلب ودراسة أرصدة المخزون...
     </div>
 </div>
 
@@ -212,21 +212,25 @@
     const db = getFirestore(app);
     let allData = [];
 
-    // استخراج معامل التحويل الذكي للكرتونة
-    function resolveFactor(itemData) {
-        let f = Number(itemData.unitFactor);
-        if (f > 1) return f;
-
-        const name = (itemData.name || "").toLowerCase();
+    // دالة حماية ذكية تتجاوز أي معامل خاطئ (=1) في الداتابيز وتحدد المعامل الحقيقي
+    function resolveUnitFactor(data) {
+        const name = (data.name || "").toLowerCase();
+        
+        // الأصناف التي تباع بالمفرد/القطعة (مثل الشحم أو الصفائح) معاملها 1
         if (name.includes("شحم") || name.includes("صفيحه") || name.includes("صفيحة")) {
             return 1;
         }
 
-        // الافتراضي للزيوت 12 قطعة للكرتونة
+        // لو الصنف مسجل له معامل أكبر من 1 في الداتابيز نستخدمه، وإلا فالافتراضي للزيوت 12
+        let factor = Number(data.unitFactor);
+        if (factor > 1) {
+            return factor;
+        }
+
         return 12;
     }
 
-    async function fetchDirectInventoryData() {
+    async function fetchInventoryData() {
         try {
             const invSnap = await getDocs(collection(db, "inventory"));
 
@@ -236,8 +240,9 @@
                 if (data.isDeleted) return;
 
                 const id = docSnap.id;
-                const factor = resolveFactor(data);
+                const factor = resolveUnitFactor(data);
 
+                // إجمالي القطع/الجراكن
                 let totalPcs = 0;
                 if (data.totalPcs !== undefined && data.totalPcs !== null) {
                     totalPcs = parseFloat(data.totalPcs);
@@ -249,11 +254,28 @@
                     totalPcs = (c * factor) + j;
                 }
 
+                // التفكيك الصحيح للكراتين والجراكن
+                let computedCartons = 0;
+                let computedJerrycans = 0;
+
+                if (factor > 1) {
+                    const absPcs = Math.abs(totalPcs);
+                    const sign = totalPcs < 0 ? -1 : 1;
+                    
+                    computedCartons = Math.floor(absPcs / factor) * sign;
+                    computedJerrycans = Math.round((absPcs % factor) * 100) / 100 * sign;
+                } else {
+                    computedCartons = 0;
+                    computedJerrycans = totalPcs;
+                }
+
                 allData.push({
                     id,
                     ...data,
                     unitFactor: factor,
-                    realTotalPcs: totalPcs
+                    realTotalPcs: totalPcs,
+                    displayCartons: computedCartons,
+                    displayJerrycans: computedJerrycans
                 });
             });
 
@@ -284,21 +306,8 @@
 
         let html = '';
         filtered.forEach(item => {
-            const factor = item.unitFactor;
             const totalPcs = Number(item.realTotalPcs) || 0;
-            
-            let cartons = 0;
-            let jerrycans = 0;
-
-            if (factor > 1) {
-                const absPcs = Math.abs(totalPcs);
-                const sign = totalPcs < 0 ? -1 : 1;
-                cartons = Math.floor(absPcs / factor) * sign;
-                jerrycans = Math.round((absPcs % factor) * 100) / 100 * sign;
-            } else {
-                cartons = 0;
-                jerrycans = totalPcs;
-            }
+            const factor = item.unitFactor;
 
             const isZero = totalPcs === 0;
             const minAllowed = (Number(item.min) || 0) * factor;
@@ -321,10 +330,10 @@
                         ${Number(item.sell || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}
                     </div>
                     <div>
-                        <div class="${badgeClass}">${cartons}</div>
+                        <div class="${badgeClass}">${item.displayCartons}</div>
                     </div>
                     <div>
-                        <div class="${badgeClass}">${jerrycans}</div>
+                        <div class="${badgeClass}">${item.displayJerrycans}</div>
                     </div>
                 </div>
             `;
@@ -342,7 +351,7 @@
         window.location.href = `product-details.html?id=${id}`;
     };
 
-    fetchDirectInventoryData();
+    fetchInventoryData();
 </script>
 
 </body>
