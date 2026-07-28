@@ -348,9 +348,10 @@
     let inventoryData = [];
     let displayLimit = 50;
 
-    function isCartonUnit(unitName) {
-        if (!unitName) return false;
-        const u = unitName.toString().trim().toLowerCase();
+    // دالة توحيد وفحص الوحدة سواء جاءت بـ (box/pcs) أو (كرتونة/قطعة)
+    function isCartonUnit(unitStr) {
+        if (!unitStr) return false;
+        const u = unitStr.toString().trim().toLowerCase();
         return u === 'box' || u === 'carton' || u === 'كرتونة' || u === 'كرتونه';
     }
 
@@ -388,28 +389,30 @@
                 getDocs(collection(db, "supplier_transactions"))
             ]);
 
-            // 1. خريطة الأصناف المسجلة بالمخزن مع تثبيت معامل الكرتونة (unitFactor) والصنف
+            // 1. القراءة وتجميع بيانات المخزن
             const inventoryMap = {};
+            const nameToIdMap = {};
+
             invSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted === true) return;
 
                 const id = docSnap.id;
-                const factor = Number(data.unitFactor) || 12; // إذا لم يحدد يُفترض 12 تلقائياً
+                const factor = Number(data.unitFactor) || 12; // الافتراضي للكرتونة 12 ما لم يحدد خلاف ذلك
 
-                // حساب رصيد بداية المدة بـ (الجراكين/القطع الصغرى)
+                if (data.name) nameToIdMap[data.name.trim()] = id;
+
+                // تحديد رصيد بداية المدة بالجراكن/القطع
                 let openingPcs = 0;
-                if (data.openingStockPcs !== undefined) {
+                if (data.openingStockPcs !== undefined && data.openingStockPcs !== null) {
                     openingPcs = Number(data.openingStockPcs) || 0;
                 } else if (data.openingCartons !== undefined || data.openingJerrycans !== undefined) {
                     openingPcs = ((Number(data.openingCartons) || 0) * factor) + (Number(data.openingJerrycans) || 0);
                 } else {
-                    // الاعتماد على حقول رصيد البداية الأولية بدقة
                     const initCartons = Number(data.cartons) || 0;
                     const initJerrycans = Number(data.jerrycans) || 0;
                     openingPcs = (initCartons * factor) + initJerrycans;
 
-                    // إذا كان مسجل كـ qty أو totalPcs بدون تفكيك
                     if (openingPcs === 0) {
                         openingPcs = Number(data.openingQty || data.totalPcs || data.qty) || 0;
                     }
@@ -425,25 +428,29 @@
 
             const itemMovements = {};
 
-            // 2. حساب المبيعات وخصم القطع الصغرى
+            // 2. معالجة حركات فواتير المبيعات
             salesSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
 
                 const items = data.items || [];
                 items.forEach(item => {
-                    const id = item.stockId || item.id;
+                    let id = item.stockId || item.id || item.itemId;
+                    if (!id && item.name) id = nameToIdMap[item.name.trim()];
                     if (!id) return;
+                    
                     if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0 };
 
-                    // ربط الفاتورة صراحةً بمعامل الكرتونة الخاص بالصنف المسجل
-                    const mainFactor = inventoryMap[id] ? inventoryMap[id].unitFactor : 12;
-                    const qty = Number(item.qty) || 0;
+                    // الاستعانة بمعامل الصنف المسجل بالمخزن أساساً لضمان عدم حدوث خطأ
+                    const mainFactor = inventoryMap[id] ? inventoryMap[id].unitFactor : (Number(item.unitFactor) || 12);
                     
-                    // إذا كان البيع بـ box تضرب في المعامل الأصلي (12)
-                    const pcs = isCartonUnit(item.unit) ? (qty * mainFactor) : qty;
+                    const unitVal = item.unit || item.unitName;
+                    const qty = Number(item.qty) || 0;
 
-                    if (data.type === 'مرتجع' || data.isReturn) {
+                    // تحويل الكراتين لقطع
+                    const pcs = isCartonUnit(unitVal) ? (qty * mainFactor) : qty;
+
+                    if (data.type === 'مرتجع' || item.isReturn) {
                         itemMovements[id].soldPcs -= pcs;
                     } else {
                         itemMovements[id].soldPcs += pcs;
@@ -451,24 +458,39 @@
                 });
             });
 
-            // 3. حساب المشتريات وإضافة القطع الصغرى
+            // 3. معالجة حركات فواتير المشتريات
             purSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
 
                 const items = data.items || [];
                 items.forEach(item => {
-                    const id = item.stockId || item.id;
+                    let id = item.stockId || item.id || item.itemId;
+                    if (!id && item.name) id = nameToIdMap[item.name.trim()];
                     if (!id) return;
+
                     if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0 };
 
-                    const mainFactor = inventoryMap[id] ? inventoryMap[id].unitFactor : 12;
-                    const qty = Number(item.qty) || 0;
+                    const mainFactor = inventoryMap[id] ? inventoryMap[id].unitFactor : (Number(item.unitFactor) || 12);
+                    const unitVal = item.unit || item.unitName;
                     
-                    // إذا كان الشراء بـ box تضرب في المعامل الأصلي (12)
-                    const pcs = isCartonUnit(item.unit) ? (qty * mainFactor) : qty;
+                    // استخراج الكمية الصحيحة حسب هيكل المشتريات
+                    let qty = 0;
+                    if (item.totalPieces !== undefined && Number(item.totalPieces) > 0) {
+                        qty = Number(item.totalPieces);
+                        // إذا كانت متوفرة مقطوعة بالقطع نستخدمها مباشرة
+                        if (data.type === 'مرتجع شراء' || item.isReturn) itemMovements[id].boughtPcs -= qty;
+                        else itemMovements[id].boughtPcs += qty;
+                        return;
+                    } else if (isCartonUnit(unitVal)) {
+                        qty = Number(item.qty) || 0;
+                    } else {
+                        qty = Number(item.returnQty !== undefined && item.returnQty > 0 ? item.returnQty : item.qty) || 0;
+                    }
 
-                    if (data.type === 'مرتجع شراء' || data.isReturn) {
+                    const pcs = isCartonUnit(unitVal) ? (qty * mainFactor) : qty;
+
+                    if (data.type === 'مرتجع شراء' || item.isReturn) {
                         itemMovements[id].boughtPcs -= pcs;
                     } else {
                         itemMovements[id].boughtPcs += pcs;
@@ -482,7 +504,7 @@
                 const item = inventoryMap[id];
                 const movements = itemMovements[id] || { soldPcs: 0, boughtPcs: 0 };
                 
-                // المعادلة: رصيد أول المدة + الشراء - البيع
+                // المعادلة العامة المحاسبية: رصيد البداية + الشراء - البيع
                 const realTotalPcs = item.openingPcs + movements.boughtPcs - movements.soldPcs;
 
                 inventoryData.push({
@@ -553,7 +575,7 @@
             const factor = Number(item.unitFactor) || 12;
             const totalPcs = Number(item.calculatedTotalPcs) || 0;
             
-            // التفصيل الدقيق للكراتين والجراكين المتبقية
+            // معادلة تفكيك الجراكين والكراتين المضبوطة
             let boxes = 0;
             let pieces = 0;
 
