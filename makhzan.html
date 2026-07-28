@@ -212,9 +212,27 @@
     const db = getFirestore(app);
     let allData = [];
 
+    // دالة حماية ذكية لتحديد معامل الكرتونة (لو مكتوب 1 في الداتابيز أو مش موجود)
+    function getSmartUnitFactor(itemData) {
+        let factor = Number(itemData.unitFactor);
+        
+        // إذا كان المعامل معرّف بأكثر من 1 نستخدمه مباشرة
+        if (factor > 1) return factor;
+
+        // إذا كان 1 أو مش موجود، نفحص اسم الصنف أوتوماتيكياً
+        const name = (itemData.name || "").toLowerCase();
+        
+        // الشحوم أو الصفيحة (عادة بالقطعة)
+        if (name.includes("شحم") || name.includes("صفيحه") || name.includes("صفيحة")) {
+            return 1;
+        }
+
+        // الزيوت والجراكن (الافتراضي للكرتونة 12)
+        return 12;
+    }
+
     async function fetchDirectInventoryData() {
         try {
-            // القراءة المباشرة فقط من قاعدة بيانات المخزن دون تجميع الفواتير القديمة المتضاربة
             const invSnap = await getDocs(collection(db, "inventory"));
 
             allData = [];
@@ -223,9 +241,9 @@
                 if (data.isDeleted) return;
 
                 const id = docSnap.id;
-                const factor = Number(data.unitFactor) > 0 ? Number(data.unitFactor) : 1;
+                const factor = getSmartUnitFactor(data);
 
-                // استخراج الرصيد المباشر الصريح بالقطع
+                // قراءة إجمالي القطع/الجراكن المسجل بالداتابيز
                 let totalPcs = 0;
                 if (data.totalPcs !== undefined && data.totalPcs !== null) {
                     totalPcs = parseFloat(data.totalPcs);
@@ -272,10 +290,10 @@
 
         let html = '';
         filtered.forEach(item => {
-            const factor = Number(item.unitFactor) > 0 ? Number(item.unitFactor) : 1;
+            const factor = item.unitFactor;
             const totalPcs = Number(item.realTotalPcs) || 0;
             
-            // معادلة تفكيك الرصيد الصريح إلى كراتين وجراكن
+            // معادلة تفكيك الرصيد إلى كراتين وجراكن
             let cartons = 0;
             let jerrycans = 0;
 
