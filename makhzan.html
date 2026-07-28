@@ -212,7 +212,7 @@
     const db = getFirestore(app);
     let allData = [];
 
-    // دالة التحقق من وحدة الكرتونة بجميع مسميات الفواتير والمخزن
+    // التحقق من اسم الوحدة في الداتابيز
     function checkIsCarton(unitName) {
         if (!unitName) return false;
         const u = unitName.toString().trim().toLowerCase();
@@ -227,7 +227,7 @@
                 getDocs(collection(db, "supplier_transactions"))
             ]);
 
-            // 1. بناء خريطة الأصناف المسجلة بالمخزن واستخراج معاملات التحويل الأصلية
+            // 1. بناء خريطة أصناف المخزن واستخراج الـ unitFactor الحقيقي لكارت الصنف
             const inventoryMap = {};
             const nameToIdMap = {};
 
@@ -236,7 +236,8 @@
                 if (data.isDeleted) return;
 
                 const id = docSnap.id;
-                const factor = Number(data.unitFactor) || 12; // الافتراضي 12 إذا لم يحدد
+                // التأكد من معامل الصنف (إذا كان صفر أو غير معرّف يجعل الافتراضي 12)
+                const factor = Number(data.unitFactor) > 0 ? Number(data.unitFactor) : 12;
 
                 if (data.name) nameToIdMap[data.name.trim()] = id;
 
@@ -266,7 +267,7 @@
 
             const itemMovements = {};
 
-            // 2. تجميع المبيعات وقراءة معامل الصنف من المخزن الأساسي (وليس من الفاتورة)
+            // 2. تجميع حركات المبيعات (قراءة الكسور والأرقام الكسرية مثل 0.5)
             salesSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
@@ -279,11 +280,11 @@
 
                     if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0 };
 
-                    // التصحيح المهم: استخدام معامل الصنف من المخزن مباشرة
                     const mainFactor = inventoryMap[id] ? inventoryMap[id].unitFactor : (Number(item.unitFactor) || 12);
-                    const qty = Number(item.qty) || 0;
+                    const qty = parseFloat(item.qty) || 0;
                     const unitVal = item.unit || item.unitName;
 
+                    // ضرب الكمية في المعامل عند البيع بالكرتونة
                     const pcsCount = checkIsCarton(unitVal) ? (qty * mainFactor) : qty;
 
                     if (data.type === 'مرتجع' || item.isReturn) {
@@ -294,7 +295,7 @@
                 });
             });
 
-            // 3. تجميع المشتريات وقراءة معامل الصنف من المخزن الأساسي
+            // 3. تجميع حركات المشتريات
             purSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
@@ -307,20 +308,19 @@
 
                     if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0 };
 
-                    // التصحيح المهم: استخدام معامل الصنف من المخزن مباشرة
                     const mainFactor = inventoryMap[id] ? inventoryMap[id].unitFactor : (Number(item.unitFactor) || 12);
                     const unitVal = item.unit || item.unitName;
 
                     let qty = 0;
                     if (item.totalPieces !== undefined && Number(item.totalPieces) > 0) {
-                        qty = Number(item.totalPieces);
+                        qty = parseFloat(item.totalPieces);
                         if (data.type === 'مرتجع شراء' || item.isReturn) itemMovements[id].boughtPcs -= qty;
                         else itemMovements[id].boughtPcs += qty;
                         return;
                     } else if (checkIsCarton(unitVal)) {
-                        qty = Number(item.qty) || 0;
+                        qty = parseFloat(item.qty) || 0;
                     } else {
-                        qty = Number(item.returnQty !== undefined && item.returnQty > 0 ? item.returnQty : item.qty) || 0;
+                        qty = parseFloat(item.returnQty !== undefined && item.returnQty > 0 ? item.returnQty : item.qty) || 0;
                     }
 
                     const pcsCount = checkIsCarton(unitVal) ? (qty * mainFactor) : qty;
@@ -333,7 +333,7 @@
                 });
             });
 
-            // 4. احتساب الرصيد الفعلي الإجمالي بالجراكن
+            // 4. احتساب الأرصدة النهائية المحدثة
             allData = [];
             Object.keys(inventoryMap).forEach(id => {
                 const item = inventoryMap[id];
@@ -373,10 +373,10 @@
 
         let html = '';
         filtered.forEach(item => {
-            const factor = Number(item.unitFactor) || 12;
+            const factor = Number(item.unitFactor) > 0 ? Number(item.unitFactor) : 12;
             const totalPcs = Number(item.realTotalPcs) || 0;
             
-            // التفكيك الدقيق للكراتين والبواقي (الجراكن)
+            // معادلة تحويل القطع إلى كراتين وجراكن (تدعم الكسور وسالب الأرصدة)
             let cartons = 0;
             let jerrycans = 0;
 
@@ -384,7 +384,7 @@
                 const absPcs = Math.abs(totalPcs);
                 const sign = totalPcs < 0 ? -1 : 1;
                 cartons = Math.floor(absPcs / factor) * sign;
-                jerrycans = (absPcs % factor) * sign;
+                jerrycans = Math.round((absPcs % factor) * 100) / 100 * sign; // حماية من أخطاء الكسور المئوية
             } else {
                 cartons = 0;
                 jerrycans = totalPcs;
