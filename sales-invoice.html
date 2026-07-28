@@ -662,7 +662,8 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where, orderBy, limit, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    // إضافة writeBatch في استدعاءات فايربيز (الحل الذهبي)
+    import { getFirestore, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where, orderBy, limit, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -685,7 +686,7 @@
     let currentFetchedOldBalance = 0;
     let originalInvoiceTime = "";
     let cargoImagesArray = []; 
-    let originalInvoiceDataForLogs = null; // متغير لحفظ الحالة الأصلية للفاتورة قبل التعديل لمقارنتها
+    let originalInvoiceDataForLogs = null; 
 
     const CACHE_KEYS = { customers: "cache_customers", inventory: "cache_inventory", ts: "cache_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -1426,16 +1427,13 @@
 
     window.closeReviewModal = () => { document.getElementById('reviewModal').style.display = 'none'; };
 
-    // دالة ذكية لمقارنة التغييرات وصياغة ملحوظة مراجعة محاسبية تلقائية دقيقة
     function generateModificationLogs(oldData, newData) {
         if (!oldData) return "تعديل عام على بيانات الفاتورة";
         let logs = [];
 
-        // 1. مقارنة الخصم
         if (Number(oldData.discount || 0) !== Number(newData.discount || 0)) {
             logs.push(`تعديل الخصم من (${oldData.discount || 0}) إلى (${newData.discount || 0})`);
         }
-        // 2. مقارنة السداد الكاش والمحفظة
         if (Number(oldData.cashAmount || 0) !== Number(newData.cashAmount || 0)) {
             logs.push(`تعديل المدفوع كاش من (${oldData.cashAmount || 0}) إلى (${newData.cashAmount || 0})`);
         }
@@ -1443,11 +1441,9 @@
             logs.push(`تعديل المدفوع محفظة من (${oldData.walletAmount || 0}) إلى (${newData.walletAmount || 0})`);
         }
 
-        // 3. مقارنة بنود الأصناف
         const oldItems = oldData.items || [];
         const newItems = newData.items || [];
 
-        // تتبع الأصناف المحذوفة أو المعدلة
         oldItems.forEach(oldItem => {
             const newItem = newItems.find(n => n.stockId === oldItem.stockId && n.unit === oldItem.unit && n.isReturn === oldItem.isReturn);
             const unitText = oldItem.unit === 'box' ? 'كرتونة' : 'جركن';
@@ -1465,7 +1461,6 @@
             }
         });
 
-        // تتبع الأصناف الجديدة تماماً المضافة
         newItems.forEach(newItem => {
             const oldItem = oldItems.find(o => o.stockId === newItem.stockId && o.unit === newItem.unit && o.isReturn === newItem.isReturn);
             const unitText = newItem.unit === 'box' ? 'كرتونة' : 'جركن';
@@ -1479,6 +1474,7 @@
         return logs.length > 0 ? logs.join(' | ') : "تم فتح الفاتورة وحفظها بدون إجراء تغييرات جوهرية";
     }
 
+    // --- التعديل الذهبي الجذري (تجميد البيانات والـ Batch) ---
     window.saveInvoice = async () => {
         const saveBtn = document.getElementById('saveBtn');
         try {
@@ -1501,13 +1497,28 @@
                 const price = Number(r.querySelector('.p-price')?.value || 0);
                 const isReturn = r.querySelector('.p-return-checkbox').checked;
                 if (!pid || qty <= 0) return;
-                items.push({ stockId: pid, name: name || "", unit: unit || "pcs", qty, price, isReturn });
+                
+                // حفظ المعامل وإجمالي القطع الفعلي المخصوم لحظة الفاتورة
+                const p = inventory.find(i => i.id === pid);
+                const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                const qtyPcs = unit === 'box' ? (qty * factor) : qty;
+
+                items.push({ 
+                    stockId: pid, 
+                    name: name || "", 
+                    unit: unit || "pcs", 
+                    qty, 
+                    price, 
+                    isReturn,
+                    unitFactor: factor,
+                    totalPieces: qtyPcs
+                });
             });
 
             if (items.length === 0) { return window.showCustomAlert("الرجاء إضافة أصناف للفاتورة"); }
 
             saveBtn.disabled = true;
-            saveBtn.innerText = "جاري الحفظ...";
+            saveBtn.innerText = "جاري الحفظ والموازنة...";
 
             let finalCash = parseFloat(document.getElementById('cashAmount').value) || 0;
             let finalWallet = parseFloat(document.getElementById('walletAmount').value) || 0;
@@ -1519,7 +1530,6 @@
 
             const currentInvoiceTime = document.getElementById('invTime').value || originalInvoiceTime || new Date().toLocaleString('ar-EG');
 
-            // تجهيز نص الملاحظات بناء على وضع التسجيل (جديد أو تعديل)
             let finalNotes = "";
             if (editId && originalInvoiceDataForLogs) {
                 finalNotes = generateModificationLogs(originalInvoiceDataForLogs, {
@@ -1538,90 +1548,100 @@
                 cashAmount: Number(finalCash) || 0,
                 walletAmount: Number(finalWallet) || 0,
                 items, time: currentInvoiceTime, 
-                notes: finalNotes, // تسجيل ملحوظة التغييرات التفصيلية
+                notes: finalNotes,
                 cargoImages: cargoImagesArray 
             };
 
+            const batch = writeBatch(db); // تفعيل خاصية تنفيذ العمليات المجمعة
+
             if (!editId) {
+                // حفظ فاتورة جديدة
+                const newInvoiceRef = doc(collection(db, "invoices"));
                 const newInvoiceData = { ...baseInvoiceData, timestamp: serverTimestamp() };
-
-                for (const item of items) {
-                    try {
-                        const itemDocRef = doc(db, "inventory", item.stockId);
-                        const itemSnap = await getDoc(itemDocRef);
-                        if (itemSnap.exists()) {
-                            const p = inventory.find(i => i.id === item.stockId);
-                            const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                            const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                            if (item.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) }); }
-                            else { await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) }); }
-                        }
-                    } catch (err) { console.warn(`تنبيه: صنف ممسوح: ${item.stockId}`, err); }
-                }
-
-                const newDocRef = await addDoc(collection(db, "invoices"), newInvoiceData);
-                editId = newDocRef.id;
+                batch.set(newInvoiceRef, newInvoiceData);
+                editId = newInvoiceRef.id;
 
                 if (fromOrderId) {
-                    try {
-                        if (deleteOrderAfterSave) {
-                            await deleteDoc(doc(db, "orders", fromOrderId));
-                        } else {
-                            await updateDoc(doc(db, "orders", fromOrderId), { status: 'done', invoiceId: editId });
-                        }
-                    } catch (e) { console.warn('لم يتمكن النظام من تحديث أو حذف الطلبية المرجعية', e); }
+                    if (deleteOrderAfterSave) {
+                        batch.delete(doc(db, "orders", fromOrderId));
+                    } else {
+                        batch.update(doc(db, "orders", fromOrderId), { status: 'done', invoiceId: editId });
+                    }
                 }
 
-                prepareThermalReceipt(newInvoiceData, currentFetchedOldBalance);
+                // تحديث الأرصدة في المخزن
+                for (const item of items) {
+                    const itemDocRef = doc(db, "inventory", item.stockId);
+                    const qtyPcs = item.totalPieces; 
+                    if (item.isReturn) { 
+                        batch.update(itemDocRef, { totalPcs: increment(qtyPcs) }); 
+                    } else { 
+                        batch.update(itemDocRef, { totalPcs: increment(-qtyPcs) }); 
+                    }
+                }
+
             } else {
+                // تعديل فاتورة قديمة
                 const oldRef = doc(db, "invoices", editId);
                 const oldSnap = await getDoc(oldRef);
+                
                 if (oldSnap.exists()) {
                     const oldData = oldSnap.data();
+                    
+                    // إرجاع البضاعة القديمة للمخزن أولاً
                     if (oldData && oldData.items) {
                         for (const oldItem of oldData.items) {
                             if (oldItem.stockId) {
-                                try {
-                                    const itemDocRef = doc(db, "inventory", oldItem.stockId);
-                                    const itemSnap = await getDoc(itemDocRef);
-                                    if (itemSnap.exists()) {
-                                        const p = inventory.find(i => i.id === oldItem.stockId);
-                                        const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                                        const oldQtyPcs = oldItem.unit === 'box' ? oldItem.qty * factor : oldItem.qty;
-                                        if (oldItem.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(-oldQtyPcs) }); }
-                                        else { await updateDoc(itemDocRef, { totalPcs: increment(oldQtyPcs) }); }
-                                    }
-                                } catch (err) { console.warn(`تنبيه: صنف قديم: ${oldItem.stockId}`, err); }
+                                const itemDocRef = doc(db, "inventory", oldItem.stockId);
+                                
+                                let oldQtyPcs = 0;
+                                if (oldItem.totalPieces) {
+                                    oldQtyPcs = oldItem.totalPieces;
+                                } else {
+                                    // الدعم الرجعي للفواتير القديمة التي لا تحتوي على totalPieces
+                                    const p = inventory.find(i => i.id === oldItem.stockId);
+                                    const factor = oldItem.unitFactor || (p ? (Number(p.unitFactor) || 1) : 1);
+                                    oldQtyPcs = oldItem.unit === 'box' ? (oldItem.qty * factor) : oldItem.qty;
+                                }
+
+                                if (oldItem.isReturn) { 
+                                    batch.update(itemDocRef, { totalPcs: increment(-oldQtyPcs) }); 
+                                } else { 
+                                    batch.update(itemDocRef, { totalPcs: increment(oldQtyPcs) }); 
+                                }
                             }
                         }
                     }
+                    
+                    // تحديث بيانات الفاتورة
+                    batch.update(oldRef, baseInvoiceData);
+                    
+                    // خصم البضاعة الجديدة التي تم تعديلها
                     for (const item of items) {
                         if (item.stockId) {
-                            try {
-                                const itemDocRef = doc(db, "inventory", item.stockId);
-                                const itemSnap = await getDoc(itemDocRef);
-                                if (itemSnap.exists()) {
-                                    const p = inventory.find(i => i.id === item.stockId);
-                                    const factor = p ? (Number(p.unitFactor) || 1) : 1;
-                                    const qtyPcs = item.unit === 'box' ? item.qty * factor : item.qty;
-                                    if (item.isReturn) { await updateDoc(itemDocRef, { totalPcs: increment(qtyPcs) }); }
-                                    else { await updateDoc(itemDocRef, { totalPcs: increment(-qtyPcs) }); }
-                                }
-                            } catch (err) { console.warn(`تنبيه: صنف ممسوح: ${item.stockId}`, err); }
+                            const itemDocRef = doc(db, "inventory", item.stockId);
+                            const qtyPcs = item.totalPieces;
+                            if (item.isReturn) { 
+                                batch.update(itemDocRef, { totalPcs: increment(qtyPcs) }); 
+                            } else { 
+                                batch.update(itemDocRef, { totalPcs: increment(-qtyPcs) }); 
+                            }
                         }
                     }
-                    await updateDoc(oldRef, baseInvoiceData);
-                    prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
                 }
             }
 
+            // تنفيذ الـ Batch بالكامل (إما أن ينجح كل شيء معاً أو يُلغى معاً)
+            await batch.commit();
+
+            prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
             isChanged = false;
             clearDraftSilently();
             document.getElementById('shareModal').style.display = 'flex';
 
         } catch (e) {
             console.error("Firebase Error: ", e);
-            window.showCustomAlert("فشل حفظ التعديل\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
+            window.showCustomAlert("فشل حفظ الفاتورة\n\n" + (e?.message || e?.toString() || "خطأ غير معروف"));
         } finally {
             saveBtn.disabled = false;
             saveBtn.innerText = "حفظ وتحديث البيانات";
@@ -1845,7 +1865,6 @@
                 if (invDoc.exists()) {
                     const data = invDoc.data();
                     
-                    // حفظ نسخة كاملة في المتغير المرجعي للمقارنة اللاحقة عند الحفظ لإنشاء الـ logs
                     originalInvoiceDataForLogs = JSON.parse(JSON.stringify(data));
 
                     document.getElementById('customerSelect').value = data.customerId || "";
