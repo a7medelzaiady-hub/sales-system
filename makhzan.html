@@ -180,7 +180,7 @@
 <div id="itemsContainer">
     <div class="text-center py-5 fw-bold text-muted">
         <div class="spinner-border spinner-border-sm me-2"></div>
-        جاري إعادة احتساب الأرصدة الحركية بدقة...
+        جاري جلب أرصدة المخزون المباشرة...
     </div>
 </div>
 
@@ -212,144 +212,36 @@
     const db = getFirestore(app);
     let allData = [];
 
-    // دالة فحص الوحدة للكرتونة
-    function checkIsCarton(unitName) {
-        if (!unitName) return false;
-        const u = unitName.toString().trim().toLowerCase();
-        return u === 'box' || u === 'carton' || u === 'كرتونة' || u === 'كرتونه';
-    }
-
-    async function fetchRealInventoryData() {
+    async function fetchDirectInventoryData() {
         try {
-            const [invSnap, salesSnap, purSnap] = await Promise.all([
-                getDocs(collection(db, "inventory")),
-                getDocs(collection(db, "invoices")),
-                getDocs(collection(db, "supplier_transactions"))
-            ]);
+            // القراءة المباشرة فقط من قاعدة بيانات المخزن دون تجميع الفواتير القديمة المتضاربة
+            const invSnap = await getDocs(collection(db, "inventory"));
 
-            const inventoryMap = {};
-            const nameToIdMap = {};
-
-            // 1. قراءة بيانات المخزن الأساسية واستخراج رصيد "بداية المدة الصافي" فقط
+            allData = [];
             invSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
 
                 const id = docSnap.id;
-                const factor = Number(data.unitFactor) > 0 ? Number(data.unitFactor) : 12;
+                const factor = Number(data.unitFactor) > 0 ? Number(data.unitFactor) : 1;
 
-                if (data.name) nameToIdMap[data.name.trim()] = id;
-
-                // احتساب رصيد أول المدة الخالص فقط (بدون إضافة التراكمات القديمة)
-                let openingPcs = 0;
-                if (data.openingStockPcs !== undefined && data.openingStockPcs !== null) {
-                    openingPcs = parseFloat(data.openingStockPcs) || 0;
-                } else if (data.openingCartons !== undefined || data.openingJerrycans !== undefined) {
-                    const opC = parseFloat(data.openingCartons) || 0;
-                    const opJ = parseFloat(data.openingJerrycans) || 0;
-                    openingPcs = (opC * factor) + opJ;
+                // استخراج الرصيد المباشر الصريح بالقطع
+                let totalPcs = 0;
+                if (data.totalPcs !== undefined && data.totalPcs !== null) {
+                    totalPcs = parseFloat(data.totalPcs);
+                } else if (data.qty !== undefined && data.qty !== null) {
+                    totalPcs = parseFloat(data.qty);
                 } else {
-                    // إذا لم تتحدد حقول افتتاحية، يُحسب من الكراتين والجراكن الأساسية
-                    const initCartons = parseFloat(data.cartons) || 0;
-                    const initJerrycans = parseFloat(data.jerrycans) || 0;
-                    openingPcs = (initCartons * factor) + initJerrycans;
-                }
-
-                inventoryMap[id] = {
-                    id,
-                    ...data,
-                    unitFactor: factor,
-                    openingPcs,
-                    rawTotalPcs: data.totalPcs !== undefined ? parseFloat(data.totalPcs) : null
-                };
-            });
-
-            const itemMovements = {};
-
-            // 2. حساب المبيعات بالقطع
-            salesSnap.forEach(docSnap => {
-                const data = docSnap.data();
-                if (data.isDeleted) return;
-
-                const items = data.items || [];
-                items.forEach(item => {
-                    let id = item.stockId || item.id || item.itemId;
-                    if (!id && item.name) id = nameToIdMap[item.name.trim()];
-                    if (!id) return;
-
-                    if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0, hasTransactions: true };
-
-                    const mainFactor = inventoryMap[id] ? inventoryMap[id].unitFactor : 12;
-                    const qty = parseFloat(item.qty) || 0;
-                    const unitVal = item.unit || item.unitName;
-
-                    const pcsCount = checkIsCarton(unitVal) ? (qty * mainFactor) : qty;
-
-                    if (data.type === 'مرتجع' || item.isReturn) {
-                        itemMovements[id].soldPcs -= pcsCount;
-                    } else {
-                        itemMovements[id].soldPcs += pcsCount;
-                    }
-                });
-            });
-
-            // 3. حساب المشتريات بالقطع
-            purSnap.forEach(docSnap => {
-                const data = docSnap.data();
-                if (data.isDeleted) return;
-
-                const items = data.items || [];
-                items.forEach(item => {
-                    let id = item.stockId || item.id || item.itemId;
-                    if (!id && item.name) id = nameToIdMap[item.name.trim()];
-                    if (!id) return;
-
-                    if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0, hasTransactions: true };
-
-                    const mainFactor = inventoryMap[id] ? inventoryMap[id].unitFactor : 12;
-                    const unitVal = item.unit || item.unitName;
-
-                    let qty = 0;
-                    if (item.totalPieces !== undefined && parseFloat(item.totalPieces) > 0) {
-                        qty = parseFloat(item.totalPieces);
-                        if (data.type === 'مرتجع شراء' || item.isReturn) itemMovements[id].boughtPcs -= qty;
-                        else itemMovements[id].boughtPcs += qty;
-                        return;
-                    } else if (checkIsCarton(unitVal)) {
-                        qty = parseFloat(item.qty) || 0;
-                    } else {
-                        qty = parseFloat(item.returnQty !== undefined && parseFloat(item.returnQty) > 0 ? item.returnQty : item.qty) || 0;
-                    }
-
-                    const pcsCount = checkIsCarton(unitVal) ? (qty * mainFactor) : qty;
-
-                    if (data.type === 'مرتجع شراء' || item.isReturn) {
-                        itemMovements[id].boughtPcs -= pcsCount;
-                    } else {
-                        itemMovements[id].boughtPcs += pcsCount;
-                    }
-                });
-            });
-
-            // 4. دمج وحساب الرصيد الصافي الصحيح
-            allData = [];
-            Object.keys(inventoryMap).forEach(id => {
-                const item = inventoryMap[id];
-                const movements = itemMovements[id];
-
-                let finalTotalPcs = 0;
-
-                if (movements && movements.hasTransactions) {
-                    // إذا كان هناك حركات مبيعات أو مشتريات: المعروض = رصيد أول المدة + الشراء - البيع
-                    finalTotalPcs = item.openingPcs + movements.boughtPcs - movements.soldPcs;
-                } else {
-                    // إذا لم توجد حركات: يُؤخذ totalPcs أو رصيد أول المدة مباشرة
-                    finalTotalPcs = item.rawTotalPcs !== null ? item.rawTotalPcs : item.openingPcs;
+                    const c = parseFloat(data.cartons || data.openingCartons) || 0;
+                    const j = parseFloat(data.jerrycans || data.openingJerrycans) || 0;
+                    totalPcs = (c * factor) + j;
                 }
 
                 allData.push({
-                    ...item,
-                    realTotalPcs: finalTotalPcs
+                    id,
+                    ...data,
+                    unitFactor: factor,
+                    realTotalPcs: totalPcs
                 });
             });
 
@@ -380,10 +272,10 @@
 
         let html = '';
         filtered.forEach(item => {
-            const factor = Number(item.unitFactor) > 0 ? Number(item.unitFactor) : 12;
+            const factor = Number(item.unitFactor) > 0 ? Number(item.unitFactor) : 1;
             const totalPcs = Number(item.realTotalPcs) || 0;
             
-            // معادلة تفكيك الجراكن والكراتين المضبوطة
+            // معادلة تفكيك الرصيد الصريح إلى كراتين وجراكن
             let cartons = 0;
             let jerrycans = 0;
 
@@ -439,7 +331,7 @@
         window.location.href = `product-details.html?id=${id}`;
     };
 
-    fetchRealInventoryData();
+    fetchDirectInventoryData();
 </script>
 
 </body>
