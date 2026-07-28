@@ -63,7 +63,6 @@
         }
         .btn-action:hover { background: #fff; color: var(--accent); }
 
-        /* زر الحذف السريع داخل الجدول */
         .btn-delete-row {
             background: none; border: none; color: #e63946; padding: 4px 8px; border-radius: 6px; transition: 0.2s;
         }
@@ -210,33 +209,64 @@
                 }
             }
 
-            const [transSnap, invSnap] = await Promise.all([
+            // البحث بـ partyId و supplierId لضمان جلب كافة سندات الصرف والسداد
+            const [transSnapParty, transSnapSup, invSnap] = await Promise.all([
                 getDocs(query(collection(db, "transactions"), where("partyId", "==", supId))),
+                getDocs(query(collection(db, "transactions"), where("supplierId", "==", supId))),
                 getDocs(query(collection(db, "supplier_transactions"), where("supplierId", "==", supId)))
             ]);
 
-            transSnap.forEach(documentDoc => {
+            const processedTransIds = new Set();
+
+            const processTransDoc = (documentDoc) => {
+                if (processedTransIds.has(documentDoc.id)) return;
+                processedTransIds.add(documentDoc.id);
+
                 const d = documentDoc.data();
                 combinedData.push({ 
                     id: documentDoc.id,
                     collectionName: 'transactions',
-                    date: d.date, 
-                    type: d.type, 
+                    date: d.date || '---', 
+                    type: d.type || 'سداد', 
                     amount: Number(d.amount || 0), 
-                    notes: d.note || d.notes || (d.type === 'صرف' ? 'سند صرف نقدية' : 'سند قبض نقدية') 
+                    notes: d.note || d.notes || (d.type === 'صرف' || d.type === 'سداد' ? 'سند صرف نقدية / سداد' : 'سند قبض نقدية') 
                 });
-            });
+            };
 
+            transSnapParty.forEach(processTransDoc);
+            transSnapSup.forEach(processTransDoc);
+
+            // جلب الفواتير + إدراج سطر مستقل للمبلغ المدفوع كاش مع الفاتورة إن وجد
             invSnap.forEach(documentDoc => {
                 const d = documentDoc.data();
+                const totalAmt = Number(d.total || d.amount || 0);
+                
+                // سطر الفاتورة الأصلية (مشتريات/مرتجع)
                 combinedData.push({ 
                     id: documentDoc.id,
                     collectionName: 'supplier_transactions',
-                    date: d.date, 
+                    date: d.date || '---', 
                     type: d.type || 'فاتورة شراء', 
-                    amount: Number(d.total || d.amount || 0), 
-                    notes: d.note || d.details || (d.type === 'مرتجع شراء' ? 'مرتجع مشتريات' : 'مشتريات آجل') 
+                    amount: totalAmt, 
+                    notes: d.note || d.details || (d.type === 'مرتجع شراء' ? 'مرتجع مشتريات' : 'مشتريات') 
                 });
+
+                // التحقق من المدفوع نقداً/محفظة مع الفاتورة
+                const paidAmt = Number(d.paid) || 
+                    (Number(d.cashPaid || 0) + Number(d.walletPaid || 0)) || 
+                    (Number(d.cashAmount || 0) + Number(d.walletAmount || 0)) || 0;
+
+                if (paidAmt > 0 && (d.type === 'شراء' || d.type === 'فاتورة شراء' || !d.type)) {
+                    combinedData.push({
+                        id: documentDoc.id + '_paid',
+                        collectionName: 'supplier_transactions_paid',
+                        date: d.date || '---',
+                        type: 'سداد مع الفاتورة',
+                        amount: paidAmt,
+                        notes: `دفعة مقدامة/نقداً للفاتورة (${d.paymentMethod || 'نقدي'})`,
+                        isCustomPayment: true
+                    });
+                }
             });
 
             combinedData.sort((a, b) => new Date(b.date) - new Date(a.date));
@@ -248,16 +278,23 @@
             let totalCredit = 0; 
 
             combinedData.forEach(t => {
-                let isDebit = t.isOpening ? t.isDebit : ((t.type.includes('شراء') && !t.type.includes('مرتجع')) || t.type === 'قبض');
-                let isCredit = t.isOpening ? !t.isDebit : (t.type.includes('مرتجع') || t.type === 'صرف');
+                let isDebit = t.isOpening 
+                    ? t.isDebit 
+                    : ((t.type.includes('شراء') && !t.type.includes('مرتجع')) || t.type === 'قبض');
+                    
+                let isCredit = t.isOpening 
+                    ? !t.isDebit 
+                    : (t.type.includes('مرتجع') || t.type === 'صرف' || t.type === 'سداد' || t.isCustomPayment);
                 
                 if(isDebit) totalDebit += t.amount;
                 if(isCredit) totalCredit += t.amount;
 
                 const amtFormatted = t.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2});
                 
-                // زر السلة للحذف - يختفي لو كانت الحركة هي الرصيد الافتتاحي
-                const deleteBtn = t.isOpening ? '-' : `<button class="btn-delete-row" onclick="deleteTransaction('${t.collectionName}', '${t.id}')"><i class="fas fa-trash-alt"></i></button>`;
+                // زر الحذف
+                const deleteBtn = (t.isOpening || t.isCustomPayment) 
+                    ? '-' 
+                    : `<button class="btn-delete-row" onclick="deleteTransaction('${t.collectionName}', '${t.id}')"><i class="fas fa-trash-alt"></i></button>`;
 
                 tbody.innerHTML += `
                     <tr>
@@ -294,17 +331,17 @@
             document.getElementById('p-balance').innerText = Math.abs(finalBalance).toLocaleString('ar-EG') + ' ج.م';
 
         } catch (err) {
+            console.error(err);
             tbody.innerHTML = '<tr><td colspan="5" class="text-danger py-5">حدث خطأ في جلب البيانات</td></tr>';
         }
     }
 
-    // دالة حذف الحركة من الفايربيس
     window.deleteTransaction = async (collectionName, docId) => {
         if(confirm("هل أنت متأكد من رغبتك في حذف هذه الحركة نهائياً؟")) {
             try {
                 await deleteDoc(doc(db, collectionName, docId));
                 alert("تم حذف الحركة بنجاح.");
-                loadStatement(); // إعادة تحميل الجدول لتحديث الأرقام
+                loadStatement();
             } catch (error) {
                 console.error("Error deleting document: ", error);
                 alert("عذراً، فشل حذف الحركة.");
