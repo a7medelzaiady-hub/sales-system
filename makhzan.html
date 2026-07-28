@@ -105,7 +105,6 @@
             background: #fdfdfd;
             border-color: #f1f2f6;
         }
-        .item-card.out-of-stock .item-price { color: var(--text-muted); }
 
         .item-name { font-weight: 800; font-size: 0.95rem; margin-bottom: 3px; color: var(--text-dark); line-height: 1.3;}
         .item-barcode { font-size: 0.75rem; color: var(--text-muted); }
@@ -157,7 +156,7 @@
 <body>
 
 <div class="top-nav">
-    <i class="fas fa-sync-alt" onclick="fetchRealInventoryData()"></i>
+    <i class="fas fa-sync-alt" onclick="loadInventory()"></i>
     <span class="fw-bold">الأصناف والمخزون</span>
     <i class="fas fa-chevron-left" onclick="history.back()"></i>
 </div>
@@ -180,7 +179,7 @@
 <div id="itemsContainer">
     <div class="text-center py-5 fw-bold text-muted">
         <div class="spinner-border spinner-border-sm me-2"></div>
-        جاري إعادة تصحيح الرصيد من حركة المشتريات والمبيعات...
+        جاري جلب بيانات المخزون...
     </div>
 </div>
 
@@ -196,7 +195,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -212,110 +211,21 @@
     const db = getFirestore(app);
     let allData = [];
 
-    // دالة احتساب وتصحيح أرصدة المخزن المباشرة
-    window.fetchRealInventoryData = async function() {
-        const container = document.getElementById('itemsContainer');
-        container.innerHTML = `<div class="text-center py-5 fw-bold text-muted"><div class="spinner-border spinner-border-sm me-2"></div>جاري مطابقة وتصحيح الكميات الحالية...</div>`;
-
-        try {
-            const [invSnap, salesSnap, purSnap] = await Promise.all([
-                getDocs(collection(db, "inventory")),
-                getDocs(collection(db, "invoices")),
-                getDocs(collection(db, "supplier_transactions"))
-            ]);
-
-            const itemMovements = {};
-
-            // 1. حساب حركات المبيعات
-            salesSnap.forEach(docSnap => {
-                const data = docSnap.data();
-                if (data.isDeleted) return;
-
-                (data.items || []).forEach(item => {
-                    const id = item.stockId || item.id;
-                    const name = item.name;
-                    if (!id && !name) return;
-
-                    const key = id || name;
-                    if (!itemMovements[key]) itemMovements[key] = { soldPcs: 0, boughtPcs: 0 };
-
-                    const factor = Number(item.unitFactor) || 12;
-                    const qty = Number(item.qty) || 0;
-                    const isCartonUnit = (item.unit === 'box' || item.unit === 'carton' || item.unit === 'كرتونة' || item.unit === 'كرتونه');
-                    const pcsCount = isCartonUnit ? (qty * factor) : qty;
-
-                    if (data.type === 'مرتجع' || data.isReturn) {
-                        itemMovements[key].soldPcs -= pcsCount;
-                    } else {
-                        itemMovements[key].soldPcs += pcsCount;
-                    }
-                });
-            });
-
-            // 2. حساب حركات المشتريات
-            purSnap.forEach(docSnap => {
-                const data = docSnap.data();
-                if (data.isDeleted) return;
-
-                (data.items || []).forEach(item => {
-                    const id = item.stockId || item.id;
-                    const name = item.name;
-                    if (!id && !name) return;
-
-                    const key = id || name;
-                    if (!itemMovements[key]) itemMovements[key] = { soldPcs: 0, boughtPcs: 0 };
-
-                    const factor = Number(item.unitFactor) || 12;
-                    const qty = Number(item.qty) || 0;
-                    const isCartonUnit = (item.unit === 'box' || item.unit === 'carton' || item.unit === 'كرتونة' || item.unit === 'كرتونه');
-                    const pcsCount = isCartonUnit ? (qty * factor) : qty;
-
-                    if (data.type === 'مرتجع شراء' || data.isReturn) {
-                        itemMovements[key].boughtPcs -= pcsCount;
-                    } else {
-                        itemMovements[key].boughtPcs += pcsCount;
-                    }
-                });
-            });
-
-            // 3. مطابقة الوثائق مع القيمة الفعلية
+    // الجلب المباشر من مجموعة inventory الموضحة في الصورة
+    window.loadInventory = function() {
+        onSnapshot(collection(db, "inventory"), (snap) => {
             allData = [];
-            for (const docSnap of invSnap.docs) {
+            snap.forEach(docSnap => {
                 const data = docSnap.data();
-                if (data.isDeleted) continue;
-
-                const docId = docSnap.id;
-                const docName = data.name;
-
-                const movements = itemMovements[docId] || itemMovements[docName] || { soldPcs: 0, boughtPcs: 0 };
-                
-                const factor = Number(data.unitFactor) || 12;
-                const initialPcs = Number(data.openingStockPcs || 0);
-
-                // حساب صافي الكميات بالقطع
-                let realPcs = initialPcs + movements.boughtPcs - movements.soldPcs;
-
-                // تحديث قاعدة البيانات حتى لا يعود الرقم القديم لاحقاً
-                if (data.totalPcs !== realPcs) {
-                    try {
-                        await updateDoc(doc(db, "inventory", docId), { totalPcs: realPcs });
-                    } catch(err) {
-                        console.warn("تعذر تحديث الوثيقة مباشرة:", err);
-                    }
+                if (!data.isDeleted) {
+                    allData.push({ id: docSnap.id, ...data });
                 }
-
-                allData.push({
-                    id: docId,
-                    ...data,
-                    realTotalPcs: realPcs
-                });
-            }
-
+            });
             renderItems();
-        } catch (e) {
-            console.error("خطأ التحديث:", e);
-            container.innerHTML = `<div class="text-center text-danger mt-4 fw-bold">فشل تحديث البيانات، يرجى المحاولة لاحقاً</div>`;
-        }
+        }, (err) => {
+            console.error(err);
+            document.getElementById('itemsContainer').innerHTML = `<div class="text-center text-danger py-4 fw-bold">فشل الاتصال بقاعدة البيانات</div>`;
+        });
     };
 
     window.renderItems = function() {
@@ -327,35 +237,26 @@
             (i.barcode && i.barcode.includes(term))
         );
 
-        filtered.sort((a, b) => {
-            const qtyA = Number(a.realTotalPcs) || 0;
-            const qtyB = Number(b.realTotalPcs) || 0;
-            if (qtyA === 0 && qtyB !== 0) return 1;
-            if (qtyA !== 0 && qtyB === 0) return -1;
-            return 0;
-        });
-
         let html = '';
         filtered.forEach(item => {
-            const factor = Number(item.unitFactor) || 12;
-            const totalPcs = Number(item.realTotalPcs) || 0;
+            // اعتماد القيم الحقيقية المستخرجة من الفايربيس (unitFactor & totalPcs)
+            const factor = Number(item.unitFactor) > 0 ? Number(item.unitFactor) : 1; 
+            const totalPcs = Number(item.totalPcs) || Number(item.qty) || 0; 
             
             const absTotal = Math.abs(totalPcs);
             const sign = totalPcs < 0 ? -1 : 1;
 
-            const cartons = Math.floor(absTotal / factor) * sign;
-            const jerrycans = (absTotal % factor) * sign;
+            // حساب الكراتين والمتبقي من الجراكين/القطع
+            const cartons = factor > 1 ? (Math.floor(absTotal / factor) * sign) : 0;
+            const jerrycans = factor > 1 ? ((absTotal % factor) * sign) : (totalPcs);
 
             const isZero = totalPcs === 0;
-            const minAllowed = (Number(item.min) || 0) * factor;
+            const minAllowed = (Number(item.min) || 0) * (factor > 1 ? factor : 1);
             const isLow = !isZero && (totalPcs <= minAllowed);
 
             let badgeClass = 'qty-badge';
-            if (isZero) {
-                badgeClass += ' qty-zero';
-            } else if (isLow) {
-                badgeClass += ' qty-low';
-            }
+            if (isZero) badgeClass += ' qty-zero';
+            else if (isLow) badgeClass += ' qty-low';
 
             html += `
                 <div class="item-card grid-layout ${isZero ? 'out-of-stock' : ''}" onclick="goToDetails('${item.id}')">
@@ -388,7 +289,7 @@
         window.location.href = `product-details.html?id=${id}`;
     };
 
-    fetchRealInventoryData();
+    loadInventory();
 </script>
 </body>
 </html>
