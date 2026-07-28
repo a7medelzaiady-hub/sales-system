@@ -194,7 +194,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
-<script type="module">
+ 
+    <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
@@ -212,6 +213,13 @@
     const db = getFirestore(app);
     let allData = [];
 
+    // دالة للتحقق هل الوحدة المعاملة كرتونة
+    function checkIsCarton(unitName) {
+        if (!unitName) return false;
+        const u = unitName.toString().trim().toLowerCase();
+        return u === 'box' || u === 'carton' || u === 'كرتونة' || u === 'كرتونه';
+    }
+
     // دالة جلب الأرصدة الحقيقية المطابقة لحركات المشتريات والمبيعات
     async function fetchRealInventoryData() {
         try {
@@ -223,7 +231,7 @@
 
             const itemMovements = {};
 
-            // 1. تجميع المبيعات ومرتجعاتها
+            // 1. تجميع المبيعات ومرتجعاتها بالقطع الفرعية (الجراكن)
             salesSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
@@ -236,8 +244,9 @@
 
                     const factor = Number(item.unitFactor) || 1;
                     const qty = Number(item.qty) || 0;
-                    const isCartonUnit = (item.unit === 'box' || item.unit === 'carton' || item.unit === 'كرتونة' || item.unit === 'كرتونه');
-                    const pcsCount = isCartonUnit ? (qty * factor) : qty;
+                    
+                    // إذا تباع بالكرتونة تضرب في معامل الكرتونة لتحويلها إلى جراكن/قطع
+                    const pcsCount = checkIsCarton(item.unit) ? (qty * factor) : qty;
 
                     if (data.type === 'مرتجع' || data.isReturn) {
                         itemMovements[id].soldPcs -= pcsCount;
@@ -247,7 +256,7 @@
                 });
             });
 
-            // 2. تجميع المشتريات ومرتجعاتها
+            // 2. تجميع المشتريات ومرتجعاتها بالقطع الفرعية (الجراكن)
             purSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
@@ -260,8 +269,9 @@
 
                     const factor = Number(item.unitFactor) || 1;
                     const qty = Number(item.qty) || 0;
-                    const isCartonUnit = (item.unit === 'box' || item.unit === 'carton' || item.unit === 'كرتونة' || item.unit === 'كرتونه');
-                    const pcsCount = isCartonUnit ? (qty * factor) : qty;
+                    
+                    // إذا اشتريت بالكرتونة تضرب في معامل الكرتونة لتحويلها إلى جراكن/قطع
+                    const pcsCount = checkIsCarton(item.unit) ? (qty * factor) : qty;
 
                     if (data.type === 'مرتجع شراء' || data.isReturn) {
                         itemMovements[id].boughtPcs -= pcsCount;
@@ -271,7 +281,7 @@
                 });
             });
 
-            // 3. احتساب الرصيد الصافي الموحد
+            // 3. احتساب الرصيد الصافي الموحد (الرصيد الإجمالي بالجراكن/القطع)
             allData = [];
             invSnap.forEach(docSnap => {
                 const data = docSnap.data();
@@ -279,17 +289,20 @@
 
                 const id = docSnap.id;
                 const factor = Number(data.unitFactor) || 1;
-                const initialPcs = Number(data.openingStockPcs) || 0; // رصيد أول المدة بالقطع/الجراكين
+                
+                // حساب رصيد بداية المدة بالجراكن/القطع
+                let initialPcs = Number(data.openingStockPcs);
+                if (isNaN(initialPcs)) {
+                    // إذا لم يوجد رصيد أول مدة بالقطع، نحسبه من رصيد الكراتين + الجراكن الأولية
+                    const initCartons = Number(data.openingCartons) || Number(data.cartons) || 0;
+                    const initJerrycans = Number(data.openingJerrycans) || Number(data.jerrycans) || 0;
+                    initialPcs = (initCartons * factor) + initJerrycans;
+                }
 
                 const movements = itemMovements[id] || { soldPcs: 0, boughtPcs: 0 };
                 
-                // إن لم يكن رصيد أول المدة مسجلاً بشكل منفصل نستخدم القيمة الأساسية المخزنة
+                // الرصيد الصافي الحالي بالقطع (الجراكن)
                 let calculatedTotalPcs = initialPcs + movements.boughtPcs - movements.soldPcs;
-
-                // إذا لم يوجد رصيد أول مدة مستقل، نحسب الفرق مباشرة
-                if (initialPcs === 0 && (data.totalPcs !== undefined)) {
-                    calculatedTotalPcs = Number(data.totalPcs) - movements.soldPcs + movements.boughtPcs;
-                }
 
                 allData.push({
                     id,
@@ -325,15 +338,22 @@
 
         let html = '';
         filtered.forEach(item => {
-            const factor = Number(item.unitFactor) || 12; // الافتراضي للتحويل هو 12
+            const factor = Number(item.unitFactor) || 1; // معامل الكرتونة (مثلاً 4 أو 12)
             const totalPcs = Number(item.realTotalPcs) || 0;
             
-            const absTotal = Math.abs(totalPcs);
-            const sign = totalPcs < 0 ? -1 : 1;
+            // التفكيك الصحيح: الكراتين = الناتج الصحيح من قسمة الإجمالي على المعامل
+            // الجراكن = الباقي بعد تحويل الكراتين
+            let cartons = 0;
+            let jerrycans = 0;
 
-            // حساب عدد الكراتين والجراكين المتبقية بدقة
-            const cartons = Math.floor(absTotal / factor) * sign;
-            const jerrycans = (absTotal % factor) * sign;
+            if (factor > 1) {
+                cartons = Math.trunc(totalPcs / factor);
+                jerrycans = totalPcs % factor;
+            } else {
+                // إذا لم يوجد معامل كرتونة، يُعامل الإجمالي على أنه جراكن/قطع مباشرة
+                cartons = 0;
+                jerrycans = totalPcs;
+            }
 
             const isZero = totalPcs === 0;
             const minAllowed = (Number(item.min) || 0) * factor;
@@ -379,5 +399,6 @@
 
     fetchRealInventoryData();
 </script>
+
 </body>
 </html>
