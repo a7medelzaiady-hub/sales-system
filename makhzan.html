@@ -157,7 +157,7 @@
 <body>
 
 <div class="top-nav">
-    <i class="fas fa-sync-alt" onclick="location.reload()"></i>
+    <i class="fas fa-sync-alt" onclick="fetchRealInventoryData()"></i>
     <span class="fw-bold">الأصناف والمخزون</span>
     <i class="fas fa-chevron-left" onclick="history.back()"></i>
 </div>
@@ -180,7 +180,7 @@
 <div id="itemsContainer">
     <div class="text-center py-5 fw-bold text-muted">
         <div class="spinner-border spinner-border-sm me-2"></div>
-        جاري حساب ودراسة أرصدة المخزون الفعلية...
+        جاري إعادة تصحيح الرصيد من حركة المشتريات والمبيعات...
     </div>
 </div>
 
@@ -196,7 +196,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -212,8 +212,11 @@
     const db = getFirestore(app);
     let allData = [];
 
-    // دالة جلب الأرصدة الحقيقية المطابقة لحركات المشتريات والمبيعات
-    async function fetchRealInventoryData() {
+    // دالة احتساب وتصحيح أرصدة المخزن المباشرة
+    window.fetchRealInventoryData = async function() {
+        const container = document.getElementById('itemsContainer');
+        container.innerHTML = `<div class="text-center py-5 fw-bold text-muted"><div class="spinner-border spinner-border-sm me-2"></div>جاري مطابقة وتصحيح الكميات الحالية...</div>`;
+
         try {
             const [invSnap, salesSnap, purSnap] = await Promise.all([
                 getDocs(collection(db, "inventory")),
@@ -223,88 +226,97 @@
 
             const itemMovements = {};
 
-            // 1. تجميع المبيعات ومرتجعاتها
+            // 1. حساب حركات المبيعات
             salesSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
 
-                const items = data.items || [];
-                items.forEach(item => {
+                (data.items || []).forEach(item => {
                     const id = item.stockId || item.id;
-                    if (!id) return;
-                    if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0 };
+                    const name = item.name;
+                    if (!id && !name) return;
 
-                    const factor = Number(item.unitFactor) || 1;
+                    const key = id || name;
+                    if (!itemMovements[key]) itemMovements[key] = { soldPcs: 0, boughtPcs: 0 };
+
+                    const factor = Number(item.unitFactor) || 12;
                     const qty = Number(item.qty) || 0;
                     const isCartonUnit = (item.unit === 'box' || item.unit === 'carton' || item.unit === 'كرتونة' || item.unit === 'كرتونه');
                     const pcsCount = isCartonUnit ? (qty * factor) : qty;
 
                     if (data.type === 'مرتجع' || data.isReturn) {
-                        itemMovements[id].soldPcs -= pcsCount;
+                        itemMovements[key].soldPcs -= pcsCount;
                     } else {
-                        itemMovements[id].soldPcs += pcsCount;
+                        itemMovements[key].soldPcs += pcsCount;
                     }
                 });
             });
 
-            // 2. تجميع المشتريات ومرتجعاتها
+            // 2. حساب حركات المشتريات
             purSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
 
-                const items = data.items || [];
-                items.forEach(item => {
+                (data.items || []).forEach(item => {
                     const id = item.stockId || item.id;
-                    if (!id) return;
-                    if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0 };
+                    const name = item.name;
+                    if (!id && !name) return;
 
-                    const factor = Number(item.unitFactor) || 1;
+                    const key = id || name;
+                    if (!itemMovements[key]) itemMovements[key] = { soldPcs: 0, boughtPcs: 0 };
+
+                    const factor = Number(item.unitFactor) || 12;
                     const qty = Number(item.qty) || 0;
                     const isCartonUnit = (item.unit === 'box' || item.unit === 'carton' || item.unit === 'كرتونة' || item.unit === 'كرتونه');
                     const pcsCount = isCartonUnit ? (qty * factor) : qty;
 
                     if (data.type === 'مرتجع شراء' || data.isReturn) {
-                        itemMovements[id].boughtPcs -= pcsCount;
+                        itemMovements[key].boughtPcs -= pcsCount;
                     } else {
-                        itemMovements[id].boughtPcs += pcsCount;
+                        itemMovements[key].boughtPcs += pcsCount;
                     }
                 });
             });
 
-            // 3. احتساب الرصيد الصافي الموحد
+            // 3. مطابقة الوثائق مع القيمة الفعلية
             allData = [];
-            invSnap.forEach(docSnap => {
+            for (const docSnap of invSnap.docs) {
                 const data = docSnap.data();
-                if (data.isDeleted) return;
+                if (data.isDeleted) continue;
 
-                const id = docSnap.id;
-                const factor = Number(data.unitFactor) || 1;
-                const initialPcs = Number(data.openingStockPcs) || 0; // رصيد أول المدة بالقطع/الجراكين
+                const docId = docSnap.id;
+                const docName = data.name;
 
-                const movements = itemMovements[id] || { soldPcs: 0, boughtPcs: 0 };
+                const movements = itemMovements[docId] || itemMovements[docName] || { soldPcs: 0, boughtPcs: 0 };
                 
-                // إن لم يكن رصيد أول المدة مسجلاً بشكل منفصل نستخدم القيمة الأساسية المخزنة
-                let calculatedTotalPcs = initialPcs + movements.boughtPcs - movements.soldPcs;
+                const factor = Number(data.unitFactor) || 12;
+                const initialPcs = Number(data.openingStockPcs || 0);
 
-                // إذا لم يوجد رصيد أول مدة مستقل، نحسب الفرق مباشرة
-                if (initialPcs === 0 && (data.totalPcs !== undefined)) {
-                    calculatedTotalPcs = Number(data.totalPcs) - movements.soldPcs + movements.boughtPcs;
+                // حساب صافي الكميات بالقطع
+                let realPcs = initialPcs + movements.boughtPcs - movements.soldPcs;
+
+                // تحديث قاعدة البيانات حتى لا يعود الرقم القديم لاحقاً
+                if (data.totalPcs !== realPcs) {
+                    try {
+                        await updateDoc(doc(db, "inventory", docId), { totalPcs: realPcs });
+                    } catch(err) {
+                        console.warn("تعذر تحديث الوثيقة مباشرة:", err);
+                    }
                 }
 
                 allData.push({
-                    id,
+                    id: docId,
                     ...data,
-                    realTotalPcs: calculatedTotalPcs
+                    realTotalPcs: realPcs
                 });
-            });
+            }
 
             renderItems();
         } catch (e) {
-            console.error("خطأ في احتساب رصيد المخزن:", e);
-            document.getElementById('itemsContainer').innerHTML = 
-                `<div class="text-center text-danger mt-4 fw-bold">عذراً، تعذر تحديث بيانات المخزون الحالية.</div>`;
+            console.error("خطأ التحديث:", e);
+            container.innerHTML = `<div class="text-center text-danger mt-4 fw-bold">فشل تحديث البيانات، يرجى المحاولة لاحقاً</div>`;
         }
-    }
+    };
 
     window.renderItems = function() {
         const term = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -325,13 +337,12 @@
 
         let html = '';
         filtered.forEach(item => {
-            const factor = Number(item.unitFactor) || 12; // الافتراضي للتحويل هو 12
+            const factor = Number(item.unitFactor) || 12;
             const totalPcs = Number(item.realTotalPcs) || 0;
             
             const absTotal = Math.abs(totalPcs);
             const sign = totalPcs < 0 ? -1 : 1;
 
-            // حساب عدد الكراتين والجراكين المتبقية بدقة
             const cartons = Math.floor(absTotal / factor) * sign;
             const jerrycans = (absTotal % factor) * sign;
 
