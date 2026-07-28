@@ -331,7 +331,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, updateDoc, doc, onSnapshot, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, updateDoc, doc, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -373,6 +373,7 @@
 
             await batch.commit();
             alert("تم تصفير المخزن بنجاح ونقل جميع الأصناف للسلة.");
+            fetchRealInventoryData();
         } catch (e) {
             console.error(e);
             alert("حدث خطأ أثناء محاولة التصفير.");
@@ -387,8 +388,38 @@
                 getDocs(collection(db, "supplier_transactions"))
             ]);
 
+            // 1. تجميع بيانات المخزن الأساسية وقراءة معامل التحويل المباشر (unitFactor) والصنف بجدول المخزن
+            const inventoryMap = {};
+            invSnap.forEach(docSnap => {
+                const data = docSnap.data();
+                if (data.isDeleted === true) return;
+
+                const id = docSnap.id;
+                const factor = Number(data.unitFactor) || 1;
+
+                // احتساب رصيد أول المدة بدقة
+                let openingPcs = 0;
+                if (data.openingStockPcs !== undefined) {
+                    openingPcs = Number(data.openingStockPcs) || 0;
+                } else if (data.openingCartons !== undefined || data.openingJerrycans !== undefined) {
+                    openingPcs = ((Number(data.openingCartons) || 0) * factor) + (Number(data.openingJerrycans) || 0);
+                } else if (data.openingQty !== undefined) {
+                    openingPcs = Number(data.openingQty) || 0;
+                } else {
+                    openingPcs = Number(data.totalPcs !== undefined ? data.totalPcs : data.qty) || 0;
+                }
+
+                inventoryMap[id] = {
+                    id,
+                    ...data,
+                    unitFactor: factor,
+                    openingPcs: openingPcs
+                };
+            });
+
             const itemMovements = {};
 
+            // 2. تجميع حركات المبيعات وخصمها من المخزن
             salesSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
@@ -399,7 +430,8 @@
                     if (!id) return;
                     if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0 };
 
-                    const factor = Number(item.unitFactor) || 1;
+                    // إذا لم يتوفر unitFactor بداخل كارت الفاتورة نستخدم معامل التحويل الأصلي للصنف
+                    const factor = Number(item.unitFactor) || (inventoryMap[id] ? inventoryMap[id].unitFactor : 1);
                     const qty = Number(item.qty) || 0;
                     const pcs = isCartonUnit(item.unit) ? (qty * factor) : qty;
 
@@ -411,6 +443,7 @@
                 });
             });
 
+            // 3. تجميع حركات المشتريات وإضافتها للمخزن
             purSnap.forEach(docSnap => {
                 const data = docSnap.data();
                 if (data.isDeleted) return;
@@ -421,7 +454,8 @@
                     if (!id) return;
                     if (!itemMovements[id]) itemMovements[id] = { soldPcs: 0, boughtPcs: 0 };
 
-                    const factor = Number(item.unitFactor) || 1;
+                    // إذا لم يتوفر unitFactor بداخل كارت الفاتورة نستخدم معامل التحويل الأصلي للصنف
+                    const factor = Number(item.unitFactor) || (inventoryMap[id] ? inventoryMap[id].unitFactor : 1);
                     const qty = Number(item.qty) || 0;
                     const pcs = isCartonUnit(item.unit) ? (qty * factor) : qty;
 
@@ -433,22 +467,15 @@
                 });
             });
 
+            // 4. دمج وحساب الأرصدة الفعلية المطابقة للواقع
             inventoryData = [];
-            invSnap.forEach(docSnap => {
-                const data = docSnap.data();
-                if (data.isDeleted === true) return;
-
-                const id = docSnap.id;
-                const factor = Number(data.unitFactor) || 1;
-                const basePcs = Number(data.totalPcs !== undefined ? data.totalPcs : data.openingStockPcs) || 0;
+            Object.keys(inventoryMap).forEach(id => {
+                const item = inventoryMap[id];
                 const movements = itemMovements[id] || { soldPcs: 0, boughtPcs: 0 };
-
-                const realTotalPcs = basePcs + movements.boughtPcs - movements.soldPcs;
+                const realTotalPcs = item.openingPcs + movements.boughtPcs - movements.soldPcs;
 
                 inventoryData.push({
-                    id,
-                    ...data,
-                    unitFactor: factor,
+                    ...item,
                     calculatedTotalPcs: realTotalPcs
                 });
             });
@@ -532,11 +559,11 @@
             let qtyTextMobile = '';
             
             if (factor > 1) {
-                qtyTextDesktop = `<span class="qty-badge">${boxes} كرتونة</span> <span class="qty-badge text-success">${pieces} قطعة</span>`;
-                qtyTextMobile = `${boxes} كرتونة | ${pieces} قطعة`;
+                qtyTextDesktop = `<span class="qty-badge">${boxes} كرتونة</span> <span class="qty-badge text-success">${pieces} جركن/قطعة</span>`;
+                qtyTextMobile = `${boxes} كرتونة | ${pieces} جركن`;
             } else {
-                qtyTextDesktop = `<span class="qty-badge text-success">${totalPcs} قطعة</span>`;
-                qtyTextMobile = `${totalPcs} قطعة`;
+                qtyTextDesktop = `<span class="qty-badge text-success">${totalPcs} جركن/قطعة</span>`;
+                qtyTextMobile = `${totalPcs} جركن`;
             }
 
             let statusBadge = '';
