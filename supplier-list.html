@@ -132,30 +132,55 @@
     const db = getFirestore(app);
     let allSuppliers = [];
 
+    // دالة احتساب الرصيد الحقيقي للمورد الدقيقة والمطابقة للمنطق المحاسبي Corrected Balance Calculation
     async function calculateSupplierBalance(supId, openingBal) {
-        const [snapTrans, snapItems] = await Promise.all([
+        const [snapTransParty, snapTransSup, snapItems] = await Promise.all([
             getDocs(query(collection(db, "transactions"), where("partyId", "==", supId))),
+            getDocs(query(collection(db, "transactions"), where("supplierId", "==", supId))),
             getDocs(query(collection(db, "supplier_transactions"), where("supplierId", "==", supId)))
         ]);
 
-        let debt = 0;   
-        let credit = 0; 
+        let totalPurchases = 0; // إجمالي المشتريات (تزيد المديونية علينا)
+        let totalPayments = 0;  // إجمالي المبالغ المسددة (تقلل المديونية)
 
-        snapTrans.forEach(doc => {
-            const d = doc.data();
+        const processedTransIds = new Set();
+
+        const processTransDoc = (docSnap) => {
+            if (processedTransIds.has(docSnap.id)) return;
+            processedTransIds.add(docSnap.id);
+
+            const d = docSnap.data();
             const amt = Number(d.amount) || 0;
-            if (d.type === "صرف") credit += amt;
-            else if (d.type === "قبض") debt += amt;
+
+            if (d.type === "صرف" || d.type === "سداد") {
+                totalPayments += amt; // الصرف للمورد يقلل المديونية
+            } else if (d.type === "قبض") {
+                totalPurchases += amt; // القبض من المورد يزيد المديونية
+            }
+        };
+
+        snapTransParty.forEach(processTransDoc);
+        snapTransSup.forEach(processTransDoc);
+
+        snapItems.forEach(docSnap => {
+            const d = docSnap.data();
+            const totalInvoice = Number(d.total) || Number(d.amount) || 0;
+
+            // جلب أي مبلغ مدفوع فوراً مع الفاتورة
+            const paidInsideInvoice = Number(d.paid) || 
+                (Number(d.cashPaid || 0) + Number(d.walletPaid || 0)) || 
+                (Number(d.cashAmount || 0) + Number(d.walletAmount || 0)) || 0;
+
+            if (d.type === "شراء" || d.type === "فاتورة شراء" || !d.type) {
+                totalPurchases += totalInvoice;     // إضافة الفاتورة
+                totalPayments += paidInsideInvoice; // خصم الجزء المدفوع فوراً
+            } else if (d.type === "مرتجع شراء" || d.type === "مرتجع") {
+                totalPayments += totalInvoice;     // المرتجع يقلل المديونية
+            }
         });
 
-        snapItems.forEach(doc => {
-            const d = doc.data();
-            const amt = Number(d.total) || Number(d.amount) || 0;
-            if (d.type === "شراء" || d.type === "فاتورة شراء") debt += amt;
-            else if (d.type === "مرتجع شراء") credit += amt;
-        });
-
-        return (Number(openingBal || 0) + debt) - credit;
+        // المعادلة الصحيحة: (الرصيد الافتتاحي + المشتريات) - المسدد
+        return (Number(openingBal || 0) + totalPurchases) - totalPayments;
     }
 
     async function loadSuppliers() {
@@ -173,6 +198,7 @@
             allSuppliers = await Promise.all(supplierPromises);
             renderSuppliers(allSuppliers);
         } catch (e) {
+            console.error(e);
             container.innerHTML = `<div class="text-danger text-center fw-bold">عذراً، فشل الاتصال بالقاعدة</div>`;
         }
     }
@@ -205,7 +231,7 @@
                         <h6 class="supplier-name">${sup.name}</h6>
                         <div class="mt-2">
                             <span class="balance-label">${label}</span>
-                            <span class="balance-value ${balanceClass}">${balance === 0 ? '' : balanceText}</span>
+                            <span class="balance-value ${balanceClass}">${Math.abs(balance) < 0.1 ? '' : balanceText}</span>
                         </div>
                     </div>
                     <div class="action-container">
@@ -220,7 +246,6 @@
     window.deleteAllSuppliersPermanently = async () => {
         if (!confirm("⚠️ هل تريد حذف جميع الموردين نهائياً؟ لا يمكن التراجع عن هذه الخطوة!")) return;
         
-        const container = document.getElementById('suppliersContainer');
         try {
             const snap = await getDocs(collection(db, "suppliers"));
             if (snap.empty) {
@@ -228,7 +253,6 @@
                 return;
             }
 
-            // استخدام نظام الدفعات لحذف آمن وسريع من الفايرستور
             const batch = writeBatch(db);
             snap.forEach((docSnap) => {
                 batch.delete(doc(db, "suppliers", docSnap.id));
@@ -237,7 +261,6 @@
             await batch.commit();
             alert("تم حذف جميع الموردين بنجاح.");
             
-            // إعادة تحميل القائمة لتحديث الواجهة فوراً
             loadSuppliers();
         } catch (e) {
             alert("حدث خطأ أثناء الحذف: " + e.message);
