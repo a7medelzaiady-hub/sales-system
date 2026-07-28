@@ -526,8 +526,6 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
 
-    firebase.firestore().enablePersistence({ synchronizeTabs: true }).catch(() => {});
-
     let allInvoices = [];
     let customersData = {};
     let currentFilterType = null;
@@ -880,7 +878,7 @@
         }
     }
 
-    // دالة جلب البيانات المحسّنة والسريعة
+    // دالة الجلب الآمنة لمنع مشاكل الفهارس المركبة (Composite Index)
     async function loadData(showSpinner = true, loadAllArchive = false) {
         const container = document.getElementById('invoicesList');
         if (showSpinner) {
@@ -895,27 +893,18 @@
             const filterInput = document.getElementById('dateFilterInput')?.value;
             const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
 
-            // 1. إعداد استعلام الفواتير والمعاملات الأساسية
-            let invQuery = db.collection("invoices").where("isDeleted", "==", false);
-            let transQuery = db.collection("transactions").where("isDeleted", "==", false);
-
-            if (!loadAllArchive) {
-                invQuery = invQuery.where("date", "==", targetDate);
-                transQuery = transQuery.where("date", "==", targetDate);
-            }
-
-            // 2. جلب البيانات بدون مهلة تعسفية وبطريقة سلسة
+            // جلب البيانات بدون تصفية مركبة لمنع الخطأ الصامت
             const [custSnap, transSnap, invSnap] = await Promise.all([
                 db.collection("customers").get().catch(err => { console.warn("العملاء:", err); return null; }),
-                transQuery.get().catch(err => { console.warn("المعاملات:", err); return null; }),
-                invQuery.get().catch(err => { console.error("الفواتير:", err); return null; })
+                db.collection("transactions").get().catch(err => { console.warn("المعاملات:", err); return null; }),
+                db.collection("invoices").get().catch(err => { console.error("الفواتير:", err); return null; })
             ]);
 
             if (!invSnap) {
-                throw new Error("لم يتم استرجاع أي بيانات للفواتير.");
+                throw new Error("لم يتم استرجاع بيانات الفواتير.");
             }
 
-            // 3. معالجة بيانات العملاء
+            // 1. معالجة العملاء
             customersData = {};
             if (custSnap) {
                 custSnap.forEach(d => {
@@ -923,16 +912,18 @@
                 });
             }
 
-            // 4. معالجة سندات القبض والمعاملات
+            // 2. معالجة السندات
             allReceiptVouchers = [];
             if (transSnap) {
                 transSnap.forEach(d => {
                     const tr = d.data();
+                    if (tr.isDeleted === true) return;
+
                     const isCustomerVoucher = tr.partyType === 'عميل' || (!tr.partyType && customersData[tr.partyId]);
                     if (tr.type === 'قبض' && isCustomerVoucher) {
                         let cashAmount = Number(tr.cashPaid ?? (tr.method !== 'محفظة' ? tr.amount : 0)) || 0;
                         let walletAmount = Number(tr.walletPaid ?? (tr.method === 'محفظة' ? tr.amount : 0)) || 0;
-                        const customerName = (customersData[tr.partyId] && customersData[tr.partyId].name) || 'عميل غير معروف';
+                        const customerName = (customersData[tr.partyId] && customersData[tr.partyId].name) || tr.partyName || 'عميل غير معروف';
 
                         allReceiptVouchers.push({
                             id: d.id,
@@ -946,12 +937,14 @@
                 });
             }
 
-            // 5. معالجة الفواتير
+            // 3. معالجة وتصنيف الفواتير
             let tempInvoices = [];
             invSnap.forEach(d => {
                 const data = d.data();
-                let cPaid = Number(data.cashAmount ?? data.paid) || 0;
-                let wPaid = Number(data.walletAmount) || 0;
+                if (data.isDeleted === true) return; // تصفية المحذوفات برمجياً
+
+                let cPaid = Number(data.cashAmount ?? data.cashPaid ?? data.paid) || 0;
+                let wPaid = Number(data.walletAmount ?? data.walletPaid) || 0;
 
                 tempInvoices.push({
                     id: d.id,
@@ -962,7 +955,7 @@
                 });
             });
 
-            // ترتيب الفواتير برمجياً داخل المتصفح لتجنب الحاجة لـ Index في Firebase
+            // ترتيب الفواتير من الأحدث إلى الأقدم
             allInvoices = tempInvoices.sort((a, b) => {
                 const timeA = a.timestamp?.seconds || 0;
                 const timeB = b.timestamp?.seconds || 0;
@@ -976,8 +969,7 @@
             container.innerHTML = `
                 <div class="alert alert-danger text-center p-3 my-3" style="border-radius: 14px; font-weight:700;">
                     <i class="fas fa-exclamation-triangle fa-2x mb-2 d-block"></i>
-                    حدث خطأ أو لا توجد فواتير مسجلة لهذا اليوم (${document.getElementById('dateFilterInput')?.value || 'اليوم'}).
-                    <br><small class="fw-normal text-secondary">جرب اختيار تاريخ آخر أو اضغط على "جلب كل الفواتير السابقة".</small>
+                    حدث خطأ في تحميل البيانات: ${e.message || 'تعذر الاتصال'}
                     <br><button class="btn btn-sm btn-dark mt-2 fw-bold" onclick="loadData(true)"><i class="fas fa-sync-alt me-1"></i> إعادة المحاولة</button>
                 </div>`;
         }
@@ -1259,7 +1251,7 @@
                         <span style="color:${rem > 0 ? 'var(--germany-red)' : '#000000'}">آجل: <b class="num">${rem.toFixed(1)}</b></span>
                     </div>
                     <div style="font-size:9px; color:#665200; margin-top:3px; background:#fffdf5; padding:2px 5px; border-radius:3px;">
-                        <i class="fas fa-edit"></i> <b>الملحوظة:</b> ${noteText}
+                        <i class="fas fa-edit"></i> <b>الملحظة:</b> ${noteText}
                     </div>
                 </div>
             `;
@@ -1672,7 +1664,7 @@
         XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
     };
       
-    // بدء جلب بيانات اليوم فورتحميل الصفحة بسرعة
+    // بدء جلب البيانات فور تحميل الصفحة
     loadData(true, false);
 </script>
 </body>
