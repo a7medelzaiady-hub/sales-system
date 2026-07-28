@@ -209,7 +209,7 @@
                 }
             }
 
-            // البحث بـ partyId و supplierId لضمان جلب كافة سندات الصرف والسداد
+            // جلب سندات المعاملات من جدول transactions والبحث بكل الحقول الممكنة
             const [transSnapParty, transSnapSup, invSnap] = await Promise.all([
                 getDocs(query(collection(db, "transactions"), where("partyId", "==", supId))),
                 getDocs(query(collection(db, "transactions"), where("supplierId", "==", supId))),
@@ -220,9 +220,14 @@
 
             const processTransDoc = (documentDoc) => {
                 if (processedTransIds.has(documentDoc.id)) return;
+                
+                const d = documentDoc.data();
+
+                // 🛑 منع تكرار سند الصرف إذا كان مسجلاً بالفعل مع فاتورة
+                if (d.invoiceId || d.supplierTransactionId || d.isInvoicePayment) return;
+
                 processedTransIds.add(documentDoc.id);
 
-                const d = documentDoc.data();
                 combinedData.push({ 
                     id: documentDoc.id,
                     collectionName: 'transactions',
@@ -236,12 +241,12 @@
             transSnapParty.forEach(processTransDoc);
             transSnapSup.forEach(processTransDoc);
 
-            // جلب الفواتير استعراض إجمالي المشتريات + إدراج سطر للمبلغ المدفوع مع الفاتورة
+            // جلب فواتير المشتريات والمدفوع داخل الفاتورة
             invSnap.forEach(documentDoc => {
                 const d = documentDoc.data();
                 const totalAmt = Number(d.total || d.amount || 0);
                 
-                // سطر الفاتورة (شراء / مرتجع)
+                // سطر الفاتورة الأصلية (مشتريات/مرتجع)
                 combinedData.push({ 
                     id: documentDoc.id,
                     collectionName: 'supplier_transactions',
@@ -251,7 +256,7 @@
                     notes: d.note || d.details || (d.type === 'مرتجع شراء' ? 'مرتجع مشتريات' : 'مشتريات') 
                 });
 
-                // جلب أي مدفوع مسجل داخل الفاتورة
+                // استخراج المبلغ المسدد نقداً فورياً مع الفاتورة
                 const paidAmt = Number(d.paid) || 
                     (Number(d.cashPaid || 0) + Number(d.walletPaid || 0)) || 
                     (Number(d.cashAmount || 0) + Number(d.walletAmount || 0)) || 0;
@@ -261,7 +266,7 @@
                         id: documentDoc.id + '_paid',
                         collectionName: 'supplier_transactions_paid',
                         date: d.date || '---',
-                        type: 'سداد نقدي (مع الفاتورة)',
+                        type: 'سداد مع الفاتورة',
                         amount: paidAmt,
                         notes: `دفعة مسددة مع الفاتورة (${d.paymentMethod || 'نقدي'})`,
                         isCustomPayment: true
@@ -269,7 +274,7 @@
                 }
             });
 
-            // ترتيب البيانات حسب التاريخ
+            // ترتيب الكشف حسب التاريخ
             combinedData.sort((a, b) => new Date(b.date) - new Date(a.date));
             
             const pbody = document.getElementById('printBody');
