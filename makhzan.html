@@ -24,10 +24,9 @@
             font-family: 'Cairo', sans-serif; 
             color: var(--text-dark);
             margin: 0;
-            padding-bottom: 90px; /* مساحة للفوتر */
+            padding-bottom: 90px;
         }
 
-        /* الهيدر */
         .top-nav {
             background: linear-gradient(135deg, var(--primary-green), #0a5234);
             color: white;
@@ -45,7 +44,6 @@
         .top-nav i { cursor: pointer; font-size: 1.2rem; transition: 0.2s; }
         .top-nav i:active { transform: scale(0.9); }
 
-        /* منطقة البحث */
         .search-section {
             padding: 20px;
             display: flex;
@@ -59,7 +57,7 @@
         }
         .search-wrapper i {
             position: absolute;
-            right: 15px; /* تم تعديله ليتناسب مع RTL */
+            right: 15px;
             top: 50%;
             transform: translateY(-50%);
             color: var(--primary-green);
@@ -92,7 +90,6 @@
             cursor: pointer;
         }
 
-        /* نظام الشبكة للأعمدة (لضمان المحاذاة الدقيقة) */
         .grid-layout {
             display: grid;
             grid-template-columns: 2fr 1fr 0.6fr 0.6fr;
@@ -100,7 +97,6 @@
             align-items: center;
         }
 
-        /* عناوين الأعمدة */
         .table-headers {
             padding: 0 25px 10px 25px;
             font-size: 0.8rem;
@@ -111,7 +107,6 @@
         .table-headers div { text-align: center; }
         .table-headers div:first-child { text-align: right; }
 
-        /* كارت الصنف */
         .item-card {
             padding: 16px 20px;
             background: white;
@@ -124,7 +119,6 @@
         }
         .item-card:active { transform: scale(0.98); background: #f8f9fa; }
         
-        /* الصنف المنتهي (صفر) */
         .item-card.out-of-stock {
             opacity: 0.6;
             background: #fdfdfd;
@@ -158,7 +152,6 @@
         .qty-low { background: var(--danger-bg); color: var(--danger); border-color: #ffe4e6; }
         .qty-zero { background: #f1f5f9; color: var(--text-muted); border-color: var(--border-color); }
 
-        /* الفوتر السفلي */
         .bottom-summary {
             position: fixed;
             bottom: 0;
@@ -175,7 +168,6 @@
             z-index: 999;
         }
 
-        /* الزر العائم */
         .fab {
             position: fixed;
             bottom: 80px;
@@ -220,8 +212,7 @@
     <div>جركن</div>
 </div>
 
-<div id="itemsContainer">
-    </div>
+<div id="itemsContainer"></div>
 
 <div class="bottom-summary">
     <i class="fas fa-boxes me-2"></i> إجمالي الأصناف: <span id="totalCount" class="ms-2">0</span>
@@ -249,7 +240,6 @@
     const db = getFirestore(app);
     let allData = [];
 
-    // جلب البيانات من فايربيز
     onSnapshot(collection(db, "inventory"), (snap) => {
         allData = [];
         snap.forEach(doc => {
@@ -269,29 +259,26 @@
         const term = document.getElementById('searchInput').value.toLowerCase().trim();
         const container = document.getElementById('itemsContainer');
         
-        // 1. فلترة البيانات
         let filtered = allData.filter(i => 
             (i.name && i.name.toLowerCase().includes(term)) || 
             (i.barcode && i.barcode.includes(term))
         );
 
-        // 2. الترتيب: الأصناف التي كميتها 0 تذهب للأسفل
         filtered.sort((a, b) => {
-            const qtyA = Number(a.totalPcs) || 0;
-            const qtyB = Number(b.totalPcs) || 0;
+            const qtyA = Number(a.totalPcs !== undefined && a.totalPcs !== null ? a.totalPcs : (a.qty || 0));
+            const qtyB = Number(b.totalPcs !== undefined && b.totalPcs !== null ? b.totalPcs : (b.qty || 0));
             
-            if (qtyA === 0 && qtyB > 0) return 1;  // نقل A للأسفل
-            if (qtyB === 0 && qtyA > 0) return -1; // نقل B للأسفل
-            return 0; // الحفاظ على الترتيب الافتراضي للباقي
+            if (qtyA === 0 && qtyB > 0) return 1;  
+            if (qtyB === 0 && qtyA > 0) return -1; 
+            return 0; 
         });
 
-        // 3. بناء واجهة المستخدم HTML
         let html = '';
         filtered.forEach(item => {
-            const factor = Number(item.unitFactor) || 1; // معامل التحويل (كم جركن في الكرتونة)
-            const total = Number(item.totalPcs) || 0;    // إجمالي الجراكن/القطع
+            const factor = Number(item.unitFactor) || 1; 
+            // قراءة مزدوجة لضمان عدم ضياع الأرصدة المخزنة في totalPcs أو qty
+            const total = Number(item.totalPcs !== undefined && item.totalPcs !== null ? item.totalPcs : (item.qty || 0));
             
-            // حساب الكراتين والجراكن المتبقية
             const cartons = Math.floor(total / factor);
             const jerrycans = total % factor;
 
@@ -299,7 +286,6 @@
             const minAllowed = (Number(item.min) || 0) * factor;
             const isLow = !isZero && (total <= minAllowed);
 
-            // تحديد شكل الشارة (Badge) بناءً على الكمية
             let badgeClass = 'qty-badge';
             if (isZero) {
                 badgeClass += ' qty-zero';
