@@ -138,7 +138,6 @@
             margin-top: 15px;
         }
 
-        /* تحسينات الموبايل للجداول لتفادي التداخل البصري */
         .table-responsive {
             border-radius: 12px;
             overflow-x: auto;
@@ -146,7 +145,7 @@
             -webkit-overflow-scrolling: touch;
         }
         .table {
-            min-width: 600px; /* يمنع انضغاط الجدول ويسمح بالسحب اللمسى المريح على الموبايل */
+            min-width: 600px;
             margin-bottom: 0 !important;
         }
         .table th {
@@ -198,7 +197,6 @@
 </div>
 
 <div class="container-fluid details-container">
-    <!-- صف كروت الأرصدة العلوية -->
     <div class="row g-3">
         <div class="col-6">
             <div class="stat-card">
@@ -216,7 +214,6 @@
         </div>
     </div>
 
-    <!-- كارت سياسة الأسعار والوحدات -->
     <div class="info-card">
         <div class="card-sec-title">
             <div class="title-text">
@@ -250,7 +247,6 @@
         </div>
     </div>
 
-    <!-- تفاصيل أو وصف المنتج -->
     <div class="info-card">
         <div class="card-sec-title">
             <div class="title-text">
@@ -266,7 +262,6 @@
         </p>
     </div>
 
-    <!-- حركة المستندات والسجل الكامل -->
     <div class="movements-table-card">
         <div class="card-sec-title">
             <div class="title-text">
@@ -352,9 +347,10 @@
 
             let movements = [];
 
+            // جلب مبيعات الصنف وتصحيح رابط الـ sales-invoice.html
             const salesSnap = await getDocs(collection(db, "invoices"));
-            salesSnap.forEach(doc => {
-                const data = doc.data();
+            salesSnap.forEach(docSnap => {
+                const data = docSnap.data();
                 const matchedItem = data.items?.find(item => item.stockId === productId || item.name === productName);
                 if (matchedItem) {
                     const isReturn = matchedItem.isReturn === true;
@@ -370,18 +366,19 @@
                         unit: matchedItem.unit === 'box' ? 'كرتونة' : 'جركن',
                         price: matchedItem.price,
                         total: matchedItem.qty * matchedItem.price,
-                        docLink: `sales.html?edit=${doc.id}`
+                        docLink: `sales-invoice.html?edit=${docSnap.id}`
                     });
                 }
             });
 
+            // جلب مشتريات الصنف وتصحيح رابط الـ new-purchase-invoice.html
             const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
-            purchasesSnap.forEach(doc => {
-                const data = doc.data();
-                const matchedItem = data.items?.find(item => item.name === productName);
+            purchasesSnap.forEach(docSnap => {
+                const data = docSnap.data();
+                const matchedItem = data.items?.find(item => item.name === productName || item.stockId === productId);
                 if (matchedItem) {
-                    const isReturn = Number(matchedItem.returnQty) > 0;
-                    const qty = isReturn ? Number(matchedItem.returnQty) : Number(matchedItem.qty);
+                    const isReturn = Number(matchedItem.returnQty) > 0 || matchedItem.isReturn === true;
+                    const qty = isReturn ? Number(matchedItem.returnQty || matchedItem.qty) : Number(matchedItem.qty);
                     const dateObj = data.timestamp?.toDate ? data.timestamp.toDate() : (data.date ? new Date(data.date) : new Date());
 
                     movements.push({
@@ -394,16 +391,17 @@
                         unit: matchedItem.unitName || 'كرتونة',
                         price: matchedItem.buy,
                         total: qty * matchedItem.buy,
-                        docLink: `purchase.html?edit=${doc.id}`
+                        docLink: `new-purchase-invoice.html?edit=${docSnap.id}`
                     });
                 }
             });
 
+            // جلب الحركات الأخرى وتصحيح الروابط
             const transSnap = await getDocs(query(collection(db, "transactions"), where("productId", "==", productId)));
-            transSnap.forEach(doc => {
-                const data = doc.data();
+            transSnap.forEach(docSnap => {
+                const data = docSnap.data();
                 const alreadyExists = movements.some(m => m.docLink.includes(data.invoiceId));
-                if (!alreadyExists) {
+                if (!alreadyExists && data.invoiceId) {
                     const isSale = data.type === 'sale' || data.type === 'بيع';
                     const dateObj = data.timestamp?.toDate ? data.timestamp.toDate() : (data.date ? new Date(data.date) : new Date());
 
@@ -417,7 +415,7 @@
                         unit: "جركن",
                         price: data.price || 0,
                         total: (data.qty || data.quantity || 0) * (data.price || 0),
-                        docLink: isSale ? `sales.html?edit=${data.invoiceId}` : `purchase.html?edit=${data.invoiceId}`
+                        docLink: isSale ? `sales-invoice.html?edit=${data.invoiceId}` : `new-purchase-invoice.html?edit=${data.invoiceId}`
                     });
                 }
             });
