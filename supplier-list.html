@@ -132,7 +132,7 @@
     const db = getFirestore(app);
     let allSuppliers = [];
 
-    // دالة احتساب الرصيد بدون تكرارات أو خصم مضاعف
+    // دالة احتساب الرصيد الصافية والمبسطة لمنع التكرار والخصم المزدوج
     async function calculateSupplierBalance(supId, openingBal) {
         const [snapTransParty, snapTransSup, snapItems] = await Promise.all([
             getDocs(query(collection(db, "transactions"), where("partyId", "==", supId))),
@@ -140,53 +140,53 @@
             getDocs(query(collection(db, "supplier_transactions"), where("supplierId", "==", supId)))
         ]);
 
-        let netBalance = Number(openingBal || 0);
+        let purchasesTotal = 0; // مجموع المشتريات الكلي
+        let paymentsTotal = 0;  // مجموع كافة السدادات
+
         const processedTransIds = new Set();
 
-        // 1. حساب السندات المستقلة فقط (التي ليست جزءاً من فاتورة مدفوعة)
+        // 1. حساب حركات السداد والصرف من جدول السندات
         const processTransDoc = (docSnap) => {
             if (processedTransIds.has(docSnap.id)) return;
             processedTransIds.add(docSnap.id);
 
             const d = docSnap.data();
-            
-            // تتجاهل السند إذا كان مرتبطاً بـ invoiceId لمنع التكرار
-            if (d.invoiceId || d.supplierTransactionId || d.isInvoicePayment) return;
-
             const amt = Number(d.amount) || 0;
+
             if (d.type === "صرف" || d.type === "سداد") {
-                netBalance -= amt; // السداد يقلل المديونية
+                paymentsTotal += amt;
             } else if (d.type === "قبض") {
-                netBalance += amt; // القبض يزيد المديونية
+                purchasesTotal += amt;
             }
         };
 
         snapTransParty.forEach(processTransDoc);
         snapTransSup.forEach(processTransDoc);
 
-        // 2. حساب الفواتير بناءً على الصافي المتبقي (Remaining) للآجل لمنع الخصم المزدوج
+        // 2. حساب الفواتير والمدفوع داخل الفاتورة إن لم يكن له سند منفصل
         snapItems.forEach(docSnap => {
             const d = docSnap.data();
             const totalInvoice = Number(d.total) || Number(d.amount) || 0;
-            
-            // تحديد المبلغ المسدد مع الفاتورة
-            const paidInsideInvoice = Number(d.paid) || 
-                (Number(d.cashPaid || 0) + Number(d.walletPaid || 0)) || 
-                (Number(d.cashAmount || 0) + Number(d.walletAmount || 0)) || 0;
-
-            // حساب المتبقي الآجل للفاتورة فقط
-            const netRemaining = d.remaining !== undefined 
-                ? Number(d.remaining) 
-                : (totalInvoice - paidInsideInvoice);
 
             if (d.type === "شراء" || d.type === "فاتورة شراء" || !d.type) {
-                netBalance += netRemaining; // إضافة المتبقي الآجل فقط
+                purchasesTotal += totalInvoice;
+
+                // إذا كانت الفاتورة بها مدفوع نقدي وغير مكرر كسند مستقل
+                const paidAmt = Number(d.paid) || 
+                    (Number(d.cashPaid || 0) + Number(d.walletPaid || 0)) || 
+                    (Number(d.cashAmount || 0) + Number(d.walletAmount || 0)) || 0;
+
+                // نقوم بإضافة السداد فقط إذا لم يكن مُسجلاً كسند في جدول transactions
+                if (paidAmt > 0 && !d.hasTransaction) {
+                    paymentsTotal += paidAmt;
+                }
             } else if (d.type === "مرتجع شراء" || d.type === "مرتجع") {
-                netBalance -= totalInvoice; // خصم المرتجع
+                paymentsTotal += totalInvoice; // المرتجع يقلل الحساب
             }
         });
 
-        return netBalance;
+        // المعادلة البسيطة: الرصيد الافتتاحي + المشتريات - السداد
+        return (Number(openingBal || 0) + purchasesTotal) - paymentsTotal;
     }
 
     async function loadSuppliers() {
