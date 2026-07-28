@@ -227,31 +227,31 @@
                     id: documentDoc.id,
                     collectionName: 'transactions',
                     date: d.date || '---', 
-                    type: d.type || 'سداد', 
+                    type: d.type || 'سداد نقدية', 
                     amount: Number(d.amount || 0), 
-                    notes: d.note || d.notes || (d.type === 'صرف' || d.type === 'سداد' ? 'سند صرف نقدية / سداد' : 'سند قبض نقدية') 
+                    notes: d.note || d.notes || (d.type === 'صرف' || d.type === 'سداد' ? 'سند صرف نقدية' : 'سند قبض نقدية') 
                 });
             };
 
             transSnapParty.forEach(processTransDoc);
             transSnapSup.forEach(processTransDoc);
 
-            // جلب الفواتير + إدراج سطر مستقل للمبلغ المدفوع كاش مع الفاتورة إن وجد
+            // جلب الفواتير استعراض إجمالي المشتريات + إدراج سطر للمبلغ المدفوع مع الفاتورة
             invSnap.forEach(documentDoc => {
                 const d = documentDoc.data();
                 const totalAmt = Number(d.total || d.amount || 0);
                 
-                // سطر الفاتورة الأصلية (مشتريات/مرتجع)
+                // سطر الفاتورة (شراء / مرتجع)
                 combinedData.push({ 
                     id: documentDoc.id,
                     collectionName: 'supplier_transactions',
                     date: d.date || '---', 
-                    type: d.type || 'فاتورة شراء', 
+                    type: d.type || 'شراء', 
                     amount: totalAmt, 
                     notes: d.note || d.details || (d.type === 'مرتجع شراء' ? 'مرتجع مشتريات' : 'مشتريات') 
                 });
 
-                // التحقق من المدفوع نقداً/محفظة مع الفاتورة
+                // جلب أي مدفوع مسجل داخل الفاتورة
                 const paidAmt = Number(d.paid) || 
                     (Number(d.cashPaid || 0) + Number(d.walletPaid || 0)) || 
                     (Number(d.cashAmount || 0) + Number(d.walletAmount || 0)) || 0;
@@ -261,14 +261,15 @@
                         id: documentDoc.id + '_paid',
                         collectionName: 'supplier_transactions_paid',
                         date: d.date || '---',
-                        type: 'سداد مع الفاتورة',
+                        type: 'سداد نقدي (مع الفاتورة)',
                         amount: paidAmt,
-                        notes: `دفعة مقدامة/نقداً للفاتورة (${d.paymentMethod || 'نقدي'})`,
+                        notes: `دفعة مسددة مع الفاتورة (${d.paymentMethod || 'نقدي'})`,
                         isCustomPayment: true
                     });
                 }
             });
 
+            // ترتيب البيانات حسب التاريخ
             combinedData.sort((a, b) => new Date(b.date) - new Date(a.date));
             
             const pbody = document.getElementById('printBody');
@@ -284,14 +285,13 @@
                     
                 let isCredit = t.isOpening 
                     ? !t.isDebit 
-                    : (t.type.includes('مرتجع') || t.type === 'صرف' || t.type === 'سداد' || t.isCustomPayment);
+                    : (t.type.includes('مرتجع') || t.type.includes('صرف') || t.type.includes('سداد') || t.isCustomPayment);
                 
                 if(isDebit) totalDebit += t.amount;
                 if(isCredit) totalCredit += t.amount;
 
                 const amtFormatted = t.amount.toLocaleString('ar-EG', {minimumFractionDigits: 2});
                 
-                // زر الحذف
                 const deleteBtn = (t.isOpening || t.isCustomPayment) 
                     ? '-' 
                     : `<button class="btn-delete-row" onclick="deleteTransaction('${t.collectionName}', '${t.id}')"><i class="fas fa-trash-alt"></i></button>`;
