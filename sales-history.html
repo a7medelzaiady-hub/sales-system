@@ -1433,7 +1433,7 @@
         window.location.href = `sales-invoice.html?edit=${id}&allowDateEdit=true`;
     };
 
-    // دالة حذف الفاتورة وإرجاع الأصناف للمخزن بدقة حسب الوحدة (كرتونة/جركن/إجمالي قطع)
+    // دالة حذف الفاتورة مع معالجة دقيقة للمخزن بالكرتونة والقطع
     window.deleteInvoice = (id) => {
         const inv = allInvoices.find(i => i.id === id);
         const nameDisplay = inv ? (inv.customerName || 'عميل نقدى') : '';
@@ -1458,27 +1458,25 @@
                             const itemName = (item.name || "").toLowerCase();
 
                             let isCarton = (rawUnit === 'box' || rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه' || itemName.includes('شحم بريفيكس'));
+                            let isReturn = item.isReturn === true; // دعم المرتجعات: إذا كانت الفاتورة مرتجع، فعند حذفها يتم سحب البضاعة بدلاً من إضافتها
 
                             if (productDoc.exists) {
                                 const prodData = productDoc.data();
                                 const pcsPerCarton = Number(prodData.pcsPerCarton) || Number(prodData.cartonSize) || 1;
 
+                                let piecesToModify = qty;
                                 if (isCarton && pcsPerCarton > 1) {
-                                    // إذا كان الصنف مبيعا بالكرتونة، يتم إعادة إجمالي القطع (عدد الكراتين × عدد القطع بالكرتونة)
-                                    const totalPiecesToRestore = qty * pcsPerCarton;
-                                    batch.update(productRef, {
-                                        totalPcs: firebase.firestore.FieldValue.increment(totalPiecesToRestore)
-                                    });
-                                } else {
-                                    // إذا كان بالجركن/القطعة المفردة أو لا يوجد تحويل كراتين
-                                    batch.update(productRef, {
-                                        totalPcs: firebase.firestore.FieldValue.increment(qty)
-                                    });
+                                    piecesToModify = qty * pcsPerCarton;
                                 }
-                            } else {
-                                // إجراء احتياطي في حال عدم جلب المستند
+
+                                const multiplier = isReturn ? -1 : 1;
                                 batch.update(productRef, {
-                                    totalPcs: firebase.firestore.FieldValue.increment(qty)
+                                    totalPcs: firebase.firestore.FieldValue.increment(piecesToModify * multiplier)
+                                });
+                            } else {
+                                const multiplier = isReturn ? -1 : 1;
+                                batch.update(productRef, {
+                                    totalPcs: firebase.firestore.FieldValue.increment(qty * multiplier)
                                 });
                             }
                         }
@@ -1499,7 +1497,7 @@
 
                     await batch.commit();
                     await loadData(false, false);
-                    window.showCustomUi({ title: "تم النقل", message: "تم نقل الفاتورة إلى السلة بنجاح وإعادة الأصناف للمخزن بالكميات الصحيحة.", icon: "success" });
+                    window.showCustomUi({ title: "تم النقل", message: "تم نقل الفاتورة إلى السلة بنجاح وتعديل كميات المخزن بدقة.", icon: "success" });
                 } catch (err) {
                     console.error("خطأ أثناء الحذف وإرجاع المخزون:", err);
                     window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء نقل الفاتورة للمخزن وإعادة الأصناف.", icon: "danger" });
