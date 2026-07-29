@@ -518,6 +518,8 @@
     let currentFilterType = null;
     let currentRenderedInvoices = [];
     let allReceiptVouchers = [];
+    // يحفظ التاريخ الذي تم تحميل بياناته فعلياً من Firestore (أو "ARCHIVE" لو الأرشيف بالكامل محمّل)
+    let loadedScope = null;
 
     window.globalExpectedTodayCash = 0;
 
@@ -604,7 +606,8 @@
         if (inv.date) { dateStr = cleanDateString(inv.date); }
         else if (inv.timestamp?.seconds) {
             const d = new Date(inv.timestamp.seconds * 1000);
-            return d.toISOString().split('T')[0];
+            // إصلاح: نستخدم التاريخ المحلي بدل toISOString (UTC) لتفادي ظهور فواتير قرب منتصف الليل في يوم خاطئ
+            return d.toLocaleDateString('en-CA');
         }
         if (!dateStr) return "";
         dateStr = convertToEnglishNumbers(dateStr);
@@ -616,13 +619,21 @@
     }
 
     function parseVoucherDate(tr) {
-        if (!tr || !tr.date) return "";
-        let dateStr = convertToEnglishNumbers(tr.date);
-        let m = dateStr.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
-        if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
-        m = dateStr.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
-        if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
-        return dateStr;
+        if (!tr) return "";
+        if (tr.date) {
+            let dateStr = convertToEnglishNumbers(tr.date);
+            let m = dateStr.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+            if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+            m = dateStr.match(/(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+            if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+            if (dateStr) return dateStr;
+        }
+        // إصلاح: fallback على timestamp لو حقل date غير موجود، بدل ما يتجاهل السند بالكامل
+        if (tr.timestamp?.seconds) {
+            const d = new Date(tr.timestamp.seconds * 1000);
+            return d.toLocaleDateString('en-CA');
+        }
+        return "";
     }
 
     function formatInvoiceTime(timeStr, dateStr) {
@@ -860,33 +871,51 @@
         }
     }
 
-    async function loadData(showSpinner = true, loadAllArchive = false) {
+    /*
+        إصلاح أداء التحميل:
+        - قبل التعديل: كانت الاستعلامات تجلب كل عملاء النظام + كل سندات القبض بالكامل + الفواتير بشرط
+          (timestamp >= بداية اليوم الحالي) بدون حد أعلى، وهذا يعني عمليًا أن اختيار تاريخ سابق من
+          خانة التاريخ لم يكن يجلب بيانات ذلك اليوم إطلاقًا (لأنها غير محمّلة في الذاكرة أصلاً) إلا لو
+          ضغط المستخدم "جلب كل الفواتير السابقة" أولاً - وهو ما يفشل الغرض من التسريع.
+        - بعد التعديل: نحصر استعلام الفواتير والسندات بنطاق (يوم واحد بالضبط: من بدايته لبدايته+1)
+          المطابق فعليًا لليوم/التاريخ المطلوب عرضه، فتقل عدد المستندات المقروءة من Firestore
+          بشكل كبير وتزيد سرعة التحميل، مع صحة النتائج لأي تاريخ يتم اختياره.
+    */
+    async function loadData(showSpinner = true, loadAllArchive = false, targetDateOverride = null) {
         const container = document.getElementById('invoicesList');
         if (showSpinner) {
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-spinner fa-spin fa-2x"></i>
-                    <p class="mt-3 fw-bold">${loadAllArchive ? 'جاري جلب كل الفواتير السابقة...' : 'جاري جلب فواتير اليوم فقط...'}</p>
+                    <p class="mt-3 fw-bold">${loadAllArchive ? 'جاري جلب كل الفواتير السابقة...' : 'جاري جلب بيانات اليوم/التاريخ المحدد فقط...'}</p>
                 </div>`;
         }
 
         try {
-            const filterInput = document.getElementById('dateFilterInput')?.value;
+            const filterInput = targetDateOverride || document.getElementById('dateFilterInput')?.value;
             const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
 
             let invQuery = db.collection("invoices");
+            let transQuery = db.collection("transactions");
 
             if (!loadAllArchive) {
-                const todayStart = new Date();
-                todayStart.setHours(0, 0, 0, 0);
-                invQuery = invQuery.where("timestamp", ">=", firebase.firestore.Timestamp.fromDate(todayStart));
+                // نطاق يوم واحد بالضبط (من بدايته حتى بداية اليوم التالي) لتقليل عدد المستندات المقروءة
+                const dayStart = new Date(`${targetDate}T00:00:00`);
+                const dayEnd = new Date(dayStart);
+                dayEnd.setDate(dayEnd.getDate() + 1);
+
+                const startTS = firebase.firestore.Timestamp.fromDate(dayStart);
+                const endTS = firebase.firestore.Timestamp.fromDate(dayEnd);
+
+                invQuery = invQuery.where("timestamp", ">=", startTS).where("timestamp", "<", endTS).orderBy("timestamp", "desc");
+                transQuery = transQuery.where("timestamp", ">=", startTS).where("timestamp", "<", endTS);
             } else {
                 invQuery = invQuery.orderBy("timestamp", "desc");
             }
 
             const [custSnap, transSnap, invSnap] = await Promise.all([
                 db.collection("customers").get().catch(() => null),
-                db.collection("transactions").get().catch(() => null),
+                transQuery.get().catch(() => db.collection("transactions").get().catch(() => null)),
                 invQuery.get().catch(async () => {
                     return await db.collection("invoices").orderBy("timestamp", "desc").limit(100).get();
                 })
@@ -952,6 +981,7 @@
                 return timeB - timeA;
             });
 
+            loadedScope = loadAllArchive ? 'ARCHIVE' : targetDate;
             applyCurrentView();
 
         } catch (e) {
@@ -965,28 +995,27 @@
         }
     }
 
-    document.getElementById('refreshBtn').onclick = () => loadData(true, false);
-    
-    document.getElementById('loadAllArchiveBtn').onclick = () => {
-        loadData(true, true);
+    document.getElementById('refreshBtn').onclick = () => loadData(true, loadedScope === 'ARCHIVE');
+
+    // إصلاح: الزر كان يعرض عدد الفواتير قبل انتهاء التحميل فعليًا (allInvoices.length كانت تُقرأ قبل اكتمال loadData)
+    document.getElementById('loadAllArchiveBtn').onclick = async () => {
+        await loadData(true, true);
         document.getElementById('filterStatusText').innerText = `جميع فواتير النظام الأرشيفية (${allInvoices.length} فاتورة)`;
         document.getElementById('filterStatusBar').style.display = "flex";
     };
 
+    /*
+        إصلاح: كانت هذه الدالة تفلتر داخل allInvoices المحمّلة بالذاكرة فقط، وبما أن التحميل الافتراضي
+        كان يقتصر على "اليوم الحالي فأحدث"، فإن اختيار أي تاريخ سابق من الحقل كان يعطي نتيجة فارغة
+        دائمًا (لأن بيانات ذلك اليوم غير موجودة في الذاكرة من الأساس). الآن نعيد الجلب من Firestore
+        بنطاق التاريخ المختار تحديدًا، فتظهر البيانات الصحيحة وبسرعة (بدون تحميل الأرشيف بالكامل).
+    */
     window.handleDateFilterChange = () => {
         currentFilterType = null;
         document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active-filter'));
-        calculateStats();
-        
+        document.getElementById('filterStatusBar').style.display = "none";
         const filterInput = document.getElementById('dateFilterInput').value;
-        if (filterInput) {
-            const filtered = allInvoices.filter(inv => parseInvoiceDate(inv) === filterInput);
-            window.renderInvoices(filtered);
-        } else {
-            const todayStr = new Date().toLocaleDateString('en-CA');
-            const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);
-            window.renderInvoices(todayInvoices);
-        }
+        loadData(true, false, filterInput || null);
     };
 
     function generateThermalInvoiceHtml(inv) {
@@ -1331,18 +1360,30 @@
                         icon: "danger",
                         onConfirm: async () => {
                             try {
-                                const batch = db.batch();
+                                // إصلاح: نجمع كل المستندات أولاً ثم نقسمها لدفعات (حد أقصى 500 عملية لكل batch في Firestore)
+                                // بدل استخدام batch واحد فقط قد يفشل أو يتجاوز الحد الأقصى لو البيانات كبيرة
                                 const collectionsToTrash = ["invoices", "transactions", "inventory", "customers", "suppliers", "purchases"];
+                                let opsQueue = [];
                                 for (const colName of collectionsToTrash) {
                                     const snap = await db.collection(colName).get();
                                     snap.forEach(d => {
-                                        batch.update(db.collection(colName).doc(d.id), {
+                                        opsQueue.push({ ref: db.collection(colName).doc(d.id) });
+                                    });
+                                }
+
+                                const CHUNK_SIZE = 450;
+                                for (let i = 0; i < opsQueue.length; i += CHUNK_SIZE) {
+                                    const chunk = opsQueue.slice(i, i + CHUNK_SIZE);
+                                    const batch = db.batch();
+                                    chunk.forEach(op => {
+                                        batch.update(op.ref, {
                                             isDeleted: true,
                                             deletedAt: firebase.firestore.FieldValue.serverTimestamp()
                                         });
                                     });
+                                    await batch.commit();
                                 }
-                                await batch.commit();
+
                                 window.showCustomUi({
                                     title: "نجاح التصفير",
                                     message: "🚀 تم تصفير البيانات بنجاح ونقلها بالكامل إلى السلة.",
@@ -1396,16 +1437,15 @@
         window.renderInvoices(filtered, matchingVouchers);
     }
 
+    // إصلاح: بدل الاعتماد على allInvoices المخزّنة بالذاكرة (التي قد تكون بها تاريخ/أرشيف مختلف)،
+    // نعيد الجلب فعليًا لبيانات اليوم الحالي فقط، وهذا أسرع وأدق من الفلترة المحلية.
     window.resetStatFilter = () => {
         document.querySelectorAll('.stat-card').forEach(c => c.classList.remove('active-filter'));
         document.getElementById('filterStatusBar').style.display = "none";
         currentFilterType = null;
         document.getElementById('searchInput').value = "";
         document.getElementById('dateFilterInput').value = "";
-        calculateStats();
-        const todayStr = new Date().toLocaleDateString('en-CA');
-        const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === todayStr);
-        window.renderInvoices(todayInvoices);
+        loadData(true, false);
     };
 
     window.filterInvoices = () => {
@@ -1417,6 +1457,8 @@
             window.renderInvoices(filtered);
             return;
         }
+        // ملحوظة: البحث يتم داخل نطاق البيانات المحمّلة حاليًا فقط (اليوم/التاريخ المختار، أو الأرشيف
+        // بالكامل لو تم الضغط على "جلب كل الفواتير السابقة") للحفاظ على سرعة التحميل الافتراضية.
         const filtered = allInvoices.filter(inv =>
             (inv.customerName && inv.customerName.toLowerCase().includes(query)) ||
             (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(query))
@@ -1433,70 +1475,89 @@
         window.location.href = `sales-invoice.html?edit=${id}&allowDateEdit=true`;
     };
 
-    // دالة حذف الفاتورة مع معالجة دقيقة للمخزن بالكرتونة والقطع
+    /*
+        إصلاح دالة حذف الفاتورة (كانت السبب في رجوع كميات المخزون بصورة خاطئة):
+        - قبل التعديل: كانت تقرأ رصيد المنتج عبر get() خارج الـ batch تمامًا، ثم تستخدم
+          FieldValue.increment() بشكل "أعمى" بدون أي حماية من الرصيد السالب، والأخطر أنه لو صنف
+          واحد فقط كان له stockId يشير لمستند غير موجود في "inventory"، كانت batch.update() على
+          مستند غير موجود تفشل بالكامل وتوقف تنفيذ العملية كلها (لا يرجع أي صنف للمخزن ولا حتى
+          تُنقل الفاتورة للسلة).
+        - بعد التعديل: نفس فكرة صفحة سجل المشتريات (runTransaction) - نقرأ كل أرصدة المنتجات أولاً
+          داخل transaction واحدة ذرية، نحسب القيمة الجديدة الفعلية اعتمادًا على الرصيد الحقيقي وقت
+          الحذف (currentTotalPcs + الكمية × المضاعف)، مع Math.max(0, ...) لمنع الرصيد السالب،
+          ونتخطى أي صنف غير موجود في المخزون بدل توقف العملية بالكامل.
+    */
     window.deleteInvoice = (id) => {
         const inv = allInvoices.find(i => i.id === id);
         const nameDisplay = inv ? (inv.customerName || 'عميل نقدى') : '';
-        
+
         window.showCustomUi({
             title: "نقل الفاتورة إلى السلة",
             message: `هل أنت متأكد من نقل فاتورة "${nameDisplay}" إلى سلة المحذوفات وإعادة كمياتها للمخزن؟`,
             type: "confirm",
             icon: "danger",
             onConfirm: async () => {
-                const batch = db.batch();
                 try {
-                    const items = inv.items || [];
-                    
-                    for (const item of items) {
-                        if (item.stockId) {
-                            const productRef = db.collection("inventory").doc(item.stockId);
-                            const productDoc = await productRef.get();
-                            
+                    // نجلب السندات المرتبطة بالفاتورة أولاً (الاستعلامات لازم تتم خارج الـ transaction)
+                    const txSnapshot = await db.collection("transactions").where("invoiceId", "==", id).get();
+
+                    await db.runTransaction(async (transaction) => {
+                        const items = inv.items || [];
+
+                        // === الخطوة 1: قراءة كل مستندات المنتجات أولاً (كل القراءات قبل أي كتابة) ===
+                        const productTargets = items
+                            .filter(item => item.stockId)
+                            .map(item => ({ item, ref: db.collection("inventory").doc(item.stockId) }));
+
+                        const productSnaps = [];
+                        for (const target of productTargets) {
+                            const snap = await transaction.get(target.ref);
+                            productSnaps.push({ ...target, snap });
+                        }
+
+                        // === الخطوة 2: حساب وتحديث الكميات بدقة اعتمادًا على الرصيد الفعلي وقت الحذف ===
+                        for (const { item, ref, snap } of productSnaps) {
+                            if (!snap.exists) continue; // تخطي الصنف لو محذوف من المخزون بدل تعطل العملية بالكامل
+
+                            const prodData = snap.data();
                             const qty = Number(item.qty || 0);
                             const rawUnit = (item.unit || "").trim().toLowerCase();
                             const itemName = (item.name || "").toLowerCase();
 
-                            let isCarton = (rawUnit === 'box' || rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه' || itemName.includes('شحم بريفيكس'));
-                            let isReturn = item.isReturn === true; // دعم المرتجعات: إذا كانت الفاتورة مرتجع، فعند حذفها يتم سحب البضاعة بدلاً من إضافتها
+                            const isCarton = (rawUnit === 'box' || rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه' || itemName.includes('شحم بريفيكس'));
+                            const isReturn = item.isReturn === true;
 
-                            if (productDoc.exists) {
-                                const prodData = productDoc.data();
-                                const pcsPerCarton = Number(prodData.pcsPerCarton) || Number(prodData.cartonSize) || 1;
-
-                                let piecesToModify = qty;
-                                if (isCarton && pcsPerCarton > 1) {
-                                    piecesToModify = qty * pcsPerCarton;
-                                }
-
-                                const multiplier = isReturn ? -1 : 1;
-                                batch.update(productRef, {
-                                    totalPcs: firebase.firestore.FieldValue.increment(piecesToModify * multiplier)
-                                });
-                            } else {
-                                const multiplier = isReturn ? -1 : 1;
-                                batch.update(productRef, {
-                                    totalPcs: firebase.firestore.FieldValue.increment(qty * multiplier)
-                                });
+                            const pcsPerCarton = Number(prodData.pcsPerCarton) || Number(prodData.cartonSize) || 1;
+                            let piecesToModify = qty;
+                            if (isCarton && pcsPerCarton > 1) {
+                                piecesToModify = qty * pcsPerCarton;
                             }
-                        }
-                    }
 
-                    const txSnapshot = await db.collection("transactions").where("invoiceId", "==", id).get();
-                    txSnapshot.forEach(txDoc => {
-                        batch.update(db.collection("transactions").doc(txDoc.id), {
+                            // بيع عادي (isReturn = false) => حذف الفاتورة يرجّع الكمية للمخزن (+)
+                            // مرتجع (isReturn = true)     => حذف الفاتورة يسحب الكمية من المخزن (-)
+                            const multiplier = isReturn ? -1 : 1;
+                            const currentTotalPcs = Number(prodData.totalPcs) || 0;
+                            const newTotalPcs = Math.max(0, currentTotalPcs + (piecesToModify * multiplier));
+
+                            transaction.update(ref, { totalPcs: newTotalPcs });
+                        }
+
+                        // === الخطوة 3: نقل السندات المرتبطة للسلة ===
+                        txSnapshot.forEach(txDoc => {
+                            transaction.update(db.collection("transactions").doc(txDoc.id), {
+                                isDeleted: true,
+                                deletedAt: firebase.firestore.FieldValue.serverTimestamp()
+                            });
+                        });
+
+                        // === الخطوة 4: نقل الفاتورة نفسها للسلة ===
+                        transaction.update(db.collection("invoices").doc(id), {
                             isDeleted: true,
                             deletedAt: firebase.firestore.FieldValue.serverTimestamp()
                         });
                     });
 
-                    batch.update(db.collection("invoices").doc(id), { 
-                        isDeleted: true, 
-                        deletedAt: firebase.firestore.FieldValue.serverTimestamp() 
-                    });
-
-                    await batch.commit();
-                    await loadData(false, false);
+                    await loadData(false, loadedScope === 'ARCHIVE');
                     window.showCustomUi({ title: "تم النقل", message: "تم نقل الفاتورة إلى السلة بنجاح وتعديل كميات المخزن بدقة.", icon: "success" });
                 } catch (err) {
                     console.error("خطأ أثناء الحذف وإرجاع المخزون:", err);
@@ -1506,52 +1567,76 @@
         });
     };
 
-    document.getElementById('exportExcelBtn').onclick = () => {
-        if (!allInvoices.length) {
-            window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات لتصديرها بعد.", icon: "info" });
-            return;
-        }
+    /*
+        إصلاح: زر "تصدير كل الأرشيف إكسيل" كان يصدّر فقط ما هو محمّل حاليًا في allInvoices، وبما أن
+        التحميل الافتراضي أصبح مقتصرًا على يوم واحد (لتسريع الفتح)، فإن الضغط على الزر مباشرة كان
+        سيصدّر بيانات ذلك اليوم فقط رغم أن عنوان الزر يقول "كل الأرشيف". الآن يجلب الدالة أرشيف
+        الفواتير بالكامل من Firestore بشكل مستقل عند الضغط عليها فقط (دون التأثير على العرض الحالي
+        السريع في الشاشة)، فيبقى العنوان مطابقًا للسلوك الفعلي.
+    */
+    document.getElementById('exportExcelBtn').onclick = async () => {
+        const btn = document.getElementById('exportExcelBtn');
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        btn.disabled = true;
 
-        let excelRows = [];
-        allInvoices.forEach(inv => {
-            const invDate = parseInvoiceDate(inv);
-            const invTime = formatInvoiceTime(inv.time, inv.date);
-            const invDateWithTime = `${invDate} | ${invTime}`;
-            const customerName = inv.customerName || 'النقدى';
-            const discountAmount = Number(inv.discount) || 0;
+        try {
+            const snap = await db.collection("invoices").get();
+            let excelRows = [];
 
-            if (inv.items && inv.items.length > 0) {
-                inv.items.forEach(itm => {
-                    let qtyCarton = 0; let qtyJarkan = 0;
-                    let priceCarton = 0; let priceJarkan = 0;
-                    const isRet = itm.isReturn === true;
-                    const movementType = isRet ? "مرتجع" : "بيع";
-                    
-                    const itemName = (itm.name || "");
-                    const rawUnit = (itm.unit || "").trim().toLowerCase();
-                    const rawQty = Number(itm.qty) || 0;
-                    const rawPrice = Number(itm.price) || 0;
+            snap.forEach(d => {
+                const data = d.data();
+                if (data.isDeleted === true) return;
 
-                    let isCarton = (rawUnit === 'box' || rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه' || itemName.includes('شحم بريفيكس'));
-                    let excelUnitDisplay = isCarton ? "كرتونة" : "جركن";
+                const invObj = { id: d.id, ...data };
+                const invDate = parseInvoiceDate(invObj);
+                const invTime = formatInvoiceTime(invObj.time, invObj.date);
+                const invDateWithTime = `${invDate} | ${invTime}`;
+                const customerName = invObj.customerName || 'النقدى';
 
-                    if (isCarton) { qtyCarton = rawQty; priceCarton = rawPrice; }
-                    else { qtyJarkan = rawQty; priceJarkan = rawPrice; }
+                if (invObj.items && invObj.items.length > 0) {
+                    invObj.items.forEach(itm => {
+                        let qtyCarton = 0; let qtyJarkan = 0;
+                        let priceCarton = 0; let priceJarkan = 0;
+                        const isRet = itm.isReturn === true;
+                        const movementType = isRet ? "مرتجع" : "بيع";
 
-                    excelRows.push({
-                        "التاريخ": invDateWithTime, "الحركة": movementType, "اسم العميل": customerName,
-                        "الصنف": itemName, "عدد الجركن": qtyJarkan, "عدد الكرتونة": qtyCarton,
-                        "سعر الجركن": priceJarkan, "سعر الكرتونة": priceCarton, "نوع الصنف": excelUnitDisplay
+                        const itemName = (itm.name || "");
+                        const rawUnit = (itm.unit || "").trim().toLowerCase();
+                        const rawQty = Number(itm.qty) || 0;
+                        const rawPrice = Number(itm.price) || 0;
+
+                        let isCarton = (rawUnit === 'box' || rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه' || itemName.includes('شحم بريفيكس'));
+
+                        if (isCarton) { qtyCarton = rawQty; priceCarton = rawPrice; }
+                        else { qtyJarkan = rawQty; priceJarkan = rawPrice; }
+
+                        excelRows.push({
+                            "التاريخ": invDateWithTime, "الحركة": movementType, "اسم العميل": customerName,
+                            "الصنف": itemName, "عدد الجركن": qtyJarkan, "عدد الكرتونة": qtyCarton,
+                            "سعر الجركن": priceJarkan, "سعر الكرتونة": priceCarton
+                        });
                     });
-                });
-            }
-        });
+                }
+            });
 
-        const ws = XLSX.utils.json_to_sheet(excelRows);
-        ws['!dir'] = "rtl";
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "المبيعات والأرشيف");
-        XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
+            if (!excelRows.length) {
+                window.showCustomUi({ title: "تنبيه", message: "لا توجد بيانات لتصديرها بعد.", icon: "info" });
+                return;
+            }
+
+            const ws = XLSX.utils.json_to_sheet(excelRows);
+            ws['!dir'] = "rtl";
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "المبيعات والأرشيف");
+            XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
+        } catch (e) {
+            console.error(e);
+            window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء تصدير البيانات.", icon: "danger" });
+        } finally {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+        }
     };
     
     loadData(true, false);
