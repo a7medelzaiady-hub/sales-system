@@ -860,7 +860,6 @@
         }
     }
 
-    // دالة الجلب: افتراضياً تجلب فواتير اليوم فقط، وعند الضغط على زر الجلب تجلب الأرشيف الكامل
     async function loadData(showSpinner = true, loadAllArchive = false) {
         const container = document.getElementById('invoicesList');
         if (showSpinner) {
@@ -878,7 +877,6 @@
             let invQuery = db.collection("invoices");
 
             if (!loadAllArchive) {
-                // جلب فواتير اليوم فقط بكفاءة عالية وسرعة فائقة
                 const todayStart = new Date();
                 todayStart.setHours(0, 0, 0, 0);
                 invQuery = invQuery.where("timestamp", ">=", firebase.firestore.Timestamp.fromDate(todayStart));
@@ -890,7 +888,6 @@
                 db.collection("customers").get().catch(() => null),
                 db.collection("transactions").get().catch(() => null),
                 invQuery.get().catch(async () => {
-                    // استعلام احتياطي في حال عدم توفر مؤشر (Index)
                     return await db.collection("invoices").orderBy("timestamp", "desc").limit(100).get();
                 })
             ]);
@@ -1436,6 +1433,7 @@
         window.location.href = `sales-invoice.html?edit=${id}&allowDateEdit=true`;
     };
 
+    // دالة حذف الفاتورة وإرجاع الأصناف للمخزن بدقة حسب الوحدة (كرتونة/جركن/إجمالي قطع)
     window.deleteInvoice = (id) => {
         const inv = allInvoices.find(i => i.id === id);
         const nameDisplay = inv ? (inv.customerName || 'عميل نقدى') : '';
@@ -1449,12 +1447,42 @@
                 const batch = db.batch();
                 try {
                     const items = inv.items || [];
-                    items.forEach(item => {
+                    
+                    for (const item of items) {
                         if (item.stockId) {
                             const productRef = db.collection("inventory").doc(item.stockId);
-                            batch.update(productRef, { totalPcs: firebase.firestore.FieldValue.increment(Number(item.qty || 0)) });
+                            const productDoc = await productRef.get();
+                            
+                            const qty = Number(item.qty || 0);
+                            const rawUnit = (item.unit || "").trim().toLowerCase();
+                            const itemName = (item.name || "").toLowerCase();
+
+                            let isCarton = (rawUnit === 'box' || rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه' || itemName.includes('شحم بريفيكس'));
+
+                            if (productDoc.exists) {
+                                const prodData = productDoc.data();
+                                const pcsPerCarton = Number(prodData.pcsPerCarton) || Number(prodData.cartonSize) || 1;
+
+                                if (isCarton && pcsPerCarton > 1) {
+                                    // إذا كان الصنف مبيعا بالكرتونة، يتم إعادة إجمالي القطع (عدد الكراتين × عدد القطع بالكرتونة)
+                                    const totalPiecesToRestore = qty * pcsPerCarton;
+                                    batch.update(productRef, {
+                                        totalPcs: firebase.firestore.FieldValue.increment(totalPiecesToRestore)
+                                    });
+                                } else {
+                                    // إذا كان بالجركن/القطعة المفردة أو لا يوجد تحويل كراتين
+                                    batch.update(productRef, {
+                                        totalPcs: firebase.firestore.FieldValue.increment(qty)
+                                    });
+                                }
+                            } else {
+                                // إجراء احتياطي في حال عدم جلب المستند
+                                batch.update(productRef, {
+                                    totalPcs: firebase.firestore.FieldValue.increment(qty)
+                                });
+                            }
                         }
-                    });
+                    }
 
                     const txSnapshot = await db.collection("transactions").where("invoiceId", "==", id).get();
                     txSnapshot.forEach(txDoc => {
@@ -1471,8 +1499,9 @@
 
                     await batch.commit();
                     await loadData(false, false);
-                    window.showCustomUi({ title: "تم النقل", message: "تم نقل الفاتورة إلى السلة بنجاح وإعادة البضاعة للمخزن.", icon: "success" });
+                    window.showCustomUi({ title: "تم النقل", message: "تم نقل الفاتورة إلى السلة بنجاح وإعادة الأصناف للمخزن بالكميات الصحيحة.", icon: "success" });
                 } catch (err) {
+                    console.error("خطأ أثناء الحذف وإرجاع المخزون:", err);
                     window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء نقل الفاتورة للمخزن وإعادة الأصناف.", icon: "danger" });
                 }
             }
@@ -1527,7 +1556,6 @@
         XLSX.writeFile(wb, "سجل_المبيعات_التفصيلي.xlsx");
     };
     
-    // عند فتح الصفحة يتم تحميل فواتير اليوم فقط افتراضياً
     loadData(true, false);
 </script>
 </body>
