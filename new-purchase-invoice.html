@@ -225,8 +225,6 @@
 </head>
 <body>
 
-<datalist id="productsData"></datalist>
-
 <div class="header">
     <div class="d-flex align-items-center gap-3">
         <i class="fas fa-arrow-right clickable-icon text-white fs-5" id="btnBack" title="رجوع"></i>
@@ -302,8 +300,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    // إضافة writeBatch ضمن الاستدعاءات
-    import { getFirestore, collection, getDocs, addDoc, doc, getDoc, updateDoc, increment, query, where, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, doc, getDoc, query, where, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -410,12 +407,9 @@
         try {
             const invSnap = await getDocs(collection(db, "inventory"));
             allInventory = [];
-            const prodDataList = document.getElementById('productsData');
-            prodDataList.innerHTML = "";
             invSnap.forEach(d => {
                 const data = d.data();
                 allInventory.push({ id: d.id, ...data });
-                prodDataList.innerHTML += `<option value="${data.name}">`;
             });
         } catch (err) { console.error(err); }
 
@@ -486,6 +480,7 @@
         } catch (e) { console.error(e); }
     }
 
+    // إضافة صف صنف جديد بوحدة القائمة المنسدلة للأصناف
     window.addNewItemRow = (itemData = null) => {
         const id = Date.now() + Math.random().toString(36).substring(2, 7);
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
@@ -497,13 +492,22 @@
             displayQty = (currentUnit === 'كرتونة') ? (itemData.qty || 1) : (itemData.returnQty || 1);
         }
 
+        // إنشاء خيارات الأصناف المتاحة في المخزن للقائمة المنسدلة
+        let optionsHtml = '<option value="">-- اختر الصنف من القائمة --</option>';
+        allInventory.forEach(prod => {
+            const selected = itemData && itemData.name === prod.name ? 'selected' : '';
+            optionsHtml += `<option value="${prod.name}" ${selected}>${prod.name}</option>`;
+        });
+
         const html = `
             <div class="item-row ${isReturnChecked ? 'is-return' : ''}" id="row_${id}">
                 <div class="btn-remove" onclick="this.parentElement.remove(); window.calculateTotal();"><i class="fas fa-times"></i></div>
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
                         <label><i class="fas fa-tag"></i> اسم الصنف</label>
-                        <input type="text" list="productsData" class="form-control item-name" value="${itemData ? itemData.name : ''}" placeholder="اكتب أول حرف وسيتم الإكمال فوراً...">
+                        <select class="form-select item-name" id="select_name_${id}">
+                            ${optionsHtml}
+                        </select>
                     </div>
                     <div class="col-6 col-md-3">
                         <label><i class="fas fa-boxes-stacked"></i> نوع الوحدة</label>
@@ -545,7 +549,7 @@
 
     function setupRowEvents(id) {
         const row = document.getElementById(`row_${id}`);
-        const nameInput = row.querySelector('.item-name');
+        const nameSelect = row.querySelector('.item-name');
         const unitSelect = row.querySelector('.item-unit');
         const returnCheck = row.querySelector('.item-is-return');
 
@@ -561,7 +565,7 @@
             document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (${unitText})`;
             document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (${unitText})`;
             
-            const found = allInventory.find(p => p.name === nameInput.value);
+            const found = allInventory.find(p => p.name === nameSelect.value);
             if(found) {
                 if (val === 'كرتونة') {
                     row.querySelector('.item-buy').value = found.buy || 0;
@@ -573,32 +577,14 @@
             window.calculateTotal();
         });
 
-        nameInput.addEventListener('keyup', (e) => {
-            if (["Backspace", "Delete", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
-            const inputVal = e.target.value;
-            if (!inputVal || inputVal.trim() === "") return;
-            const match = allInventory.find(p => p.name.toLowerCase().startsWith(inputVal.toLowerCase()));
-            if (match && match.name !== inputVal) {
-                const startSelection = inputVal.length;
-                e.target.value = match.name;
-                e.target.setSelectionRange(startSelection, match.name.length);
-                row.querySelector('.item-buy').value = match.buy || 0;
-                unitSelect.value = "كرتونة";
-                document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (كرتونة)`;
-                document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (كرتونة)`;
-                window.calculateTotal();
-            }
-        });
-
-        nameInput.addEventListener('change', (e) => {
-            const found = allInventory.find(p => p.name === e.target.value);
+        // عند اختيار صنف من القائمة المنسدلة
+        nameSelect.addEventListener('change', (e) => {
+            const selectedName = e.target.value;
+            const found = allInventory.find(p => p.name === selectedName);
             if(found) {
                 row.querySelector('.item-buy').value = found.buy || 0;
                 unitSelect.value = "كرتونة";
                 unitSelect.dispatchEvent(new Event('change'));
-            } else if (e.target.value !== "") {
-                alert("عذرًا، هذا الصنف غير مسجل بالنظام. يرجى اختيار صنف صحيح من القائمة المقترحة.");
-                e.target.value = "";
             }
             window.calculateTotal();
         });
@@ -645,7 +631,7 @@
         document.getElementById('totalSupplierBalance').innerText = totalSupplierFinal.toFixed(2);
     };
 
-    // --- التعديل الذهبي في فاتورة المشتريات (تطبيق Batches + تجميد التحويل) ---
+    // ترحيل وتأكيد الفاتورة للأرشيف مع تطبيق الموازنة عبر Batch
     document.getElementById('btnSaveInvoice').addEventListener('click', async () => {
         const btn = document.getElementById('btnSaveInvoice');
         const supplierId = document.getElementById('supplierSelect').value;
@@ -660,12 +646,11 @@
         if(!supplierId) return alert("برجاء اختيار اسم المورد أولاً");
         if(rows.length === 0) return alert("برجاء إضافة الأصناف أولاً");
 
-        // التأكد من أن كل الأصناف مسجلة
+        // التأكد من اختيار صنف لكل البنود
         for (const row of rows) {
-            const name = row.querySelector('.item-name').value.trim();
-            const isExist = allInventory.some(p => p.name === name);
-            if (!isExist || name === "") {
-                alert(`خطأ: الصنف "${name}" غير مسجل بقاعدة البيانات!`);
+            const name = row.querySelector('.item-name').value;
+            if (!name || name.trim() === "") {
+                alert(`خطأ: هناك بند لم يتم اختيار الصنف له!`);
                 return;
             }
         }
@@ -674,10 +659,8 @@
         btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> جاري الترحيل والموازنة الحالية...';
 
         try {
-            // 1. تفعيل نظام الـ Batch لحماية البيانات من انقطاع الإنترنت
             const batch = writeBatch(db);
 
-            // 2. تجميع وتجميد البيانات
             const items = [];
             for (const row of rows) {
                 const name = row.querySelector('.item-name').value;
@@ -706,7 +689,6 @@
                 });
             }
 
-            // 3. إرجاع الأرصدة القديمة في حالة التعديل
             if (editId && oldInvoiceData && Array.isArray(oldInvoiceData.items)) {
                 for (const oldItem of oldInvoiceData.items) {
                     const oldModifier = Number(oldItem.totalPieces) || 0;
@@ -724,7 +706,6 @@
                         const itemRef = doc(db, "inventory", matchedOldProduct.id);
                         const isOldReturn = oldItem.isReturn === true;
                         
-                        // الفاتورة القديمة شراء (إضافة للمخزن) نعكسها بخصم، والمرتجع (خصم) نعكسه بإضافة
                         const finalOldMod = isOldReturn ? oldModifier : -oldModifier; 
                         
                         batch.update(itemRef, {
@@ -734,24 +715,20 @@
                 }
             }
 
-            // 4. تطبيق الأرصدة والأسعار الجديدة للمخزن
             for (const item of items) {
                 if (item.stockId) {
                     const storeDocRef = doc(db, "inventory", item.stockId);
-                    
-                    // الفاتورة الحالية: شراء = زيادة للمخزن (+)، مرتجع = خصم من المخزن (-)
                     const stockIncrement = item.isReturn ? -item.totalPieces : item.totalPieces;
                     
                     batch.update(storeDocRef, {
                         totalPcs: increment(stockIncrement),
-                        buy: item.baseCartonPrice, // حفظ السعر دائماً للكرتونة لمنع الانهيار السعري
+                        buy: item.baseCartonPrice,
                         unitName: item.unitName, 
                         lastUpdate: serverTimestamp()
                     });
                 }
             }
 
-            // 5. إعداد وحفظ مستند الفاتورة
             let finalPaymentType = "آجل";
             if(cashPaid > 0 && walletPaid > 0) finalPaymentType = "مشترك (كاش + محفظة)";
             else if(cashPaid > 0) finalPaymentType = "نقدي (كاش)";
@@ -775,7 +752,6 @@
                 currentDocId = newInvRef.id;
             }
 
-            // 6. تسجيل المعاملات المالية
             if (cashPaid > 0) {
                 const newTransRef = doc(collection(db, "transactions"));
                 batch.set(newTransRef, {
@@ -796,7 +772,6 @@
                 });
             }
 
-            // 7. تنفيذ العملية المجمعة بالكامل بضربة واحدة!
             await batch.commit();
 
             isSubmitting = true;
