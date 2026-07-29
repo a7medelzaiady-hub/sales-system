@@ -225,6 +225,9 @@
 </head>
 <body>
 
+<!-- محرك Datalist الديناميكي الموحد لصفحة المبيعات والمشتريات -->
+<datalist id="productsDataList"></datalist>
+
 <div class="header">
     <div class="d-flex align-items-center gap-3">
         <i class="fas fa-arrow-right clickable-icon text-white fs-5" id="btnBack" title="رجوع"></i>
@@ -388,6 +391,14 @@
         }
     }
 
+    function renderDatalist() {
+        const dList = document.getElementById('productsDataList');
+        dList.innerHTML = '';
+        allInventory.forEach(prod => {
+            dList.innerHTML += `<option value="${prod.name}">`;
+        });
+    }
+
     async function loadData() {
         const supSelect = document.getElementById('supplierSelect');
         try {
@@ -411,6 +422,7 @@
                 const data = d.data();
                 allInventory.push({ id: d.id, ...data });
             });
+            renderDatalist();
         } catch (err) { console.error(err); }
 
         supSelect.addEventListener('change', async () => {
@@ -480,7 +492,7 @@
         } catch (e) { console.error(e); }
     }
 
-    // إضافة صف صنف جديد بوحدة القائمة المنسدلة للأصناف
+    // إضافة صف صنف جديد مع تفعيل حقل الإدخال الذكي المفلتر فور كتابة أول حرف
     window.addNewItemRow = (itemData = null) => {
         const id = Date.now() + Math.random().toString(36).substring(2, 7);
         const currentUnit = itemData ? (itemData.unitName || 'كرتونة') : 'كرتونة';
@@ -492,22 +504,13 @@
             displayQty = (currentUnit === 'كرتونة') ? (itemData.qty || 1) : (itemData.returnQty || 1);
         }
 
-        // إنشاء خيارات الأصناف المتاحة في المخزن للقائمة المنسدلة
-        let optionsHtml = '<option value="">-- اختر الصنف من القائمة --</option>';
-        allInventory.forEach(prod => {
-            const selected = itemData && itemData.name === prod.name ? 'selected' : '';
-            optionsHtml += `<option value="${prod.name}" ${selected}>${prod.name}</option>`;
-        });
-
         const html = `
             <div class="item-row ${isReturnChecked ? 'is-return' : ''}" id="row_${id}">
                 <div class="btn-remove" onclick="this.parentElement.remove(); window.calculateTotal();"><i class="fas fa-times"></i></div>
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
-                        <label><i class="fas fa-tag"></i> اسم الصنف</label>
-                        <select class="form-select item-name" id="select_name_${id}">
-                            ${optionsHtml}
-                        </select>
+                        <label><i class="fas fa-tag"></i> اسم الصنف (ابحث أو اختر)</label>
+                        <input type="text" list="productsDataList" class="form-control item-name" id="input_name_${id}" value="${itemData ? itemData.name : ''}" placeholder="اكتب أول حرف لتظهر قائمة الأصناف مباشرة..." autocomplete="off">
                     </div>
                     <div class="col-6 col-md-3">
                         <label><i class="fas fa-boxes-stacked"></i> نوع الوحدة</label>
@@ -549,7 +552,7 @@
 
     function setupRowEvents(id) {
         const row = document.getElementById(`row_${id}`);
-        const nameSelect = row.querySelector('.item-name');
+        const nameInput = row.querySelector('.item-name');
         const unitSelect = row.querySelector('.item-unit');
         const returnCheck = row.querySelector('.item-is-return');
 
@@ -565,7 +568,7 @@
             document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (${unitText})`;
             document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (${unitText})`;
             
-            const found = allInventory.find(p => p.name === nameSelect.value);
+            const found = allInventory.find(p => p.name === nameInput.value);
             if(found) {
                 if (val === 'كرتونة') {
                     row.querySelector('.item-buy').value = found.buy || 0;
@@ -577,14 +580,32 @@
             window.calculateTotal();
         });
 
-        // عند اختيار صنف من القائمة المنسدلة
-        nameSelect.addEventListener('change', (e) => {
-            const selectedName = e.target.value;
-            const found = allInventory.find(p => p.name === selectedName);
-            if(found) {
-                row.querySelector('.item-buy').value = found.buy || 0;
+        // آلية التفاعل المباشر فور كتابة أول حرف لجلب القائمة المنسدلة وتعبئة السعر تلقائياً
+        const handleProductMatch = (inputVal) => {
+            const found = allInventory.find(p => p.name === inputVal);
+            if (found) {
                 unitSelect.value = "كرتونة";
-                unitSelect.dispatchEvent(new Event('change'));
+                const unitText = 'كرتونة';
+                document.getElementById(`label_qty_${id}`).innerText = `العدد الحالي (${unitText})`;
+                document.getElementById(`label_price_${id}`).innerText = `سعر شراء الـ (${unitText})`;
+                row.querySelector('.item-buy').value = found.buy || 0;
+                window.calculateTotal();
+            }
+        };
+
+        nameInput.addEventListener('input', (e) => {
+            handleProductMatch(e.target.value);
+        });
+
+        nameInput.addEventListener('change', (e) => {
+            const inputVal = e.target.value.trim();
+            if (inputVal === "") return;
+            const found = allInventory.find(p => p.name === inputVal);
+            if (!found) {
+                alert("عذرًا، هذا الصنف غير مسجل بالنظام. يرجى اختيار صنف صحيح من القائمة المقترحة.");
+                e.target.value = "";
+            } else {
+                handleProductMatch(inputVal);
             }
             window.calculateTotal();
         });
@@ -646,11 +667,15 @@
         if(!supplierId) return alert("برجاء اختيار اسم المورد أولاً");
         if(rows.length === 0) return alert("برجاء إضافة الأصناف أولاً");
 
-        // التأكد من اختيار صنف لكل البنود
         for (const row of rows) {
             const name = row.querySelector('.item-name').value;
             if (!name || name.trim() === "") {
                 alert(`خطأ: هناك بند لم يتم اختيار الصنف له!`);
+                return;
+            }
+            const isExist = allInventory.some(p => p.name === name.trim());
+            if (!isExist) {
+                alert(`خطأ: الصنف "${name}" غير مسجل بقاعدة البيانات!`);
                 return;
             }
         }
@@ -663,7 +688,7 @@
 
             const items = [];
             for (const row of rows) {
-                const name = row.querySelector('.item-name').value;
+                const name = row.querySelector('.item-name').value.trim();
                 const qtyInput = parseFloat(row.querySelector('.item-qty').value) || 0;
                 const buy = parseFloat(row.querySelector('.item-buy').value) || 0;
                 const unitName = row.querySelector('.item-unit').value;
