@@ -161,7 +161,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, updateDoc, deleteDoc, doc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, updateDoc, deleteDoc, doc, writeBatch, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -178,7 +178,6 @@
     let currentTab = 'invoices';
     let trashItems = [];
 
-    // قاموس لتحويل اسم القسم للغة العربية في التنبيهات
     const tabNamesAr = {
         'invoices': 'الفواتير',
         'inventory': 'الأصناف',
@@ -247,7 +246,6 @@
                 return;
             }
 
-            // إظهار شريط التحكم وتحديث العدد
             document.getElementById('itemsCountText').innerText = `عدد العناصر: ${trashItems.length}`;
             bulkBar.style.display = 'block';
 
@@ -277,17 +275,109 @@
         }
     }
 
+    // --- دالة الترانزاكشن المخصصة لاستعادة الفاتورة مع إعادة خصم المخزن واستعادة سندات القبض ---
+    async function restoreInvoiceWithTransaction(invoiceId) {
+        await runTransaction(db, async (transaction) => {
+            const invoiceRef = doc(db, "invoices", invoiceId);
+            const invoiceDoc = await transaction.get(invoiceRef);
+
+            if (!invoiceDoc.exists()) {
+                throw new Error("الفاتورة غير موجودة بالمتروكات!");
+            }
+
+            const invoiceData = invoiceDoc.data();
+            const items = invoiceData.items || [];
+
+            // 1. قراءة جميع المستندات المرتبطة أولاً (قراءة كل أصناف الفاتورة من المخزن)
+            const itemReads = [];
+            for (const item of items) {
+                if (item.stockId) {
+                    const itemRef = doc(db, "inventory", item.stockId);
+                    itemReads.push({
+                        itemRef,
+                        itemData: item,
+                        promise: transaction.get(itemRef)
+                    });
+                }
+            }
+
+            // انتظار نتيجة قراءة الأصناف
+            const itemDocs = await Promise.all(itemReads.map(r => r.promise));
+
+            // 2. تحديث المخزن (عند الاستعادة: البيع يخصم كمية من الجديد، والمرتجع يُضاف للمخزن)
+            for (let i = 0; i < itemReads.length; i++) {
+                const { itemRef, itemData } = itemReads[i];
+                const itemDoc = itemDocs[i];
+
+                if (itemDoc.exists()) {
+                    const currentStock = itemDoc.data().totalPcs || 0;
+                    const factor = Number(itemData.unitFactor) || 1;
+                    
+                    // حساب إجمالي القطع بالمعادلة الموحدة
+                    let totalPcs = 0;
+                    if (itemData.totalPieces !== undefined && itemData.totalPieces !== null) {
+                        totalPcs = Number(itemData.totalPieces);
+                    } else {
+                        const qty = Number(itemData.qty) || 0;
+                        const returnQty = Number(itemData.returnQty) || 0;
+                        totalPcs = (itemData.unitName === 'قطعة') ? (qty + returnQty) : ((qty + returnQty) * factor);
+                    }
+
+                    // عند الاستعادة: لو صنف بيع عادي -> ينخصم من المخزن. لو مرتجع -> ينضاف للمخزن.
+                    const isReturn = itemData.isReturn === true;
+                    const stockChange = isReturn ? totalPcs : -totalPcs;
+                    const newStock = currentStock + stockChange;
+
+                    transaction.update(itemRef, { totalPcs: newStock });
+                }
+            }
+
+            // 3. إلغاء حذف الفاتورة نفسها
+            transaction.update(invoiceRef, {
+                isDeleted: false,
+                deletedAt: null
+            });
+        });
+
+        // 4. استعادة جميع معاملات السداد/سندات القبض المرتبطة بهذه الفاتورة تلقائياً
+        const transQuery = query(collection(db, "transactions"), where("invoiceId", "==", invoiceId));
+        const transSnap = await getDocs(transQuery);
+
+        if (!transSnap.empty) {
+            const batch = writeBatch(db);
+            transSnap.forEach(tDoc => {
+                batch.update(doc(db, "transactions", tDoc.id), {
+                    isDeleted: false,
+                    deletedAt: null
+                });
+            });
+            await batch.commit();
+        }
+    }
+
     window.restoreItem = (id) => {
         window.showCustomUi({
             title: "🔄 استعادة العنصر",
             message: "هل تريد بالتأكيد إلغاء الحذف وإرجاع هذا العنصر إلى النظام؟",
             type: "confirm",
             onConfirm: async () => {
-                await updateDoc(doc(db, currentTab, id), {
-                    isDeleted: false,
-                    deletedAt: null
-                });
-                loadTrashData();
+                try {
+                    if (currentTab === 'invoices') {
+                        await restoreInvoiceWithTransaction(id);
+                    } else {
+                        await updateDoc(doc(db, currentTab, id), {
+                            isDeleted: false,
+                            deletedAt: null
+                        });
+                    }
+                    loadTrashData();
+                } catch (err) {
+                    console.error(err);
+                    window.showCustomUi({
+                        title: "❌ خطأ في الاستعادة",
+                        message: "حدث خطأ أثناء استعادة العنصر: " + err.message
+                    });
+                }
             }
         });
     };
@@ -298,13 +388,21 @@
             message: "⚠️ تحذير! هذا الإجراء سيقوم بمسح العنصر تماماً من السيرفر ولا يمكن التراجع عنه أبداً. هل تود الاستمرار؟",
             type: "confirm",
             onConfirm: async () => {
-                await deleteDoc(doc(db, currentTab, id));
-                loadTrashData();
+                try {
+                    await deleteDoc(doc(db, currentTab, id));
+                    loadTrashData();
+                } catch (err) {
+                    console.error(err);
+                    window.showCustomUi({
+                        title: "❌ خطأ",
+                        message: "حدث خطأ أثناء الحذف النهائي: " + err.message
+                    });
+                }
             }
         });
     };
 
-    // --- العمليات الجماعية المضافة حديثاً وبشكل احترافي ---
+    // --- العمليات الجماعية (استعادة ومسح الكل مع دعم الترانزاكشن للفواتير) ---
 
     window.bulkRestore = () => {
         if (trashItems.length === 0) return;
@@ -315,13 +413,27 @@
             message: `هل تريد بالتأكيد استعادة جميع العناصر الموجودة في قسم <b>(${currentNameAr})</b> وإعادتها للنظام دفعة واحدة؟ <br><b class="text-success">العدد: ${trashItems.length} عنصر</b>`,
             type: "confirm",
             onConfirm: async () => {
-                const batch = writeBatch(db);
-                trashItems.forEach(item => {
-                    const itemRef = doc(db, currentTab, item.id);
-                    batch.update(itemRef, { isDeleted: false, deletedAt: null });
-                });
-                await batch.commit();
-                loadTrashData();
+                try {
+                    if (currentTab === 'invoices') {
+                        for (const item of trashItems) {
+                            await restoreInvoiceWithTransaction(item.id);
+                        }
+                    } else {
+                        const batch = writeBatch(db);
+                        trashItems.forEach(item => {
+                            const itemRef = doc(db, currentTab, item.id);
+                            batch.update(itemRef, { isDeleted: false, deletedAt: null });
+                        });
+                        await batch.commit();
+                    }
+                    loadTrashData();
+                } catch (err) {
+                    console.error(err);
+                    window.showCustomUi({
+                        title: "❌ خطأ أثناء الاستعادة الجماعية",
+                        message: "حدث خطأ أثناء معالجة البيانات: " + err.message
+                    });
+                }
             }
         });
     };
@@ -335,13 +447,21 @@
             message: `⚠️ <b>تحذير صارم جداً!</b><br>أنت على وشك حذف <b>جميع محتويات قسم (${currentNameAr}) نهائياً من السيرفر</b>.<br>سيتم مسح <b class="text-danger">${trashItems.length} عنصر</b> تماماً ولا يمكن التراجع أو استرجاع البيانات نهائياً! هل أنت متأكد؟`,
             type: "confirm",
             onConfirm: async () => {
-                const batch = writeBatch(db);
-                trashItems.forEach(item => {
-                    const itemRef = doc(db, currentTab, item.id);
-                    batch.delete(itemRef);
-                });
-                await batch.commit();
-                loadTrashData();
+                try {
+                    const batch = writeBatch(db);
+                    trashItems.forEach(item => {
+                        const itemRef = doc(db, currentTab, item.id);
+                        batch.delete(itemRef);
+                    });
+                    await batch.commit();
+                    loadTrashData();
+                } catch (err) {
+                    console.error(err);
+                    window.showCustomUi({
+                        title: "❌ خطأ أثناء المسح الجماعي",
+                        message: "حدث خطأ أثناء العملية: " + err.message
+                    });
+                }
             }
         });
     };
