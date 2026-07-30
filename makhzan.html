@@ -264,19 +264,28 @@
             (i.barcode && i.barcode.includes(term))
         );
 
+        // تحديد أولوية الترتيب حسب الشروط المطلوبة
+        const getPriority = (item) => {
+            const qty = Number(item.totalPcs !== undefined && item.totalPcs !== null ? item.totalPcs : (item.qty || 0));
+            const price = Number(item.sell || 0);
+
+            if (qty > 0 && price === 0) return 1;  // له عدد وبدون سعر
+            if (qty > 0 && price > 0) return 2;   // له عدد وله سعر
+            if (qty < 0) return 3;                // عدد بالسالب
+            if (qty === 0 && price > 0) return 4; // بدون عدد وله سعر
+            return 5;                             // بدون عدد وبدون سعر (qty === 0 && price === 0)
+        };
+
         filtered.sort((a, b) => {
-            const qtyA = Number(a.totalPcs !== undefined && a.totalPcs !== null ? a.totalPcs : (a.qty || 0));
-            const qtyB = Number(b.totalPcs !== undefined && b.totalPcs !== null ? b.totalPcs : (b.qty || 0));
+            const priorityA = getPriority(a);
+            const priorityB = getPriority(b);
             
-            if (qtyA === 0 && qtyB > 0) return 1;  
-            if (qtyB === 0 && qtyA > 0) return -1; 
-            return 0; 
+            return priorityA - priorityB;
         });
 
         let html = '';
         filtered.forEach(item => {
             const factor = Number(item.unitFactor) || 1; 
-            // قراءة مزدوجة لضمان عدم ضياع الأرصدة المخزنة في totalPcs أو qty
             const total = Number(item.totalPcs !== undefined && item.totalPcs !== null ? item.totalPcs : (item.qty || 0));
             
             const cartons = Math.floor(total / factor);
