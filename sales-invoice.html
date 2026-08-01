@@ -768,14 +768,23 @@
             ]);
 
             let invoiceDebt = 0;
-            snapInvoices.forEach(doc => {
-                if (editId && doc.id === editId) return;
-                invoiceDebt += (Number(doc.data().remaining) || 0);
+            snapInvoices.forEach(docSnap => {
+                // استثناء الفاتورة المفتوحة حالياً للتعديل بدقة منعاً لتكرار الحساب
+                if (editId && String(docSnap.id).trim() === String(editId).trim()) {
+                    return;
+                }
+                
+                const invData = docSnap.data();
+                const total = Number(invData.total) || 0;
+                const paid = Number(invData.paid) || 0;
+                const rem = invData.remaining !== undefined ? Number(invData.remaining) : (total - paid);
+                
+                invoiceDebt += rem;
             });
 
             let transEffect = 0;
-            snapTrans.forEach(doc => {
-                const tr = doc.data();
+            snapTrans.forEach(docSnap => {
+                const tr = docSnap.data();
                 const amt = Number(tr.amount) || 0;
                 if (tr.type === 'قبض') transEffect -= amt;
                 else if (tr.type === 'صرف') transEffect += amt;
@@ -783,6 +792,7 @@
 
             return Number(baseBalance) + invoiceDebt + transEffect;
         } catch (e) { 
+            console.error("خطأ في حساب الرصيد الحقيقي:", e);
             return Number(baseBalance); 
         }
     }
@@ -837,7 +847,7 @@
             });
 
             for (const invData of docs) {
-                if (editId && invData.id === editId) continue;
+                if (editId && String(invData.id).trim() === String(editId).trim()) continue;
                 
                 const matchedItem = invData.items?.find(item => {
                     const itemPid = item.stockId || item.id || item.itemId;
