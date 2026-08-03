@@ -760,9 +760,21 @@ window.shareAsThermalInvoice = (orderId) => {
 const order = allOrders.find(o => o.id === orderId);
 if (!order) return;
 
-// جلب الرصيد من الحقل currentBalance بناءً على شكل قاعدة البيانات
-const customer = allCustomers.find(c => c.id === order.customerId || c.name === order.customerName);
-const prevBalance = Number(customer ? (customer.currentBalance || 0) : 0);
+// البحث المرن عن العميل باستخدام المعرف أو الاسم بعد إزالة الفراغات
+const cName = order.customerName ? order.customerName.trim() : '';
+const customer = allCustomers.find(c => {
+    if (order.customerId && c.id === order.customerId) return true;
+    const name1 = c.name ? c.name.trim() : '';
+    const name2 = c.customerName ? c.customerName.trim() : '';
+    return (name1 && name1 === cName) || (name2 && name2 === cName);
+});
+
+// قراءة الرصيد السابق وفحص كافة المسميات المحتملة للحقل في الداتابيز
+const rawBalance = customer 
+    ? (customer.currentBalance ?? customer.balance ?? customer.debt ?? customer.previousBalance ?? customer.accountBalance ?? 0)
+    : 0;
+
+const prevBalance = Number(rawBalance) || 0;
 const currentTotal = Number(order.total || 0);
 const grandTotal = prevBalance + currentTotal;
 
