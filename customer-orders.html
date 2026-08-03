@@ -7,6 +7,11 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- مكتبات html2canvas و moment لإنشاء وتجهيز صورة الشير -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.29.4/moment.min.js"></script>
+
     <style>
         :root {
             --accent: #0b5e3d;
@@ -325,6 +330,17 @@
             margin: 0 auto 14px;
         }
 
+        /* Spinner & Loading */
+        .spinner {
+            width: 32px; height: 32px;
+            border: 3px solid #e2e8f0;
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            margin: 0 auto 10px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         /* Error state */
         .field-error {
             border-color: var(--danger) !important;
@@ -337,6 +353,23 @@
             margin-top: 4px;
             display: none;
         }
+
+        /* Thermal receipt container for screenshot share */
+        .thermal-capture-container { position: absolute; left: -9999px; top: 0; }
+        #thermalReceiptArea { background: #ffffff; width: 380px; padding: 18px; color: #000000; font-family: 'Cairo', sans-serif; }
+        .receipt-header { text-align: center; border-bottom: 2px dashed #000000; padding-bottom: 12px; margin-bottom: 12px; }
+        .receipt-header h3 { margin: 0; font-size: 21px; font-weight: 800; }
+        .receipt-header p { margin: 4px 0 8px; font-size: 13px; font-weight: 700; }
+        .receipt-header .order-prep-badge { font-size: 15px; font-weight: 800; border: 1.5px solid #000; padding: 4px 10px; border-radius: 6px; display: inline-block; margin-top: 5px;}
+        .receipt-info { font-size: 13.5px; font-weight: 800; border-bottom: 1px dashed #000000; padding-bottom: 10px; margin-bottom: 12px; }
+        .receipt-info-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .receipt-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        .receipt-table th { border-bottom: 2px solid #000000; text-align: right; font-size: 12.5px; font-weight: 800; padding: 4px 2px; }
+        .receipt-table td { padding: 7px 2px; font-size: 12.5px; font-weight: 700; border-bottom: 1px dashed #cccccc; }
+        .receipt-totals { border-top: 2px dashed #000000; padding-top: 8px; margin-top: 10px; }
+        .receipt-total-row { padding-top: 4px; font-size: 14px; font-weight: 800; display: flex; justify-content: space-between; color: #333;}
+        .receipt-total-row.grand-total { border-top: 1px solid #000; margin-top: 8px; padding-top: 8px; font-size: 17px; font-weight: 900; color: #000;}
+        .receipt-footer-note { text-align: center; margin-top: 15px; font-size: 12.5px; font-weight: 800; border-top: 1px dashed #ccc; padding-top: 10px; }
     </style>
 </head>
 <body>
@@ -476,6 +509,10 @@
             تم حفظ طلبية العميل <b id="successCustomerName"></b> بنجاح
         </p>
         <div class="d-flex flex-wrap gap-2">
+            <!-- زر شير الفاتورة المضاف -->
+            <button class="btn btn-primary flex-fill fw-bold py-2" style="background: linear-gradient(135deg, #25d366, #128c7e); border: none; border-radius: 10px; font-size: 0.85rem;" onclick="shareLastSavedOrder()">
+                <i class="fas fa-share-alt me-1"></i> مشاركة (شير)
+            </button>
             <button class="btn btn-success flex-fill fw-bold py-2" style="border-radius: 10px; font-size: 0.85rem;" onclick="goToOrders()">
                 <i class="fas fa-list me-1"></i> كل الطلبات
             </button>
@@ -489,18 +526,63 @@
     </div>
 </div>
 
+<!-- Modal Loading Share -->
+<div class="modal-overlay" id="shareLoadingModal">
+    <div class="modal-box" style="max-width: 260px;">
+        <div class="spinner mb-3"></div>
+        <h6 class="fw-bold text-dark m-0" style="font-size: 0.78rem;">جاري إنشاء صورة الفاتورة...</h6>
+    </div>
+</div>
+
+<!-- منطقة الفاتورة الحرارية للشير -->
+<div class="thermal-capture-container">
+    <div id="thermalReceiptArea">
+        <div class="receipt-header">
+            <h3>شركة الزيادي</h3>
+            <p>لزيوت وفلاتر السيارات</p>
+            <span class="order-prep-badge">قائمة بتجهيز الطلبية</span>
+        </div>
+        <div class="receipt-info">
+            <div class="receipt-info-row"><span>تاريخ الطلبية: <span id="thOrderDate">0000</span></span></div>
+            <div class="receipt-info-row"><span>موعد التسليم: <strong id="thRemainingDays">—</strong></span></div>
+            <div class="receipt-info-row"><span>العميل: <strong id="thCustomerName">—</strong></span></div>
+        </div>
+        <table class="receipt-table">
+            <thead>
+                <tr>
+                    <th style="text-align:right;">الصنف</th>
+                    <th style="text-align:center; width:45px;">العدد</th>
+                    <th style="text-align:center; width:65px;">السعر</th>
+                    <th style="text-align:left; width:75px;">الإجمالي</th>
+                </tr>
+            </thead>
+            <tbody id="thReceiptItems"></tbody>
+        </table>
+        <div class="receipt-totals">
+            <div class="receipt-total-row"><span>الإجمالي:</span><span id="thFinalTotal">0.00 ج.م</span></div>
+            <div class="receipt-total-row"><span>الحساب السابق:</span><span id="thPreviousBalance">0.00 ج.م</span></div>
+            <div class="receipt-total-row grand-total"><span>إجمالي الحساب:</span><span id="thGrandTotal">0.00 ج.م</span></div>
+        </div>
+        <div class="receipt-footer-note">
+            برجاء مراجعة الأصناف والأعداد والأسعار جيدا وتأكيدها معنا
+            <br>
+            <span style="font-size: 15px; font-weight: 900; margin-top: 8px; display: inline-block;">01027830834</span>
+        </div>
+    </div>
+</div>
+
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-   import {
-    getFirestore,
-    collection,
-    getDocs,
-    addDoc,
-    updateDoc,
-    getDoc,
-    doc,
-    serverTimestamp
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import {
+        getFirestore,
+        collection,
+        getDocs,
+        addDoc,
+        updateDoc,
+        getDoc,
+        doc,
+        serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -517,6 +599,7 @@
     let customers = [];
     let inventory = [];
     let rowCounter = 0;
+    let lastSavedOrderData = null; // الاحتفاظ ببيانات آخر طلبية تم حفظها لعمل الشير
     
     // فحص ما إذا كانت الصفحة في وضع التعديل لعدم إظهار نافذة التاريخ الإجبارية
     const params = new URLSearchParams(window.location.search);
@@ -821,8 +904,11 @@
                 await addDoc(collection(db, 'orders'), orderData);
             }
 
+            // تخزين بيانات آخر طلبية لعمل الشير
+            lastSavedOrderData = orderData;
+
             document.getElementById('successCustomerName').innerText = customerName;
-            document.querySelector('.modal-box h5').innerText = editOrderId ? 'تم تعديل الطلبية!' : 'تم تسجيل الطلبية!';
+            document.querySelector('#successModal h5').innerText = editOrderId ? 'تم تعديل الطلبية!' : 'تم تسجيل الطلبية!';
             document.getElementById('successModal').style.display = 'flex';
 
         } catch (e) {
@@ -832,6 +918,68 @@
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-paper-plane"></i> تسجيل الطلبية';
         }
+    };
+
+    // ---------- share function ----------
+    window.shareLastSavedOrder = () => {
+        if (!lastSavedOrderData) return;
+
+        const order = lastSavedOrderData;
+
+        // البحث عن العميل مع التحقق من كافة مسميات الرصيد المحتملة
+        const cName = order.customerName ? order.customerName.trim() : '';
+        const customer = customers.find(c => {
+            if (order.customerId && c.id === order.customerId) return true;
+            const name1 = c.name ? c.name.trim() : '';
+            const name2 = c.customerName ? c.customerName.trim() : '';
+            return (name1 && name1 === cName) || (name2 && name2 === cName);
+        });
+
+        const rawBalance = customer 
+            ? (customer.currentBalance ?? customer.balance ?? customer.debt ?? customer.previousBalance ?? customer.accountBalance ?? 0)
+            : 0;
+
+        const prevBalance = Number(rawBalance) || 0;
+        const currentTotal = Number(order.total || 0);
+        const grandTotal = prevBalance + currentTotal;
+
+        document.getElementById('shareLoadingModal').style.display = 'flex';
+        document.getElementById('thOrderDate').innerText = order.date ? order.date.split(' ')[0] : '—';
+        document.getElementById('thCustomerName').innerText = order.customerName || 'عميل';
+        document.getElementById('thRemainingDays').innerText = 'قيد التنفيذ';
+
+        document.getElementById('thFinalTotal').innerText = `${currentTotal.toFixed(2)} ج.م`;
+        document.getElementById('thPreviousBalance').innerText = `${prevBalance.toFixed(2)} ج.م`; 
+        document.getElementById('thGrandTotal').innerText = `${grandTotal.toFixed(2)} ج.م`;
+
+        document.getElementById('thReceiptItems').innerHTML = order.items?.map(i => {
+            const qty = Number(i.qty || i.quantity || 0);
+            const price = Number(i.price || 0);
+            const itemTotal = qty * price;
+            return `<tr>
+                <td style="text-align:right;">${i.name || '—'}</td>
+                <td style="text-align:center;">${qty}</td>
+                <td style="text-align:center;">${price.toFixed(2)}</td>
+                <td style="text-align:left;">${itemTotal.toFixed(2)}</td>
+            </tr>`;
+        }).join('') || '';
+
+        setTimeout(() => {
+            html2canvas(document.getElementById('thermalReceiptArea'), { scale: 2 }).then(canvas => {
+                canvas.toBlob(blob => {
+                    document.getElementById('shareLoadingModal').style.display = 'none';
+                    const file = new File([blob], `invoice.png`, { type: 'image/png' });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        navigator.share({ files: [file], title: 'الفاتورة' });
+                    } else {
+                        const link = document.createElement('a');
+                        link.download = 'invoice.png';
+                        link.href = canvas.toDataURL();
+                        link.click();
+                    }
+                });
+            });
+        }, 400);
     };
 
     window.goToOrders = () => {
@@ -854,6 +1002,7 @@
         hideBadge();
         rowCounter = 0;
         editOrderId = null;
+        lastSavedOrderData = null;
         
         // إزالة معاملات التعديل من الرابط إن وجدت
         window.history.replaceState({}, document.title, window.location.pathname);
