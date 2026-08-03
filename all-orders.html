@@ -549,15 +549,78 @@ let allCustomers = [];
 let currentFilter = 'all';
 let pendingOrderForConvert = null;
 
+function parseSignedNumber(val) {
+  if (val === null || val === undefined || val === '') return 0;
+  if (typeof val === 'number') return val;
+  let s = String(val).trim().replace(/,/g, '');
+  let negative = false;
+  if (s.startsWith('(') && s.endsWith(')')) { negative = true; s = s.slice(1, -1); }
+  if (s.endsWith('-')) { negative = true; s = s.slice(0, -1); }
+  if (s.startsWith('-')) { negative = true; s = s.slice(1); }
+  const n = parseFloat(s);
+  if (isNaN(n)) return 0;
+  return negative ? -n : n;
+}
+
+// تحميل كشف الحساب والدفاتر لحساب الرصيد الحقيقي التراكمي للعملاء بنفس دقة كشف الحساب
+async function loadAllLedgerData() {
+  const debtMap = {}; 
+  try {
+    const [invoicesSnap, transSnap] = await Promise.all([
+      getDocs(collection(db, "invoices")),
+      getDocs(collection(db, "transactions"))
+    ]);
+
+    invoicesSnap.forEach(d => {
+      const data = d.data();
+      const cid = data.customerId;
+      if (!cid) return;
+      debtMap[cid] = (debtMap[cid] || 0) + parseSignedNumber(data.remaining);
+    });
+
+    transSnap.forEach(d => {
+      const tr = d.data();
+      const pid = tr.partyId;
+      if (!pid) return;
+      let effect = 0;
+      const amt = parseSignedNumber(tr.amount);
+      if (tr.type === 'قبض') effect = -Math.abs(amt);
+      else if (tr.type === 'صرف') effect = Math.abs(amt);
+      debtMap[pid] = (debtMap[pid] || 0) + effect;
+    });
+  } catch (e) {
+    console.error("خطأ أثناء جلب الدفاتر المحاسبية:", e);
+  }
+
+  return debtMap;
+}
+
 async function init() {
 try {
-const [ordersSnap, customersSnap] = await Promise.all([
+const [ordersSnap, customersSnap, debtMap] = await Promise.all([
     getDocs(collection(db, 'orders')),
-    getDocs(collection(db, 'customers'))
+    getDocs(collection(db, 'customers')),
+    loadAllLedgerData()
 ]);
 
 allOrders = ordersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-allCustomers = customersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+// دمج الرصيد الحقيقي التراكمي مع بيانات العملاء
+allCustomers = customersSnap.docs.map(d => {
+    const data = d.data();
+    const initial = parseSignedNumber(data.initialBalance);
+    const ledgerEffect = debtMap[d.id] || 0;
+    
+    // إذا كان هناك حقل رصيد يدوي صريح نعتمد الحساب التراكمي الحقيقي، أو نقرأ بقية المسميات إن لم يتوفر
+    const calculatedRealBalance = initial + ledgerEffect;
+    const fallbackBalance = parseSignedNumber(data.currentBalance ?? data.balance ?? data.debt ?? data.previousBalance ?? data.accountBalance ?? 0);
+
+    return {
+        id: d.id,
+        ...data,
+        realBalance: calculatedRealBalance !== 0 ? calculatedRealBalance : fallbackBalance
+    };
+});
 
 updateChips();
 triggerOrderNotification();
@@ -760,7 +823,7 @@ window.shareAsThermalInvoice = (orderId) => {
 const order = allOrders.find(o => o.id === orderId);
 if (!order) return;
 
-// البحث المرن عن العميل باستخدام المعرف أو الاسم بعد إزالة الفراغات
+// المطابقة المرنة للعميل للحصول على رصيده التراكمي الحقيقي من الدفاتر
 const cName = order.customerName ? order.customerName.trim() : '';
 const customer = allCustomers.find(c => {
     if (order.customerId && c.id === order.customerId) return true;
@@ -769,12 +832,8 @@ const customer = allCustomers.find(c => {
     return (name1 && name1 === cName) || (name2 && name2 === cName);
 });
 
-// قراءة الرصيد السابق وفحص كافة المسميات المحتملة للحقل في الداتابيز
-const rawBalance = customer 
-    ? (customer.currentBalance ?? customer.balance ?? customer.debt ?? customer.previousBalance ?? customer.accountBalance ?? 0)
-    : 0;
-
-const prevBalance = Number(rawBalance) || 0;
+// جلب الرصيد المحسوب الحقيقي المطابق لكشف الحساب
+const prevBalance = Number(customer ? (customer.realBalance || 0) : 0);
 const currentTotal = Number(order.total || 0);
 const grandTotal = prevBalance + currentTotal;
 
