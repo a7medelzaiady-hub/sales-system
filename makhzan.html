@@ -264,23 +264,43 @@
             (i.barcode && i.barcode.includes(term))
         );
 
-        // تحديد أولوية الترتيب حسب الشروط المطلوبة
+        // تحديد أولوية الترتيب حسب الشروط المطلوبة:
+        // 1. له عدد (موجب) وملوش سعر
+        // 2. له عدد بالسالب وملوش سعر
+        // 3. آخر أصناف تم شراؤها مؤخراً بتاريخ حديث إلى الأقدم
+        // 4. ملوش عدد وملوش سعر
         const getPriority = (item) => {
             const qty = Number(item.totalPcs !== undefined && item.totalPcs !== null ? item.totalPcs : (item.qty || 0));
             const price = Number(item.sell || 0);
 
-            if (qty > 0 && price === 0) return 1;  // له عدد وبدون سعر
-            if (qty > 0 && price > 0) return 2;   // له عدد وله سعر
-            if (qty < 0) return 3;                // عدد بالسالب
-            if (qty === 0 && price > 0) return 4; // بدون عدد وله سعر
-            return 5;                             // بدون عدد وبدون سعر (qty === 0 && price === 0)
+            if (qty > 0 && price === 0) return 1;   // له عدد موجب وملوش سعر
+            if (qty < 0 && price === 0) return 2;   // له عدد بالسالب وملوش سعر
+            if (qty === 0 && price === 0) return 4;  // ملوش عدد وملوش سعر
+
+            return 3; // الأصناف الأخرى (التي تم شراؤها/لها سعر)
         };
 
         filtered.sort((a, b) => {
             const priorityA = getPriority(a);
             const priorityB = getPriority(b);
-            
-            return priorityA - priorityB;
+
+            if (priorityA !== priorityB) {
+                return priorityA - priorityB;
+            }
+
+            // في حالة التساوي في الأولوية الثالثة (أو الأولوية ذاتها)، يتم الترتيب من الأحدث إلى الأقدم
+            const getDate = (item) => {
+                const rawDate = item.lastPurchaseDate || item.purchaseDate || item.createdAt || item.updatedAt || item.date || 0;
+                if (rawDate && typeof rawDate === 'object' && rawDate.seconds) {
+                    return rawDate.seconds * 1000;
+                }
+                return new Date(rawDate).getTime() || 0;
+            };
+
+            const dateA = getDate(a);
+            const dateB = getDate(b);
+
+            return dateB - dateA; // ترتيب تنازلي (من الأحدث للأقدم)
         });
 
         let html = '';
