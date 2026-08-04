@@ -761,6 +761,41 @@
         return Number(cust.initialBalance) || 0;
     }
 
+    function parseArabicDate(dateStr) {
+        if (!dateStr) return 0;
+        try {
+            let cleanStr = String(dateStr).replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
+            cleanStr = cleanStr.replace(/ص/g, 'AM').replace(/م/g, 'PM');
+            
+            const parsed = Date.parse(cleanStr);
+            if (!isNaN(parsed)) return parsed;
+
+            const parts = cleanStr.match(/(\d+)/g);
+            if (parts && parts.length >= 3) {
+                let year = parseInt(parts[0]);
+                let month = parseInt(parts[1]) - 1;
+                let day = parseInt(parts[2]);
+
+                if (year < 1000) {
+                    day = parseInt(parts[0]);
+                    month = parseInt(parts[1]) - 1;
+                    year = parseInt(parts[2]);
+                }
+
+                let hour = parts[3] ? parseInt(parts[3]) : 0;
+                const minute = parts[4] ? parseInt(parts[4]) : 0;
+                
+                if (cleanStr.includes('PM') && hour < 12) hour += 12;
+                if (cleanStr.includes('AM') && hour === 12) hour = 0;
+
+                return new Date(year, month, day, hour, minute).getTime();
+            }
+        } catch (e) {
+            console.error(e);
+        }
+        return 0;
+    }
+
     async function getRealBalance(customerId, baseBalance = 0, targetInvoiceTimeStr = null) {
         try {
             const [snapInvoices, snapTrans] = await Promise.all([
@@ -770,33 +805,38 @@
 
             const targetTimeMs = targetInvoiceTimeStr ? parseArabicDate(targetInvoiceTimeStr) : null;
 
+            let invoicesList = snapInvoices.docs.map(d => {
+                const data = d.data();
+                const timeMs = data.timestamp ? (data.timestamp.seconds * 1000) : (data.time ? parseArabicDate(data.time) : 0);
+                return { id: String(d.id).trim(), timeMs, data };
+            });
+
+            // ترتيب الفواتير زمنياً من الأقدم للأحدث
+            invoicesList.sort((a, b) => a.timeMs - b.timeMs);
+
             let invoiceDebt = 0;
-            snapInvoices.forEach(docSnap => {
-                const docId = String(docSnap.id).trim();
-                if (editId && docId === String(editId).trim()) {
-                    return;
-                }
-                
-                const invData = docSnap.data();
 
-                if (targetTimeMs && targetTimeMs > 0) {
-                    const invTimeMs = invData.timestamp ? (invData.timestamp.seconds * 1000) : (invData.time ? parseArabicDate(invData.time) : 0);
-                    if (invTimeMs >= targetTimeMs) {
-                        return;
-                    }
+            for (const item of invoicesList) {
+                // عند تعديل فاتورة: إذا وصلنا لنفس الفاتورة المفتوحة يتوقف الاحتساب فوراً
+                if (editId && item.id === String(editId).trim()) {
+                    break;
                 }
 
-                const total = Number(invData.total) || 0;
-                const paid = Number(invData.paid) || 0;
-                const rem = invData.remaining !== undefined ? Number(invData.remaining) : (total - paid);
+                // إن تم استخدام تاريخ ولم نصل لمُعرف الفاتورة، نتجاهل كل ما هو مسجل بنفس التاريخ أو بعده
+                if (targetTimeMs && targetTimeMs > 0 && item.timeMs >= targetTimeMs) {
+                    break;
+                }
+
+                const total = Number(item.data.total) || 0;
+                const paid = Number(item.data.paid) || 0;
+                const rem = item.data.remaining !== undefined ? Number(item.data.remaining) : (total - paid);
                 
                 invoiceDebt += rem;
-            });
+            }
 
             let transEffect = 0;
             snapTrans.forEach(docSnap => {
                 const tr = docSnap.data();
-
                 if (targetTimeMs && targetTimeMs > 0) {
                     const trTimeMs = tr.timestamp ? (tr.timestamp.seconds * 1000) : (tr.date || tr.time ? parseArabicDate(tr.date || tr.time) : 0);
                     if (trTimeMs >= targetTimeMs) {
@@ -822,34 +862,6 @@
         if (!minBox || minBox <= 0) return null;
         if (selectedUnit === 'box') return minBox;
         return minBox / (Number(product.unitFactor) || 1);
-    }
-
-    function parseArabicDate(dateStr) {
-        if (!dateStr) return 0;
-        try {
-            let cleanStr = dateStr.replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
-            cleanStr = cleanStr.replace(/ص/g, 'AM').replace(/م/g, 'PM');
-            
-            const parsed = Date.parse(cleanStr);
-            if (!isNaN(parsed)) return parsed;
-
-            const parts = cleanStr.match(/(\d+)/g);
-            if (parts && parts.length >= 3) {
-                const day = parseInt(parts[0]);
-                const month = parseInt(parts[1]) - 1;
-                const year = parseInt(parts[2]);
-                let hour = parts[3] ? parseInt(parts[3]) : 0;
-                const minute = parts[4] ? parseInt(parts[4]) : 0;
-                
-                if (cleanStr.includes('PM') && hour < 12) hour += 12;
-                if (cleanStr.includes('AM') && hour === 12) hour = 0;
-
-                return new Date(year, month, day, hour, minute).getTime();
-            }
-        } catch (e) {
-            console.error(e);
-        }
-        return 0;
     }
 
     async function fetchSmartPrice(stockId, selectedUnit) {
