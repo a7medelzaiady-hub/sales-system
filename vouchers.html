@@ -475,9 +475,6 @@
     let partiesMap = {}; 
     let receiptModalObj = null;
 
-    // Normalizes a name for robust comparison: trims, collapses spaces,
-    // strips Arabic diacritics and unifies alef/ya variants so that
-    // small typing differences don't break the "مسجل / غير مسجل" match.
     function normalizeName(str) {
         return String(str || '')
             .trim()
@@ -522,17 +519,19 @@
             
             partiesMap = {};
             supSnap.forEach(doc => {
+                const data = doc.data();
                 partiesMap[doc.id] = {
-                    name: doc.data().name,
+                    name: data.name,
                     type: 'مورد',
-                    initialBalance: Number(doc.data().initialBalance || 0)
+                    initialBalance: Number(data.openingBalance ?? data.initialBalance ?? 0)
                 };
             });
             custSnap.forEach(doc => {
+                const data = doc.data();
                 partiesMap[doc.id] = {
-                    name: doc.data().name,
+                    name: data.name,
                     type: 'عميل',
-                    initialBalance: Number(doc.data().initialBalance || 0)
+                    initialBalance: Number(data.initialBalance ?? data.openingBalance ?? 0)
                 };
             });
             
@@ -594,8 +593,6 @@
             const querySnapshot = await getDocs(q);
             allVouchers = [];
 
-            // Pre-build a normalized-name -> id index once per load,
-            // instead of re-scanning partiesMap for every single voucher.
             const nameIndex = {};
             Object.keys(partiesMap).forEach(id => {
                 const key = normalizeName(partiesMap[id].name);
@@ -605,22 +602,18 @@
             querySnapshot.forEach((doc) => {
                 const d = doc.data();
                 
-                // البحث الذكي عن الآي دي بأي مسمى (تمت إضافة مسميات إضافية شائعة)
                 let actualPartyId = d.partyId || d.customerId || d.supplierId || d.clientId ||
                     d.party_id || d.custId || d.client_id || d.accountId || d.account_id || "";
 
-                // البحث الذكي عن الاسم
                 let savedName = d.customerName || d.partyName || d.supplierName || d.clientName || d.name || "";
                 
-                let resolvedName = "عميل غير مسجل";
-                let resolvedPartyType = d.partyType || (d.customerId ? 'عميل' : (d.supplierId ? 'مورد' : 'عميل'));
+                let resolvedName = "غير مسجل";
+                let resolvedPartyType = d.partyType || (d.supplierId ? 'مورد' : 'عميل');
 
                 if (actualPartyId && partiesMap[actualPartyId]) {
-                    // تطابق مباشر عبر الآي دي
                     resolvedName = partiesMap[actualPartyId].name;
                     resolvedPartyType = partiesMap[actualPartyId].type;
                 } else if (savedName && savedName.trim() !== "") {
-                    // تطابق عبر الاسم (مع تجاهل الفروق البسيطة فى الكتابة/التشكيل/المسافات)
                     const normalizedSaved = normalizeName(savedName);
                     const matchedId = nameIndex[normalizedSaved];
                     if (matchedId) {
@@ -628,20 +621,14 @@
                         resolvedName = partiesMap[matchedId].name;
                         resolvedPartyType = partiesMap[matchedId].type;
                     } else {
-                        // لم يتم العثور على تطابق تام، لكن الاسم المحفوظ موجود بالفعل
-                        // فنعرضه كما هو بدلاً من تصنيفه "غير مسجل"
                         resolvedName = savedName;
                     }
                 }
 
                 const isValidVoucherType = (d.type === 'قبض' || d.type === 'صرف');
-                
-                // --- نظام الحماية الجديد: استبعاد دفع الفواتير من الظهور هنا ---
-                // أي حركة فيها invoiceId أو كلمة فاتورة في البيان سيتم تجاهلها ولن تُعرض
                 const isInvoicePayment = d.invoiceId || d.purchaseId || d.billId || d.isInvoicePayment || 
                                          (d.note && (d.note.includes('فاتورة') || d.note.includes('فواتير')));
                 
-                // إضافة الحركة فقط إذا كانت سند (وليس سداد فاتورة)
                 if (isValidVoucherType && !isInvoicePayment) {
                     allVouchers.push({
                         id: doc.id,
@@ -788,43 +775,66 @@
     async function calculateCustomerBalance(partyId) {
         if (!partyId) return 0;
         const pType = partiesMap[partyId] ? partiesMap[partyId].type : 'عميل';
-        const collectionName = pType === 'مورد' ? 'suppliers' : 'customers';
-        try {
-            const partyDoc = await getDoc(doc(db, collectionName, partyId));
-            if (!partyDoc.exists()) return 0;
-            let balance = Number(partyDoc.data().initialBalance || 0);
-            
-            if (collectionName === 'customers') {
+        
+        if (pType === 'مورد') {
+            try {
+                const partyDoc = await getDoc(doc(db, "suppliers", partyId));
+                if (!partyDoc.exists()) return 0;
+                const openingBal = Number(partyDoc.data().openingBalance ?? partyDoc.data().initialBalance ?? 0);
+                
+                const [snapTrans, snapItems] = await Promise.all([
+                    getDocs(query(collection(db, "transactions"), where("partyId", "==", partyId))),
+                    getDocs(query(collection(db, "supplier_transactions"), where("supplierId", "==", partyId)))
+                ]);
+
+                let debt = 0;   
+                let credit = 0; 
+
+                snapTrans.forEach(docSnap => {
+                    const d = docSnap.data();
+                    const amt = Number(d.amount) || 0;
+                    if (d.type === "صرف") credit += amt;
+                    else if (d.type === "قبض") debt += amt;
+                });
+
+                snapItems.forEach(docSnap => {
+                    const d = docSnap.data();
+                    const amt = Number(d.total) || Number(d.amount) || 0;
+                    if (d.type === "شراء" || d.type === "فاتورة شراء") debt += amt;
+                    else if (d.type === "مرتجع شراء") credit += amt;
+                });
+
+                return (openingBal + debt) - credit;
+            } catch (err) {
+                console.error("خطأ بحساب رصيد المورد:", err);
+                return 0;
+            }
+        } else {
+            try {
+                const partyDoc = await getDoc(doc(db, "customers", partyId));
+                if (!partyDoc.exists()) return 0;
+                let balance = Number(partyDoc.data().initialBalance ?? partyDoc.data().openingBalance ?? 0);
+                
                 const invoicesSnap = await getDocs(query(collection(db, "invoices"), where("customerId", "==", partyId)));
                 invoicesSnap.forEach(inv => { balance += Number(inv.data().remaining || 0); });
-            } else if (collectionName === 'suppliers') {
-                try {
-                    const supplierInvoicesSnap = await getDocs(query(collection(db, "supplierInvoices"), where("supplierId", "==", partyId)));
-                    supplierInvoicesSnap.forEach(inv => { balance += Number(inv.data().remaining || 0); });
-                } catch(e) { }
-            }
-            
-            const processTransaction = (tr) => {
-                const t = tr.data();
-                if (pType === 'عميل') {
+                
+                const processTransaction = (tr) => {
+                    const t = tr.data();
                     if (t.type === 'قبض') balance -= Number(t.amount || 0);
                     if (t.type === 'صرف') balance += Number(t.amount || 0);
-                } else {
-                    if (t.type === 'صرف') balance -= Number(t.amount || 0);
-                    if (t.type === 'قبض') balance += Number(t.amount || 0);
-                }
-            };
-            
-            const transSnap1 = await getDocs(query(collection(db, "transactions"), where("partyId", "==", partyId)));
-            const transSnap2 = await getDocs(query(collection(db, "transactions"), where("customerId", "==", partyId))); 
-            
-            transSnap1.forEach(processTransaction);
-            transSnap2.forEach(processTransaction);
-            
-            return balance;
-        } catch (err) {
-            console.error("خطأ بحساب الرصيد الفعلي:", err);
-            return 0;
+                };
+                
+                const transSnap1 = await getDocs(query(collection(db, "transactions"), where("partyId", "==", partyId)));
+                const transSnap2 = await getDocs(query(collection(db, "transactions"), where("customerId", "==", partyId))); 
+                
+                transSnap1.forEach(processTransaction);
+                transSnap2.forEach(processTransaction);
+                
+                return balance;
+            } catch (err) {
+                console.error("خطأ بحساب رصيد العميل:", err);
+                return 0;
+            }
         }
     }
 
@@ -1138,4 +1148,3 @@
 </script>
 </body>
 </html>
-
