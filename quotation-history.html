@@ -138,9 +138,24 @@ nav .btn-back:hover { background: rgba(255, 255, 255, 0.25); }
 .inv-item-card:active { transform: translateY(2px); }
 .inv-item-card:last-child { margin-bottom: 0; }
 
-.inv-item-name { font-size: 14px; font-weight: 800; color: var(--brand-d); margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.inv-item-name { font-size: 14px; font-weight: 800; color: var(--brand-d); margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dashed var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .stock-badge { font-size: 11px; font-weight: 700; background: var(--blue-lt); color: var(--blue); border-radius: 20px; padding: 3px 9px; white-space: nowrap; flex-shrink: 0; }
 .stock-badge.negative { background: var(--red-lt); color: var(--red); }
+
+/* شريط التعديل الزمني */
+.edit-timestamp-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8a5b00;
+  background: #fff8e6;
+  border: 1px solid #ffe599;
+  border-radius: 8px;
+  padding: 4px 8px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
 
 .inv-stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
 .inv-stats-row .inv-stat { background: var(--surface); border-radius: 8px; padding: 7px 6px; text-align: center; }
@@ -161,6 +176,30 @@ nav .btn-back:hover { background: rgba(255, 255, 255, 0.25); }
 .inv-status-select:focus { border-color: var(--brand); }
 .inv-status-select.status-ajz { border-color: var(--red); background: var(--red-lt); color: var(--red); }
 .inv-status-select.status-zyada{ border-color: var(--green); background: var(--green-lt); color: var(--green); }
+
+/* مودال التعديل السريع للتحميل من شاشة الجرد */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  backdrop-filter: blur(3px);
+}
+.modal-overlay.open { display: flex; }
+.modal-box {
+  background: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 15px 35px rgba(0,0,0,0.25);
+  animation: modalIn 0.25s ease-out;
+}
+@keyframes modalIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
 /* الجدول للطباعة فقط */
 .summary-tbl-wrap { display: none; }
@@ -236,7 +275,7 @@ table select:focus { border-color: var(--brand); }
 #print-header, #print-footer { display: none; }
 @media print {
   body { background: #fff; color: #000; padding: 0; margin: 0; font-size: 12px; }
-  nav, .btn, .tools-row, #syncStatus, .ph, .snum, .load-search-box, #newItemsAlertBanner { display: none !important; }
+  nav, .btn, .tools-row, #syncStatus, .ph, .snum, .load-search-box, #newItemsAlertBanner, .modal-overlay { display: none !important; }
   .card, .summary-card { border: none; box-shadow: none; padding: 0; margin: 0; }
   .card h3 { display: none !important; }
   #print-header { display: block !important; text-align: center; margin-bottom: 25px; font-family: inherit; }
@@ -373,6 +412,25 @@ table select:focus { border-color: var(--brand); }
           <tr><td colspan="6"><div class="empty"><span class="em">📭</span>لا توجد بيانات</div></td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- نافذة مودال التعديل السريع للتحميل من الجرد -->
+<div class="modal-overlay" id="editLoadModal">
+  <div class="modal-box">
+    <h3 style="font-size:16px; color:var(--brand-d); margin-bottom:12px; font-weight:800; display:flex; align-items:center; gap:6px;">
+      ✏️ تعديل كمية التحميل
+    </h3>
+    <p id="modalItemName" style="font-size:13px; font-weight:700; color:var(--text); margin-bottom:14px; background:var(--brand-lt); padding:8px 12px; border-radius:10px; border:1px solid var(--border);"></p>
+
+    <input type="hidden" id="modalItemId">
+
+    <div id="modalFieldsArea" class="frow-inline" style="margin-bottom:18px;"></div>
+
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button class="btn btn-sm" style="background:var(--surface); color:var(--text);" onclick="window.closeEditLoadModal()">إلغاء</button>
+      <button class="btn btn-primary btn-sm" onclick="window.saveQuickLoadEdit()">حفظ التعديل 💾</button>
     </div>
   </div>
 </div>
@@ -819,10 +877,14 @@ window.confirmStep = function(itemId) {
   const cartons = parseFloat(document.getElementById(`lc-${itemId}`).value) || 0;
   const loose   = parseInt(document.getElementById(`ll-${itemId}`).value) || 0;
   
+  const now = new Date();
+  const editTimeStr = now.toLocaleDateString('ar-EG') + ' | ' + now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
   loadedInSession[itemId] = { cartons, loose };
   if (!cartItems[itemId]) cartItems[itemId] = { name: it.name, capacity: it.capacity };
   cartItems[itemId].loadedCartons = cartons;
   cartItems[itemId].loadedLoose   = loose;
+  cartItems[itemId].lastEditedAt  = editTimeStr;
   
   saveSession();
   
@@ -831,18 +893,15 @@ window.confirmStep = function(itemId) {
   
   renderLoadFlow();
 
-  // الحل المباشر للموبايل: استدعاء التركيز اللحظي تزامناً مع اللمس لفتح الكيبورد فوراً
   const nextStep = document.querySelector('.lstep.pending-step');
   if (nextStep) {
     const nextId = nextStep.dataset.itemid;
     const inp = document.getElementById(`lc-${nextId}`) || document.getElementById(`ll-${nextId}`);
     
     if (inp) {
-      // تركيز فوري قوي لإجبار نظام التشغيل على فتح الكيبورد
       inp.focus();
       inp.select();
       
-      // تأكيد التمرير لمنتصف الشاشة بعد التركيز لراحة العين
       setTimeout(() => {
         nextStep.scrollIntoView({ behavior: 'smooth', block: 'center' });
         nextStep.classList.add('active');
@@ -904,13 +963,84 @@ window.updateManualSummaryField = function(itemId, field, val) {
   saveSession();
 };
 
+/* فتح نافذة تعديل التحميل المباشر من شاشة الجرد */
+window.openEditLoadModal = function(itemId) {
+  syncSessionVars();
+  const fbItem = firebaseItems.find(i => i.id === itemId);
+  if (!fbItem) return;
+
+  const currentCart = cartItems[itemId] || { loadedCartons: 0, loadedLoose: 0 };
+  const unit = getUnitName(fbItem.name);
+
+  document.getElementById('modalItemId').value = itemId;
+  document.getElementById('modalItemName').textContent = fbItem.name;
+
+  const fieldsArea = document.getElementById('modalFieldsArea');
+  if (fbItem.capacity > 1) {
+    fieldsArea.innerHTML = `
+      <div class="field-inline priority-field">
+        <label>📦 كراتين</label>
+        <input type="number" id="m-lc" min="0" step="any" value="${currentCart.loadedCartons || ''}" placeholder="0">
+      </div>
+      <div class="field-inline">
+        <label>${unit} منفرد</label>
+        <input type="number" id="m-ll" min="0" value="${currentCart.loadedLoose || ''}" placeholder="0">
+      </div>`;
+  } else {
+    fieldsArea.innerHTML = `
+      <input type="hidden" id="m-lc" value="0">
+      <div class="field-inline" style="flex:2;">
+        <label>الكمية المحملة (${unit})</label>
+        <input type="number" id="m-ll" min="0" value="${currentCart.loadedLoose || ''}" placeholder="0">
+      </div>`;
+  }
+
+  document.getElementById('editLoadModal').classList.add('open');
+  setTimeout(() => {
+    const inp = document.getElementById('m-lc') || document.getElementById('m-ll');
+    if (inp) { inp.focus(); inp.select(); }
+  }, 150);
+};
+
+window.closeEditLoadModal = function() {
+  document.getElementById('editLoadModal').classList.remove('open');
+};
+
+/* حفظ تعديل التحميل السريع من شاشة الجرد مع تسجيل وقت التعديل */
+window.saveQuickLoadEdit = function() {
+  syncSessionVars();
+  const itemId = document.getElementById('modalItemId').value;
+  const fbItem = firebaseItems.find(i => i.id === itemId);
+  if (!fbItem) return;
+
+  const lcInp = document.getElementById('m-lc');
+  const llInp = document.getElementById('m-ll');
+
+  const cartons = parseFloat(lcInp ? lcInp.value : 0) || 0;
+  const loose   = parseInt(llInp ? llInp.value : 0) || 0;
+
+  const now = new Date();
+  const editTimeStr = now.toLocaleDateString('ar-EG') + ' | ' + now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+  loadedInSession[itemId] = { cartons, loose };
+  if (!cartItems[itemId]) cartItems[itemId] = { name: fbItem.name, capacity: fbItem.capacity };
+  cartItems[itemId].loadedCartons = cartons;
+  cartItems[itemId].loadedLoose   = loose;
+  cartItems[itemId].lastEditedAt  = editTimeStr;
+
+  saveSession();
+  closeEditLoadModal();
+  window.toast('✅ تم تحديث كمية التحميل وتسجيل التاريخ');
+  window.renderSummary();
+};
+
 async function buildSummaryData() {
   syncSessionVars();
   
   let loaded = firebaseItems.map(fbItem => {
     let cartData = cartItems[fbItem.id];
     if (!cartData) {
-      cartData = { name: fbItem.name, capacity: fbItem.capacity, loadedCartons: 0, loadedLoose: 0, manualCartons: '', manualLoose: '', diffStatus: '' };
+      cartData = { name: fbItem.name, capacity: fbItem.capacity, loadedCartons: 0, loadedLoose: 0, manualCartons: '', manualLoose: '', diffStatus: '', lastEditedAt: '' };
     }
     return [fbItem.id, cartData];
   });
@@ -960,6 +1090,7 @@ async function buildSummaryData() {
     const totalRemPcs    = totalLoadedPcs - totalSoldPcs;
     const currentManualCartons = it.manualCartons !== undefined ? it.manualCartons : '';
     const currentManualLoose   = it.manualLoose   !== undefined ? it.manualLoose   : '';
+    const lastEditedAt         = it.lastEditedAt || '';
     
     let calculatedStatus = it.diffStatus || "";
     if (!it.diffStatus && (currentManualCartons !== '' || currentManualLoose !== '')) {
@@ -988,7 +1119,7 @@ async function buildSummaryData() {
       id, it, unit, cap, totalLoadedPcs,
       totalSoldPcs, loadedText, soldText, remText, manualText, stockText,
       calculatedStatus, currentManualCartons, currentManualLoose,
-      totalRemPcs
+      lastEditedAt, totalRemPcs
     });
   });
 
@@ -1017,7 +1148,7 @@ window.renderSummary = async function() {
   cardsContainer.innerHTML = '';
   tb.innerHTML = '';
 
-  rows.forEach(({ id, it, unit, cap, totalSoldPcs, loadedText, soldText, remText, stockText, calculatedStatus, currentManualCartons, currentManualLoose }) => {
+  rows.forEach(({ id, it, unit, cap, totalSoldPcs, loadedText, soldText, remText, stockText, calculatedStatus, currentManualCartons, currentManualLoose, lastEditedAt }) => {
     const statusClass = calculatedStatus === 'عجز' ? 'status-ajz' : calculatedStatus === 'زيادة' ? 'status-zyada' : '';
     const isNegativeStock = stockText.startsWith('-');
 
@@ -1046,13 +1177,21 @@ window.renderSummary = async function() {
           oninput="window.updateManualSummaryField('${id}','manualLoose',this.value)">`;
     }
 
+    const editBadgeHtml = lastEditedAt 
+      ? `<div class="edit-timestamp-badge"><span>🕒 تم تعديل التحميل:</span> <b>${lastEditedAt}</b></div>` 
+      : '';
+
     const card = document.createElement('div');
     card.className = 'inv-item-card';
     card.innerHTML = `
       <div class="inv-item-name">
-        ${it.name}
-        <span class="stock-badge ${isNegativeStock ? 'negative' : ''}" title="المخزون الفعلي بالمخزن الرئيسي">🏭 المخزن: ${stockText.replace(/&nbsp;/g, ' ')}</span>
+        <span>${it.name}</span>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <button class="btn btn-sm" style="background:var(--amber-lt); color:var(--amber); font-size:11px; padding:4px 8px; font-weight:700;" onclick="window.openEditLoadModal('${id}')">✏️ تعديل التحميل</button>
+          <span class="stock-badge ${isNegativeStock ? 'negative' : ''}" title="المخزون الفعلي بالمخزن الرئيسي">🏭 المخزن: ${stockText.replace(/&nbsp;/g, ' ')}</span>
+        </div>
       </div>
+      ${editBadgeHtml}
       <div class="inv-stats-row">
         <div class="inv-stat loaded">
           <span class="lbl">المحمل</span>
@@ -1083,7 +1222,10 @@ window.renderSummary = async function() {
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td style="text-align:right; padding-right:8px; font-weight:700; color:var(--brand-d);">${it.name}</td>
+      <td style="text-align:right; padding-right:8px; font-weight:700; color:var(--brand-d);">
+        ${it.name}
+        ${lastEditedAt ? `<br><small style="font-size:10px; color:var(--amber); font-weight:bold;">🕒 ${lastEditedAt}</small>` : ''}
+      </td>
       <td>${loadedText.replace(/&nbsp;/g, ' ')}</td>
       <td>${soldText.replace(/&nbsp;/g, ' ')}</td>
       <td style="color:var(--brand); background:var(--brand-lt);">${remText.replace(/&nbsp;/g, ' ')}</td>
@@ -1116,7 +1258,10 @@ window.exportPDF = async function() {
     let statusColor = r.calculatedStatus === 'عجز' ? '#d90429' : (r.calculatedStatus === 'زيادة' ? '#2d6a4f' : '#1b2e26');
     tbody += `
       <tr>
-        <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: right; font-weight: bold; color: #0a4a31; font-size:15px;">${r.it.name}</td>
+        <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: right; font-weight: bold; color: #0a4a31; font-size:15px;">
+          ${r.it.name}
+          ${r.lastEditedAt ? `<br><span style="font-size:11px; color:#8a5b00;">(تعديل التحميل: ${r.lastEditedAt})</span>` : ''}
+        </td>
         <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center; color: #0b5e3d; font-weight: bold; font-size:15px;">${r.loadedText}</td>
         <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center; color: #d90429; font-weight: bold; font-size:15px;">${r.soldText}</td>
         <td style="padding: 10px; border: 1px solid #e4e9e6; text-align: center; color: #0b5e3d; font-weight: bold; background: #eefaf1; font-size:15px;">${r.remText}</td>
@@ -1174,9 +1319,7 @@ window.exportPDF = async function() {
   });
 };
 
-/* ===================================================================
-   إذن التحميل الفاتورة - المحدث لحل مشكلة التداخل والقص نهائياً
-   =================================================================== */
+/* إذن التحميل الفاتورة */
 window.exportLoadPDF = async function() {
   syncSessionVars();
   const loadedKeys = Object.keys(loadedInSession);
