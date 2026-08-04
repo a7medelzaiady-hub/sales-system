@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- مكتبة تحويل HTML إلى PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
@@ -46,6 +47,7 @@
             cursor: pointer; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap; transition: all 0.2s;
         }
         .pdf-btn { background: #d97706; border-color: #f59e0b; color: #fff; }
+        .pdf-btn:hover { background: #b45309; }
 
         .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px; max-width: 700px; margin: 0 auto; }
         .stat { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 12px; text-align: center; box-shadow: var(--shadow); position: relative; overflow: hidden; }
@@ -57,6 +59,10 @@
 
         .stat-num { font-size: 28px; font-weight: 900; line-height: 1.1; }
         .stat-lbl { font-size: 12px; color: var(--sub); font-weight: 700; margin-top: 4px; }
+        .stat.s-total .stat-num { color: var(--accent); }
+        .stat.s-ok    .stat-num { color: var(--success); }
+        .stat.s-low   .stat-num { color: var(--gold); }
+        .stat.s-zero  .stat-num { color: var(--danger); }
 
         .search-wrap { max-width: 700px; margin: 4px auto 0; padding: 0 16px; }
         .search-inner { background: var(--card); border: 1.5px solid var(--border); border-radius: 30px; padding: 10px 18px; display: flex; align-items: center; gap: 10px; box-shadow: var(--shadow); }
@@ -69,48 +75,78 @@
         .count-badge { background: var(--accent); color: #fff; font-size: 11px; font-weight: 800; padding: 3px 12px; border-radius: 20px; }
 
         #listBody { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; }
+        #listBody.full-width { display: block; padding: 0; }
 
-        .item-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 12px; cursor: pointer; transition: all 0.15s ease-in-out; display: flex; flex-direction: column; gap: 10px; }
-        .row-info { flex: 1; min-width: 0; text-align: right; }
-        .row-name { font-size: 12px; font-weight: 700; color: #0f172a; }
-        .price-tag { background: rgba(11,94,61,0.08); color: var(--accent); padding: 2px 7px; border-radius: 6px; font-size: 9px; font-weight: 800; }
+        .item-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 12px; cursor: pointer; transition: all 0.15s ease-in-out; display: flex; flex-direction: column; gap: 10px; position: relative; }
+        .item-card.zero-row { background: rgba(225, 29, 72, 0.02); border-color: rgba(225, 29, 72, 0.15); }
+        .item-card.low-row  { background: rgba(217, 119, 6, 0.02); border-color: rgba(217, 119, 6, 0.15); }
+
+        .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+        .row-info { flex: 1; min-width: 0; text-align: right; padding-right: 12px; }
+        .row-name { font-size: 12px; font-weight: 700; line-height: 1.35; color: #0f172a; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; height: 33px; }
+        .row-meta { font-size: 10px; color: var(--sub); font-weight: 600; margin-top: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .price-tag { background: rgba(11,94,61,0.08); color: var(--accent); padding: 2px 7px; border-radius: 6px; font-size: 9px; font-weight: 800; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
+
+        .row-widgets { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .row-num { font-size: 10px; color: #94a3b8; font-weight: 800; min-width: 14px; text-align: center; }
+
+        .row-qty { border-top: 1px dashed #e2e8f0; padding-top: 9px; display: flex; flex-direction: column; gap: 7px; width: 100%; }
         .qty-total { display: flex; align-items: center; justify-content: center; gap: 5px; background: rgba(11,94,61,0.05); color: var(--accent); border-radius: 8px; padding: 4px 6px; font-size: 10.5px; font-weight: 800; }
 
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(5px); z-index: 1000; display: none; align-items: center; justify-content: center; padding: 16px; }
         .modal-card { background: var(--card); width: 100%; max-width: 550px; border-radius: var(--r); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); overflow: hidden; display: flex; flex-direction: column; max-height: 85vh; }
         .modal-header { background: var(--accent); color: #fff; padding: 16px; display: flex; align-items: center; justify-content: space-between; }
-        .close-modal { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; }
+        .close-modal { background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; }
         .modal-body { padding: 12px 16px 20px; overflow-y: auto; flex: 1; background: #f8fafc; }
         
         .modal-dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
         .mini-card { background: #ffffff; border: 1px solid var(--border); border-radius: 14px; padding: 12px; display: flex; align-items: center; gap: 10px; }
+        .mini-card i { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .mini-info { display: flex; flex-direction: column; text-align: right; }
         .mini-val { font-size: 18px; font-weight: 800; }
-        .mini-lbl { font-size: 10.5px; color: var(--sub); font-weight: 700; }
+        .mini-lbl { font-size: 10.5px; color: var(--sub); font-weight: 700; margin-top: 2px; }
+        
+        .mc-buy i { background: rgba(2, 132, 199, 0.08); color: #0284c7; }
+        .mc-sell i { background: rgba(22, 163, 74, 0.08); color: var(--success); }
+        .mc-ret i { background: rgba(217, 119, 6, 0.08); color: var(--gold); }
+        .mc-current { grid-column: 1 / -1; background: linear-gradient(135deg, rgba(11,94,61,0.03) 0%, rgba(18,130,86,0.06) 100%); border: 1px dashed var(--accent-light); justify-content: center; padding: 10px; }
 
         .history-list { display: flex; flex-direction: column; gap: 8px; }
-        .tx-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 14px; }
-        .tx-type { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; color: #fff; }
+        .tx-item { display: flex; align-items: center; justify-content: space-between; padding: 12px; background: white; border: 1px solid #e2e8f0; border-radius: 14px; gap: 12px; }
+        .tx-type { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 800; color: #fff; text-align: center; min-width: 70px; }
         .tx-type.sale { background: var(--success); }
         .tx-type.purchase { background: #0284c7; }
         .tx-type.return { background: var(--gold); }
+        .tx-details { flex: 1; text-align: right; min-width: 0; }
+        .tx-title { font-size: 13px; font-weight: 700; color: #1e293b; }
+        .tx-date { font-size: 10px; color: #94a3b8; font-weight: 600; margin-top: 2px; }
+        .tx-amount { font-size: 16px; font-weight: 900; text-align: left; direction: ltr; }
+        .tx-amount.plus { color: #0284c7; }
+        .tx-amount.minus { color: var(--danger); }
     </style>
 </head>
 <body>
 
 <header>
-    <div><button class="pdf-btn"><i class="fas fa-file-pdf"></i> تصدير PDF</button></div>
+    <div>
+        <button class="pdf-btn" onclick="exportInventoryPDF()">
+            <i class="fas fa-file-pdf"></i> تصدير PDF
+        </button>
+    </div>
     <div class="header-center">
         <div class="h-title">شركة <span>الزيادى</span> | الأصناف</div>
         <div class="h-sub" id="syncTime">جاري المزامنة...</div>
     </div>
-    <div class="header-left-btn"><a href="javascript:history.back()" class="back-btn"><i class="fas fa-arrow-right"></i> رجوع</a></div>
+    <div class="header-left-btn">
+        <a href="javascript:history.back()" class="back-btn"><i class="fas fa-arrow-right"></i> رجوع</a>
+    </div>
 </header>
 
 <div class="stats">
     <div class="stat s-total"><div class="stat-num" id="sTotal">—</div><div class="stat-lbl">إجمالي الأصناف</div></div>
-    <div class="stat s-ok"><div class="stat-num" id="sOk">—</div><div class="stat-lbl">متوفر</div></div>
-    <div class="stat s-low"><div class="stat-num" id="sLow">—</div><div class="stat-lbl">كمية منخفضة</div></div>
-    <div class="stat s-zero"><div class="stat-num" id="sZero">—</div><div class="stat-lbl">نفد المخزون / بالسالب</div></div>
+    <div class="stat s-ok">  <div class="stat-num" id="sOk">—</div>   <div class="stat-lbl">متوفر</div></div>
+    <div class="stat s-low"> <div class="stat-num" id="sLow">—</div>  <div class="stat-lbl">كمية منخفضة</div></div>
+    <div class="stat s-zero"><div class="stat-num" id="sZero">—</div> <div class="stat-lbl">نفد المخزون / بالسالب</div></div>
 </div>
 
 <div class="search-wrap">
@@ -126,7 +162,9 @@
             <h3><i class="fas fa-boxes-stacked"></i> الأصناف المسجلة</h3>
             <span class="count-badge" id="countBadge">—</span>
         </div>
-        <div id="listBody"></div>
+        <div id="listBody">
+            <div style="grid-column: 1/-1; text-align: center; padding: 20px;">جاري تحميل البيانات...</div>
+        </div>
     </div>
 </div>
 
@@ -145,16 +183,16 @@
     import { getFirestore, collection, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
-        apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-        authDomain: "ahmedelzaiady.firebaseapp.com",
-        projectId: "ahmedelzaiady",
-        storageBucket: "ahmedelzaiady.firebasestorage.app",
+        apiKey:            "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+        authDomain:        "ahmedelzaiady.firebaseapp.com",
+        projectId:         "ahmedelzaiady",
+        storageBucket:     "ahmedelzaiady.firebasestorage.app",
         messagingSenderId: "300306825071",
-        appId: "1:300306825071:web:0426ddde56280fa090329a"
+        appId:             "1:300306825071:web:0426ddde56280fa090329a"
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    const db  = getFirestore(app);
     let allItems = [];
 
     onSnapshot(collection(db, "inventory"), snap => {
@@ -163,8 +201,13 @@
             const data = d.data();
             if (data.isDeleted !== true) allItems.push({ id: d.id, ...data });
         });
+
+        allItems.sort((a, b) => (Number(b.totalPcs) || 0) - (Number(a.totalPcs) || 0));
         updateStats();
         renderList();
+        
+        const now = new Date();
+        document.getElementById('syncTime').textContent = `آخر تحديث: ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
     });
 
     function updateStats() {
@@ -188,98 +231,184 @@
         const list = term ? allItems.filter(i => (i.name||'').toLowerCase().includes(term)) : allItems;
 
         document.getElementById('countBadge').textContent = list.length + ' صنف';
+        if (list.length === 0) {
+            listBody.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:40px;">لا توجد نتائج</div>`;
+            return;
+        }
+
         let html = '';
         list.forEach((item, index) => {
             const totalPcs = Number(item.totalPcs) || 0;
             const safeName = (item.name || 'بدون اسم').replace(/'/g, "\\'");
+            const buyPrice = Number(item.buy) || 0;
 
             html += `
-            <div class="item-card" onclick="showItemHistory('${item.id}', '${safeName}', ${totalPcs})">
-                <div class="row-info">
-                    <div class="row-name">${item.name || 'بدون اسم'}</div>
-                    <span class="price-tag">${Number(item.sell || 0).toLocaleString()} ج.م</span>
+            <div class="item-card" onclick="showItemHistory('${item.id}', '${safeName}', ${totalPcs}, ${buyPrice})">
+                <div class="card-top">
+                    <div class="row-info">
+                        <div class="row-name">${item.name || 'بدون اسم'}</div>
+                        <div class="row-meta"><span class="price-tag">${Number(item.sell || 0).toLocaleString()} ج.م</span></div>
+                    </div>
+                    <div class="row-widgets"><span class="row-num">${index+1}</span></div>
                 </div>
-                <div class="qty-total">الرصيد: ${totalPcs} قطعة</div>
+                <div class="row-qty">
+                    <div class="qty-total">الرصيد المتاح: ${totalPcs} قطعة</div>
+                </div>
             </div>`;
         });
         listBody.innerHTML = html;
     };
 
-    window.showItemHistory = async function(itemId, itemName, currentStock = 0) {
+    window.showItemHistory = async function(itemId, itemName, currentStock = 0, buyPrice = 0) {
         const modal = document.getElementById('historyModal');
         const modalTitle = document.getElementById('modalItemName');
         const modalBody = document.getElementById('modalBody');
 
         modalTitle.textContent = `حركة الصنف: ${itemName}`;
-        modalBody.innerHTML = `<div style="text-align:center; padding:20px;">جاري القراءة...</div>`;
+        modalBody.innerHTML = `<div style="text-align:center; padding:20px;">جاري فحص فواتير النظام...</div>`;
         modal.style.display = 'flex';
 
         try {
-            let totalPurchases = 0, totalSales = 0, totalReturns = 0;
+            let totalPurchases = 0;
+            let totalSales = 0;
+            let totalReturns = 0;
             let historyTx = [];
 
-            // 1. قراءة المبيعات والمرتجعات من invoices
             const invoicesSnap = await getDocs(collection(db, "invoices"));
             invoicesSnap.forEach(docSnap => {
                 const inv = docSnap.data();
                 if (inv.isDeleted) return;
+
                 if (Array.isArray(inv.items)) {
                     inv.items.forEach(itm => {
                         if (itm.stockId === itemId || (itm.name && itm.name.trim() === itemName.trim())) {
-                            const qtyPcs = Number(itm.totalPieces || itm.qty) || 0;
-                            if (itm.isReturn) {
-                                totalReturns += qtyPcs;
-                                historyTx.push({ type: 'return', title: inv.customerName || 'مرتجع', date: inv.time, qty: qtyPcs });
+                            const qty = Number(itm.qty) || 0;
+                            const isReturn = itm.isReturn === true;
+
+                            if (isReturn) {
+                                totalReturns += qty;
+                                historyTx.push({
+                                    type: 'return',
+                                    title: inv.customerName || 'مرجع فاتورة',
+                                    date: inv.timestamp || inv.date,
+                                    qty: qty
+                                });
                             } else {
-                                totalSales += qtyPcs;
-                                historyTx.push({ type: 'sale', title: inv.customerName || 'مبيعات', date: inv.time, qty: qtyPcs });
+                                totalSales += qty;
+                                historyTx.push({
+                                    type: 'sale',
+                                    title: inv.customerName || 'فاتورة بيع',
+                                    date: inv.timestamp || inv.date,
+                                    qty: qty
+                                });
                             }
                         }
                     });
                 }
             });
 
-            // 2. قراءة المشتريات من supplier_transactions
             const supplierSnap = await getDocs(collection(db, "supplier_transactions"));
             supplierSnap.forEach(docSnap => {
                 const st = docSnap.data();
                 if (st.isDeleted) return;
+                
                 if (Array.isArray(st.items)) {
                     st.items.forEach(itm => {
                         if (itm.stockId === itemId || (itm.name && itm.name.trim() === itemName.trim())) {
-                            const qtyPcs = Number(itm.totalPieces || (itm.qty * (itm.unitFactor || 1))) || 0;
-                            totalPurchases += qtyPcs;
-                            historyTx.push({ type: 'purchase', title: 'فاتورة توريد/شراء', date: st.date, qty: qtyPcs });
+                            const qty = Number(itm.qty) || 0;
+                            totalPurchases += qty;
+                            historyTx.push({
+                                type: 'purchase',
+                                title: st.supplierName || 'فاتورة توريد/مشتريات',
+                                date: st.timestamp || st.date,
+                                qty: qty
+                            });
                         }
                     });
                 }
             });
 
+            if (totalPurchases === 0) {
+                totalPurchases = currentStock + totalSales - totalReturns;
+                if (totalPurchases > 0) {
+                    historyTx.push({
+                        type: 'purchase',
+                        title: 'كمية وارد أول المدة / المخزن',
+                        date: null,
+                        qty: totalPurchases
+                    });
+                }
+            }
+
             let html = `
             <div class="modal-dashboard">
-                <div class="mini-card"><div class="mini-info"><span class="mini-val">+${totalPurchases}</span><span class="mini-lbl">المشتريات</span></div></div>
-                <div class="mini-card"><div class="mini-info"><span class="mini-val">-${totalSales}</span><span class="mini-lbl">المبيعات</span></div></div>
-                <div class="mini-card"><div class="mini-info"><span class="mini-val">${currentStock}</span><span class="mini-lbl">الرصيد المتاح</span></div></div>
+                <div class="mini-card mc-buy">
+                    <i class="fas fa-circle-arrow-down"></i>
+                    <div class="mini-info">
+                        <span class="mini-val">+${totalPurchases}</span>
+                        <span class="mini-lbl">إجمالي المشتريات/الوارد</span>
+                    </div>
+                </div>
+                <div class="mini-card mc-sell">
+                    <i class="fas fa-circle-arrow-up"></i>
+                    <div class="mini-info">
+                        <span class="mini-val">-${totalSales}</span>
+                        <span class="mini-lbl">إجمالي المبيعات</span>
+                    </div>
+                </div>
+                <div class="mini-card mc-ret">
+                    <i class="fas fa-rotate-left"></i>
+                    <div class="mini-info">
+                        <span class="mini-val">+${totalReturns}</span>
+                        <span class="mini-lbl">المرتجعات</span>
+                    </div>
+                </div>
+                <div class="mini-card mc-current">
+                    <div class="mini-info" style="text-align: center;">
+                        <span class="mini-val">${currentStock} قطعة</span>
+                        <span class="mini-lbl">الرصيد المتاح بالمخزن</span>
+                    </div>
+                </div>
             </div>
+
+            <div style="font-weight:bold; margin-bottom:10px;">تفاصيل الحركات المسجلة:</div>
             <div class="history-list">`;
 
             historyTx.forEach(tx => {
+                let badgeClass = tx.type === 'purchase' ? 'purchase' : (tx.type === 'return' ? 'return' : 'sale');
+                let badgeText = tx.type === 'purchase' ? 'شراء/وارد' : (tx.type === 'return' ? 'مرتجع' : 'بيع');
+                let sign = tx.type === 'sale' ? '-' : '+';
+                let amtClass = tx.type === 'sale' ? 'minus' : 'plus';
+
+                let dateStr = 'تاريخ مسجل';
+                if (tx.date) {
+                    const d = tx.date.toDate ? tx.date.toDate() : new Date(tx.date);
+                    dateStr = isNaN(d) ? 'مسجل' : d.toLocaleDateString('ar-EG');
+                }
+
                 html += `
                 <div class="tx-item">
-                    <span class="tx-type ${tx.type}">${tx.type === 'purchase' ? 'شراء' : (tx.type === 'return' ? 'مرتجع' : 'بيع')}</span>
-                    <div>${tx.title}</div>
-                    <div>${tx.qty} قطعة</div>
+                    <span class="tx-type ${badgeClass}">${badgeText}</span>
+                    <div class="tx-details">
+                        <div class="tx-title">${tx.title}</div>
+                        <div class="tx-date">${dateStr}</div>
+                    </div>
+                    <div class="tx-amount ${amtClass}">${sign}${tx.qty}</div>
                 </div>`;
             });
 
             html += '</div>';
             modalBody.innerHTML = html;
+
         } catch (err) {
-            modalBody.innerHTML = `<div style="color:red; text-align:center;">حدث خطأ: ${err.message}</div>`;
+            console.error(err);
+            modalBody.innerHTML = `<div style="color:red; text-align:center;">حدث خطأ أثناء تحميل الحركات: ${err.message}</div>`;
         }
     };
 
-    window.closeHistoryModal = function() { document.getElementById('historyModal').style.display = 'none'; };
+    window.closeHistoryModal = function() {
+        document.getElementById('historyModal').style.display = 'none';
+    };
 </script>
 </body>
 </html>
