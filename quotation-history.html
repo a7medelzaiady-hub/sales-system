@@ -1123,6 +1123,21 @@ async function buildSummaryData() {
     });
   });
 
+  // التعديل الرئيسي: الفرز بحيث يظهر الأصناف المباعة أولاً (تنازلياً بالمباع) ثم يليها الأصناف ذات الصفر مباع
+  rows.sort((a, b) => {
+    if (a.totalSoldPcs > 0 && b.totalSoldPcs > 0) {
+      return b.totalSoldPcs - a.totalSoldPcs; // الأكثر مبيعاً أولاً
+    }
+    if (a.totalSoldPcs > 0 && b.totalSoldPcs <= 0) {
+      return -1; // المباع يسبق غير المباع
+    }
+    if (a.totalSoldPcs <= 0 && b.totalSoldPcs > 0) {
+      return 1; // المباع يسبق غير المباع
+    }
+    // الأصناف ذات الصفر مباع يتم ترتيبها أبجدياً حسب اسم الصنف
+    return a.it.name.localeCompare(b.it.name, 'ar');
+  });
+
   return { rows, selectedDate, liveSales };
 }
 
