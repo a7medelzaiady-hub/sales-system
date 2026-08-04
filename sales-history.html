@@ -523,6 +523,17 @@
 
     window.globalExpectedTodayCash = 0;
 
+    function normalizeName(str) {
+        return String(str || '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .replace(/[\u064B-\u0652]/g, '')
+            .replace(/[إأآا]/g, 'ا')
+            .replace(/ى/g, 'ي')
+            .replace(/ة/g, 'ه')
+            .toLowerCase();
+    }
+
     window.showCustomUi = (options) => {
         const modal = document.getElementById('customGlobalModal');
         const title = document.getElementById('customModalTitle');
@@ -745,7 +756,7 @@
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-folder-open fa-2x mb-2"></i>
-                    <p class="fw-bold mb-0">لا توجد فواتير مطابقة للبحث أو الفلتر المختار.</p>
+                    <p class="fw-bold mb-0">لا توجد فواتير أو سندات مطابقة للبحث أو الفلتر المختار.</p>
                 </div>`;
             return;
         }
@@ -835,7 +846,7 @@
                     <div>
                         <h6 class="fw-bold mb-0 text-dark" style="font-size: 0.95rem;">${v.customerName}</h6>
                         <div class="meta-container">
-                            <span class="pay-badge bg-secondary" style="background-color: var(--purple) !important; color: white;">سند قبض</span>
+                            <span class="pay-badge bg-secondary" style="background-color: var(--purple) !important; color: white;">سند قبض (${v.method || 'نقدى'})</span>
                             <span class="detail-badge"><i class="far fa-clock"></i> ${v.date || 'بلا تاريخ'}</span>
                         </div>
                         ${v.note ? `<div class="text-muted mt-2" style="font-size:0.78rem;"><i class="fas fa-sticky-note me-1"></i> ${v.note}</div>` : ''}
@@ -963,7 +974,8 @@
             const filterInput = document.getElementById('dateFilterInput')?.value;
             const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
             const todayInvoices = allInvoices.filter(inv => parseInvoiceDate(inv) === targetDate);
-            window.renderInvoices(todayInvoices);
+            const todayVouchers = allReceiptVouchers.filter(v => parseVoucherDate(v) === targetDate);
+            window.renderInvoices(todayInvoices, todayVouchers);
         }
     }
 
@@ -993,23 +1005,27 @@
                 const endTS = firebase.firestore.Timestamp.fromDate(dayEnd);
 
                 invQuery = invQuery.where("timestamp", ">=", startTS).where("timestamp", "<", endTS).orderBy("timestamp", "desc");
-                transQuery = transQuery.where("timestamp", ">=", startTS).where("timestamp", "<", endTS);
             } else {
                 invQuery = invQuery.orderBy("timestamp", "desc");
             }
 
             const [custSnap, transSnap, invSnap] = await Promise.all([
                 db.collection("customers").get().catch(() => null),
-                transQuery.get().catch(() => db.collection("transactions").get().catch(() => null)),
+                transQuery.get().catch(() => null),
                 invQuery.get().catch(async () => {
                     return await db.collection("invoices").orderBy("timestamp", "desc").limit(100).get();
                 })
             ]);
 
             customersData = {};
+            const customersNameIndex = {};
             if (custSnap) {
                 custSnap.forEach(d => {
-                    customersData[d.id] = { id: d.id, name: d.data().name, initialBalance: Number(d.data().initialBalance) || 0 };
+                    const cData = d.data();
+                    customersData[d.id] = { id: d.id, name: cData.name, initialBalance: Number(cData.initialBalance) || 0 };
+                    if (cData.name) {
+                        customersNameIndex[normalizeName(cData.name)] = d.id;
+                    }
                 });
             }
 
@@ -1021,22 +1037,56 @@
                     if (tr.isDeleted === true) return;
                     rawTransactionsList.push({ id: d.id, ...tr });
 
-                    const isCustomerVoucher = tr.partyType === 'عميل' || (!tr.partyType && customersData[tr.partyId]);
-                    if (tr.type === 'قبض' && isCustomerVoucher) {
-                        let cashAmount = Number(tr.cashPaid ?? (tr.method !== 'محفظة' ? tr.amount : 0)) || 0;
-                        let walletAmount = Number(tr.walletPaid ?? (tr.method === 'محفظة' ? tr.amount : 0)) || 0;
-                        const customerName = (customersData[tr.partyId] && customersData[tr.partyId].name) || tr.partyName || 'عميل غير معروف';
+                    const isInvoicePayment = tr.invoiceId || tr.purchaseId || tr.billId || tr.isInvoicePayment || 
+                                             (tr.note && (tr.note.includes('فاتورة') || tr.note.includes('فواتير')));
 
-                        const vDate = parseVoucherDate(tr);
-                        if (loadAllArchive || vDate === targetDate) {
-                            allReceiptVouchers.push({
-                                id: d.id,
-                                date: tr.date,
-                                cashAmount,
-                                walletAmount,
-                                customerName,
-                                note: tr.note || tr.notes || ''
-                            });
+                    if (tr.type === 'قبض' && !isInvoicePayment) {
+                        let partyId = tr.partyId || tr.customerId || tr.supplierId || "";
+                        let partyName = tr.customerName || tr.partyName || tr.supplierName || tr.name || "";
+
+                        if (!partyId && partyName) {
+                            const norm = normalizeName(partyName);
+                            if (customersNameIndex[norm]) {
+                                partyId = customersNameIndex[norm];
+                            }
+                        }
+
+                        const partyType = tr.partyType || (partyId && customersData[partyId] ? 'عميل' : 'عميل');
+                        
+                        if (partyType === 'عميل' || customersData[partyId] || partyName) {
+                            const amt = Number(tr.amount || tr.total || 0);
+                            const method = tr.method || tr.paymentMethod || 'نقدى';
+                            
+                            let cashAmount = 0;
+                            let walletAmount = 0;
+
+                            if (method === 'محفظة' || method === 'محفظه') {
+                                walletAmount = amt;
+                            } else {
+                                cashAmount = amt;
+                            }
+
+                            if (tr.cashPaid !== undefined || tr.cashAmount !== undefined) {
+                                cashAmount = Number(tr.cashPaid ?? tr.cashAmount) || 0;
+                            }
+                            if (tr.walletPaid !== undefined || tr.walletAmount !== undefined) {
+                                walletAmount = Number(tr.walletPaid ?? tr.walletAmount) || 0;
+                            }
+
+                            const resolvedCustomerName = (customersData[partyId] && customersData[partyId].name) || partyName || 'عميل غير معروف';
+                            const vDate = parseVoucherDate(tr);
+
+                            if (loadAllArchive || vDate === targetDate) {
+                                allReceiptVouchers.push({
+                                    id: d.id,
+                                    date: vDate,
+                                    cashAmount,
+                                    walletAmount,
+                                    method,
+                                    customerName: resolvedCustomerName,
+                                    note: tr.note || tr.notes || ''
+                                });
+                            }
                         }
                     }
                 });
@@ -1089,7 +1139,7 @@
 
     document.getElementById('loadAllArchiveBtn').onclick = async () => {
         await loadData(true, true);
-        document.getElementById('filterStatusText').innerText = `جميع فواتير النظام الأرشيفية (${allInvoices.length} فاتورة)`;
+        document.getElementById('filterStatusText').innerText = `جميع فواتير وسندات النظام الأرشيفية (${allInvoices.length} فاتورة + ${allReceiptVouchers.length} سند)`;
         document.getElementById('filterStatusBar').style.display = "flex";
     };
 
@@ -1299,18 +1349,6 @@
                 itemsSummary[itemName].qty += qty;
                 itemsSummary[itemName].total += totalItemPrice;
             });
-        });
-
-        let itemsSummaryHtml = "";
-        Object.keys(itemsSummary).forEach(name => {
-            const data = itemsSummary[name];
-            itemsSummaryHtml += `
-                <tr>
-                    <td style="text-align:right; padding:5px 0; border-bottom:1px dotted #ccc;">${name}</td>
-                    <td style="text-align:center; padding:5px 0; border-bottom:1px dotted #ccc; font-weight:bold;">${data.qty} ${data.unit}</td>
-                    <td style="text-align:left; padding:5px 0; border-bottom:1px dotted #ccc;" class="num">${data.total.toFixed(1)}</td>
-                </tr>
-            `;
         });
 
         let invoicesDetailsHtml = "";
@@ -1533,7 +1571,8 @@
             const filterInput = document.getElementById('dateFilterInput').value;
             const targetDate = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
             const filtered = allInvoices.filter(inv => parseInvoiceDate(inv) === targetDate);
-            window.renderInvoices(filtered);
+            const matchingVouchers = allReceiptVouchers.filter(v => parseVoucherDate(v) === targetDate);
+            window.renderInvoices(filtered, matchingVouchers);
             return;
         }
 
@@ -1541,7 +1580,10 @@
             (inv.customerName && inv.customerName.toLowerCase().includes(query)) ||
             (inv.paymentMethod && inv.paymentMethod.toLowerCase().includes(query))
         );
-        window.renderInvoices(filtered);
+        const matchingVouchers = allReceiptVouchers.filter(v =>
+            (v.customerName && v.customerName.toLowerCase().includes(query))
+        );
+        window.renderInvoices(filtered, matchingVouchers);
     };
 
     window.toggleDetails = (id) => {
