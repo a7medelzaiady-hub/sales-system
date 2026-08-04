@@ -755,10 +755,10 @@
 
     function getCustomerBaseBalance(cust) {
         if (!cust) return 0;
-        if (cust.currentBalance !== undefined && cust.currentBalance !== null) {
-            return Number(cust.currentBalance) || 0;
+        if (cust.initialBalance !== undefined && cust.initialBalance !== null) {
+            return Number(cust.initialBalance) || 0;
         }
-        return Number(cust.initialBalance) || 0;
+        return Number(cust.currentBalance) || 0;
     }
 
     function parseArabicDate(dateStr) {
@@ -811,20 +811,17 @@
                 return { id: String(d.id).trim(), timeMs, data };
             });
 
-            // ترتيب الفواتير زمنياً من الأقدم للأحدث
             invoicesList.sort((a, b) => a.timeMs - b.timeMs);
 
             let invoiceDebt = 0;
 
             for (const item of invoicesList) {
-                // عند تعديل فاتورة: إذا وصلنا لنفس الفاتورة المفتوحة يتوقف الاحتساب فوراً
                 if (editId && item.id === String(editId).trim()) {
-                    break;
+                    continue;
                 }
 
-                // إن تم استخدام تاريخ ولم نصل لمُعرف الفاتورة، نتجاهل كل ما هو مسجل بنفس التاريخ أو بعده
                 if (targetTimeMs && targetTimeMs > 0 && item.timeMs >= targetTimeMs) {
-                    break;
+                    continue;
                 }
 
                 const total = Number(item.data.total) || 0;
