@@ -761,22 +761,31 @@
         return Number(cust.initialBalance) || 0;
     }
 
-    async function getRealBalance(customerId, baseBalance = 0) {
+    async function getRealBalance(customerId, baseBalance = 0, targetInvoiceTimeStr = null) {
         try {
             const [snapInvoices, snapTrans] = await Promise.all([
                 getDocs(query(collection(db, "invoices"), where("customerId", "==", customerId))),
                 getDocs(query(collection(db, "transactions"), where("partyId", "==", customerId)))
             ]);
 
+            const targetTimeMs = targetInvoiceTimeStr ? parseArabicDate(targetInvoiceTimeStr) : null;
+
             let invoiceDebt = 0;
             snapInvoices.forEach(docSnap => {
                 const docId = String(docSnap.id).trim();
-                // استثناء الفاتورة المفتوحة للتعديل بشكل مطلق وصريح
                 if (editId && docId === String(editId).trim()) {
                     return;
                 }
                 
                 const invData = docSnap.data();
+
+                if (targetTimeMs && targetTimeMs > 0) {
+                    const invTimeMs = invData.timestamp ? (invData.timestamp.seconds * 1000) : (invData.time ? parseArabicDate(invData.time) : 0);
+                    if (invTimeMs >= targetTimeMs) {
+                        return;
+                    }
+                }
+
                 const total = Number(invData.total) || 0;
                 const paid = Number(invData.paid) || 0;
                 const rem = invData.remaining !== undefined ? Number(invData.remaining) : (total - paid);
@@ -787,6 +796,14 @@
             let transEffect = 0;
             snapTrans.forEach(docSnap => {
                 const tr = docSnap.data();
+
+                if (targetTimeMs && targetTimeMs > 0) {
+                    const trTimeMs = tr.timestamp ? (tr.timestamp.seconds * 1000) : (tr.date || tr.time ? parseArabicDate(tr.date || tr.time) : 0);
+                    if (trTimeMs >= targetTimeMs) {
+                        return;
+                    }
+                }
+
                 const amt = Number(tr.amount) || 0;
                 if (tr.type === 'قبض') transEffect -= amt;
                 else if (tr.type === 'صرف') transEffect += amt;
@@ -916,7 +933,8 @@
             balanceDiv.querySelector('#curBalanceVal').innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
 
             const startBalance = getCustomerBaseBalance(exactMatch);
-            const realDebt = await getRealBalance(exactMatch.id, startBalance);
+            const currentInvTime = document.getElementById('invTime').value || originalInvoiceTime;
+            const realDebt = await getRealBalance(exactMatch.id, startBalance, editId ? currentInvTime : null);
             currentFetchedOldBalance = realDebt;
             showBalance(realDebt);
             calc();
@@ -958,7 +976,8 @@
         balanceDiv.style.display = 'block';
         balanceSpan.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
 
-        const realDebt = await getRealBalance(id, baseBalance);
+        const currentInvTime = document.getElementById('invTime').value || originalInvoiceTime;
+        const realDebt = await getRealBalance(id, baseBalance, editId ? currentInvTime : null);
         currentFetchedOldBalance = realDebt;
         showBalance(realDebt);
 
@@ -1024,7 +1043,8 @@
                 if (custIndex !== -1) customers[custIndex].initialBalance = newInitialBalance;
                 const cust = customers[custIndex];
                 const startBalance = getCustomerBaseBalance(cust);
-                const updatedRealBalance = await getRealBalance(customerId, startBalance);
+                const currentInvTime = document.getElementById('invTime').value || originalInvoiceTime;
+                const updatedRealBalance = await getRealBalance(customerId, startBalance, editId ? currentInvTime : null);
                 currentFetchedOldBalance = updatedRealBalance;
                 showBalance(updatedRealBalance);
                 window.showCustomAlert("تم تحديث الرصيد الافتتاحي للعميل بنجاح.", false);
@@ -1658,7 +1678,8 @@
                 const cust = customers.find(c => c.id === currentCustId);
                 if (cust) {
                     const startBalance = getCustomerBaseBalance(cust);
-                    const realDebt = await getRealBalance(currentCustId, startBalance);
+                    const currentInvTime = document.getElementById('invTime').value || originalInvoiceTime;
+                    const realDebt = await getRealBalance(currentCustId, startBalance, editId ? currentInvTime : null);
                     currentFetchedOldBalance = realDebt;
                     showBalance(realDebt);
                 }
@@ -1673,7 +1694,6 @@
 
     async function init() {
         try {
-            // التأكد من استخراج ومعالجة editId أول شيء
             const urlParamsInInit = new URLSearchParams(window.location.search);
             const rawEdit = urlParamsInInit.get('edit');
             if (rawEdit) {
@@ -1752,8 +1772,7 @@
                         document.getElementById('customerBalanceInfo').style.display = 'block';
 
                         const startBalance = getCustomerBaseBalance(cust);
-                        // جلب الرصيد الحقيقي مع ضمان استثناء الفاتورة الحالية
-                        const realB = await getRealBalance(data.customerId, startBalance);
+                        const realB = await getRealBalance(data.customerId, startBalance, originalInvoiceTime);
                         currentFetchedOldBalance = realB;
                         showBalance(realB);
                     } else {
