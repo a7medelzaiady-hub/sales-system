@@ -411,14 +411,14 @@
             <div class="col-3">
                 <div class="stat-card" onclick="filterByStat('today-cash', this)">
                     <div class="stat-bar" style="background: var(--germany-black);"></div>
-                    <div class="stat-label text-truncate">نقدى اليوم</div>
+                    <div class="stat-label text-truncate">نقدى اليوم (شامل السندات)</div>
                     <div class="stat-value num text-truncate" style="color: var(--germany-black);" id="todayCash">0.0</div>
                 </div>
             </div>
             <div class="col-3">
                 <div class="stat-card" onclick="filterByStat('today-wallet', this)">
                     <div class="stat-bar" style="background: var(--purple);"></div>
-                    <div class="stat-label text-truncate">محفظه اليوم</div>
+                    <div class="stat-label text-truncate">محفظه اليوم (شامل السندات)</div>
                     <div class="stat-value num text-truncate" style="color: var(--purple);" id="todayWallet">0.0</div>
                 </div>
             </div>
@@ -857,8 +857,10 @@
     };
 
     function calculateStats() {
-        let todayCash = 0; let todayWallet = 0;
-        let todayRemaining = 0; let todaySales = 0;
+        let invoiceCash = 0, voucherCash = 0;
+        let invoiceWallet = 0, voucherWallet = 0;
+        let todayRemaining = 0, todaySales = 0;
+
         const filterInput = document.getElementById('dateFilterInput')?.value;
         const targetDateStr = filterInput ? filterInput : new Date().toLocaleDateString('en-CA');
         const statsTitle = document.getElementById('todayStatsTitle');
@@ -866,10 +868,9 @@
         
         allInvoices.forEach(inv => {
             const invDateStr = parseInvoiceDate(inv);
-            const isTargetDate = (invDateStr === targetDateStr);
-            if (isTargetDate) {
-                todayCash += inv.calculatedCash;
-                todayWallet += inv.calculatedWallet;
+            if (invDateStr === targetDateStr) {
+                invoiceCash += Number(inv.calculatedCash) || 0;
+                invoiceWallet += Number(inv.calculatedWallet) || 0;
                 todaySales += (Number(inv.total) || 0);
                 let rawRemaining = Number(inv.remaining) || 0;
                 if (rawRemaining > 0) { todayRemaining += rawRemaining; }
@@ -879,17 +880,30 @@
         allReceiptVouchers.forEach(v => {
             const vDateStr = parseVoucherDate(v);
             if (vDateStr === targetDateStr) {
-                todayCash += v.cashAmount;
-                todayWallet += v.walletAmount;
+                voucherCash += Number(v.cashAmount) || 0;
+                voucherWallet += Number(v.walletAmount) || 0;
             }
         });
 
-        document.getElementById('todayCash').innerText = todayCash.toFixed(1);
-        document.getElementById('todayWallet').innerText = todayWallet.toFixed(1);
+        const totalCash = invoiceCash + voucherCash;
+        const totalWallet = invoiceWallet + voucherWallet;
+
+        const todayCashElem = document.getElementById('todayCash');
+        if (todayCashElem) {
+            todayCashElem.innerText = totalCash.toFixed(1);
+            todayCashElem.title = `مبيعات: ${invoiceCash.toFixed(1)} | سندات: ${voucherCash.toFixed(1)}`;
+        }
+
+        const todayWalletElem = document.getElementById('todayWallet');
+        if (todayWalletElem) {
+            todayWalletElem.innerText = totalWallet.toFixed(1);
+            todayWalletElem.title = `مبيعات: ${invoiceWallet.toFixed(1)} | سندات: ${voucherWallet.toFixed(1)}`;
+        }
+
         document.getElementById('todayRemaining').innerText = todayRemaining.toFixed(1);
         document.getElementById('todayTotalSales').innerText = todaySales.toFixed(1);
 
-        window.globalExpectedTodayCash = todayCash;
+        window.globalExpectedTodayCash = totalCash;
         window.calculateCashReconciliation();
     }
 
