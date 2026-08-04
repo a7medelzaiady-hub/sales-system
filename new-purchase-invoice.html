@@ -18,7 +18,6 @@
             --danger-light: #fdeef0;
             --success: #128055;
             --wallet-color: #1d7fb8;
-            /* تأثيرات الظلال ثلاثية الأبعاد (3D Neumorphism Soft Shadows) */
             --shadow-3d-out: 6px 6px 14px #c2cac6, -6px -6px 14px #ffffff;
             --shadow-3d-in: inset 3px 3px 6px #c5cd2d, inset -3px -3px 6px #ffffff;
             --card-3d-shadow: 10px 10px 25px rgba(14, 107, 72, 0.12), -8px -8px 20px #ffffff;
@@ -41,7 +40,6 @@
             font-family: 'Montserrat', 'Cairo', sans-serif !important;
         }
 
-        /* ===== HEADER HEADER 3D ===== */
         .header {
             background: var(--primary-gradient);
             padding: 16px 20px;
@@ -70,7 +68,6 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
 
-        /* ===== CARD GENERAL 3D ===== */
         .data-card {
             background: #e6ece9;
             border-radius: var(--radius-lg);
@@ -107,7 +104,6 @@
             outline: none;
         }
 
-        /* ===== ITEM ROW 3D ===== */
         .item-row {
             background: #e6ece9;
             border-radius: var(--radius-lg);
@@ -162,7 +158,6 @@
             box-shadow: inset 3px 3px 6px #073826, inset -3px -3px 6px #159e6a;
         }
 
-        /* ===== SEARCH RESULTS DROPDOWN ===== */
         .search-results-box {
             position: absolute;
             width: 100%;
@@ -190,7 +185,6 @@
             color: white;
         }
 
-        /* ===== RETURN SWITCH ===== */
         .return-check-container {
             display: flex;
             align-items: center;
@@ -204,7 +198,6 @@
         }
         .form-check-input.item-is-return:checked { background-color: var(--danger); border-color: var(--danger); }
 
-        /* ===== SUBTOTAL ===== */
         .subtotal-display { 
             background: #e6ece9; 
             border-radius: 14px; 
@@ -212,7 +205,6 @@
             box-shadow: inset 3px 3px 6px #c8d1cd, inset -3px -3px 6px #ffffff;
         }
         
-        /* ===== FOOTER / SUMMARY 3D ===== */
         .invoice-footer {
             background: #e6ece9;
             padding: 24px;
@@ -289,7 +281,6 @@
 </div>
 
 <div class="container-fluid px-3 mt-2">
-    <!-- كارت البيانات العامة برؤية 3D -->
     <div class="data-card">
         <div class="row g-3">
             <div class="col-6 col-md-3">
@@ -321,7 +312,6 @@
     </button>
 </div>
 
-<!-- ملخص الفاتورة وإجمالي الحسابات -->
 <div class="invoice-footer" id="invoiceSummaryCard">
     <div class="total-container">
         <span class="small text-muted fw-bold"><i class="fas fa-boxes"></i> عدد البنود الحالية:</span>
@@ -780,23 +770,21 @@
                 });
             }
 
+            // عكس الكميات السابقة في حالة التعديل
             if (editId && oldInvoiceData && Array.isArray(oldInvoiceData.items)) {
                 for (const oldItem of oldInvoiceData.items) {
                     const oldModifier = Number(oldItem.totalPieces) || 0;
                     if (!oldModifier) continue;
                     
-                    let matchedOldProduct = null;
-                    if (oldItem.stockId) {
-                        matchedOldProduct = allInventory.find(p => p.id === oldItem.stockId);
-                    }
-                    if (!matchedOldProduct) {
-                        matchedOldProduct = allInventory.find(p => p.name === oldItem.name);
-                    }
+                    let matchedOldProduct = oldItem.stockId 
+                        ? allInventory.find(p => p.id === oldItem.stockId)
+                        : allInventory.find(p => p.name === oldItem.name);
 
                     if (matchedOldProduct) {
                         const itemRef = doc(db, "inventory", matchedOldProduct.id);
                         const isOldReturn = oldItem.isReturn === true;
                         
+                        // إعادة عكس الرصيد إلى ما كان عليه قبل الفاتورة
                         const finalOldMod = isOldReturn ? oldModifier : -oldModifier; 
                         
                         batch.update(itemRef, {
@@ -806,6 +794,7 @@
                 }
             }
 
+            // زيادة أو خصم الكميات الجديدة من المخزن
             for (const item of items) {
                 if (item.stockId) {
                     const storeDocRef = doc(db, "inventory", item.stockId);
