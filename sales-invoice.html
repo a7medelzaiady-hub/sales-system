@@ -622,7 +622,7 @@
         <div style="text-align: center; margin-top: 25px; border-top: 1.5px dashed #000; padding-top: 12px; font-size: 12px; font-weight: 700;">
             <p style="margin: 0 0 2px 0; font-size: 14px; font-weight: 800;">شكراً لتعاملكم معنا 🙏</p>
             <p style="margin: 0 0 6px 0; color: #333;">برجاء مراجعة الفاتورة بعد استلامها</p>
-            <p style="margin: 4px 0 0 0; font-size: 13px; background-color: #f5f5f5; padding: 3px 0; border-radius: 4px; font-weight: 800; border: 1px dotted #ccc;">للمراجعة: 01027830834</p>
+            <p style="margin: 4px 0 0 0; font-size: 13px; background-color: #f5f5f5; padding: 3px 0; border-radius: 4px; font-weight: 800; border: 1px dotted #ccc;">ل للمراجعة: 01027830834</p>
         </div>
     </div>
 </div>
@@ -1117,15 +1117,18 @@
         row.querySelector('.search-results').style.display = 'none';
         
         const priceInput = row.querySelector('.p-price');
+        const selectedUnit = row.querySelector('.p-unit').value;
         const p = inventory.find(i => i.id === pid);
 
         if (p) {
             row.querySelector('.unit-info-area').innerHTML = `<i class="fas fa-warehouse me-1"></i> رصيد المخزن المتوفر: ${p.totalPcs} ق`;
             
-            // الحفاظ على السعر اليدوي إذا تم تعديله من قبل المستخدم
+            const factor = Number(p.unitFactor) || 1;
+            const defaultPriceVal = (selectedUnit === 'box') ? (Number(p.sell) || 0) : ((Number(p.sell) || 0) / factor);
+            priceInput.dataset.defaultPrice = defaultPriceVal.toString();
+
             if (priceInput.dataset.isEdited !== "true") {
                 priceInput.value = "";
-                delete priceInput.dataset.defaultPrice;
                 priceInput.classList.remove('is-edited-price');
                 const editedTag = row.querySelector('.edited-price-tag');
                 if (editedTag) editedTag.style.display = 'none';
@@ -1154,7 +1157,7 @@
             input.dataset.isEdited = "true";
             input.classList.add('is-edited-price');
             if (editedTag) editedTag.style.display = 'block';
-        } else if (!isNaN(currentVal) && currentVal > 0 && isNaN(defaultVal)) {
+        } else if (!isNaN(currentVal) && currentVal > 0 && (isNaN(defaultVal) || defaultVal === 0)) {
             input.dataset.isEdited = "true";
             input.classList.add('is-edited-price');
             if (editedTag) editedTag.style.display = 'block';
@@ -1383,7 +1386,8 @@
             const qty = Number(r.querySelector('.p-qty')?.value || 0);
             const priceInput = r.querySelector('.p-price');
             const price = Number(priceInput?.value || 0);
-            const defaultPrice = Number(priceInput?.dataset.defaultPrice || 0);
+            
+            let defaultPrice = Number(priceInput?.dataset.defaultPrice || 0);
             const isEditedPrice = priceInput?.dataset.isEdited === "true";
             const isReturn = r.querySelector('.p-return-checkbox').checked;
 
@@ -1392,6 +1396,13 @@
             validItemsCount++;
 
             if (isEditedPrice) {
+                if (defaultPrice === 0) {
+                    const p = inventory.find(i => i.id === pid);
+                    if (p) {
+                        const factor = Number(p.unitFactor) || 1;
+                        defaultPrice = (unit === 'box') ? (Number(p.sell) || 0) : ((Number(p.sell) || 0) / factor);
+                    }
+                }
                 const unitText = window.handleSpreadsheetUnitText(unit);
                 editedPricesListHtml += `<li><b>${name}</b> (${unitText}): السعر الأصلي <s>${formatNumClean(defaultPrice)}</s> أصبح <b>${formatNumClean(price)} ج.م</b></li>`;
             }
