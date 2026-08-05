@@ -104,6 +104,38 @@ nav .btn-back:hover { background: rgba(255, 255, 255, 0.25); }
 }
 .date-filter-wrap input[type=text] { flex: 1; }
 
+/* TABS CONTROL FOR SUMMARY INVENTORY */
+.summary-tab-nav {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  background: #e2e8f0;
+  padding: 4px;
+  border-radius: 12px;
+}
+.summary-tab-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-sm);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.summary-tab-btn.active {
+  background: var(--card);
+  color: var(--brand);
+  box-shadow: var(--shadow-3d);
+}
+
 /* FORM INLINE MAPPED FOR MOBILE COMFORT */
 .frow-inline { display: flex; align-items: stretch; gap: 10px; flex-wrap: nowrap; margin-top: 12px; }
 .field-inline { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
@@ -137,6 +169,11 @@ nav .btn-back:hover { background: rgba(255, 255, 255, 0.25); }
 }
 .inv-item-card:active { transform: translateY(2px); }
 .inv-item-card:last-child { margin-bottom: 0; }
+
+.inv-item-card.completed-card {
+  background: #f8faf9;
+  border-color: #c3e6cb;
+}
 
 .inv-item-name { font-size: 14px; font-weight: 800; color: var(--brand-d); margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dashed var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .stock-badge { font-size: 11px; font-weight: 700; background: var(--blue-lt); color: var(--blue); border-radius: 20px; padding: 3px 9px; white-space: nowrap; flex-shrink: 0; }
@@ -176,6 +213,33 @@ nav .btn-back:hover { background: rgba(255, 255, 255, 0.25); }
 .inv-status-select:focus { border-color: var(--brand); }
 .inv-status-select.status-ajz { border-color: var(--red); background: var(--red-lt); color: var(--red); }
 .inv-status-select.status-zyada{ border-color: var(--green); background: var(--green-lt); color: var(--green); }
+
+.btn-complete-item {
+  background: var(--green-lt);
+  color: var(--green);
+  border: 1px solid #b7dfc7;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.btn-restore-item {
+  background: var(--amber-lt);
+  color: #8a5b00;
+  border: 1px solid #ffe599;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
 
 /* مودال التعديل السريع للتحميل من شاشة الجرد */
 .modal-overlay {
@@ -275,7 +339,7 @@ table select:focus { border-color: var(--brand); }
 #print-header, #print-footer { display: none; }
 @media print {
   body { background: #fff; color: #000; padding: 0; margin: 0; font-size: 12px; }
-  nav, .btn, .tools-row, #syncStatus, .ph, .snum, .load-search-box, #newItemsAlertBanner, .modal-overlay { display: none !important; }
+  nav, .btn, .tools-row, #syncStatus, .ph, .snum, .load-search-box, #newItemsAlertBanner, .modal-overlay, .summary-tab-nav { display: none !important; }
   .card, .summary-card { border: none; box-shadow: none; padding: 0; margin: 0; }
   .card h3 { display: none !important; }
   #print-header { display: block !important; text-align: center; margin-bottom: 25px; font-family: inherit; }
@@ -373,11 +437,24 @@ table select:focus { border-color: var(--brand); }
     </div>
   </div>
 
+  <div class="summary-tab-nav">
+    <button class="summary-tab-btn active" id="btnTabActive" onclick="window.switchSummaryTab('active')">
+      ⏳ قيد الجرد (<span id="countActive">0</span>)
+    </button>
+    <button class="summary-tab-btn" id="btnTabCompleted" onclick="window.switchSummaryTab('completed')">
+      ✅ تم جردها ومخفية (<span id="countCompleted">0</span>)
+    </button>
+  </div>
+
   <div style="display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap;">
     <div style="display:flex; gap:8px; margin-right:auto; flex-wrap:wrap;">
-      <button class="btn btn-success btn-sm" onclick="window.exportPDF()"
+      <button class="btn btn-success btn-sm" onclick="window.exportPDF('completed')"
+        style="display:flex; align-items:center; gap:5px; background:var(--brand); color:#fff;">
+        📄 PDF الأصناف المكتملة
+      </button>
+      <button class="btn btn-success btn-sm" onclick="window.exportPDF('all')"
         style="display:flex; align-items:center; gap:5px; background:var(--red); color:#fff;">
-        📄 تقرير الجرد PDF
+        📄 PDF كل الجرد
       </button>
       <button class="btn btn-success btn-sm" onclick="window.printSummaryReport()"
         style="display:flex; align-items:center; gap:5px;">
@@ -468,6 +545,7 @@ let cartItems     = {};
 let loadedInSession = {};
 let forceShowLoadList = false;
 let suggestFocusIdx = -1;
+let currentSummaryTab = 'active'; // 'active' أو 'completed'
 
 const today = new Date();
 const offset = today.getTimezoneOffset();
@@ -963,6 +1041,23 @@ window.updateManualSummaryField = function(itemId, field, val) {
   saveSession();
 };
 
+/* تجميع وتغيير حالة إكمال الجرد للصنف */
+window.toggleItemInventoryComplete = function(itemId, isComplete) {
+  syncSessionVars();
+  if (!cartItems[itemId]) cartItems[itemId] = {};
+  cartItems[itemId].isInventoryDone = isComplete;
+  saveSession();
+  window.toast(isComplete ? '✅ تم نقل الصنف لبطاقة الأصناف المكتملة' : '↩️ تم إرجاع الصنف لقائمة الجرد النشطة');
+  window.renderSummary();
+};
+
+window.switchSummaryTab = function(tab) {
+  currentSummaryTab = tab;
+  document.getElementById('btnTabActive').classList.toggle('active', tab === 'active');
+  document.getElementById('btnTabCompleted').classList.toggle('active', tab === 'completed');
+  window.renderSummary();
+};
+
 /* فتح نافذة تعديل التحميل المباشر من شاشة الجرد */
 window.openEditLoadModal = function(itemId) {
   syncSessionVars();
@@ -1040,7 +1135,7 @@ async function buildSummaryData() {
   let loaded = firebaseItems.map(fbItem => {
     let cartData = cartItems[fbItem.id];
     if (!cartData) {
-      cartData = { name: fbItem.name, capacity: fbItem.capacity, loadedCartons: 0, loadedLoose: 0, manualCartons: '', manualLoose: '', diffStatus: '', lastEditedAt: '' };
+      cartData = { name: fbItem.name, capacity: fbItem.capacity, loadedCartons: 0, loadedLoose: 0, manualCartons: '', manualLoose: '', diffStatus: '', lastEditedAt: '', isInventoryDone: false };
     }
     return [fbItem.id, cartData];
   });
@@ -1052,7 +1147,7 @@ async function buildSummaryData() {
     loaded = loaded.filter(([, v]) => cleanItemName(v.name).includes(searchSummaryVal));
   }
 
-  if (!loaded.length) return { rows: [], selectedDate };
+  if (!loaded.length) return { rows: [], selectedDate, activeCount: 0, completedCount: 0 };
 
   let liveSales = {};
   try {
@@ -1081,6 +1176,9 @@ async function buildSummaryData() {
   } catch(e) { console.error(e); }
 
   const rows = [];
+  let activeCount = 0;
+  let completedCount = 0;
+
   loaded.forEach(([id, it]) => {
     const unit = getUnitName(it.name);
     const cap  = it.capacity || 1;
@@ -1091,6 +1189,10 @@ async function buildSummaryData() {
     const currentManualCartons = it.manualCartons !== undefined ? it.manualCartons : '';
     const currentManualLoose   = it.manualLoose   !== undefined ? it.manualLoose   : '';
     const lastEditedAt         = it.lastEditedAt || '';
+    const isInventoryDone      = !!it.isInventoryDone;
+
+    if (isInventoryDone) completedCount++;
+    else activeCount++;
     
     let calculatedStatus = it.diffStatus || "";
     if (!it.diffStatus && (currentManualCartons !== '' || currentManualLoose !== '')) {
@@ -1119,26 +1221,25 @@ async function buildSummaryData() {
       id, it, unit, cap, totalLoadedPcs,
       totalSoldPcs, loadedText, soldText, remText, manualText, stockText,
       calculatedStatus, currentManualCartons, currentManualLoose,
-      lastEditedAt, totalRemPcs
+      lastEditedAt, totalRemPcs, isInventoryDone
     });
   });
 
-  // التعديل الرئيسي: الفرز بحيث يظهر الأصناف المباعة أولاً (تنازلياً بالمباع) ثم يليها الأصناف ذات الصفر مباع
+  // الفرز بحسب المباع وتسهيل عملية المراجعة
   rows.sort((a, b) => {
     if (a.totalSoldPcs > 0 && b.totalSoldPcs > 0) {
-      return b.totalSoldPcs - a.totalSoldPcs; // الأكثر مبيعاً أولاً
+      return b.totalSoldPcs - a.totalSoldPcs;
     }
     if (a.totalSoldPcs > 0 && b.totalSoldPcs <= 0) {
-      return -1; // المباع يسبق غير المباع
+      return -1;
     }
     if (a.totalSoldPcs <= 0 && b.totalSoldPcs > 0) {
-      return 1; // المباع يسبق غير المباع
+      return 1;
     }
-    // الأصناف ذات الصفر مباع يتم ترتيبها أبجدياً حسب اسم الصنف
     return a.it.name.localeCompare(b.it.name, 'ar');
   });
 
-  return { rows, selectedDate, liveSales };
+  return { rows, selectedDate, liveSales, activeCount, completedCount };
 }
 
 window.renderSummary = async function() {
@@ -1150,12 +1251,20 @@ window.renderSummary = async function() {
   cardsContainer.innerHTML = '<div class="spin"></div>';
   tb.innerHTML = '';
 
-  const { rows, selectedDate } = await buildSummaryData();
+  const { rows, selectedDate, activeCount, completedCount } = await buildSummaryData();
 
-  if (!rows || !rows.length) {
-    cardsContainer.innerHTML = '<div class="empty"><span class="em">📭</span>لا توجد بيانات مطابقة للمخزن أو التاريخ المختار.</div>';
+  document.getElementById('countActive').textContent = activeCount;
+  document.getElementById('countCompleted').textContent = completedCount;
+
+  const filteredRows = rows ? rows.filter(r => currentSummaryTab === 'completed' ? r.isInventoryDone : !r.isInventoryDone) : [];
+
+  if (!filteredRows || !filteredRows.length) {
+    const emptyMsg = currentSummaryTab === 'completed' 
+      ? 'لا توجد أصناف مكتملة الجرد حالياً' 
+      : 'ممتاز! تم جرد كافة أصناف هذه الحركة';
+    cardsContainer.innerHTML = `<div class="empty"><span class="em">🎉</span>${emptyMsg}</div>`;
     tb.innerHTML = '<tr><td colspan="6"></td></tr>';
-    syncStatus.innerHTML = '';
+    syncStatus.innerHTML = '✅ تحديث المبيعات متطابق ومؤمن';
     return;
   }
 
@@ -1163,7 +1272,7 @@ window.renderSummary = async function() {
   cardsContainer.innerHTML = '';
   tb.innerHTML = '';
 
-  rows.forEach(({ id, it, unit, cap, totalSoldPcs, loadedText, soldText, remText, stockText, calculatedStatus, currentManualCartons, currentManualLoose, lastEditedAt }) => {
+  filteredRows.forEach(({ id, it, unit, cap, totalSoldPcs, loadedText, soldText, remText, stockText, calculatedStatus, currentManualCartons, currentManualLoose, lastEditedAt, isInventoryDone }) => {
     const statusClass = calculatedStatus === 'عجز' ? 'status-ajz' : calculatedStatus === 'زيادة' ? 'status-zyada' : '';
     const isNegativeStock = stockText.startsWith('-');
 
@@ -1196,14 +1305,19 @@ window.renderSummary = async function() {
       ? `<div class="edit-timestamp-badge"><span>🕒 تم تعديل التحميل:</span> <b>${lastEditedAt}</b></div>` 
       : '';
 
+    const actionBtnHtml = isInventoryDone 
+      ? `<button class="btn-restore-item" onclick="window.toggleItemInventoryComplete('${id}', false)">↩️ استرجاع بالجرد</button>`
+      : `<button class="btn-complete-item" onclick="window.toggleItemInventoryComplete('${id}', true)">تم الجرد ✔</button>`;
+
     const card = document.createElement('div');
-    card.className = 'inv-item-card';
+    card.className = `inv-item-card ${isInventoryDone ? 'completed-card' : ''}`;
     card.innerHTML = `
       <div class="inv-item-name">
         <span>${it.name}</span>
         <div style="display:flex; align-items:center; gap:6px;">
-          <button class="btn btn-sm" style="background:var(--amber-lt); color:var(--amber); font-size:11px; padding:4px 8px; font-weight:700;" onclick="window.openEditLoadModal('${id}')">✏️ تعديل التحميل</button>
-          <span class="stock-badge ${isNegativeStock ? 'negative' : ''}" title="المخزون الفعلي بالمخزن الرئيسي">🏭 المخزن: ${stockText.replace(/&nbsp;/g, ' ')}</span>
+          ${actionBtnHtml}
+          <button class="btn btn-sm" style="background:var(--amber-lt); color:var(--amber); font-size:11px; padding:4px 8px; font-weight:700;" onclick="window.openEditLoadModal('${id}')">✏️</button>
+          <span class="stock-badge ${isNegativeStock ? 'negative' : ''}" title="المخزون الفعلي بالمخزن الرئيسي">🏭 ${stockText.replace(/&nbsp;/g, ' ')}</span>
         </div>
       </div>
       ${editBadgeHtml}
@@ -1256,20 +1370,28 @@ window.renderSummary = async function() {
   });
 };
 
-/* تصدير تقرير الجرد النهائي بدقة مأمونة للموبايل والعربية */
-window.exportPDF = async function() {
+/* تصدير تقرير الجرد النهائي PDF (إما المكتملة أو الكل) */
+window.exportPDF = async function(mode = 'all') {
   const { rows, selectedDate } = await buildSummaryData();
   if (!rows || !rows.length) {
     window.toast('⚠️ لا توجد بيانات لتصديرها');
     return;
   }
+
+  const exportRows = mode === 'completed' ? rows.filter(r => r.isInventoryDone) : rows;
+
+  if (!exportRows.length) {
+    window.toast('⚠️ لا توجد أصناف مكتملة لتصديرها');
+    return;
+  }
+
   window.toast('⏳ جاري إنشاء تقرير الجرد PDF...');
 
   const reportDate = selectedDate || defaultDateStr;
   const nowStr = new Date().toLocaleDateString('ar-EG');
   let tbody = '';
   
-  rows.forEach(r => {
+  exportRows.forEach(r => {
     let statusColor = r.calculatedStatus === 'عجز' ? '#d90429' : (r.calculatedStatus === 'زيادة' ? '#2d6a4f' : '#1b2e26');
     tbody += `
       <tr>
@@ -1286,11 +1408,13 @@ window.exportPDF = async function() {
     `;
   });
 
+  const titleText = mode === 'completed' ? 'تقرير الأصناف المكتملة الجرد' : 'تقرير جرد وتتبع حركة حمولة السيارة الفعلي';
+
   const html = `
     <div id="summary-print-area" style="padding: 50px; direction: rtl; font-family: Tahoma, Arial, sans-serif; background: #fff; color: #000; width: 1123px; box-sizing: border-box;">
        <div style="text-align: center; border-bottom: 2px dashed #0b5e3d; padding-bottom: 15px; margin-bottom: 25px;">
            <h1 style="margin:0 0 5px 0; font-size: 28px; color: #0b5e3d;">الزيادي لزيوت السيارات</h1>
-           <h2 style="margin:0 0 10px 0; font-size: 20px; color: #475569;">تقرير جرد وتتبع حركة حمولة السيارة الفعلي</h2>
+           <h2 style="margin:0 0 10px 0; font-size: 20px; color: #475569;">${titleText}</h2>
            <p style="margin:0; font-size: 15px; font-weight: bold;">تاريخ الحركة: ${reportDate} | تاريخ الطباعة: ${nowStr}</p>
        </div>
        <table style="width: 100%; border-collapse: collapse; font-size: 15px; margin-bottom: 40px; border: 1px solid #0b5e3d;">
@@ -1322,7 +1446,7 @@ window.exportPDF = async function() {
 
   const opt = {
     margin:       0, 
-    filename:     `تقرير_جرد_العربة_${reportDate}.pdf`,
+    filename:     `تقرير_جرد_العربة_${mode}_${reportDate}.pdf`,
     image:        { type: 'jpeg', quality: 0.98 },
     html2canvas:  { scale: 2, useCORS: true },
     jsPDF:        { unit: 'in', format: 'a4', orientation: 'landscape' }
