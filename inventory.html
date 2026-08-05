@@ -711,7 +711,7 @@
         const safeItemName = itemName.replace(/'/g, "\\'");
 
         modalTitle.innerHTML = `
-            <div style="display:flex; align-items:center; justify-content:space-between; width:100%;">
+            <div style="display:flex; align-items:center; justify-space-between; width:100%;">
                 <div>
                     <span style="color:#ffce31; font-weight:800; display:block; font-size:11px;">تفاصيل وتحليل الصنف:</span> ${itemName}
                 </div>
@@ -939,7 +939,7 @@
        دوال تصدير الـ PDF المحترفة (للمخزن بالكامل أو لصنف مستقل)
        ========================================================== */
 
-    // 1. تصدير جرد الأصناف بالكامل
+    // 1. تصدير جرد الأصناف بالكامل (مع إظهار الرصيد بالكرتونة والقطعة)
     window.exportInventoryPDF = function() {
         if (!allItems || allItems.length === 0) {
             alert('لا توجد أصناف لتصديرها!');
@@ -951,15 +951,48 @@
         let tableRows = '';
         allItems.forEach((item, index) => {
             const totalPcs = Number(item.totalPcs) || 0;
-            const price = (item.sell !== undefined && item.sell !== null && item.sell !== '') ? `${Number(item.sell).toLocaleString()} ج.م` : 'غير محدد';
+            const price = (item.sell !== undefined && item.sell !== null && item.sell !== '') 
+                ? `${Number(item.sell).toLocaleString()} ج.م` 
+                : 'غير محدد';
             
+            // حساب الكراتين والقطع
+            const rawFactor = item.unitFactor;
+            const hasCartons = rawFactor !== undefined && rawFactor !== null && Number(rawFactor) > 1;
+            const factor = hasCartons ? Number(rawFactor) : 1;
+
+            const normalizeAr = (s) => String(s || '').trim()
+                .replace(/[\u064B-\u0652]/g, '')
+                .replace(/[إأآا]/g, 'ا')
+                .replace(/ى/g, 'ي')
+                .replace(/ة/g, 'ه');
+
+            const rawUnit = (item.unitName || '').trim();
+            const unitName = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
+
+            let stockText = '';
+            if (hasCartons) {
+                const boxes = Math.trunc(totalPcs / factor);
+                const jars = totalPcs % factor;
+
+                if (boxes > 0 && jars > 0) {
+                    stockText = `<b>${boxes.toLocaleString()}</b> كرتونة و <b>${jars.toLocaleString()}</b> ${unitName}`;
+                } else if (boxes > 0) {
+                    stockText = `<b>${boxes.toLocaleString()}</b> كرتونة`;
+                } else {
+                    stockText = `<b>${jars.toLocaleString()}</b> ${unitName}`;
+                }
+                stockText += ` <span style="font-size:10px; color:#64748b; display:block;">(إجمالي ${totalPcs.toLocaleString()} قطعة)</span>`;
+            } else {
+                stockText = `<b>${totalPcs.toLocaleString()}</b> ${unitName}`;
+            }
+
             tableRows += `
                 <tr style="border-bottom: 1px solid #e2e8f0; text-align: center;">
                     <td style="padding: 8px;">${index + 1}</td>
                     <td style="padding: 8px; text-align: right; font-weight: bold;">${item.name || 'بدون اسم'}</td>
                     <td style="padding: 8px;">${item.category || 'عام'}</td>
                     <td style="padding: 8px; font-weight: bold; color: #0b5e3d;">${price}</td>
-                    <td style="padding: 8px; font-weight: bold; ${totalPcs <= 0 ? 'color:#e11d48;' : ''}">${totalPcs.toLocaleString()}</td>
+                    <td style="padding: 8px; ${totalPcs <= 0 ? 'color:#e11d48;' : ''}">${stockText}</td>
                 </tr>
             `;
         });
@@ -1035,4 +1068,3 @@
 </script>
 </body>
 </html>
-
