@@ -170,6 +170,13 @@
 
         .product-row.has-validation-error { border-color: var(--danger) !important; box-shadow: 0 0 0 3px rgba(217, 4, 41, 0.12); }
 
+        /* ستايل لتمييز تعديل السعر اليدوي بصرياً */
+        .is-edited-price {
+            border-color: #e69500 !important;
+            background-color: #fffdf0 !important;
+            box-shadow: 0 0 0 3px rgba(230, 149, 0, 0.15) !important;
+        }
+
         .btn-remove {
             position: absolute;
             left: -8px; top: -8px;
@@ -448,6 +455,14 @@
             <small class="text-muted">راجع الأصناف والعدد الفعلي قبل التأكيد النهائي</small>
         </div>
 
+        <!-- صندوق تنبيه بالأصناف المعدلة يدوياً (الخطوة 2) -->
+        <div id="revEditedPricesBanner" style="display:none; background: #fff8e6; border: 1px solid #ffe0b2; border-radius: 10px; padding: 10px; margin-bottom: 12px; font-size: 0.8rem; color: #8a5b00;">
+            <div style="font-weight: 800; margin-bottom: 4px;" class="d-flex align-items-center gap-1">
+                <i class="fas fa-exclamation-circle text-warning"></i> تنبيه: تم تعديل أسعار الأصناف التالية يدوياً:
+            </div>
+            <ul id="revEditedPricesList" style="margin: 0; padding-right: 18px; line-height: 1.5;"></ul>
+        </div>
+
         <div style="background: #f8faf9; border-radius: 10px; padding: 10px; font-size: 0.85rem; margin-bottom: 12px; border: 1px dashed var(--border);">
             <div class="d-flex justify-content-between mb-1">
                 <span><b>اسم العميل:</b></span>
@@ -576,13 +591,11 @@
                 <span id="recTotal" style="font-weight: 700;">0.00</span>
             </div>
             
-            <!-- حساب سابق يظهر فقط إذا كان أكبر من صفر -->
             <div id="recOldBalanceRow" style="display: flex; justify-content: space-between; margin-bottom: 4px; color: #000;">
                 <span>حساب سابق (+):</span>
                 <span id="recOldBalance" style="font-weight: 700;">0.00</span>
             </div>
 
-            <!-- تفاصيل السداد الشرطية (كاش / محفظة) -->
             <div id="recCashRow" style="display: flex; justify-content: space-between; margin-bottom: 2px; font-size: 12px; color: #444; padding-right: 12px;">
                 <span>- سداد نقدي :</span>
                 <span id="recCashAmount">0.00</span>
@@ -684,6 +697,8 @@
                 unit: r.querySelector('.p-unit')?.value || 'pcs',
                 qty: r.querySelector('.p-qty')?.value || '',
                 price: r.querySelector('.p-price')?.value || '',
+                isEditedPrice: r.querySelector('.p-price')?.dataset.isEdited === "true",
+                defaultPrice: r.querySelector('.p-price')?.dataset.defaultPrice || '',
                 isReturn: r.querySelector('.p-return-checkbox')?.checked || false
             });
         });
@@ -1091,9 +1106,15 @@
         row.querySelector('.p-select').value = pid;
         row.querySelector('.search-results').style.display = 'none';
         
-        // مسح قيمة السعر لكي يتم جلب السعر التلقائي للصنف الجديد
-        row.querySelector('.p-price').value = "";
-        
+        // إعادة ضبط بيانات السعر المعدل
+        const priceInput = row.querySelector('.p-price');
+        priceInput.value = "";
+        delete priceInput.dataset.isEdited;
+        delete priceInput.dataset.defaultPrice;
+        priceInput.classList.remove('is-edited-price');
+        const editedTag = row.querySelector('.edited-price-tag');
+        if (editedTag) editedTag.style.display = 'none';
+
         const p = inventory.find(i => i.id === pid);
         if (p) {
             row.querySelector('.unit-info-area').innerHTML = `<i class="fas fa-warehouse me-1"></i> رصيد المخزن المتوفر: ${p.totalPcs} ق`;
@@ -1106,6 +1127,24 @@
         const row = document.getElementById(rowId);
         if (checkbox.checked) { row.classList.add('is-return-row'); }
         else { row.classList.remove('is-return-row'); }
+        window.handleInput();
+    };
+
+    // متابعة كتابة السعر يدوياً وإضافة التمييز البصري (الخطوة 1)
+    window.onPriceManualInput = (input) => {
+        const defaultVal = parseFloat(input.dataset.defaultPrice);
+        const currentVal = parseFloat(input.value);
+        const editedTag = input.closest('.col-3').querySelector('.edited-price-tag');
+
+        if (!isNaN(currentVal) && !isNaN(defaultVal) && currentVal !== defaultVal) {
+            input.dataset.isEdited = "true";
+            input.classList.add('is-edited-price');
+            if (editedTag) editedTag.style.display = 'block';
+        } else {
+            delete input.dataset.isEdited;
+            input.classList.remove('is-edited-price');
+            if (editedTag) editedTag.style.display = 'none';
+        }
         window.handleInput();
     };
 
@@ -1136,7 +1175,11 @@
                     <div class="col-3"><span class="sub-lbl">الكمية</span><input type="number" class="form-control p-qty" value="${oldData ? oldData.qty : 1}" oninput="handleInput()"></div>
                     <div class="col-3">
                         <span class="sub-lbl">السعر</span>
-                        <input type="number" class="form-control p-price" value="${oldData ? oldData.price : ''}" oninput="handleInput()">
+                        <input type="number" class="form-control p-price" value="${oldData ? oldData.price : ''}" oninput="onPriceManualInput(this)">
+                        <!-- شارة تمييز السعر المعدل بصرياً -->
+                        <div class="edited-price-tag" style="display:none; color: var(--warning); font-size: 0.62rem; font-weight: 800; margin-top: 2px;">
+                            <i class="fas fa-pen"></i> معدل يدوياً
+                        </div>
                         <div class="min-price-warn" style="display:none; color:var(--danger); font-size:0.65rem; margin-top:3px; font-weight:700;"></div>
                     </div>
                     <div class="col-3"><span class="sub-lbl">الإجمالي</span><input type="text" class="form-control p-subtotal" readonly value="0.00" style="background:#f8faf9!important;"></div>
@@ -1152,6 +1195,7 @@
                 <div class="unit-info-area"></div>
             </div>`;
         document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', html);
+        
         if (oldData && oldData.stockId) {
             setTimeout(() => {
                 const r = document.getElementById(id);
@@ -1163,7 +1207,6 @@
         return id;
     };
 
-    // التعديل الذكي لدالة تحديث السعر لتفادي مسح السعر المُدخل يدوياً عند تغيير الوحدة
     window.updateRowPrice = async (unitSel) => {
         const row = unitSel.closest('.product-row');
         const stockId = row.querySelector('.p-select').value;
@@ -1178,8 +1221,8 @@
 
         const factor = Number(p.unitFactor) || 1;
 
-        // إذا كان المستخدم قد كتب سعراً يدوياً بالفعل في الخانة، يتم ضربه/قسمته حسب التحويل للوحدة الجديدة
-        if (!isNaN(currentPrice) && currentPrice > 0) {
+        // الحفاظ على التعديل اليدوي إن وُجد مع الضبط بحسب معامل التحويل للوحدة الجديدة
+        if (priceInput.dataset.isEdited === "true" && !isNaN(currentPrice) && currentPrice > 0) {
             if (selectedUnit === 'box') {
                 priceInput.value = (currentPrice * factor).toFixed(2);
             } else {
@@ -1189,7 +1232,6 @@
             return;
         }
 
-        // في حال كانت خانة السعر فارغة، يجلب السعر التلقائي من النظام
         priceInput.placeholder = "جاري حساب السعر...";
 
         const storePrice = (selectedUnit === 'box') ? (Number(p.sell) || 0) : ((Number(p.sell) || 0) / factor);
@@ -1200,7 +1242,15 @@
             finalPrice = lastSoldPrice;
         }
 
-        priceInput.value = Number(finalPrice).toFixed(2);
+        const formattedPrice = Number(finalPrice).toFixed(2);
+        priceInput.value = formattedPrice;
+        priceInput.dataset.defaultPrice = formattedPrice; // حفظ السعر الافتراضي الأصلي
+        delete priceInput.dataset.isEdited;
+        priceInput.classList.remove('is-edited-price');
+        
+        const editedTag = row.querySelector('.edited-price-tag');
+        if (editedTag) editedTag.style.display = 'none';
+
         calc();
     };
 
@@ -1227,7 +1277,9 @@
                     priceInput.style.borderColor = 'var(--danger)';
                 } else {
                     warnDiv.style.display = 'none';
-                    priceInput.style.borderColor = '';
+                    if (!priceInput.classList.contains('is-edited-price')) {
+                        priceInput.style.borderColor = '';
+                    }
                 }
             }
         });
@@ -1291,6 +1343,7 @@
         return null;
     }
 
+    // تجهيز شاشة المراجعة وإظهار تنبيه الأصناف المعدلة يدوياً (الخطوة 2)
     window.openReviewModal = () => {
         const customerId = document.getElementById('customerSelect').value;
         const customerName = document.getElementById('customerSearch').value;
@@ -1305,20 +1358,31 @@
         let totalCartons = 0;
         let totalJerricans = 0;
         let htmlList = "";
+        let editedPricesListHtml = "";
 
         rows.forEach(r => {
             const pid = r.querySelector('.p-select')?.value;
             const name = r.querySelector('.p-search')?.value;
             const unit = r.querySelector('.p-unit')?.value;
             const qty = Number(r.querySelector('.p-qty')?.value || 0);
-            const price = Number(r.querySelector('.p-price')?.value || 0);
+            const priceInput = r.querySelector('.p-price');
+            const price = Number(priceInput?.value || 0);
+            const defaultPrice = Number(priceInput?.dataset.defaultPrice || 0);
+            const isEditedPrice = priceInput?.dataset.isEdited === "true";
             const isReturn = r.querySelector('.p-return-checkbox').checked;
+
             if (!pid || qty <= 0) return;
             
             validItemsCount++;
             if (!isReturn) {
                 if (unit === 'box') totalCartons += qty;
                 else totalJerricans += qty;
+            }
+
+            // فحص الأصناف المعدلة يدوياً لتوليد التنبيه
+            if (isEditedPrice) {
+                const unitText = window.handleSpreadsheetUnitText(unit);
+                editedPricesListHtml += `<li><b>${name}</b> (${unitText}): السعر الأصلي <s>${defaultPrice.toFixed(2)}</s> أصبح <b>${price.toFixed(2)} ج.م</b></li>`;
             }
 
             const unitText = window.handleSpreadsheetUnitText(unit);
@@ -1335,6 +1399,16 @@
         });
 
         if (validItemsCount === 0) { return window.showCustomAlert("الرجاء إضافة أصناف للفاتورة"); }
+
+        // التحكم في إظهار صندوق التنبيه في شاشة المراجعة
+        const editedBanner = document.getElementById('revEditedPricesBanner');
+        const editedList = document.getElementById('revEditedPricesList');
+        if (editedPricesListHtml !== "") {
+            editedList.innerHTML = editedPricesListHtml;
+            editedBanner.style.display = 'block';
+        } else {
+            editedBanner.style.display = 'none';
+        }
 
         document.getElementById('revCustomerName').innerText = customerName;
         document.getElementById('revItemsCount').innerText = `${validItemsCount} صنف`;
@@ -1562,6 +1636,7 @@
         }
     };
 
+    // إعداد الفاتورة الحرارية الخالية تماماً من أي كلمات تنبيه
     function prepareThermalReceipt(data, oldBalance) {
         document.getElementById('recCustomer').innerText = data.customerName;
         document.getElementById('recDate').innerText = data.time || originalInvoiceTime;
@@ -1576,7 +1651,6 @@
         
         document.getElementById('recTotal').innerText = Number(data.total).toFixed(2);
 
-        // إخفاء الحساب السابق إن كان صفراً
         const oldBalVal = Number(oldBalance) || 0;
         const oldBalanceRow = document.getElementById('recOldBalanceRow');
         if (oldBalVal > 0) {
@@ -1589,7 +1663,6 @@
         document.getElementById('recPaid').innerText = Number(data.paid).toFixed(2);
         document.getElementById('recRemaining').innerText = Number(oldBalVal + data.remaining).toFixed(2);
 
-        // إظهار سداد الكاش والمحفظة بحسب الاستخدام الفعلي
         const cashVal = Number(data.cashAmount) || 0;
         const walletVal = Number(data.walletAmount) || 0;
 
@@ -1610,7 +1683,6 @@
             walletRow.style.display = 'none';
         }
 
-        // بناء جدول البنود وضبط اتجاهات النص
         const tbody = document.getElementById('recItems');
         tbody.innerHTML = data.items.map(item => `
             <tr style="border-bottom: 1px dotted #000; ${item.isReturn ? 'background-color: #fce8e6;' : ''}">
