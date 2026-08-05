@@ -259,17 +259,17 @@
             box-shadow: var(--shadow-sm);
         }
 
-        /* شارة زر كل الطلبات المخصصة */
-        .all-orders-badge {
+        /* شارات الأعداد على الأزرار */
+        .orders-count-badge {
             position: absolute;
             top: -4px;
             right: -4px;
             background: var(--de-red);
             color: #ffffff;
             border-radius: 50%;
-            width: 18px;
-            height: 18px;
-            font-size: 10px;
+            width: 20px;
+            height: 20px;
+            font-size: 11px;
             font-weight: 900;
             display: none;
             align-items: center;
@@ -286,7 +286,7 @@
         }
         .bottom-nav {
             background: var(--de-black); border-radius: 22px; padding: 8px 6px;
-            display: flex; justify-content: space-around;
+            display: flex; justify-space: around;
             box-shadow: var(--shadow-lg);
         }
         .nav-item {
@@ -300,7 +300,7 @@
         .nav-item.primary i    { color: var(--de-gold); }
         .nav-item.primary span { color: var(--de-gold); }
 
-        /* شريط التنبيه العائم المطابق تماماً للصورة */
+        /* شريط التنبيه العائم المنبثق من الأسفل */
         .toast-notification {
             position: fixed;
             bottom: 24px;
@@ -500,6 +500,7 @@
     <div class="fab-card" id="fabTop">
         <button class="fab-btn black-fab" onclick="toggleFab(event,'fabTop')">
             <i class="fa-solid fa-circle-plus"></i>
+            <span class="orders-count-badge" id="mainFabBadge">0</span>
         </button>
         <div class="fab-tray">
             <a href="customer-orders.html" class="fab-item">
@@ -509,7 +510,7 @@
             <a href="all-orders.html" class="fab-item">
                 <div class="fab-item-icon black-icon">
                     <i class="fa-solid fa-boxes-trucking"></i>
-                    <span class="all-orders-badge" id="allOrdersBadge">0</span>
+                    <span class="orders-count-badge" id="allOrdersItemBadge">0</span>
                 </div>
                 <span class="fab-item-label">كل الطلبات</span>
             </a>
@@ -546,7 +547,7 @@
     </nav>
 </div>
 
-<!-- التنبيه العائم المماثل للصورة المرفقة -->
+<!-- التنبيه العائم المنبثق من الأسفل -->
 <div class="toast-notification" id="orderToastNotification" onclick="window.location.href='all-orders.html'">
     <button class="toast-close" onclick="event.stopPropagation(); dismissToast()"><i class="fas fa-times"></i></button>
     <div class="toast-text" id="toastText">
@@ -571,13 +572,12 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // مراقبة جميع الطلبات
+    // متابعة حالة الطلبات مباشرة
     onSnapshot(collection(db, "orders"), (snapshot) => {
         let pendingCount = 0;
 
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
-            // الـ status يكون pending أو ليس done
             if (data.status !== 'done') {
                 pendingCount++;
             }
@@ -589,30 +589,36 @@
     });
 
     function updateOrderAlerts(count) {
-        const badge = document.getElementById('allOrdersBadge');
+        const mainBadge = document.getElementById('mainFabBadge');
+        const itemBadge = document.getElementById('allOrdersItemBadge');
         const toast = document.getElementById('orderToastNotification');
         const toastCountTxt = document.getElementById('toastCountText');
 
         if (count > 0) {
-            // 1. تحديث إشعار زر "كل الطلبات"
-            if (badge) {
-                badge.textContent = count;
-                badge.style.display = 'flex';
+            // 1. عرض الشارة الرقمية على الأزرار
+            if (mainBadge) {
+                mainBadge.textContent = count;
+                mainBadge.style.display = 'flex';
+            }
+            if (itemBadge) {
+                itemBadge.textContent = count;
+                itemBadge.style.display = 'flex';
             }
 
-            // 2. إظهار الإشعار العائم المنبثق
+            // 2. إظهار التنبيه العائم السفلي المشرق تلقائياً
             if (toastCountTxt) {
                 toastCountTxt.textContent = `${count} طلبات معلقة`;
             }
             if (toast) {
                 toast.classList.add('show');
-                // الاختفاء التلقائي بعد 4 ثوانٍ
+                // يختفي التنبيه تلقائياً بعد 4 ثوانٍ
                 setTimeout(() => {
                     dismissToast();
                 }, 4000);
             }
         } else {
-            if (badge) badge.style.display = 'none';
+            if (mainBadge) mainBadge.style.display = 'none';
+            if (itemBadge) itemBadge.style.display = 'none';
             dismissToast();
         }
     }
