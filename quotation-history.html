@@ -165,7 +165,7 @@ nav .btn-back:hover { background: rgba(255, 255, 255, 0.25); }
   padding: 14px; 
   margin-bottom: 12px; 
   box-shadow: var(--shadow-3d);
-  transition: transform 0.2s;
+  transition: opacity 0.3s ease, transform 0.3s ease;
 }
 .inv-item-card:active { transform: translateY(2px); }
 .inv-item-card:last-child { margin-bottom: 0; }
@@ -1041,14 +1041,47 @@ window.updateManualSummaryField = function(itemId, field, val) {
   saveSession();
 };
 
-/* تجميع وتغيير حالة إكمال الجرد للصنف */
+/* تحديث محلي فوري لمنع إعاده التحميل وتوفير استهلاك البيانات */
 window.toggleItemInventoryComplete = function(itemId, isComplete) {
   syncSessionVars();
   if (!cartItems[itemId]) cartItems[itemId] = {};
   cartItems[itemId].isInventoryDone = isComplete;
   saveSession();
+
+  const cardEl = document.getElementById('card-item-' + itemId);
+  if (cardEl) {
+    cardEl.style.opacity = '0';
+    cardEl.style.transform = 'translateY(-10px)';
+    setTimeout(() => {
+      cardEl.remove();
+      
+      const countAct = document.getElementById('countActive');
+      const countComp = document.getElementById('countCompleted');
+      let actVal = parseInt(countAct.textContent) || 0;
+      let compVal = parseInt(countComp.textContent) || 0;
+
+      if (isComplete) {
+        actVal = Math.max(0, actVal - 1);
+        compVal++;
+      } else {
+        compVal = Math.max(0, compVal - 1);
+        actVal++;
+      }
+
+      countAct.textContent = actVal;
+      countComp.textContent = compVal;
+
+      const cardsContainer = document.getElementById('summaryCards');
+      if (cardsContainer.children.length === 0) {
+        const emptyMsg = currentSummaryTab === 'completed' 
+          ? 'لا توجد أصناف مكتملة الجرد حالياً' 
+          : 'ممتاز! تم جرد كافة أصناف هذه الحركة';
+        cardsContainer.innerHTML = `<div class="empty"><span class="em">🎉</span>${emptyMsg}</div>`;
+      }
+    }, 300);
+  }
+
   window.toast(isComplete ? '✅ تم نقل الصنف لبطاقة الأصناف المكتملة' : '↩️ تم إرجاع الصنف لقائمة الجرد النشطة');
-  window.renderSummary();
 };
 
 window.switchSummaryTab = function(tab) {
@@ -1225,7 +1258,6 @@ async function buildSummaryData() {
     });
   });
 
-  // الفرز بحسب المباع وتسهيل عملية المراجعة
   rows.sort((a, b) => {
     if (a.totalSoldPcs > 0 && b.totalSoldPcs > 0) {
       return b.totalSoldPcs - a.totalSoldPcs;
@@ -1311,6 +1343,7 @@ window.renderSummary = async function() {
 
     const card = document.createElement('div');
     card.className = `inv-item-card ${isInventoryDone ? 'completed-card' : ''}`;
+    card.id = 'card-item-' + id;
     card.innerHTML = `
       <div class="inv-item-name">
         <span>${it.name}</span>
