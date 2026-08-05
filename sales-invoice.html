@@ -1090,6 +1090,10 @@
         row.querySelector('.p-search').value = pname;
         row.querySelector('.p-select').value = pid;
         row.querySelector('.search-results').style.display = 'none';
+        
+        // مسح قيمة السعر لكي يتم جلب السعر التلقائي للصنف الجديد
+        row.querySelector('.p-price').value = "";
+        
         const p = inventory.find(i => i.id === pid);
         if (p) {
             row.querySelector('.unit-info-area').innerHTML = `<i class="fas fa-warehouse me-1"></i> رصيد المخزن المتوفر: ${p.totalPcs} ق`;
@@ -1159,19 +1163,36 @@
         return id;
     };
 
+    // التعديل الذكي لدالة تحديث السعر لتفادي مسح السعر المُدخل يدوياً عند تغيير الوحدة
     window.updateRowPrice = async (unitSel) => {
         const row = unitSel.closest('.product-row');
         const stockId = row.querySelector('.p-select').value;
         const selectedUnit = unitSel.value;
+        const priceInput = row.querySelector('.p-price');
+        const currentPrice = parseFloat(priceInput.value);
 
         if (!stockId) return;
 
         const p = inventory.find(i => i.id === stockId);
         if (!p) return;
 
-        row.querySelector('.p-price').placeholder = "جاري حساب السعر...";
+        const factor = Number(p.unitFactor) || 1;
 
-        const storePrice = (selectedUnit === 'box') ? (Number(p.sell) || 0) : ((Number(p.sell) || 0) / (Number(p.unitFactor) || 1));
+        // إذا كان المستخدم قد كتب سعراً يدوياً بالفعل في الخانة، يتم ضربه/قسمته حسب التحويل للوحدة الجديدة
+        if (!isNaN(currentPrice) && currentPrice > 0) {
+            if (selectedUnit === 'box') {
+                priceInput.value = (currentPrice * factor).toFixed(2);
+            } else {
+                priceInput.value = (currentPrice / factor).toFixed(2);
+            }
+            calc();
+            return;
+        }
+
+        // في حال كانت خانة السعر فارغة، يجلب السعر التلقائي من النظام
+        priceInput.placeholder = "جاري حساب السعر...";
+
+        const storePrice = (selectedUnit === 'box') ? (Number(p.sell) || 0) : ((Number(p.sell) || 0) / factor);
         const lastSoldPrice = await fetchSmartPrice(stockId, selectedUnit);
 
         let finalPrice = storePrice;
@@ -1179,7 +1200,7 @@
             finalPrice = lastSoldPrice;
         }
 
-        row.querySelector('.p-price').value = Number(finalPrice).toFixed(2);
+        priceInput.value = Number(finalPrice).toFixed(2);
         calc();
     };
 
