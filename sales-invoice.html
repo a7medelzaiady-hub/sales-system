@@ -1110,7 +1110,6 @@
         resultadosDiv.style.display = filtered.length > 0 ? 'block' : 'none';
     };
 
-    // حماية السعر المعدل يدويًا عند اختيار صنف جديد
     window.selectProduct = async (rowId, pid, pname) => {
         const row = document.getElementById(rowId);
         row.querySelector('.p-search').value = pname;
@@ -1123,7 +1122,7 @@
         if (p) {
             row.querySelector('.unit-info-area').innerHTML = `<i class="fas fa-warehouse me-1"></i> رصيد المخزن المتوفر: ${p.totalPcs} ق`;
             
-            // إذا لم يسبق للمستخدم تعديل السعر يدوياً، نقوم بضبط السعر الأوتوماتيكي الخاص بالصنف الجديد
+            // الحفاظ على السعر اليدوي إذا تم تعديله من قبل المستخدم
             if (priceInput.dataset.isEdited !== "true") {
                 priceInput.value = "";
                 delete priceInput.dataset.defaultPrice;
@@ -1152,6 +1151,10 @@
         const editedTag = row ? row.querySelector('.edited-price-tag') : null;
 
         if (!isNaN(currentVal) && !isNaN(defaultVal) && Math.abs(currentVal - defaultVal) > 0.001) {
+            input.dataset.isEdited = "true";
+            input.classList.add('is-edited-price');
+            if (editedTag) editedTag.style.display = 'block';
+        } else if (!isNaN(currentVal) && currentVal > 0 && isNaN(defaultVal)) {
             input.dataset.isEdited = "true";
             input.classList.add('is-edited-price');
             if (editedTag) editedTag.style.display = 'block';
@@ -1193,8 +1196,8 @@
                     </div>
                     <div class="col-3 px-1">
                         <span class="sub-lbl">السعر</span>
-                        <input type="number" class="form-control p-price px-1" value="${oldData ? formatNumClean(oldData.price) : ''}" oninput="onPriceManualInput(this)">
-                        <div class="edited-price-tag" style="display:none; color: var(--warning); font-size: 0.58rem; font-weight: 800; margin-top: 1px; text-align:center;">
+                        <input type="number" class="form-control p-price px-1 ${oldData?.isEditedPrice ? 'is-edited-price' : ''}" value="${oldData ? formatNumClean(oldData.price) : ''}" data-is-edited="${oldData?.isEditedPrice ? 'true' : 'false'}" data-default-price="${oldData?.defaultPrice || ''}" oninput="onPriceManualInput(this)">
+                        <div class="edited-price-tag" style="display:${oldData?.isEditedPrice ? 'block' : 'none'}; color: var(--warning); font-size: 0.58rem; font-weight: 800; margin-top: 1px; text-align:center;">
                             <i class="fas fa-pen"></i> معدل
                         </div>
                         <div class="min-price-warn" style="display:none; color:var(--danger); font-size:0.6rem; margin-top:2px; font-weight:700; text-align:center;"></div>
