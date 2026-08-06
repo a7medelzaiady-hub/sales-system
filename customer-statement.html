@@ -68,6 +68,18 @@
         .val-minus { color: var(--neon-green); }
         .badge-status { font-size: 0.7rem; padding: 4px 12px; border-radius: 8px; font-weight: 800; display: inline-block; margin-top: 5px; }
 
+        /* --- Clickable Row Styling --- */
+        .clickable-row {
+            cursor: pointer;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+        }
+        .clickable-row:hover {
+            background-color: #f1f8f5 !important;
+        }
+        .clickable-row:active {
+            transform: scale(0.99);
+        }
+
         /* --- Print/PDF Area --- */
         #print-area { display: none; background: #ffffff !important; color: #000 !important; padding: 40px; }
         .pdf-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -162,15 +174,15 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getFirestore, collection, query, where, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-  measurementId: "G-WE04GK5XZZ"
-};
+    const firebaseConfig = {
+      apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+      authDomain: "ahmedelzaiady.firebaseapp.com",
+      projectId: "ahmedelzaiady",
+      storageBucket: "ahmedelzaiady.firebasestorage.app",
+      messagingSenderId: "300306825071",
+      appId: "1:300306825071:web:0426ddde56280fa090329a",
+      measurementId: "G-WE04GK5XZZ"
+    };
     
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -200,6 +212,7 @@ const firebaseConfig = {
             iS.forEach(s => {
                 const v = s.data();
                 list.push({ 
+                    id: s.id, // معرف الفاتورة لفتحها عند الضغط
                     d: v.time || '---', 
                     t: 'فاتورة مبيعات', 
                     class: 'type-invoice',
@@ -214,6 +227,7 @@ const firebaseConfig = {
                 const v = s.data();
                 const isP = v.type === 'قبض';
                 list.push({ 
+                    id: null,
                     d: v.date || '---', 
                     t: isP?'سند قبض':'سند صرف', 
                     class: isP ? 'type-receive' : 'type-pay',
@@ -235,8 +249,14 @@ const firebaseConfig = {
             list.forEach(item => {
                 runningDebt += item.r;
                 let ds = item.d.split(' ')[0];
+                
+                // إضافة إمكانية النقر في حالة كانت العملية "فاتورة مبيعات"
+                const isInvoice = item.t === 'فاتورة مبيعات' && item.id;
+                const clickAttr = isInvoice ? `onclick="window.location.href='invoice-details.html?id=${item.id}'"` : '';
+                const rowClass = isInvoice ? 'clickable-row' : '';
+
                 tbody.innerHTML += `
-                    <tr>
+                    <tr class="${rowClass}" ${clickAttr}>
                         <td>${ds}</td>
                         <td class="text-end" style="padding-right:15px;">
                             <div class="${item.class}">${item.t}</div>
