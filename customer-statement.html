@@ -68,16 +68,17 @@
         .val-minus { color: var(--neon-green); }
         .badge-status { font-size: 0.7rem; padding: 4px 12px; border-radius: 8px; font-weight: 800; display: inline-block; margin-top: 5px; }
 
-        /* --- Clickable Row Styling --- */
+        /* --- Clickable Invoice Row --- */
         .clickable-row {
-            cursor: pointer;
+            cursor: pointer !important;
+            user-select: none;
             transition: background-color 0.2s ease, transform 0.1s ease;
         }
         .clickable-row:hover {
-            background-color: #f1f8f5 !important;
+            background-color: #eaf4ef !important;
         }
         .clickable-row:active {
-            transform: scale(0.99);
+            transform: scale(0.98);
         }
 
         /* --- Print/PDF Area --- */
@@ -189,6 +190,13 @@
     const urlParams = new URLSearchParams(window.location.search);
     const custId = urlParams.get('id');
 
+    // دالة فتح الفاتورة وتصديرها للنطاق العام
+    window.openInvoice = function(invId) {
+        if(invId) {
+            window.location.href = `invoice-details.html?id=${invId}`;
+        }
+    };
+
     async function loadStatement() {
         if(!custId) return;
         try {
@@ -212,7 +220,7 @@
             iS.forEach(s => {
                 const v = s.data();
                 list.push({ 
-                    id: s.id, // معرف الفاتورة لفتحها عند الضغط
+                    id: s.id,
                     d: v.time || '---', 
                     t: 'فاتورة مبيعات', 
                     class: 'type-invoice',
@@ -250,9 +258,8 @@
                 runningDebt += item.r;
                 let ds = item.d.split(' ')[0];
                 
-                // إضافة إمكانية النقر في حالة كانت العملية "فاتورة مبيعات"
                 const isInvoice = item.t === 'فاتورة مبيعات' && item.id;
-                const clickAttr = isInvoice ? `onclick="window.location.href='invoice-details.html?id=${item.id}'"` : '';
+                const clickAttr = isInvoice ? `onclick="openInvoice('${item.id}')"` : '';
                 const rowClass = isInvoice ? 'clickable-row' : '';
 
                 tbody.innerHTML += `
