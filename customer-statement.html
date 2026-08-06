@@ -190,13 +190,6 @@
     const urlParams = new URLSearchParams(window.location.search);
     const custId = urlParams.get('id');
 
-    // دالة فتح الفاتورة وتصديرها للنطاق العام
-    window.openInvoice = function(invId) {
-        if(invId) {
-            window.location.href = `invoice-details.html?id=${invId}`;
-        }
-    };
-
     async function loadStatement() {
         if(!custId) return;
         try {
@@ -259,11 +252,11 @@
                 let ds = item.d.split(' ')[0];
                 
                 const isInvoice = item.t === 'فاتورة مبيعات' && item.id;
-                const clickAttr = isInvoice ? `onclick="openInvoice('${item.id}')"` : '';
+                const dataAttr = isInvoice ? `data-id="${item.id}"` : '';
                 const rowClass = isInvoice ? 'clickable-row' : '';
 
                 tbody.innerHTML += `
-                    <tr class="${rowClass}" ${clickAttr}>
+                    <tr class="${rowClass}" ${dataAttr}>
                         <td>${ds}</td>
                         <td class="text-end" style="padding-right:15px;">
                             <div class="${item.class}">${item.t}</div>
@@ -300,6 +293,17 @@
             }
         } catch (e) { console.error(e); }
     }
+
+    // التقاط حدث الضغط بشكل مباشر ومباشرة فتح تفاصيل الفاتورة
+    document.getElementById('statementBody').addEventListener('click', function(e) {
+        const row = e.target.closest('tr.clickable-row');
+        if (row) {
+            const invId = row.getAttribute('data-id');
+            if (invId) {
+                window.location.href = `invoice-details.html?id=${invId}`;
+            }
+        }
+    });
 
     window.generatePDF = () => {
         const element = document.getElementById('print-area');
