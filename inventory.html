@@ -658,12 +658,9 @@
             : `<span class="price-tag no-price"><i class="fas fa-tag"></i>السعر غير محدد</span>`;
 
         const safeName = (item.name || 'بدون اسم').replace(/'/g, "\\'");
-        
-        // جلب رصيد أول المدة بالقطع المسجل بدقة من الإكسيل
-        const initPcs = item.initQty !== undefined ? Number(item.initQty) : (item.initialQty !== undefined ? Number(item.initialQty) : 0);
 
         return `
-        <div class="item-card${status==='zero' ? ' zero-row' : status==='low' ? ' low-row' : ''}" onclick="showItemHistory('${item.id}', '${safeName}', false, ${totalPcs}, ${initPcs})">
+        <div class="item-card${status==='zero' ? ' zero-row' : status==='low' ? ' low-row' : ''}" onclick="showItemHistory('${item.id}', '${safeName}', false)">
             <span class="status-dot ${status}"></span>
             <div class="card-top">
                 <div class="row-info">
@@ -721,7 +718,7 @@
         return docs;
     }
 
-    window.showItemHistory = async function(itemId, itemName, forceRefresh, currentStock = 0, initialStock = 0) {
+    window.showItemHistory = async function(itemId, itemName, forceRefresh) {
         const modal = document.getElementById('historyModal');
         const modalTitle = document.getElementById('modalItemName');
         const modalBody = document.getElementById('modalBody');
@@ -734,12 +731,12 @@
                     <span style="color:#ffce31; font-weight:800; display:block; font-size:11px;">تفاصيل وتحليل الصنف:</span> ${itemName}
                 </div>
                 <div style="display:flex; gap:6px; align-items:center;">
-                    <button onclick="event.stopPropagation(); exportModalPDF('${safeItemName}', ${currentStock}, ${initialStock})" 
+                    <button onclick="event.stopPropagation(); exportModalPDF('${safeItemName}')" 
                             style="background:#d97706; border:none; color:#fff; padding:4px 10px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">
                         <i class="fas fa-file-pdf"></i> PDF
                     </button>
                     <i class="fas fa-rotate" title="تحديث البيانات" style="font-size:13px; cursor:pointer; opacity:.9; background:rgba(255,255,255,0.15); padding:6px; border-radius:50%;"
-                       onclick="event.stopPropagation(); window.showItemHistory('${itemId}', '${safeItemName}', true, ${currentStock}, ${initialStock})"></i>
+                       onclick="event.stopPropagation(); window.showItemHistory('${itemId}', '${safeItemName}', true)"></i>
                 </div>
             </div>`;
         
@@ -751,12 +748,9 @@
             const capacity = Number(currentItemObj.unitFactor) || 1;
             const rawUnit = (currentItemObj.unitName || '').trim();
             const unit = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
-
-            // قراءة رصيد أول المدة المباشر من الصنف المخزن
-            let initVal = initialStock;
-            if (!initVal) {
-                initVal = currentItemObj.initQty !== undefined ? Number(currentItemObj.initQty) : (currentItemObj.initialQty !== undefined ? Number(currentItemObj.initialQty) : 0);
-            }
+            
+            // جلب إجمالي المخزون الحالي بالقطع
+            const currentStockPcs = Number(currentItemObj.totalPcs !== undefined ? currentItemObj.totalPcs : (currentItemObj.qty * capacity || 0)) || 0;
 
             const cleanText = (txt) => String(txt || '').trim().toLowerCase().replace(/\s+/g, ' ');
             const targetId = cleanText(itemId);
@@ -797,8 +791,9 @@
             let foundTransactions = [];
 
             const processDoc = (id, d, colName) => {
-                const docSupplierName = d.supplierName || d.supplier || d.supplier_name || '';
-                const docClientName = d.clientName || d.customerName || d.customer || d.client_name || '';
+                // جلب اسم المورد والعميل بجميع المفاتيح المحتملة من المستند الرئيسي
+                const docSupplierName = d.supplierName || d.supplier || d.supplier_name || d.name || d.supplierTitle || '';
+                const docClientName = d.clientName || d.customerName || d.customer || d.client_name || d.client || '';
 
                 const topResult = inspectObj(d);
                 if (topResult.match && topResult.qty > 0) {
@@ -823,8 +818,8 @@
                                         finalCalculatedQty: subResult.qty, 
                                         isItemReturn: subResult.isReturn, 
                                         detectedSource: colName,
-                                        parentSupplierName: docSupplierName,
-                                        parentClientName: docClientName
+                                        parentSupplierName: docSupplierName || subItem.supplierName || subItem.supplier || '',
+                                        parentClientName: docClientName || subItem.clientName || subItem.customerName || ''
                                     });
                                 }
                             }
@@ -837,8 +832,8 @@
                                 finalCalculatedQty: subResult.qty, 
                                 isItemReturn: subResult.isReturn, 
                                 detectedSource: colName,
-                                parentSupplierName: docSupplierName,
-                                parentClientName: docClientName
+                                parentSupplierName: docSupplierName || d[key].supplierName || d[key].supplier || '',
+                                parentClientName: docClientName || d[key].clientName || d[key].customerName || ''
                             });
                         }
                     }
@@ -880,6 +875,17 @@
                 }
             });
 
+            // الجلب الدقيق لرصيد أول المدة
+            let initialStockPcs = 0;
+            if (currentItemObj.initQty !== undefined && currentItemObj.initQty !== null) {
+                initialStockPcs = Number(currentItemObj.initQty);
+            } else if (currentItemObj.initialQty !== undefined && currentItemObj.initialQty !== null) {
+                initialStockPcs = Number(currentItemObj.initialQty);
+            } else {
+                // المعادلة العكسية الدقيقة لرصيد أول المدة إذا لم يكن مسجلاً
+                initialStockPcs = currentStockPcs + totalSalesPcs + totalLossesPcs - totalPurchasesPcs - totalReturnsPcs;
+            }
+
             uniqueTransactions.sort((a, b) => {
                 const parseDate = (item) => {
                     const fireDate = item.date || item.createdAt || item.timestamp;
@@ -893,11 +899,11 @@
                 return parseDate(b) - parseDate(a); 
             });
 
-            const initialStockTxt = formatQuantityDetailed(initVal, capacity, unit);
+            const initialStockTxt = formatQuantityDetailed(initialStockPcs, capacity, unit);
             const totalPurchasesTxt = formatQuantityDetailed(totalPurchasesPcs, capacity, unit);
             const totalSalesTxt = formatQuantityDetailed(totalSalesPcs, capacity, unit);
             const totalReturnsTxt = formatQuantityDetailed(totalReturnsPcs + totalLossesPcs, capacity, unit);
-            const currentStockTxt = formatQuantityDetailed(currentStock, capacity, unit);
+            const currentStockTxt = formatQuantityDetailed(currentStockPcs, capacity, unit);
 
             let html = `
             <div class="modal-dashboard">
@@ -977,11 +983,12 @@
                     dateStr = d.toLocaleDateString('ar-EG', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
                 }
 
+                // اختيار اسم الكيان بدقة عالية
                 let entityName = '';
                 if (isPurchase) {
-                    entityName = tx.parentSupplierName || tx.supplierName || tx.supplier || tx.supplier_name || 'مورد غير محدد';
+                    entityName = tx.parentSupplierName || tx.supplierName || tx.supplier || tx.supplier_name || tx.supplierTitle || 'مورد غير محدد';
                 } else {
-                    entityName = tx.parentClientName || tx.clientName || tx.customerName || tx.customer || tx.client_name || 'عميل غير محدد';
+                    entityName = tx.parentClientName || tx.clientName || tx.customerName || tx.customer || tx.client_name || tx.client || 'عميل غير محدد';
                 }
 
                 let subNoteHtml = '';
@@ -1104,7 +1111,7 @@
         });
     };
 
-    window.exportModalPDF = function(itemName, currentStock, initialStock) {
+    window.exportModalPDF = function(itemName) {
         const modalBody = document.getElementById('modalBody');
         if (!modalBody) return;
 
