@@ -8,7 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <!-- مكتبة Tesseract.js للتعرف الضوئي على الحروف من الصور -->
+    <!-- مكتبة Tesseract.js للتعرف الضوئي -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
        :root {
@@ -348,7 +348,7 @@
                 <i class="fas fa-camera me-1"></i> قراءة وتعبئة الفاتورة تلقائياً من صورة 📸
             </button>
             <div id="ocrProgress" class="text-center mt-2 fw-bold text-primary" style="display:none; font-size: 0.8rem;">
-                <i class="fas fa-spinner fa-spin me-1"></i> <span id="ocrStatusText">جاري مسح ومعالجة الفاتورة...</span>
+                <i class="fas fa-spinner fa-spin me-1"></i> <span id="ocrStatusText">جاري معالجة وقراءة الصورة...</span>
             </div>
         </div>
 
@@ -406,6 +406,46 @@
         </div>
 
         <button class="btn-save" onclick="openReviewModal()" id="saveBtn">حفظ وترحيل الفاتورة للسيستم 🚀</button>
+    </div>
+</div>
+
+<!-- نافذة مراجعة وتدقيق الذكاء الاصطناعي الضوئي -->
+<div id="ocrReviewModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 100001; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div style="background: white; width: 95%; max-width: 500px; padding: 18px; border-radius: var(--card-radius); box-shadow: 0 12px 30px rgba(0,0,0,0.3); animation: scaleUp 0.2s ease; max-height: 90vh; overflow-y: auto;">
+        <div class="text-center mb-3">
+            <div style="width: 50px; height: 50px; background: #f0eafc; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 8px;">
+                <i class="fas fa-magic" style="color: var(--purple); font-size: 1.5rem;"></i>
+            </div>
+            <h5 class="fw-bold m-0" style="color: var(--text-primary);">مراجعة البنود المستخرجة</h5>
+            <small class="text-muted">اختر الصنف المطابق من مخزنك لكل بند قرأته الكاميرا</small>
+        </div>
+
+        <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 15px;">
+            <table class="table table-sm text-center align-middle m-0" style="font-size: 0.8rem; direction: rtl;">
+                <thead class="table-dark" style="position: sticky; top: 0; z-index: 5;">
+                    <tr>
+                        <th style="width: 10%;">تطبيق</th>
+                        <th style="width: 45%; text-align: right;">الصنف المطابق بالمخزن</th>
+                        <th style="width: 20%;">الكمية</th>
+                        <th style="width: 25%;">السعر</th>
+                    </tr>
+                </thead>
+                <tbody id="ocrResultBody"></tbody>
+            </table>
+        </div>
+
+        <div class="row g-2">
+            <div class="col-8">
+                <button type="button" class="btn btn-purple w-100 fw-bold py-2 text-white" style="background: var(--purple); border-radius: 10px;" onclick="applyOcrSelections()">
+                    <i class="fas fa-check-circle me-1"></i> إدراج البنود المحددة للفاتورة
+                </button>
+            </div>
+            <div class="col-4">
+                <button type="button" class="btn btn-light w-100 fw-bold py-2 text-secondary" style="border-radius: 10px; border: 1px solid #ddd;" onclick="closeOcrReviewModal()">
+                    إلغاء
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -490,6 +530,7 @@
     let isChanged = false;
     let currentFetchedOldBalance = 0;
     let oldInvoiceData = null;
+    let tempOcrParsedList = [];
 
     const CACHE_KEYS = { suppliers: "cache_suppliers", inventory: "cache_inventory", ts: "cache_purchase_ts" };
     const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -752,56 +793,43 @@
     };
 
     /* ==========================================================
-       خوارزمية حساب المسافة التشابهية بين النصوص (Levenshtein Distance)
+       محرك معالجة الصورة وقراءتها بشكل متقدم OCR
        ========================================================== */
-    function calculateLevenshteinDistance(a, b) {
-        if (!a || !b) return 999;
-        const matrix = [];
-        for (let i = 0; i <= b.length; i++) { matrix[i] = [i]; }
-        for (let j = 0; j <= a.length; j++) { matrix[0][j] = j; }
+    function preprocessImageToCanvas(file) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
 
-        for (let i = 1; i <= b.length; i++) {
-            for (let j = 1; j <= a.length; j++) {
-                if (b.charAt(i - 1) === a.charAt(j - 1)) {
-                    matrix[i][j] = matrix[i - 1][j - 1];
-                } else {
-                    matrix[i][j] = Math.min(
-                        matrix[i - 1][j - 1] + 1,
-                        Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
-                    );
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const d = imgData.data;
+
+                // تحسين التباين والأسود/الأبيض الصريح (Binarization)
+                for (let i = 0; i < d.length; i += 4) {
+                    const avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
+                    const v = avg > 140 ? 255 : 0;
+                    d[i] = v;
+                    d[i + 1] = v;
+                    d[i + 2] = v;
                 }
-            }
-        }
-        return matrix[b.length][a.length];
+                ctx.putImageData(imgData, 0, 0);
+                resolve(canvas.toDataURL('image/png'));
+            };
+            img.src = URL.createObjectURL(file);
+        });
     }
 
-    // البحث عن أقرب صنف مطابق من جدول المخزن
-    function findBestMatchingProduct(scannedText) {
-        if (!inventory || inventory.length === 0 || !scannedText) return null;
-        const cleanScanned = scannedText.trim().toLowerCase();
-        
-        let bestMatch = null;
-        let lowestDistance = Infinity;
-
-        for (const item of inventory) {
-            const itemName = item.name.toLowerCase();
-            if (itemName.includes(cleanScanned) || cleanScanned.includes(itemName)) {
-                return item; // مطابقة مباشرة
-            }
-            const dist = calculateLevenshteinDistance(cleanScanned, itemName);
-            if (dist < lowestDistance) {
-                lowestDistance = dist;
-                bestMatch = item;
-            }
-        }
-
-        // إرجاع النتيجة إذا كانت المسافة منطقية وقريبة
-        return lowestDistance <= Math.max(cleanScanned.length, 3) ? bestMatch : null;
+    function parseNumbersFromArabicText(str) {
+        if (!str) return [];
+        const clean = str.replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
+        const matches = clean.match(/\d+(\.\d+)?/g);
+        return matches ? matches.map(Number) : [];
     }
 
-    /* ==========================================================
-       معالجة وتحليل صورة الفاتورة (OCR)
-       ========================================================== */
     window.processInvoiceImage = async (input) => {
         if (!input.files || !input.files[0]) return;
         const file = input.files[0];
@@ -814,81 +842,124 @@
         progressDiv.style.display = 'block';
 
         try {
-            statusText.innerText = "جاري تهيئة قارئ الصور...";
-            
-            // قراءة الصورة باللغتين العربية والإنجليزية
+            statusText.innerText = "جاري رفع تباين وتحسين دقة الصورة...";
+            const processedImageData = await preprocessImageToCanvas(file);
+
+            statusText.innerText = "جاري تحليل نصوص وحقول الفاتورة الضوئية...";
             const worker = await Tesseract.createWorker(['ara', 'eng']);
-            
-            statusText.innerText = "جاري قراءة واستخراج النصوص من الفاتورة...";
-            const ret = await worker.recognize(file);
+            const ret = await worker.recognize(processedImageData);
             await worker.terminate();
 
             const textLines = ret.data.text.split('\n');
-            let detectedItemsCount = 0;
+            tempOcrParsedList = [];
 
             for (let line of textLines) {
                 line = line.trim();
                 if (!line || line.length < 3) continue;
 
-                // استخراج الأرقام من السطر (الكمية والسعر)
-                const numbers = line.match(/\d+(\.\d+)?/g);
-                
-                // استخراج النص (اسم الصنف المحتمل)
-                const textOnly = line.replace(/[\d\.,\+\-\*\/]/g, '').trim();
+                const nums = parseNumbersFromArabicText(line);
+                const textOnly = line.replace(/[0-9٠-٩\.,\+\-\*\/]/g, '').trim();
 
                 if (textOnly && textOnly.length >= 2) {
-                    const matchedProduct = findBestMatchingProduct(textOnly);
-
-                    let qty = 1;
-                    let price = 0;
-
-                    if (numbers && numbers.length >= 2) {
-                        qty = parseFloat(numbers[0]) || 1;
-                        price = parseFloat(numbers[1]) || 0;
-                    } else if (numbers && numbers.length === 1) {
-                        price = parseFloat(numbers[0]) || 0;
+                    let q = 1;
+                    let p = 0;
+                    if (nums.length >= 2) {
+                        q = nums[0];
+                        p = nums[1];
+                    } else if (nums.length === 1) {
+                        p = nums[0];
                     }
 
-                    if (matchedProduct) {
-                        const factor = Number(matchedProduct.unitFactor) || 1;
-                        const buyPrice = price > 0 ? price : ((Number(matchedProduct.buy) || 0) / factor);
-                        
-                        window.addNewRow({
-                            stockId: matchedProduct.id,
-                            name: matchedProduct.name,
-                            unit: 'box',
-                            qty: qty,
-                            buy: buyPrice
-                        });
-                        detectedItemsCount++;
-                    } else if (price > 0 || qty > 1) {
-                        // إضافة الصنف بالنص القريب حتى وإن لم يطابق تماماً لمراجعته
-                        window.addNewRow({
-                            stockId: '',
-                            name: textOnly,
-                            unit: 'box',
-                            qty: qty,
-                            buy: price
-                        });
-                        detectedItemsCount++;
-                    }
+                    tempOcrParsedList.push({
+                        rawText: textOnly,
+                        qty: q,
+                        price: p
+                    });
                 }
             }
 
-            calc();
-            if (detectedItemsCount > 0) {
-                window.showCustomAlert(`تم استخراج ${detectedItemsCount} صنف من صورة الفاتورة بنجاح 🎉. يرجى مراجعتها وتأكيدها.`, false);
-            } else {
-                window.showCustomAlert("تعذر التعرف الدقيق على بنود الفاتورة. يرجى التأكد من وضوح الصورة وتجربة التقاطها مرة أخرى.");
+            if (tempOcrParsedList.length === 0) {
+                window.showCustomAlert("لم يتم العثور على أسطر واضحة. يرجى تجربة التقاط صورة أقرب للفاتورة وأكثر إضاءة.");
+                return;
             }
+
+            renderOcrInspectionModal();
 
         } catch (error) {
             console.error("OCR Error:", error);
-            window.showCustomAlert("حدث خطأ أثناء قراءة صورة الفاتورة. يرجى محاولة رفع صورة أوضح.");
+            window.showCustomAlert("حدث خطأ أثناء تحليل الفاتورة. يرجى إعادة محاولة التقاط الصورة.");
         } finally {
             btn.disabled = false;
             progressDiv.style.display = 'none';
             input.value = '';
+        }
+    };
+
+    function renderOcrInspectionModal() {
+        const tbody = document.getElementById('ocrResultBody');
+        tbody.innerHTML = tempOcrParsedList.map((item, idx) => {
+            const options = inventory.map(inv => `<option value="${inv.id}">${inv.name}</option>`).join('');
+            return `
+                <tr>
+                    <td>
+                        <input type="checkbox" class="form-check-input ocr-apply-chk" id="ocr_chk_${idx}" checked>
+                    </td>
+                    <td style="text-align: right;">
+                        <small class="d-block text-muted" style="font-size:0.65rem;">النص المقروء: (${item.rawText})</small>
+                        <select class="form-select form-select-sm ocr-item-sel" id="ocr_sel_${idx}" style="font-size:0.75rem;">
+                            <option value="">-- اختر الصنف الصحيح --</option>
+                            ${options}
+                        </select>
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm p-0 text-center ocr-qty-input" id="ocr_qty_${idx}" value="${item.qty}">
+                    </td>
+                    <td>
+                        <input type="number" class="form-control form-control-sm p-0 text-center ocr-price-input" id="ocr_price_${idx}" value="${item.price}">
+                    </td>
+                </tr>`;
+        }).join('');
+
+        document.getElementById('ocrReviewModal').style.display = 'flex';
+    }
+
+    window.closeOcrReviewModal = () => {
+        document.getElementById('ocrReviewModal').style.display = 'none';
+    };
+
+    window.applyOcrSelections = () => {
+        let added = 0;
+        const rows = document.querySelectorAll('#ocrResultBody tr');
+
+        rows.forEach((r, idx) => {
+            const chk = r.querySelector('.ocr-apply-chk');
+            const sel = r.querySelector('.ocr-item-sel');
+            const qty = parseFloat(r.querySelector('.ocr-qty-input').value) || 1;
+            const price = parseFloat(r.querySelector('.ocr-price-input').value) || 0;
+
+            if (chk && chk.checked && sel && sel.value) {
+                const stockId = sel.value;
+                const p = inventory.find(i => i.id === stockId);
+                if (p) {
+                    window.addNewRow({
+                        stockId: p.id,
+                        name: p.name,
+                        unit: 'box',
+                        qty: qty,
+                        buy: price > 0 ? price : (Number(p.buy) || 0)
+                    });
+                    added++;
+                }
+            }
+        });
+
+        closeOcrReviewModal();
+        calc();
+
+        if (added > 0) {
+            window.showCustomAlert(`تم إضافة ${added} صنف للفاتورة بنجاح 🎉.`);
+        } else {
+            window.showCustomAlert("لم يتم اختيار أي أصناف لإضافتها.");
         }
     };
 
