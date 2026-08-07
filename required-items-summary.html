@@ -111,7 +111,6 @@ html, body {
   font-size: 0.75rem;
 }
 
-/* تخطيط شبكة الكروت: كارتين بجانب بعضهما */
 .summary-cards-container {
   padding: 10px;
   display: grid;
@@ -285,6 +284,24 @@ function getUnitName(name) {
   return 'جركن';
 }
 
+function cleanItemName(str) {
+  if (!str) return "";
+  return str.trim()
+            .toLowerCase()
+            .replace(/\s+/g, ' ')
+            .replace(/[أإآ]/g, 'ا')
+            .replace(/ة/g, 'ه')
+            .replace(/ى/g, 'ي');
+}
+
+function isCarton(item) {
+  const u = (item.unit || "").trim().toLowerCase();
+  if (u === "box" || u === "كرتونة" || u === "كرتونه") return true;
+  if (u === "pcs" || u === "قطعة" || u === "جركن") return false;
+  const un = (item.unitName || "").trim().toLowerCase();
+  return un === "كرتونة" || un === "كرتونه";
+}
+
 function formatQuantityDetailed(totalPcs, capacity, unit) {
   totalPcs = parseInt(totalPcs) || 0;
   capacity = parseInt(capacity) || 1;
@@ -328,21 +345,29 @@ async function loadAndCalculateData() {
     const loadedInSession = JSON.parse(localStorage.getItem('loadedInSession_' + targetDate) || '{}');
     const cartItems = JSON.parse(localStorage.getItem('cartItems_' + targetDate) || '{}');
 
-    // 2. كميات المخزن الرئيسي
+    // 2. كميات المخزن الرئيسي والمعاملات
     const inventorySnap = await getDocs(collection(db, "inventory"));
     const inventoryMap = {};
+    const nameToInventoryMap = {};
+
     inventorySnap.forEach(docSnap => {
       const data = docSnap.data();
-      inventoryMap[docSnap.id] = {
+      const rawName = (data.name || '').trim();
+      const cleanedKey = cleanItemName(rawName);
+
+      const itemObj = {
         id: docSnap.id,
-        name: (data.name || '').trim(),
+        name: rawName,
         capacity: Number(data.unitFactor) || 1,
         unit: data.unit || '',
         stockPcs: Number(data.totalPcs || 0)
       };
+
+      inventoryMap[docSnap.id] = itemObj;
+      nameToInventoryMap[cleanedKey] = itemObj;
     });
 
-    // 3. احتياجات الطلبات المعلقة
+    // 3. احتياجات الطلبات المعلقة مع حساب كراتين/قطع
     const ordersSnap = await getDocs(query(collection(db, "orders"), where("status", "==", "pending")));
 
     const requiredMap = {};
@@ -351,32 +376,34 @@ async function loadAndCalculateData() {
       if (order.items && Array.isArray(order.items)) {
         order.items.forEach(item => {
           const rawName = (item.name || 'صنف غير معروف').trim();
-          const key = rawName.toLowerCase();
-          const qty = Number(item.quantity || item.qty || 0);
+          const cleanedKey = cleanItemName(rawName);
+          const rawQty = Number(item.quantity || item.qty || 0);
 
-          if (!requiredMap[key]) {
-            requiredMap[key] = {
+          // معرفة هل الصنف المسجل في الطلب كرتونة أم قطع
+          const invMatch = nameToInventoryMap[cleanedKey];
+          const cap = invMatch ? invMatch.capacity : 1;
+          const isItemCarton = isCarton(item);
+
+          const totalPcs = isItemCarton ? (rawQty * cap) : rawQty;
+
+          if (!requiredMap[cleanedKey]) {
+            requiredMap[cleanedKey] = {
               displayName: rawName,
               requiredPcs: 0
             };
           }
-          requiredMap[key].requiredPcs += qty;
+          requiredMap[cleanedKey].requiredPcs += totalPcs;
         });
       }
     });
 
     const itemKeys = new Set();
     Object.keys(loadedInSession).forEach(id => itemKeys.add(id));
-    
-    const nameToIdMap = {};
-    Object.values(inventoryMap).forEach(inv => {
-      nameToIdMap[inv.name.toLowerCase()] = inv.id;
-    });
 
-    Object.keys(requiredMap).forEach(reqKey => {
-      const matchedId = nameToIdMap[reqKey];
-      if (matchedId) {
-        itemKeys.add(matchedId);
+    Object.keys(requiredMap).forEach(cleanedKey => {
+      const matched = nameToInventoryMap[cleanedKey];
+      if (matched) {
+        itemKeys.add(matched.id);
       }
     });
 
@@ -389,7 +416,8 @@ async function loadAndCalculateData() {
       const sess = loadedInSession[id] || { cartons: 0, loose: 0 };
       
       const loadedPcs = (parseFloat(sess.cartons || 0) * invItem.capacity) + parseInt(sess.loose || 0);
-      const reqObj = requiredMap[invItem.name.toLowerCase()];
+      const cleanedKey = cleanItemName(invItem.name);
+      const reqObj = requiredMap[cleanedKey];
       const requiredPcs = reqObj ? reqObj.requiredPcs : 0;
       
       return {
@@ -420,10 +448,10 @@ window.loadAndCalculateData = loadAndCalculateData;
 window.filterSummary = () => renderSummary();
 
 function renderSummary() {
-  const term = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  const term = cleanItemName(document.getElementById('searchInput').value || '');
   const container = document.getElementById('summaryList');
 
-  let filtered = groupedItems.filter(item => item.name.toLowerCase().includes(term));
+  let filtered = groupedItems.filter(item => cleanItemName(item.name).includes(term));
 
   if (!filtered.length) {
     container.innerHTML = `<div class="empty-state"><h6>لا توجد أصناف مطابقة</h6></div>`;
