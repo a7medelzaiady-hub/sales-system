@@ -284,10 +284,14 @@ html, body {
   font-weight: 800;
   color: var(--text-primary);
 }
-.client-order-num {
+.client-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 0.68rem;
   color: #64748b;
   font-weight: 600;
+  margin-top: 2px;
 }
 .client-qty-badge {
   background: #e0f2fe;
@@ -424,6 +428,23 @@ function formatQuantityDetailed(totalPcs, capacity, unit) {
   return isNegative ? `-${result}` : result;
 }
 
+function formatOrderDate(dateVal) {
+  if (!dateVal) return '';
+  try {
+    let d;
+    if (typeof dateVal.toDate === 'function') {
+      d = dateVal.toDate();
+    } else {
+      d = new Date(dateVal);
+    }
+    if (isNaN(d.getTime())) return String(dateVal);
+    return d.toLocaleDateString('ar-EG', { month: 'numeric', day: 'numeric' }) + ' ' +
+           d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+  } catch(e) {
+    return String(dateVal);
+  }
+}
+
 async function loadAndCalculateData() {
   const container = document.getElementById('summaryList');
   container.innerHTML = `
@@ -461,7 +482,7 @@ async function loadAndCalculateData() {
       nameToInventoryMap[cleanedKey] = itemObj;
     });
 
-    // 3. احتساب تفاصيل العملاء والكميات لكل عميل بالطلبيات المعلقة
+    // 3. احتساب تفاصيل العملاء والكميات والتاريخ لكل عميل بالطلبيات المعلقة
     const ordersSnap = await getDocs(query(collection(db, "orders"), where("status", "==", "pending")));
 
     const requiredMap = {};
@@ -469,6 +490,7 @@ async function loadAndCalculateData() {
       const order = docSnap.data();
       const clientName = order.clientName || order.customerName || 'عميل غير محدد';
       const orderNum = order.orderNo || order.id || '';
+      const orderDate = formatOrderDate(order.createdAt || order.date);
 
       if (order.items && Array.isArray(order.items)) {
         order.items.forEach(item => {
@@ -493,6 +515,7 @@ async function loadAndCalculateData() {
           requiredMap[cleanedKey].clientDetails.push({
             clientName: clientName,
             orderNum: orderNum,
+            orderDate: orderDate,
             pcs: totalPcs
           });
         });
@@ -641,7 +664,10 @@ window.openClientModal = function(itemId) {
         <div class="client-item-row">
           <div>
             <div class="client-name">${c.clientName}</div>
-            ${c.orderNum ? `<div class="client-order-num">رقم الطلب: #${c.orderNum}</div>` : ''}
+            <div class="client-meta">
+              ${c.orderNum ? `<span><i class="fas fa-hashtag"></i> ${c.orderNum}</span>` : ''}
+              ${c.orderDate ? `<span><i class="far fa-clock"></i> ${c.orderDate}</span>` : ''}
+            </div>
           </div>
           <div class="client-qty-badge">${qtyTxt}</div>
         </div>
