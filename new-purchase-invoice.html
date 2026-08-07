@@ -8,6 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- مكتبة Tesseract.js للتعرف الضوئي على الحروف من الصور -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
        :root {
             --accent: #0b5e3d;
@@ -205,6 +207,18 @@
         }
         .btn-add-item:hover { background: rgba(11, 94, 61, 0.06); color: var(--accent); }
 
+        .btn-scan-image {
+            background: linear-gradient(135deg, var(--purple), #522b94);
+            color: white;
+            border: none;
+            font-weight: 700;
+            border-radius: var(--input-radius);
+            padding: 11px;
+            transition: all 0.2s;
+            box-shadow: 0 3px 8px rgba(111, 66, 193, 0.2);
+        }
+        .btn-scan-image:hover { color: white; opacity: 0.95; }
+
         .btn-save {
             background: linear-gradient(135deg, var(--accent), var(--accent-light));
             border: none;
@@ -324,6 +338,17 @@
             <div class="col-5">
                 <label class="sub-lbl" style="text-align:right;"><i class="fas fa-calendar-alt me-1"></i> التاريخ والوقت</label>
                 <input type="text" id="invTime" class="form-control" style="font-size: 0.75rem;" oninput="handleInput()">
+            </div>
+        </div>
+
+        <!-- زر رفع وتحليل صورة الفاتورة -->
+        <div class="mb-3">
+            <input type="file" id="invoiceImageInput" accept="image/*" style="display: none;" onchange="processInvoiceImage(this)">
+            <button class="btn btn-scan-image w-100" type="button" onclick="document.getElementById('invoiceImageInput').click()" id="btnScanOcr">
+                <i class="fas fa-camera me-1"></i> قراءة وتعبئة الفاتورة تلقائياً من صورة 📸
+            </button>
+            <div id="ocrProgress" class="text-center mt-2 fw-bold text-primary" style="display:none; font-size: 0.8rem;">
+                <i class="fas fa-spinner fa-spin me-1"></i> <span id="ocrStatusText">جاري مسح ومعالجة الفاتورة...</span>
             </div>
         </div>
 
@@ -724,6 +749,147 @@
         }
         if (!oldData) isChanged = true;
         return id;
+    };
+
+    /* ==========================================================
+       خوارزمية حساب المسافة التشابهية بين النصوص (Levenshtein Distance)
+       ========================================================== */
+    function calculateLevenshteinDistance(a, b) {
+        if (!a || !b) return 999;
+        const matrix = [];
+        for (let i = 0; i <= b.length; i++) { matrix[i] = [i]; }
+        for (let j = 0; j <= a.length; j++) { matrix[0][j] = j; }
+
+        for (let i = 1; i <= b.length; i++) {
+            for (let j = 1; j <= a.length; j++) {
+                if (b.charAt(i - 1) === a.charAt(j - 1)) {
+                    matrix[i][j] = matrix[i - 1][j - 1];
+                } else {
+                    matrix[i][j] = Math.min(
+                        matrix[i - 1][j - 1] + 1,
+                        Math.min(matrix[i][j - 1] + 1, matrix[i - 1][j] + 1)
+                    );
+                }
+            }
+        }
+        return matrix[b.length][a.length];
+    }
+
+    // البحث عن أقرب صنف مطابق من جدول المخزن
+    function findBestMatchingProduct(scannedText) {
+        if (!inventory || inventory.length === 0 || !scannedText) return null;
+        const cleanScanned = scannedText.trim().toLowerCase();
+        
+        let bestMatch = null;
+        let lowestDistance = Infinity;
+
+        for (const item of inventory) {
+            const itemName = item.name.toLowerCase();
+            if (itemName.includes(cleanScanned) || cleanScanned.includes(itemName)) {
+                return item; // مطابقة مباشرة
+            }
+            const dist = calculateLevenshteinDistance(cleanScanned, itemName);
+            if (dist < lowestDistance) {
+                lowestDistance = dist;
+                bestMatch = item;
+            }
+        }
+
+        // إرجاع النتيجة إذا كانت المسافة منطقية وقريبة
+        return lowestDistance <= Math.max(cleanScanned.length, 3) ? bestMatch : null;
+    }
+
+    /* ==========================================================
+       معالجة وتحليل صورة الفاتورة (OCR)
+       ========================================================== */
+    window.processInvoiceImage = async (input) => {
+        if (!input.files || !input.files[0]) return;
+        const file = input.files[0];
+
+        const btn = document.getElementById('btnScanOcr');
+        const progressDiv = document.getElementById('ocrProgress');
+        const statusText = document.getElementById('ocrStatusText');
+
+        btn.disabled = true;
+        progressDiv.style.display = 'block';
+
+        try {
+            statusText.innerText = "جاري تهيئة قارئ الصور...";
+            
+            // قراءة الصورة باللغتين العربية والإنجليزية
+            const worker = await Tesseract.createWorker(['ara', 'eng']);
+            
+            statusText.innerText = "جاري قراءة واستخراج النصوص من الفاتورة...";
+            const ret = await worker.recognize(file);
+            await worker.terminate();
+
+            const textLines = ret.data.text.split('\n');
+            let detectedItemsCount = 0;
+
+            for (let line of textLines) {
+                line = line.trim();
+                if (!line || line.length < 3) continue;
+
+                // استخراج الأرقام من السطر (الكمية والسعر)
+                const numbers = line.match(/\d+(\.\d+)?/g);
+                
+                // استخراج النص (اسم الصنف المحتمل)
+                const textOnly = line.replace(/[\d\.,\+\-\*\/]/g, '').trim();
+
+                if (textOnly && textOnly.length >= 2) {
+                    const matchedProduct = findBestMatchingProduct(textOnly);
+
+                    let qty = 1;
+                    let price = 0;
+
+                    if (numbers && numbers.length >= 2) {
+                        qty = parseFloat(numbers[0]) || 1;
+                        price = parseFloat(numbers[1]) || 0;
+                    } else if (numbers && numbers.length === 1) {
+                        price = parseFloat(numbers[0]) || 0;
+                    }
+
+                    if (matchedProduct) {
+                        const factor = Number(matchedProduct.unitFactor) || 1;
+                        const buyPrice = price > 0 ? price : ((Number(matchedProduct.buy) || 0) / factor);
+                        
+                        window.addNewRow({
+                            stockId: matchedProduct.id,
+                            name: matchedProduct.name,
+                            unit: 'box',
+                            qty: qty,
+                            buy: buyPrice
+                        });
+                        detectedItemsCount++;
+                    } else if (price > 0 || qty > 1) {
+                        // إضافة الصنف بالنص القريب حتى وإن لم يطابق تماماً لمراجعته
+                        window.addNewRow({
+                            stockId: '',
+                            name: textOnly,
+                            unit: 'box',
+                            qty: qty,
+                            buy: price
+                        });
+                        detectedItemsCount++;
+                    }
+                }
+            }
+
+            calc();
+            if (detectedItemsCount > 0) {
+                window.showCustomAlert(`تم استخراج ${detectedItemsCount} صنف من صورة الفاتورة بنجاح 🎉. يرجى مراجعتها وتأكيدها.`, false);
+            } else {
+                window.showCustomAlert("تعذر التعرف الدقيق على بنود الفاتورة. يرجى التأكد من وضوح الصورة وتجربة التقاطها مرة أخرى.");
+            }
+
+        } catch (error) {
+            console.error("OCR Error:", error);
+            window.showCustomAlert("حدث خطأ أثناء قراءة صورة الفاتورة. يرجى محاولة رفع صورة أوضح.");
+        } finally {
+            btn.disabled = false;
+            progressDiv.style.display = 'none';
+            input.value = '';
+        }
     };
 
     window.calc = () => {
