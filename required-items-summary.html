@@ -428,7 +428,8 @@ function formatQuantityDetailed(totalPcs, capacity, unit) {
   return isNegative ? `-${result}` : result;
 }
 
-function formatOrderDate(dateVal) {
+// دالة تحويل التاريخ إلى صيغة مختصرة (اليوم، أمس، منذ يومين...)
+function formatOrderDateRelative(dateVal) {
   if (!dateVal) return '';
   try {
     let d;
@@ -438,8 +439,31 @@ function formatOrderDate(dateVal) {
       d = new Date(dateVal);
     }
     if (isNaN(d.getTime())) return String(dateVal);
-    return d.toLocaleDateString('ar-EG', { month: 'numeric', day: 'numeric' }) + ' ' +
-           d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const targetStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    
+    const diffTime = todayStart.getTime() - targetStart.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
+
+    let dayText = '';
+    if (diffDays === 0) {
+      dayText = 'اليوم';
+    } else if (diffDays === 1) {
+      dayText = 'أمس';
+    } else if (diffDays === 2) {
+      dayText = 'منذ يومين';
+    } else if (diffDays > 2 && diffDays <= 10) {
+      dayText = `منذ ${diffDays} أيام`;
+    } else if (diffDays > 10) {
+      dayText = `منذ ${diffDays} يوم`;
+    } else if (diffDays < 0) {
+      dayText = 'غداً';
+    }
+
+    const timeText = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+    return `${dayText} ${timeText}`;
   } catch(e) {
     return String(dateVal);
   }
@@ -482,7 +506,7 @@ async function loadAndCalculateData() {
       nameToInventoryMap[cleanedKey] = itemObj;
     });
 
-    // 3. احتساب تفاصيل العملاء والكميات والتاريخ لكل عميل بالطلبيات المعلقة
+    // 3. احتساب تفاصيل العملاء والكميات والتاريخ المترجم نسبياً
     const ordersSnap = await getDocs(query(collection(db, "orders"), where("status", "==", "pending")));
 
     const requiredMap = {};
@@ -490,7 +514,7 @@ async function loadAndCalculateData() {
       const order = docSnap.data();
       const clientName = order.clientName || order.customerName || 'عميل غير محدد';
       const orderNum = order.orderNo || order.id || '';
-      const orderDate = formatOrderDate(order.createdAt || order.date);
+      const orderDateRelative = formatOrderDateRelative(order.createdAt || order.date);
 
       if (order.items && Array.isArray(order.items)) {
         order.items.forEach(item => {
@@ -515,7 +539,7 @@ async function loadAndCalculateData() {
           requiredMap[cleanedKey].clientDetails.push({
             clientName: clientName,
             orderNum: orderNum,
-            orderDate: orderDate,
+            orderDate: orderDateRelative,
             pcs: totalPcs
           });
         });
