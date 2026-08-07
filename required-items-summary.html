@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>تجميع الأصناف المطلوبة ومطابقة الحمولة - الزيادي</title>
+<title>تجميع الأصناف المطلوبة ومطابقة الحمولة والمخزن - الزيادي</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -111,7 +111,7 @@ html, body {
   font-size: 0.75rem;
 }
 
-/* تخطيط شبكة الكروت: كارتين بجانب بعضهما في كل الأجهزة */
+/* تخطيط شبكة الكروت: كارتين بجانب بعضهما */
 .summary-cards-container {
   padding: 10px;
   display: grid;
@@ -129,7 +129,7 @@ html, body {
   flex-direction: column;
   justify-content: space-between;
   gap: 6px;
-  min-height: 125px;
+  min-height: 160px;
 }
 
 .item-header {
@@ -165,22 +165,35 @@ html, body {
   align-self: flex-start;
 }
 
-.stock-comparison-row {
+.stock-comparison-block {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: 0.72rem;
+  gap: 5px;
+  font-size: 0.7rem;
   font-weight: 700;
+}
+
+.comparison-box {
   background: #f8fafc;
-  padding: 6px;
+  padding: 5px 6px;
   border-radius: 8px;
   border: 1px solid #f1f5f9;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.comparison-box .label-val {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #475569;
 }
 
 .status-tag {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 800;
-  padding: 2px 4px;
+  padding: 1px 4px;
   border-radius: 5px;
   text-align: center;
   width: 100%;
@@ -215,7 +228,7 @@ html, body {
   </a>
   <h6 class="m-0 fw-bold d-flex align-items-center gap-2" style="font-size: 0.82rem;">
     <i class="fas fa-truck-ramp-box"></i>
-    <span>مقارنة الحمولة بالطلبات</span>
+    <span>مقارنة حمولة العربية والمخزن</span>
     <span class="badge" style="background: rgba(255,255,255,0.2); font-size: 0.65rem; padding: 2px 5px;" id="totalTypesBadge">0</span>
   </h6>
   <button onclick="loadAndCalculateData()" class="nav-btn" title="تحديث البيانات">
@@ -237,7 +250,7 @@ html, body {
 <div class="summary-cards-container" id="summaryList">
   <div class="loading-state">
     <div class="spinner"></div>
-    <p style="color: #94a3b8; font-size: 0.78rem; font-weight: 700;">جاري مطابقة المعلقة...</p>
+    <p style="color: #94a3b8; font-size: 0.78rem; font-weight: 700;">جاري التحميل والمطابقة...</p>
   </div>
 </div>
 
@@ -305,15 +318,17 @@ async function loadAndCalculateData() {
   container.innerHTML = `
     <div class="loading-state">
       <div class="spinner"></div>
-      <p style="color: #94a3b8; font-size: 0.78rem; font-weight: 700;">جاري التحميل والتجميع...</p>
+      <p style="color: #94a3b8; font-size: 0.78rem; font-weight: 700;">جاري جلب بيانات العربية والمخزن...</p>
     </div>`;
 
   try {
     const targetDate = document.getElementById('selectedDate').value || defaultDateStr;
 
+    // 1. كميات التحميل للعربية
     const loadedInSession = JSON.parse(localStorage.getItem('loadedInSession_' + targetDate) || '{}');
     const cartItems = JSON.parse(localStorage.getItem('cartItems_' + targetDate) || '{}');
 
+    // 2. كميات المخزن الرئيسي
     const inventorySnap = await getDocs(collection(db, "inventory"));
     const inventoryMap = {};
     inventorySnap.forEach(docSnap => {
@@ -322,10 +337,12 @@ async function loadAndCalculateData() {
         id: docSnap.id,
         name: (data.name || '').trim(),
         capacity: Number(data.unitFactor) || 1,
-        unit: data.unit || ''
+        unit: data.unit || '',
+        stockPcs: Number(data.totalPcs || 0)
       };
     });
 
+    // 3. احتياجات الطلبات المعلقة
     const ordersSnap = await getDocs(query(collection(db, "orders"), where("status", "==", "pending")));
 
     const requiredMap = {};
@@ -364,7 +381,11 @@ async function loadAndCalculateData() {
     });
 
     groupedItems = Array.from(itemKeys).map(id => {
-      const invItem = inventoryMap[id] || { name: cartItems[id]?.name || 'صنف غير معروف', capacity: cartItems[id]?.capacity || 1 };
+      const invItem = inventoryMap[id] || { 
+        name: cartItems[id]?.name || 'صنف غير معروف', 
+        capacity: cartItems[id]?.capacity || 1,
+        stockPcs: 0
+      };
       const sess = loadedInSession[id] || { cartons: 0, loose: 0 };
       
       const loadedPcs = (parseFloat(sess.cartons || 0) * invItem.capacity) + parseInt(sess.loose || 0);
@@ -377,12 +398,14 @@ async function loadAndCalculateData() {
         capacity: invItem.capacity,
         unit: getUnitName(invItem.name),
         loadedPcs: loadedPcs,
+        stockPcs: invItem.stockPcs,
         requiredPcs: requiredPcs,
-        diffPcs: loadedPcs - requiredPcs
+        carDiffPcs: loadedPcs - requiredPcs,
+        stockDiffPcs: invItem.stockPcs - requiredPcs
       };
     });
 
-    groupedItems.sort((a, b) => a.diffPcs - b.diffPcs);
+    groupedItems.sort((a, b) => a.carDiffPcs - b.carDiffPcs);
 
     document.getElementById('totalTypesBadge').innerText = groupedItems.length;
     renderSummary();
@@ -409,19 +432,30 @@ function renderSummary() {
 
   let html = '';
   filtered.forEach(item => {
-    const diff = item.diffPcs;
-    let statusTag = '';
-
-    const loadedText = formatQuantityDetailed(item.loadedPcs, item.capacity, item.unit);
     const requiredText = formatQuantityDetailed(item.requiredPcs, item.capacity, item.unit);
-    const diffText = formatQuantityDetailed(Math.abs(diff), item.capacity, item.unit);
-
-    if (diff > 0) {
-      statusTag = `<span class="status-tag surplus"><i class="fas fa-plus-circle"></i> فائض: ${diffText}</span>`;
-    } else if (diff < 0) {
-      statusTag = `<span class="status-tag deficit"><i class="fas fa-minus-circle"></i> عجز: ${diffText}</span>`;
+    
+    // حساب الفائض/العجز بالعربية
+    const loadedText = formatQuantityDetailed(item.loadedPcs, item.capacity, item.unit);
+    const carDiffText = formatQuantityDetailed(Math.abs(item.carDiffPcs), item.capacity, item.unit);
+    let carStatusTag = '';
+    if (item.carDiffPcs > 0) {
+      carStatusTag = `<span class="status-tag surplus"><i class="fas fa-plus-circle"></i> فائض بالعربية: ${carDiffText}</span>`;
+    } else if (item.carDiffPcs < 0) {
+      carStatusTag = `<span class="status-tag deficit"><i class="fas fa-minus-circle"></i> عجز بالعربية: ${carDiffText}</span>`;
     } else {
-      statusTag = `<span class="status-tag exact"><i class="fas fa-check"></i> مطابقة تماماً</span>`;
+      carStatusTag = `<span class="status-tag exact"><i class="fas fa-check"></i> مطابقة بالعربية</span>`;
+    }
+
+    // حساب الفائض/العجز بالمخزن
+    const stockText = formatQuantityDetailed(item.stockPcs, item.capacity, item.unit);
+    const stockDiffText = formatQuantityDetailed(Math.abs(item.stockDiffPcs), item.capacity, item.unit);
+    let stockStatusTag = '';
+    if (item.stockDiffPcs > 0) {
+      stockStatusTag = `<span class="status-tag surplus"><i class="fas fa-plus-circle"></i> فائض بالمخزن: ${stockDiffText}</span>`;
+    } else if (item.stockDiffPcs < 0) {
+      stockStatusTag = `<span class="status-tag deficit"><i class="fas fa-minus-circle"></i> عجز بالمخزن: ${stockDiffText}</span>`;
+    } else {
+      stockStatusTag = `<span class="status-tag exact"><i class="fas fa-check"></i> مطابقة بالمخزن</span>`;
     }
 
     html += `
@@ -435,9 +469,25 @@ function renderSummary() {
             مطلوب: ${requiredText}
           </div>
         </div>
-        <div class="stock-comparison-row">
-          <span>المحمل: <b>${loadedText}</b></span>
-          ${statusTag}
+        
+        <div class="stock-comparison-block">
+          <!-- مربع العربية -->
+          <div class="comparison-box">
+            <div class="label-val">
+              <span>🚚 المحمل:</span>
+              <b>${loadedText}</b>
+            </div>
+            ${carStatusTag}
+          </div>
+
+          <!-- مربع المخزن -->
+          <div class="comparison-box">
+            <div class="label-val">
+              <span>🏭 المخزن:</span>
+              <b>${stockText}</b>
+            </div>
+            ${stockStatusTag}
+          </div>
         </div>
       </div>
     `;
