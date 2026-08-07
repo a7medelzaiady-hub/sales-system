@@ -659,11 +659,11 @@
 
         const safeName = (item.name || 'بدون اسم').replace(/'/g, "\\'");
         
-        // جلب رصيد أول المدة المسجل على الصنف إن وجد
-        const initQty = item.initQty !== undefined ? Number(item.initQty) : (item.initialQty !== undefined ? Number(item.initialQty) : 0);
+        // جلب رصيد أول المدة بالقطع المسجل بدقة من الإكسيل
+        const initPcs = item.initQty !== undefined ? Number(item.initQty) : (item.initialQty !== undefined ? Number(item.initialQty) : 0);
 
         return `
-        <div class="item-card${status==='zero' ? ' zero-row' : status==='low' ? ' low-row' : ''}" onclick="showItemHistory('${item.id}', '${safeName}', false, ${totalPcs}, ${initQty})">
+        <div class="item-card${status==='zero' ? ' zero-row' : status==='low' ? ' low-row' : ''}" onclick="showItemHistory('${item.id}', '${safeName}', false, ${totalPcs}, ${initPcs})">
             <span class="status-dot ${status}"></span>
             <div class="card-top">
                 <div class="row-info">
@@ -752,9 +752,10 @@
             const rawUnit = (currentItemObj.unitName || '').trim();
             const unit = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
 
-            // محاولة جلب رصيد أول المدة مباشرة من الكائن
-            if (!initialStock) {
-                initialStock = currentItemObj.initQty !== undefined ? Number(currentItemObj.initQty) : (currentItemObj.initialQty !== undefined ? Number(currentItemObj.initialQty) : 0);
+            // قراءة رصيد أول المدة المباشر من الصنف المخزن
+            let initVal = initialStock;
+            if (!initVal) {
+                initVal = currentItemObj.initQty !== undefined ? Number(currentItemObj.initQty) : (currentItemObj.initialQty !== undefined ? Number(currentItemObj.initialQty) : 0);
             }
 
             const cleanText = (txt) => String(txt || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -892,7 +893,7 @@
                 return parseDate(b) - parseDate(a); 
             });
 
-            const initialStockTxt = formatQuantityDetailed(initialStock, capacity, unit);
+            const initialStockTxt = formatQuantityDetailed(initVal, capacity, unit);
             const totalPurchasesTxt = formatQuantityDetailed(totalPurchasesPcs, capacity, unit);
             const totalSalesTxt = formatQuantityDetailed(totalSalesPcs, capacity, unit);
             const totalReturnsTxt = formatQuantityDetailed(totalReturnsPcs + totalLossesPcs, capacity, unit);
