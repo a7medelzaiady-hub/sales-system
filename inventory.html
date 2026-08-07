@@ -756,6 +756,20 @@
             const targetId = cleanText(itemId);
             const targetName = cleanText(itemName);
 
+            // دالة استخراج أسماء الكيانات (مورد / عميل) بجميع الاحتمالات
+            const extractEntityNames = (obj) => {
+                let supp = obj.supplierName || obj.supplier || obj.supplier_name || obj.supplierTitle || obj.mowared || '';
+                let cli = obj.clientName || obj.customerName || obj.customer || obj.client_name || obj.client || obj.customer_name || '';
+
+                // فحص الحقول المفردة مثل name إذا لم يجد اسم صريح
+                if (!supp && !cli) {
+                    if (obj.name && typeof obj.name === 'string' && !cleanText(obj.name).includes(targetName)) {
+                        supp = obj.name;
+                    }
+                }
+                return { supp, cli };
+            };
+
             const inspectObj = (obj) => {
                 let match = false;
                 let extractedQty = 0;
@@ -791,9 +805,7 @@
             let foundTransactions = [];
 
             const processDoc = (id, d, colName) => {
-                // جلب اسم المورد والعميل بجميع المفاتيح المحتملة من المستند الرئيسي
-                const docSupplierName = d.supplierName || d.supplier || d.supplier_name || d.name || d.supplierTitle || '';
-                const docClientName = d.clientName || d.customerName || d.customer || d.client_name || d.client || '';
+                const parentNames = extractEntityNames(d);
 
                 const topResult = inspectObj(d);
                 if (topResult.match && topResult.qty > 0) {
@@ -802,8 +814,8 @@
                         finalCalculatedQty: topResult.qty, 
                         isItemReturn: topResult.isReturn, 
                         detectedSource: colName,
-                        parentSupplierName: docSupplierName,
-                        parentClientName: docClientName
+                        parentSupplierName: parentNames.supp,
+                        parentClientName: parentNames.cli
                     });
                 }
 
@@ -813,13 +825,14 @@
                             if (subItem && typeof subItem === 'object') {
                                 const subResult = inspectObj(subItem);
                                 if (subResult.match && subResult.qty > 0) {
+                                    const subNames = extractEntityNames(subItem);
                                     foundTransactions.push({ 
                                         id, ...d, 
                                         finalCalculatedQty: subResult.qty, 
                                         isItemReturn: subResult.isReturn, 
                                         detectedSource: colName,
-                                        parentSupplierName: docSupplierName || subItem.supplierName || subItem.supplier || '',
-                                        parentClientName: docClientName || subItem.clientName || subItem.customerName || ''
+                                        parentSupplierName: parentNames.supp || subNames.supp,
+                                        parentClientName: parentNames.cli || subNames.cli
                                     });
                                 }
                             }
@@ -827,13 +840,14 @@
                     } else if (d[key] && typeof d[key] === 'object') {
                         const subResult = inspectObj(d[key]);
                         if (subResult.match && subResult.qty > 0) {
+                            const subNames = extractEntityNames(d[key]);
                             foundTransactions.push({ 
                                 id, ...d, 
                                 finalCalculatedQty: subResult.qty, 
                                 isItemReturn: subResult.isReturn, 
                                 detectedSource: colName,
-                                parentSupplierName: docSupplierName || d[key].supplierName || d[key].supplier || '',
-                                parentClientName: docClientName || d[key].clientName || d[key].customerName || ''
+                                parentSupplierName: parentNames.supp || subNames.supp,
+                                parentClientName: parentNames.cli || subNames.cli
                             });
                         }
                     }
@@ -882,7 +896,6 @@
             } else if (currentItemObj.initialQty !== undefined && currentItemObj.initialQty !== null) {
                 initialStockPcs = Number(currentItemObj.initialQty);
             } else {
-                // المعادلة العكسية الدقيقة لرصيد أول المدة إذا لم يكن مسجلاً
                 initialStockPcs = currentStockPcs + totalSalesPcs + totalLossesPcs - totalPurchasesPcs - totalReturnsPcs;
             }
 
@@ -983,10 +996,10 @@
                     dateStr = d.toLocaleDateString('ar-EG', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
                 }
 
-                // اختيار اسم الكيان بدقة عالية
+                // اختيار اسم المورد أو العميل
                 let entityName = '';
                 if (isPurchase) {
-                    entityName = tx.parentSupplierName || tx.supplierName || tx.supplier || tx.supplier_name || tx.supplierTitle || 'مورد غير محدد';
+                    entityName = tx.parentSupplierName || tx.supplierName || tx.supplier || tx.supplier_name || tx.supplierTitle || tx.mowared || 'مورد غير محدد';
                 } else {
                     entityName = tx.parentClientName || tx.clientName || tx.customerName || tx.customer || tx.client_name || tx.client || 'عميل غير محدد';
                 }
