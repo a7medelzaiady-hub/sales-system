@@ -337,7 +337,7 @@
             display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0;
         }
         .mini-info { display: flex; flex-direction: column; text-align: right; }
-        .mini-val { font-size: 13px; font-weight: 800; line-height: 1.25; }
+        .mini-val { font-size: 12.5px; font-weight: 800; line-height: 1.25; }
         .mini-lbl { font-size: 10.5px; color: var(--sub); font-weight: 700; margin-top: 2px; }
         
         .mc-init i { background: rgba(100, 116, 139, 0.08); color: var(--sub); }
@@ -359,7 +359,7 @@
             justify-content: center;
             padding: 10px;
         }
-        .mc-current .mini-val { color: var(--accent); font-size: 16px; font-weight: 900; }
+        .mc-current .mini-val { color: var(--accent); font-size: 15px; font-weight: 900; }
         .mc-current .mini-lbl { color: var(--accent); font-weight: 800; }
 
         .section-title {
@@ -384,9 +384,10 @@
         .tx-type.return { background: var(--gold); }
         .tx-type.loss { background: var(--danger); }
         .tx-details { flex: 1; text-align: right; min-width: 0; }
-        .tx-title { font-size: 13px; font-weight: 700; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tx-title { font-size: 13px; font-weight: 800; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tx-note { font-size: 10.5px; color: var(--sub); font-weight: 600; margin-top: 1px; }
         .tx-date { font-size: 10px; color: #94a3b8; font-weight: 600; margin-top: 2px; }
-        .tx-amount { font-size: 13px; font-weight: 900; text-align: left; direction: ltr; }
+        .tx-amount { font-size: 12.5px; font-weight: 900; text-align: left; direction: ltr; }
         .tx-amount.plus { color: #0284c7; }
         .tx-amount.minus { color: var(--danger); }
 
@@ -410,7 +411,7 @@
             .stat-num { font-size: 24px; }
             .row-info { padding-right: 8px; }
             .item-card { padding: 10px; gap: 8px; }
-            .mini-val { font-size: 12px; }
+            .mini-val { font-size: 11.5px; }
             .mini-lbl { font-size: 10px; }
         }
     </style>
@@ -923,10 +924,11 @@
                 let amtClass = 'minus';
 
                 const rawType = cleanText(tx.type || tx.status || tx.actionType || tx.detectedSource || '');
+                const isPurchase = rawType.includes('supplier_transactions') || rawType.includes('شراء') || rawType.includes('purchase') || rawType.includes('وارد') || rawType.includes('تزويد') || rawType.includes('مورد');
                 
                 if (tx.isItemReturn) {
                     typeClass = 'return'; typeText = 'مرتجع'; sign = '+'; amtClass = 'plus';
-                } else if (rawType.includes('supplier_transactions') || rawType.includes('شراء') || rawType.includes('purchase') || rawType.includes('وارد') || rawType.includes('تزويد') || rawType.includes('مورد')) {
+                } else if (isPurchase) {
                     typeClass = 'purchase'; typeText = 'شراء'; sign = '+'; amtClass = 'plus';
                 } else if (rawType.includes('return') || rawType.includes('مرتجع') || rawType.includes('ارتجاع')) {
                     typeClass = 'return'; typeText = 'مرتجع'; sign = '+'; amtClass = 'plus';
@@ -941,14 +943,32 @@
                     dateStr = d.toLocaleDateString('ar-EG', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
                 }
 
-                let description = tx.supplierName || tx.notes || tx.clientName || tx.customerName || tx.customer || tx.userName || 'معاملة مسجلة بالنظام';
+                // استخراج الاسم الحقيقي بدقة بدون الخلط مع الملاحظات
+                let entityName = '';
+                if (isPurchase) {
+                    entityName = tx.supplierName || tx.supplier || '';
+                } else {
+                    entityName = tx.clientName || tx.customerName || tx.customer || '';
+                }
+
+                if (!entityName) {
+                    entityName = isPurchase ? 'مورد غير محدد' : 'عميل غير محدد';
+                }
+
+                // إضافة الملاحظات كسطر فرعي إذا كانت عملية تعديل أو تحتوي ملاحظات خاصة
+                let subNoteHtml = '';
+                if (tx.notes && tx.notes !== entityName) {
+                    subNoteHtml = `<div class="tx-note">${tx.notes}</div>`;
+                }
+
                 const txQtyFormatted = formatQuantityDetailed(tx.finalCalculatedQty, capacity, unit);
 
                 html += `
                 <div class="tx-item">
                     <span class="tx-type ${typeClass}">${typeText}</span>
                     <div class="tx-details">
-                        <div class="tx-title">${description}</div>
+                        <div class="tx-title">${entityName}</div>
+                        ${subNoteHtml}
                         <div class="tx-date"><i class="far fa-clock" style="margin-left:3px;"></i>${dateStr}</div>
                     </div>
                     <div class="tx-amount ${amtClass}">${sign}${txQtyFormatted}</div>
