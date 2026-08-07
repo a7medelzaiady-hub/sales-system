@@ -882,7 +882,6 @@
     function getMinPriceForUnit(product, selectedUnit) {
         if (!product) return null;
         
-        // جلب سعر الشراء أو التكلفة المسجل في بطاقة الصنف
         const buyBox = Number(product.buy !== undefined ? product.buy : product.cost);
         const factor = Number(product.unitFactor) || 1;
         
@@ -1316,15 +1315,10 @@
             if (pid && warnDiv && priceInput) {
                 const product = inventory.find(i => i.id === pid);
                 const minAllowed = getMinPriceForUnit(product, unit);
-                const buyPrice = getBuyPriceForUnit(product, unit);
 
-                if (!isReturn && price > 0 && buyPrice > 0 && price < buyPrice) {
+                if (!isReturn && minAllowed !== null && price > 0 && price < minAllowed) {
                     warnDiv.style.display = 'block';
-                    warnDiv.innerText = `⚠ أدنى سعر شراء: (${formatNumClean(buyPrice)})`;
-                    priceInput.style.borderColor = 'var(--danger)';
-                } else if (!isReturn && minAllowed !== null && price > 0 && price < minAllowed) {
-                    warnDiv.style.display = 'block';
-                    warnDiv.innerText = `⚠ أدنى: (${formatNumClean(minAllowed)})`;
+                    warnDiv.innerText = `⚠ أدنى سعر بيع مسموح بها`;
                     priceInput.style.borderColor = 'var(--danger)';
                 } else {
                     warnDiv.style.display = 'none';
@@ -1384,14 +1378,6 @@
                 const unit = r.querySelector('.p-unit')?.value;
                 const product = inventory.find(i => i.id === pid);
                 
-                // التأكد أولاً من شرط منع البيع بأقل من سعر الشراء والتكلفة
-                const buyPrice = getBuyPriceForUnit(product, unit);
-                if (buyPrice > 0 && price < buyPrice) {
-                    r.classList.add('has-validation-error');
-                    r.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    return `لا يمكن البيع بهذا السعر`;
-                }
-
                 const minAllowed = getMinPriceForUnit(product, unit);
                 if (minAllowed !== null && price < minAllowed) {
                     r.classList.add('has-validation-error');
