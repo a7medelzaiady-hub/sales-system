@@ -326,18 +326,18 @@
             background: #ffffff;
             border: 1px solid var(--border);
             border-radius: 14px;
-            padding: 12px;
+            padding: 10px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.01);
         }
         .mini-card i {
-            width: 34px; height: 34px; border-radius: 10px;
-            display: flex; align-items: center; justify-content: center; font-size: 14px;
+            width: 32px; height: 32px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0;
         }
         .mini-info { display: flex; flex-direction: column; text-align: right; }
-        .mini-val { font-size: 18px; font-weight: 800; line-height: 1.2; }
+        .mini-val { font-size: 13px; font-weight: 800; line-height: 1.25; }
         .mini-lbl { font-size: 10.5px; color: var(--sub); font-weight: 700; margin-top: 2px; }
         
         .mc-init i { background: rgba(100, 116, 139, 0.08); color: var(--sub); }
@@ -359,7 +359,7 @@
             justify-content: center;
             padding: 10px;
         }
-        .mc-current .mini-val { color: var(--accent); font-size: 20px; font-weight: 900; }
+        .mc-current .mini-val { color: var(--accent); font-size: 16px; font-weight: 900; }
         .mc-current .mini-lbl { color: var(--accent); font-weight: 800; }
 
         .section-title {
@@ -386,7 +386,7 @@
         .tx-details { flex: 1; text-align: right; min-width: 0; }
         .tx-title { font-size: 13px; font-weight: 700; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .tx-date { font-size: 10px; color: #94a3b8; font-weight: 600; margin-top: 2px; }
-        .tx-amount { font-size: 16px; font-weight: 900; text-align: left; direction: ltr; }
+        .tx-amount { font-size: 13px; font-weight: 900; text-align: left; direction: ltr; }
         .tx-amount.plus { color: #0284c7; }
         .tx-amount.minus { color: var(--danger); }
 
@@ -410,7 +410,7 @@
             .stat-num { font-size: 24px; }
             .row-info { padding-right: 8px; }
             .item-card { padding: 10px; gap: 8px; }
-            .mini-val { font-size: 16px; }
+            .mini-val { font-size: 12px; }
             .mini-lbl { font-size: 10px; }
         }
     </style>
@@ -530,6 +530,43 @@
             `<div class="err-box"><i class="fas fa-wifi"></i>خطأ في جلب البيانات<br><small style="opacity:.75">${err.message}</small></div>`;
     });
 
+    function normalizeAr(s) {
+        return String(s || '').trim()
+            .replace(/[\u064B-\u0652]/g, '')
+            .replace(/[إأآا]/g, 'ا')
+            .replace(/ى/g, 'ي')
+            .replace(/ة/g, 'ه');
+    }
+
+    function formatQuantityDetailed(totalPcs, capacity, unit) {
+        totalPcs = parseInt(totalPcs) || 0;
+        capacity = parseInt(capacity) || 1;
+        unit = unit || 'قطعة';
+        
+        if (totalPcs === 0) return `0 ${unit}`;
+        
+        const isNegative = totalPcs < 0;
+        const absPcs = Math.abs(totalPcs);
+        
+        let result = '';
+        if (capacity <= 1) { 
+            result = `${absPcs} ${unit}`; 
+        } else {
+            const cartons = Math.floor(absPcs / capacity);
+            const loose = absPcs % capacity;
+            
+            if (cartons > 0 && loose > 0) { 
+                result = `${cartons}ك و ${loose}${unit}`; 
+            } else if (cartons > 0) { 
+                result = `${cartons} كرتونة`; 
+            } else { 
+                result = `${loose} ${unit}`; 
+            }
+        }
+        
+        return isNegative ? `-${result}` : result;
+    }
+
     function updateStats() {
         let ok = 0, low = 0, zero = 0;
         allItems.forEach(item => {
@@ -606,12 +643,6 @@
         if (totalPcs <= 0)          status = 'zero';
         else if (totalPcs <= minPcs) status = 'low';
 
-        const normalizeAr = (s) => String(s || '').trim()
-            .replace(/[\u064B-\u0652]/g, '')
-            .replace(/[إأآا]/g, 'ا')
-            .replace(/ى/g, 'ي')
-            .replace(/ة/g, 'ه');
-
         const rawUnit = (item.unitName || '').trim();
         const unitName = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
 
@@ -662,7 +693,6 @@
             return rawDocsCache; 
         }
 
-        // إضافة supplier_transactions لجلب فواتير الشراء الحقيقية
         const targetCollections = ["orders", "transactions", "purchase_orders", "supplier_transactions", "sales", "invoice", "invoices"];
         const docs = [];
 
@@ -712,6 +742,11 @@
         modal.style.display = 'flex';
 
         try {
+            const currentItemObj = allItems.find(i => i.id === itemId) || {};
+            const capacity = Number(currentItemObj.unitFactor) || 1;
+            const rawUnit = (currentItemObj.unitName || '').trim();
+            const unit = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
+
             const cleanText = (txt) => String(txt || '').trim().toLowerCase().replace(/\s+/g, ' ');
             const targetId = cleanText(itemId);
             const targetName = cleanText(itemName);
@@ -731,7 +766,6 @@
                 }
 
                 if (match) {
-                    // حساب الكمية بالقطع بناءً على المعطيات المعيارية للفاتورة
                     if (typeof obj.totalPieces === 'number' && obj.totalPieces > 0) {
                         extractedQty = obj.totalPieces;
                     } else {
@@ -789,25 +823,25 @@
                 }
             });
 
-            let totalPurchases = 0;
-            let totalSales = 0;
-            let totalReturns = 0;
-            let totalLosses = 0;
+            let totalPurchasesPcs = 0;
+            let totalSalesPcs = 0;
+            let totalReturnsPcs = 0;
+            let totalLossesPcs = 0;
 
             uniqueTransactions.forEach(tx => {
                 const rawType = cleanText(tx.type || tx.status || tx.actionType || tx.detectedSource || '');
                 const qty = Number(tx.finalCalculatedQty) || 0;
                 
                 if (tx.isItemReturn) {
-                    totalReturns += qty;
+                    totalReturnsPcs += qty;
                 } else if (rawType.includes('supplier_transactions') || rawType.includes('شراء') || rawType.includes('purchase') || rawType.includes('وارد') || rawType.includes('تزويد') || rawType.includes('مورد')) {
-                    totalPurchases += qty;
+                    totalPurchasesPcs += qty;
                 } else if (rawType.includes('return') || rawType.includes('مرتجع') || rawType.includes('ارتجاع')) {
-                    totalReturns += qty;
+                    totalReturnsPcs += qty;
                 } else if (rawType.includes('loss') || rawType.includes('تالف') || rawType.includes('اتلاف')) {
-                    totalLosses += qty;
+                    totalLossesPcs += qty;
                 } else {
-                    totalSales += qty;
+                    totalSalesPcs += qty;
                 }
             });
 
@@ -824,39 +858,45 @@
                 return parseDate(b) - parseDate(a); 
             });
 
+            const initialStockTxt = formatQuantityDetailed(initialStock, capacity, unit);
+            const totalPurchasesTxt = formatQuantityDetailed(totalPurchasesPcs, capacity, unit);
+            const totalSalesTxt = formatQuantityDetailed(totalSalesPcs, capacity, unit);
+            const totalReturnsTxt = formatQuantityDetailed(totalReturnsPcs + totalLossesPcs, capacity, unit);
+            const currentStockTxt = formatQuantityDetailed(currentStock, capacity, unit);
+
             let html = `
             <div class="modal-dashboard">
                 <div class="mini-card mc-init">
                     <i class="fas fa-hourglass-start"></i>
                     <div class="mini-info">
-                        <span class="mini-val">${initialStock.toLocaleString()}</span>
+                        <span class="mini-val">${initialStockTxt}</span>
                         <span class="mini-lbl">رصيد أول المدة</span>
                     </div>
                 </div>
                 <div class="mini-card mc-buy">
                     <i class="fas fa-circle-arrow-down"></i>
                     <div class="mini-info">
-                        <span class="mini-val">+${totalPurchases.toLocaleString()}</span>
+                        <span class="mini-val">+${totalPurchasesTxt}</span>
                         <span class="mini-lbl">إجمالي المشتريات</span>
                     </div>
                 </div>
                 <div class="mini-card mc-sell">
                     <i class="fas fa-circle-arrow-up"></i>
                     <div class="mini-info">
-                        <span class="mini-val">-${totalSales.toLocaleString()}</span>
+                        <span class="mini-val">-${totalSalesTxt}</span>
                         <span class="mini-lbl">إجمالي المبيعات</span>
                     </div>
                 </div>
                 <div class="mini-card mc-ret">
                     <i class="fas fa-rotate-left"></i>
                     <div class="mini-info">
-                        <span class="mini-val">+${totalReturns.toLocaleString()}</span>
+                        <span class="mini-val">+${totalReturnsTxt}</span>
                         <span class="mini-lbl">المرتجعات والتالف</span>
                     </div>
                 </div>
                 <div class="mini-card mc-current">
                     <div class="mini-info" style="text-align: center;">
-                        <span class="mini-val">${currentStock.toLocaleString()} قطعة</span>
+                        <span class="mini-val">${currentStockTxt}</span>
                         <span class="mini-lbl"><i class="fas fa-calculator" style="margin-left: 4px;"></i>الرصيد الحالي المتوفر بالمخزن</span>
                     </div>
                 </div>
@@ -902,6 +942,7 @@
                 }
 
                 let description = tx.supplierName || tx.notes || tx.clientName || tx.customerName || tx.customer || tx.userName || 'معاملة مسجلة بالنظام';
+                const txQtyFormatted = formatQuantityDetailed(tx.finalCalculatedQty, capacity, unit);
 
                 html += `
                 <div class="tx-item">
@@ -910,7 +951,7 @@
                         <div class="tx-title">${description}</div>
                         <div class="tx-date"><i class="far fa-clock" style="margin-left:3px;"></i>${dateStr}</div>
                     </div>
-                    <div class="tx-amount ${amtClass}">${sign}${tx.finalCalculatedQty}</div>
+                    <div class="tx-amount ${amtClass}">${sign}${txQtyFormatted}</div>
                 </div>`;
             });
             html += '</div>';
@@ -945,12 +986,6 @@
             const rawFactor = item.unitFactor;
             const hasCartons = rawFactor !== undefined && rawFactor !== null && Number(rawFactor) > 1;
             const factor = hasCartons ? Number(rawFactor) : 1;
-
-            const normalizeAr = (s) => String(s || '').trim()
-                .replace(/[\u064B-\u0652]/g, '')
-                .replace(/[إأآا]/g, 'ا')
-                .replace(/ى/g, 'ي')
-                .replace(/ة/g, 'ه');
 
             const rawUnit = (item.unitName || '').trim();
             const unitName = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
