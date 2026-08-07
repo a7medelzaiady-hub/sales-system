@@ -787,9 +787,19 @@
             let foundTransactions = [];
 
             const processDoc = (id, d, colName) => {
+                const docSupplierName = d.supplierName || d.supplier || '';
+                const docClientName = d.clientName || d.customerName || d.customer || '';
+
                 const topResult = inspectObj(d);
                 if (topResult.match && topResult.qty > 0) {
-                    foundTransactions.push({ id, ...d, finalCalculatedQty: topResult.qty, isItemReturn: topResult.isReturn, detectedSource: colName });
+                    foundTransactions.push({ 
+                        id, ...d, 
+                        finalCalculatedQty: topResult.qty, 
+                        isItemReturn: topResult.isReturn, 
+                        detectedSource: colName,
+                        parentSupplierName: docSupplierName,
+                        parentClientName: docClientName
+                    });
                 }
 
                 for (let key in d) {
@@ -798,14 +808,28 @@
                             if (subItem && typeof subItem === 'object') {
                                 const subResult = inspectObj(subItem);
                                 if (subResult.match && subResult.qty > 0) {
-                                    foundTransactions.push({ id, ...d, finalCalculatedQty: subResult.qty, isItemReturn: subResult.isReturn, detectedSource: colName });
+                                    foundTransactions.push({ 
+                                        id, ...d, 
+                                        finalCalculatedQty: subResult.qty, 
+                                        isItemReturn: subResult.isReturn, 
+                                        detectedSource: colName,
+                                        parentSupplierName: docSupplierName,
+                                        parentClientName: docClientName
+                                    });
                                 }
                             }
                         });
                     } else if (d[key] && typeof d[key] === 'object') {
                         const subResult = inspectObj(d[key]);
                         if (subResult.match && subResult.qty > 0) {
-                            foundTransactions.push({ id, ...d, finalCalculatedQty: subResult.qty, isItemReturn: subResult.isReturn, detectedSource: colName });
+                            foundTransactions.push({ 
+                                id, ...d, 
+                                finalCalculatedQty: subResult.qty, 
+                                isItemReturn: subResult.isReturn, 
+                                detectedSource: colName,
+                                parentSupplierName: docSupplierName,
+                                parentClientName: docClientName
+                            });
                         }
                     }
                 }
@@ -943,19 +967,13 @@
                     dateStr = d.toLocaleDateString('ar-EG', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
                 }
 
-                // استخراج الاسم الحقيقي بدقة بدون الخلط مع الملاحظات
                 let entityName = '';
                 if (isPurchase) {
-                    entityName = tx.supplierName || tx.supplier || '';
+                    entityName = tx.parentSupplierName || tx.supplierName || tx.supplier || 'مورد غير محدد';
                 } else {
-                    entityName = tx.clientName || tx.customerName || tx.customer || '';
+                    entityName = tx.parentClientName || tx.clientName || tx.customerName || tx.customer || 'عميل غير محدد';
                 }
 
-                if (!entityName) {
-                    entityName = isPurchase ? 'مورد غير محدد' : 'عميل غير محدد';
-                }
-
-                // إضافة الملاحظات كسطر فرعي إذا كانت عملية تعديل أو تحتوي ملاحظات خاصة
                 let subNoteHtml = '';
                 if (tx.notes && tx.notes !== entityName) {
                     subNoteHtml = `<div class="tx-note">${tx.notes}</div>`;
