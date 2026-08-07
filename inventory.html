@@ -544,7 +544,9 @@
         capacity = parseInt(capacity) || 1;
         unit = unit || 'قطعة';
         
-        if (totalPcs === 0) return `0 ${unit}`;
+        if (totalPcs === 0) {
+            return capacity > 1 ? `0 كرتونة و 0 ${unit}` : `0 ${unit}`;
+        }
         
         const isNegative = totalPcs < 0;
         const absPcs = Math.abs(totalPcs);
@@ -656,7 +658,9 @@
             : `<span class="price-tag no-price"><i class="fas fa-tag"></i>السعر غير محدد</span>`;
 
         const safeName = (item.name || 'بدون اسم').replace(/'/g, "\\'");
-        const initQty = item.initQty || 0;
+        
+        // جلب رصيد أول المدة المسجل على الصنف إن وجد
+        const initQty = item.initQty !== undefined ? Number(item.initQty) : (item.initialQty !== undefined ? Number(item.initialQty) : 0);
 
         return `
         <div class="item-card${status==='zero' ? ' zero-row' : status==='low' ? ' low-row' : ''}" onclick="showItemHistory('${item.id}', '${safeName}', false, ${totalPcs}, ${initQty})">
@@ -748,6 +752,11 @@
             const rawUnit = (currentItemObj.unitName || '').trim();
             const unit = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
 
+            // محاولة جلب رصيد أول المدة مباشرة من الكائن
+            if (!initialStock) {
+                initialStock = currentItemObj.initQty !== undefined ? Number(currentItemObj.initQty) : (currentItemObj.initialQty !== undefined ? Number(currentItemObj.initialQty) : 0);
+            }
+
             const cleanText = (txt) => String(txt || '').trim().toLowerCase().replace(/\s+/g, ' ');
             const targetId = cleanText(itemId);
             const targetName = cleanText(itemName);
@@ -787,8 +796,8 @@
             let foundTransactions = [];
 
             const processDoc = (id, d, colName) => {
-                const docSupplierName = d.supplierName || d.supplier || '';
-                const docClientName = d.clientName || d.customerName || d.customer || '';
+                const docSupplierName = d.supplierName || d.supplier || d.supplier_name || '';
+                const docClientName = d.clientName || d.customerName || d.customer || d.client_name || '';
 
                 const topResult = inspectObj(d);
                 if (topResult.match && topResult.qty > 0) {
@@ -969,9 +978,9 @@
 
                 let entityName = '';
                 if (isPurchase) {
-                    entityName = tx.parentSupplierName || tx.supplierName || tx.supplier || 'مورد غير محدد';
+                    entityName = tx.parentSupplierName || tx.supplierName || tx.supplier || tx.supplier_name || 'مورد غير محدد';
                 } else {
-                    entityName = tx.parentClientName || tx.clientName || tx.customerName || tx.customer || 'عميل غير محدد';
+                    entityName = tx.parentClientName || tx.clientName || tx.customerName || tx.customer || tx.client_name || 'عميل غير محدد';
                 }
 
                 let subNoteHtml = '';
