@@ -279,19 +279,34 @@ html, body {
   margin-bottom: 8px;
   background: #f8fafc;
 }
+.client-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.client-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 .client-name {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   font-weight: 800;
   color: var(--text-primary);
 }
-.client-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.date-badge-inline {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-weight: 800;
+  font-size: 0.68rem;
+  padding: 1px 7px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+}
+.client-order-num {
   font-size: 0.68rem;
   color: #64748b;
   font-weight: 600;
-  margin-top: 2px;
 }
 .client-qty-badge {
   background: #e0f2fe;
@@ -428,8 +443,8 @@ function formatQuantityDetailed(totalPcs, capacity, unit) {
   return isNegative ? `-${result}` : result;
 }
 
-// دالة تحويل التاريخ إلى صيغة مختصرة (اليوم، أمس، منذ يومين...)
-function formatOrderDateRelative(dateVal) {
+// دالة التاريخ النسبية بدون وقت
+function formatOrderDateRelativeOnly(dateVal) {
   if (!dateVal) return '';
   try {
     let d;
@@ -447,23 +462,13 @@ function formatOrderDateRelative(dateVal) {
     const diffTime = todayStart.getTime() - targetStart.getTime();
     const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
 
-    let dayText = '';
-    if (diffDays === 0) {
-      dayText = 'اليوم';
-    } else if (diffDays === 1) {
-      dayText = 'أمس';
-    } else if (diffDays === 2) {
-      dayText = 'منذ يومين';
-    } else if (diffDays > 2 && diffDays <= 10) {
-      dayText = `منذ ${diffDays} أيام`;
-    } else if (diffDays > 10) {
-      dayText = `منذ ${diffDays} يوم`;
-    } else if (diffDays < 0) {
-      dayText = 'غداً';
-    }
-
-    const timeText = d.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
-    return `${dayText} ${timeText}`;
+    if (diffDays === 0) return 'اليوم';
+    if (diffDays === 1) return 'أمس';
+    if (diffDays === 2) return 'منذ يومين';
+    if (diffDays > 2 && diffDays <= 10) return `منذ ${diffDays} أيام`;
+    if (diffDays > 10) return `منذ ${diffDays} يوم`;
+    if (diffDays < 0) return 'غداً';
+    return '';
   } catch(e) {
     return String(dateVal);
   }
@@ -506,7 +511,7 @@ async function loadAndCalculateData() {
       nameToInventoryMap[cleanedKey] = itemObj;
     });
 
-    // 3. احتساب تفاصيل العملاء والكميات والتاريخ المترجم نسبياً
+    // 3. احتساب تفاصيل العملاء والتاريخ المترجم بدون وقت
     const ordersSnap = await getDocs(query(collection(db, "orders"), where("status", "==", "pending")));
 
     const requiredMap = {};
@@ -514,7 +519,7 @@ async function loadAndCalculateData() {
       const order = docSnap.data();
       const clientName = order.clientName || order.customerName || 'عميل غير محدد';
       const orderNum = order.orderNo || order.id || '';
-      const orderDateRelative = formatOrderDateRelative(order.createdAt || order.date);
+      const orderDateRelative = formatOrderDateRelativeOnly(order.createdAt || order.date);
 
       if (order.items && Array.isArray(order.items)) {
         order.items.forEach(item => {
@@ -686,12 +691,12 @@ window.openClientModal = function(itemId) {
       const qtyTxt = formatQuantityDetailed(c.pcs, item.capacity, item.unit);
       clientsHTML += `
         <div class="client-item-row">
-          <div>
-            <div class="client-name">${c.clientName}</div>
-            <div class="client-meta">
-              ${c.orderNum ? `<span><i class="fas fa-hashtag"></i> ${c.orderNum}</span>` : ''}
-              ${c.orderDate ? `<span><i class="far fa-clock"></i> ${c.orderDate}</span>` : ''}
+          <div class="client-info">
+            <div class="client-name-wrap">
+              <span class="client-name">${c.clientName}</span>
+              ${c.orderDate ? `<span class="date-badge-inline">${c.orderDate}</span>` : ''}
             </div>
+            ${c.orderNum ? `<div class="client-order-num">رقم الطلب: #${c.orderNum}</div>` : ''}
           </div>
           <div class="client-qty-badge">${qtyTxt}</div>
         </div>
