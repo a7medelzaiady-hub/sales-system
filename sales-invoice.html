@@ -881,10 +881,33 @@
 
     function getMinPriceForUnit(product, selectedUnit) {
         if (!product) return null;
+        
+        // جلب سعر الشراء أو التكلفة المسجل في بطاقة الصنف
+        const buyBox = Number(product.buy !== undefined ? product.buy : product.cost);
+        const factor = Number(product.unitFactor) || 1;
+        
+        let minBuyPrice = null;
+        if (!isNaN(buyBox) && buyBox > 0) {
+            minBuyPrice = selectedUnit === 'box' ? buyBox : (buyBox / factor);
+        }
+
         const minBox = Number(product.minPrice);
-        if (!minBox || minBox <= 0) return null;
-        if (selectedUnit === 'box') return minBox;
-        return minBox / (Number(product.unitFactor) || 1);
+        let minAllowedPrice = null;
+        if (!isNaN(minBox) && minBox > 0) {
+            minAllowedPrice = selectedUnit === 'box' ? minBox : (minBox / factor);
+        }
+
+        if (minBuyPrice !== null && minAllowedPrice !== null) {
+            return Math.max(minBuyPrice, minAllowedPrice);
+        }
+        return minBuyPrice !== null ? minBuyPrice : minAllowedPrice;
+    }
+
+    function getBuyPriceForUnit(product, selectedUnit) {
+        if (!product) return 0;
+        const buyBox = Number(product.buy !== undefined ? product.buy : product.cost) || 0;
+        const factor = Number(product.unitFactor) || 1;
+        return selectedUnit === 'box' ? buyBox : (buyBox / factor);
     }
 
     async function fetchSmartPrice(stockId, selectedUnit) {
@@ -1293,7 +1316,13 @@
             if (pid && warnDiv && priceInput) {
                 const product = inventory.find(i => i.id === pid);
                 const minAllowed = getMinPriceForUnit(product, unit);
-                if (!isReturn && minAllowed !== null && price > 0 && price < minAllowed) {
+                const buyPrice = getBuyPriceForUnit(product, unit);
+
+                if (!isReturn && price > 0 && buyPrice > 0 && price < buyPrice) {
+                    warnDiv.style.display = 'block';
+                    warnDiv.innerText = `⚠ أدنى سعر شراء: (${formatNumClean(buyPrice)})`;
+                    priceInput.style.borderColor = 'var(--danger)';
+                } else if (!isReturn && minAllowed !== null && price > 0 && price < minAllowed) {
                     warnDiv.style.display = 'block';
                     warnDiv.innerText = `⚠ أدنى: (${formatNumClean(minAllowed)})`;
                     priceInput.style.borderColor = 'var(--danger)';
@@ -1354,11 +1383,20 @@
             if (!isReturn) {
                 const unit = r.querySelector('.p-unit')?.value;
                 const product = inventory.find(i => i.id === pid);
+                
+                // التأكد أولاً من شرط منع البيع بأقل من سعر الشراء والتكلفة
+                const buyPrice = getBuyPriceForUnit(product, unit);
+                if (buyPrice > 0 && price < buyPrice) {
+                    r.classList.add('has-validation-error');
+                    r.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    return `لا يمكن البيع بهذا السعر`;
+                }
+
                 const minAllowed = getMinPriceForUnit(product, unit);
                 if (minAllowed !== null && price < minAllowed) {
                     r.classList.add('has-validation-error');
                     r.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    return `خطأ: السعر المدخل (${formatNumClean(price)}) أقل من الحد الأدنى المسموح به لبيع الصنف "${name}" (${formatNumClean(minAllowed)} ج.م).`;
+                    return `لا يمكن البيع بهذا السعر`;
                 }
             }
         }
@@ -1665,7 +1703,6 @@
         document.getElementById('recDiscount').innerText = formatNumClean(discountVal);
         document.getElementById('recDiscountRow').style.display = discountVal > 0 ? 'flex' : 'none';
         
-        // إخفاء سطر الصافي إذا لم يكن هناك خصم لتجنب التكرار
         const netTotalRow = document.getElementById('recNetTotalRow');
         if (discountVal > 0) {
             netTotalRow.style.display = 'flex';
