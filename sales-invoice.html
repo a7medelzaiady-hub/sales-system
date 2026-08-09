@@ -629,7 +629,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where, orderBy, limit, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where, orderBy, limit, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -642,7 +642,17 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    // تفعيل التخزين الدائم (Offline Persistence) — يخزن البيانات على الجهاز
+    // ويسمح بالقراءة والكتابة حتى لو انقطع الإنترنت، مع مزامنة تلقائية عند رجوع الاتصال
+    let db;
+    try {
+        db = initializeFirestore(app, {
+            localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+        });
+    } catch (e) {
+        console.warn("تعذر تفعيل التخزين الدائم، سيتم العمل بدونه:", e);
+        db = initializeFirestore(app, {});
+    }
     let inventory = [];
     let customers = [];
     const urlParams = new URLSearchParams(window.location.search);
@@ -1773,6 +1783,18 @@
         if (el) el.innerHTML = `<i class="fas ${icon} me-1"></i> ${text}`;
     }
 
+    function updateConnectionBadge() {
+        const el = document.getElementById('dataStatusText');
+        if (!el) return;
+        if (!navigator.onLine) {
+            el.innerHTML = `<i class="fas fa-wifi-slash me-1" style="color:var(--danger);"></i> <span style="color:var(--danger);">لا يوجد اتصال بالإنترنت — يتم العمل من البيانات المخزنة على الجهاز</span>`;
+        }
+    }
+    window.addEventListener('offline', updateConnectionBadge);
+    window.addEventListener('online', () => {
+        setDataStatus("تم استرجاع الاتصال — البيانات ستتم مزامنتها تلقائيًا", "fa-check-circle");
+    });
+
     async function fetchFreshLists() {
         const [cSnap, iSnap] = await Promise.all([
             getDocs(collection(db, "customers")),
@@ -1845,6 +1867,7 @@
             }
 
             await loadCustomersAndInventory();
+            updateConnectionBadge();
 
             const draftLoaded = tryLoadDraftOnInit();
             if (draftLoaded) {
