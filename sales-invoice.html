@@ -909,37 +909,6 @@
         return selectedUnit === 'box' ? buyBox : (buyBox / factor);
     }
 
-    async function fetchSmartPrice(stockId, selectedUnit) {
-        try {
-            const snap = await getDocs(collection(db, "invoices"));
-            if (snap.empty) return null;
-
-            const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-            docs.sort((a, b) => {
-                const dateA = a.timestamp ? (a.timestamp.seconds * 1000) : (a.time ? parseArabicDate(a.time) : 0);
-                const dateB = b.timestamp ? (b.timestamp.seconds * 1000) : (b.time ? parseArabicDate(b.time) : 0);
-                return dateB - dateA;
-            });
-
-            for (const invData of docs) {
-                if (editId && String(invData.id).trim() === String(editId).trim()) continue;
-                
-                const matchedItem = invData.items?.find(item => {
-                    const itemPid = item.stockId || item.id || item.itemId;
-                    return itemPid && String(itemPid).trim() === String(stockId).trim() && item.unit === selectedUnit;
-                });
-                
-                if (matchedItem && matchedItem.price && !isNaN(Number(matchedItem.price))) {
-                    return Number(matchedItem.price);
-                }
-            }
-        } catch (error) {
-            console.error("خطأ أثناء جلب السعر التاريخي:", error);
-        }
-        return null;
-    }
-
     window.addEventListener('beforeunload', (e) => {
         if (isChanged) { e.preventDefault(); e.returnValue = ''; }
     });
@@ -1276,15 +1245,9 @@
             return;
         }
 
-        priceInput.placeholder = "...";
-
+        // السعر بياخد من كارت الصنف في المخزون مباشرة (سعر البيع) بدون البحث في تاريخ الفواتير
         const storePrice = (selectedUnit === 'box') ? (Number(p.sell) || 0) : ((Number(p.sell) || 0) / factor);
-        const lastSoldPrice = await fetchSmartPrice(stockId, selectedUnit);
-
-        let finalPrice = storePrice;
-        if (lastSoldPrice !== null && !isNaN(lastSoldPrice) && lastSoldPrice > storePrice) {
-            finalPrice = lastSoldPrice;
-        }
+        const finalPrice = storePrice;
 
         const formattedPriceClean = formatNumClean(finalPrice);
         priceInput.value = formattedPriceClean;
