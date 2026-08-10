@@ -29,6 +29,7 @@
             padding-bottom: 40px;
         }
 
+        /* الهيدر */
         .top-nav {
             background: linear-gradient(135deg, var(--primary-green), #0a5234);
             color: white;
@@ -49,6 +50,7 @@
             padding: 15px;
         }
 
+        /* الكروت العلوية */
         .stat-card {
             background: white;
             border-radius: 18px;
@@ -80,6 +82,7 @@
             color: var(--text-muted);
         }
 
+        /* كارت البيانات الأساسية والأسعار */
         .info-card {
             background: white;
             border-radius: 20px;
@@ -126,6 +129,7 @@
             color: var(--primary-green);
         }
 
+        /* جدول الحركات */
         .movements-table-card {
             background: white;
             border-radius: 20px;
@@ -319,31 +323,30 @@
             }
 
             const product = productDoc.data();
-            console.log("بيانات المنتج المسجلة في القواعد:", product); // يطبع البيانات بالكامل في Console للتحقق
-
             const productName = product.name;
-            const factor = Number(product.unitFactor) || 12;
+            const factor = Number(product.unitFactor) || 1;
 
             document.getElementById('headerProductName').innerText = productName;
             document.getElementById('minQtyVal').innerText = product.min || 0;
             
             // ----------------------------------------------------
-            // التعديل الرئيسي: فحص كافة المسميات الممكنة لرصيد أول المدة
+            // حساب وقراءة رصيد أول المدة والاعتماد على totalPcs / qty كبديل عند عدم توفر الحقل الصريح
             // ----------------------------------------------------
             let initialPcs = 0;
 
-            if (product.initialPcs !== undefined || product.initialCartons !== undefined) {
-                const cartons = Number(product.initialCartons || 0);
-                const pcs = Number(product.initialPcs || 0);
-                initialPcs = (cartons * factor) + pcs;
-            } else if (product.initialQty !== undefined && product.initialQty !== null) {
+            if (product.initialQty !== undefined && product.initialQty !== null) {
                 initialPcs = Number(product.initialQty);
             } else if (product.openingQty !== undefined && product.openingQty !== null) {
                 initialPcs = Number(product.openingQty);
-            } else if (product.openingStock !== undefined && product.openingStock !== null) {
-                initialPcs = Number(product.openingStock);
-            } else if (product.initQty !== undefined && product.initQty !== null) {
-                initialPcs = Number(product.initQty);
+            } else if (product.initialCartons !== undefined || product.initialPcs !== undefined) {
+                initialPcs = (Number(product.initialCartons || 0) * factor) + Number(product.initialPcs || 0);
+            } else {
+                // الاعتماد على totalPcs أو qty المسجل أثناء الاستيراد كـ رصيد أول المدة
+                if (product.totalPcs !== undefined && product.totalPcs !== null) {
+                    initialPcs = Number(product.totalPcs);
+                } else if (product.qty !== undefined && product.qty !== null) {
+                    initialPcs = Math.round(Number(product.qty) * factor);
+                }
             }
 
             document.getElementById('initialQtyVal').innerText = initialPcs;
