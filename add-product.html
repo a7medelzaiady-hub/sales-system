@@ -16,6 +16,7 @@
             --text-primary: #1b2e26;
             --border: #dce3de;
             --white: #ffffff;
+            --info: #0ea5e9;
         }
         
         body { background: var(--bg-light); font-family: 'Cairo', sans-serif; color: var(--text-primary); padding-bottom: 30px; }
@@ -120,11 +121,16 @@
     <div class="glass-card">
         <div class="section-title"><i class="fas fa-hand-holding-usd"></i> التسعير والمخزون</div>
         <div class="row g-3">
-            <div class="col-md-3">
-                <label>الكمية (كرتونة)</label>
+            <!-- إضافة حقل رصيد أول المدة -->
+            <div class="col-md-4">
+                <label class="text-info fw-bold"><i class="fas fa-hourglass-start me-1"></i> رصيد أول المدة (إجمالي القطع/الجراكن)</label>
+                <input type="number" id="pInitialQty" class="form-control border-info" value="0" placeholder="0" oninput="isChanged=true">
+            </div>
+            <div class="col-md-4">
+                <label>الكمية الحالية (كرتونة)</label>
                 <input type="number" id="pQty" class="form-control" step="0.01" value="0" oninput="isChanged=true">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-4">
                 <label>حد الطلب (تنبيه)</label>
                 <input type="number" id="pMin" class="form-control" value="3" oninput="isChanged=true">
             </div>
@@ -132,19 +138,19 @@
                 <label>سعر الشراء (للكرتونة)</label>
                 <input type="number" id="pBuy" class="form-control" placeholder="0.00" oninput="isChanged=true">
             </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <label class="price-tag">سعر بيع الكرتونة (قطاعي)</label>
                 <input type="number" id="pSell" class="form-control border-info" placeholder="0.00" oninput="isChanged=true">
             </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <label class="price-tag" style="color:var(--gold)">سعر بيع الكرتونة (جملة)</label>
                 <input type="number" id="pSell2" class="form-control" placeholder="0.00" oninput="isChanged=true">
             </div>
-            <div class="col-md-4">
+            <div class="col-md-6">
                 <label class="price-tag" style="color:#d9534f">سعر بيع الكرتونة (خاص)</label>
                 <input type="number" id="pSell3" class="form-control" placeholder="0.00" oninput="isChanged=true">
             </div>
-            <div class="col-md-6 min-price-field">
+            <div class="col-md-12 min-price-field">
                 <label class="price-tag" style="color:#d9364f"><i class="fas fa-shield-halved me-1"></i> الحد الأدنى المسموح ببيع الكرتونة</label>
                 <input type="number" id="pMinPrice" class="form-control" placeholder="اتركه فارغًا لعدم تفعيل حد أدنى" oninput="isChanged=true">
                 <small class="min-price-hint">لو حددت رقم هنا، مش هيقبل النظام إدخال سعر بيع أقل منه في فاتورة المبيعات لهذا الصنف. اتركه فارغًا أو صفر لتعطيل الميزة.</small>
@@ -185,14 +191,14 @@
     import { getFirestore, collection, addDoc, getDoc, getDocs, updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
-  apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
-  authDomain: "ahmedelzaiady.firebaseapp.com",
-  projectId: "ahmedelzaiady",
-  storageBucket: "ahmedelzaiady.firebasestorage.app",
-  messagingSenderId: "300306825071",
-  appId: "1:300306825071:web:0426ddde56280fa090329a",
-  measurementId: "G-WE04GK5XZZ"
-};
+      apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
+      authDomain: "ahmedelzaiady.firebaseapp.com",
+      projectId: "ahmedelzaiady",
+      storageBucket: "ahmedelzaiady.firebasestorage.app",
+      messagingSenderId: "300306825071",
+      appId: "1:300306825071:web:0426ddde56280fa090329a",
+      measurementId: "G-WE04GK5XZZ"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
@@ -254,6 +260,11 @@
 
                 document.getElementById('pName').value = data.name || '';
                 document.getElementById('pBarcode').value = data.barcode || '';
+                
+                // جلب قيمة رصيد أول المدة
+                const initPcs = data.initialQty !== undefined ? data.initialQty : (data.openingQty !== undefined ? data.openingQty : originalTotalPcs);
+                document.getElementById('pInitialQty').value = initPcs;
+
                 document.getElementById('pQty').value = originalQtyInCrates; 
                 document.getElementById('pMin').value = data.min || 0;
                 document.getElementById('pBuy').value = data.buy || 0;
@@ -275,6 +286,7 @@
         const cat = document.getElementById('pCategoryNew').value;
         const newQtyInput = parseFloat(document.getElementById('pQty').value) || 0;
         const factor = parseInt(document.getElementById('pFactor').value) || 1;
+        const initialQtyVal = parseFloat(document.getElementById('pInitialQty').value) || 0;
 
         if(!name || !cat) { alert("برجاء إدخال الاسم والفئة"); return; }
 
@@ -287,7 +299,12 @@
         let finalTotalPcs = (id && newQtyInput === originalQtyInCrates) ? originalTotalPcs : Math.round(newQtyInput * factor);
 
         const itemData = { 
-            name, category: cat, qty: newQtyInput, unitFactor: factor, totalPcs: finalTotalPcs, 
+            name, 
+            category: cat, 
+            qty: newQtyInput, 
+            initialQty: initialQtyVal, // حفظ قيمة رصيد أول المدة بالقطع/الجراكن
+            unitFactor: factor, 
+            totalPcs: finalTotalPcs, 
             min: parseInt(document.getElementById('pMin').value) || 0, 
             buy: parseFloat(document.getElementById('pBuy').value) || 0, 
             sell: sellVal, 
