@@ -29,7 +29,6 @@
             padding-bottom: 40px;
         }
 
-        /* الهيدر */
         .top-nav {
             background: linear-gradient(135deg, var(--primary-green), #0a5234);
             color: white;
@@ -46,11 +45,8 @@
         .top-nav i { cursor: pointer; font-size: 1.2rem; transition: 0.2s; }
         .top-nav i:active { transform: scale(0.9); }
 
-        .details-container {
-            padding: 15px;
-        }
+        .details-container { padding: 15px; }
 
-        /* الكروت العلوية */
         .stat-card {
             background: white;
             border-radius: 18px;
@@ -82,7 +78,6 @@
             color: var(--text-muted);
         }
 
-        /* كارت البيانات الأساسية والأسعار */
         .info-card {
             background: white;
             border-radius: 20px;
@@ -129,7 +124,6 @@
             color: var(--primary-green);
         }
 
-        /* جدول الحركات */
         .movements-table-card {
             background: white;
             border-radius: 20px;
@@ -145,10 +139,7 @@
             border: 1px solid var(--border-color);
             -webkit-overflow-scrolling: touch;
         }
-        .table {
-            min-width: 600px;
-            margin-bottom: 0 !important;
-        }
+        .table { min-width: 600px; margin-bottom: 0 !important; }
         .table th {
             background-color: #f8fafc !important;
             color: var(--text-muted);
@@ -328,41 +319,15 @@
 
             document.getElementById('headerProductName').innerText = productName;
             document.getElementById('minQtyVal').innerText = product.min || 0;
-            
-            // ----------------------------------------------------
-            // حساب وقراءة رصيد أول المدة والاعتماد على totalPcs / qty كبديل عند عدم توفر الحقل الصريح
-            // ----------------------------------------------------
-            let initialPcs = 0;
-
-            if (product.initialQty !== undefined && product.initialQty !== null) {
-                initialPcs = Number(product.initialQty);
-            } else if (product.openingQty !== undefined && product.openingQty !== null) {
-                initialPcs = Number(product.openingQty);
-            } else if (product.initialCartons !== undefined || product.initialPcs !== undefined) {
-                initialPcs = (Number(product.initialCartons || 0) * factor) + Number(product.initialPcs || 0);
-            } else {
-                // الاعتماد على totalPcs أو qty المسجل أثناء الاستيراد كـ رصيد أول المدة
-                if (product.totalPcs !== undefined && product.totalPcs !== null) {
-                    initialPcs = Number(product.totalPcs);
-                } else if (product.qty !== undefined && product.qty !== null) {
-                    initialPcs = Math.round(Number(product.qty) * factor);
-                }
-            }
-
-            document.getElementById('initialQtyVal').innerText = initialPcs;
-
-            const initCartons = Math.trunc(initialPcs / factor);
-            const initRemainingPcs = initialPcs % factor;
-            document.getElementById('initialCartonsSplitVal').innerText = `${initCartons} كرتونة و ${initRemainingPcs} جركن`;
 
             // ----------------------------------------------------
-            // حساب الرصيد الحالي
+            // 1. حساب الرصيد الحالي للقطع والكراتين
             // ----------------------------------------------------
-            const total = Number(product.totalPcs !== undefined && product.totalPcs !== null ? product.totalPcs : (product.qty || 0));
-            document.getElementById('totalPcsVal').innerText = total;
+            const totalCurrent = Number(product.totalPcs !== undefined && product.totalPcs !== null ? product.totalPcs : (product.qty || 0));
+            document.getElementById('totalPcsVal').innerText = totalCurrent;
 
-            const cartons = Math.trunc(total / factor);
-            const remainingPcs = total % factor;
+            const cartons = Math.trunc(totalCurrent / factor);
+            const remainingPcs = totalCurrent % factor;
             document.getElementById('cartonsSplitVal').innerText = `${cartons} كرتونة و ${remainingPcs} جركن`;
 
             document.getElementById('unitFactorText').innerText = `معدل التحويل: تحتوي الكرتونة على ${factor} جركن/قطعة`;
@@ -384,8 +349,10 @@
             });
 
             let movements = [];
+            let totalSalesPcs = 0;
+            let totalPurchasesPcs = 0;
 
-            // جلب مبيعات الصنف
+            // جلب مبيعات الصنف وحساب إجمالي قطع المبيعات
             const salesSnap = await getDocs(collection(db, "invoices"));
             salesSnap.forEach(docSnap => {
                 const data = docSnap.data();
@@ -393,7 +360,15 @@
                 if (matchedItem) {
                     const isReturn = matchedItem.isReturn === true;
                     const dateObj = data.timestamp?.toDate ? data.timestamp.toDate() : (data.time ? new Date(data.time) : new Date());
-                    
+                    const itemQty = Number(matchedItem.qty || 0);
+                    const pcsQty = matchedItem.unit === 'box' ? (itemQty * factor) : itemQty;
+
+                    if (isReturn) {
+                        totalSalesPcs -= pcsQty;
+                    } else {
+                        totalSalesPcs += pcsQty;
+                    }
+
                     movements.push({
                         date: dateObj,
                         dateStr: data.time || dateObj.toLocaleDateString('ar-EG'),
@@ -409,7 +384,7 @@
                 }
             });
 
-            // جلب مشتريات الصنف
+            // جلب مشتريات الصنف وحساب إجمالي قطع المشتريات
             const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
             purchasesSnap.forEach(docSnap => {
                 const data = docSnap.data();
@@ -418,6 +393,16 @@
                     const isReturn = Number(matchedItem.returnQty) > 0 || matchedItem.isReturn === true;
                     const qty = isReturn ? Number(matchedItem.returnQty || matchedItem.qty) : Number(matchedItem.qty);
                     const dateObj = data.timestamp?.toDate ? data.timestamp.toDate() : (data.date ? new Date(data.date) : new Date());
+                    
+                    const unitName = (matchedItem.unitName || '').toLowerCase();
+                    const isBox = unitName.includes('box') || unitName.includes('كرت');
+                    const pcsQty = isBox ? (qty * factor) : qty;
+
+                    if (isReturn) {
+                        totalPurchasesPcs -= pcsQty;
+                    } else {
+                        totalPurchasesPcs += pcsQty;
+                    }
 
                     movements.push({
                         date: dateObj,
@@ -442,6 +427,13 @@
                 if (!alreadyExists && data.invoiceId) {
                     const isSale = data.type === 'sale' || data.type === 'بيع';
                     const dateObj = data.timestamp?.toDate ? data.timestamp.toDate() : (data.date ? new Date(data.date) : new Date());
+                    const qtyPcs = Number(data.qty || data.quantity || 0);
+
+                    if (isSale) {
+                        totalSalesPcs += qtyPcs;
+                    } else {
+                        totalPurchasesPcs += qtyPcs;
+                    }
 
                     movements.push({
                         date: dateObj,
@@ -458,6 +450,31 @@
                 }
             });
 
+            // ----------------------------------------------------
+            // 2. حساب وتحديد رصيد أول المدة
+            // ----------------------------------------------------
+            let initialPcs = 0;
+
+            if (product.initialQty !== undefined && product.initialQty !== null) {
+                initialPcs = Number(product.initialQty);
+            } else if (product.openingQty !== undefined && product.openingQty !== null) {
+                initialPcs = Number(product.openingQty);
+            } else if (product.initialCartons !== undefined || product.initialPcs !== undefined) {
+                initialPcs = (Number(product.initialCartons || 0) * factor) + Number(product.initialPcs || 0);
+            } else {
+                // المعادلة العكسية: رصيد أول المدة = الرصيد الحالي + المبيعات - المشتريات
+                initialPcs = totalCurrent + totalSalesPcs - totalPurchasesPcs;
+            }
+
+            document.getElementById('initialQtyVal').innerText = initialPcs;
+
+            const initCartons = Math.trunc(initialPcs / factor);
+            const initRemainingPcs = initialPcs % factor;
+            document.getElementById('initialCartonsSplitVal').innerText = `${initCartons} كرتونة و ${initRemainingPcs} جركن`;
+
+            // ----------------------------------------------------
+            // 3. عرض جدول الحركات
+            // ----------------------------------------------------
             movements.sort((a, b) => b.date - a.date);
 
             if (movements.length === 0) {
