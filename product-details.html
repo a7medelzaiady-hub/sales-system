@@ -18,6 +18,7 @@
             --border-color: #e2e8f0;
             --danger: #f43f5e;
             --warning: #ffb703;
+            --info: #0ea5e9;
         }
 
         body { 
@@ -53,29 +54,29 @@
         .stat-card {
             background: white;
             border-radius: 18px;
-            padding: 20px;
+            padding: 18px 12px;
             border: 1px solid var(--border-color);
             box-shadow: 0 2px 8px rgba(0,0,0,0.02);
             text-align: center;
             height: 100%;
         }
         .stat-title {
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             color: var(--text-muted);
             font-weight: 700;
             margin-bottom: 6px;
         }
         .stat-value {
-            font-size: 1.8rem;
+            font-size: 1.5rem;
             font-weight: 800;
             color: var(--text-dark);
         }
         .stat-badge {
             display: inline-block;
             margin-top: 5px;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             font-weight: 700;
-            padding: 3px 10px;
+            padding: 3px 8px;
             border-radius: 8px;
             background: #f1f5f9;
             color: var(--text-muted);
@@ -197,18 +198,26 @@
 </div>
 
 <div class="container-fluid details-container">
-    <div class="row g-3">
-        <div class="col-6">
+    <!-- تقسيم الصف العلوي ليشمل 3 كروت: رصيد أول المدة - حد الطلب - الإجمالي الحالي -->
+    <div class="row g-2">
+        <div class="col-4">
             <div class="stat-card">
-                <div class="stat-title"><i class="fas fa-triangle-exclamation text-warning me-1"></i> حد الطلب (الأدنى)</div>
-                <div class="stat-value" id="minQtyVal">0</div>
+                <div class="stat-title"><i class="fas fa-hourglass-start text-info me-1"></i> رصيد أول المدة</div>
+                <div class="stat-value text-info" id="initialQtyVal">0</div>
+                <div class="stat-badge" id="initialCartonsSplitVal">0 كرتونة</div>
+            </div>
+        </div>
+        <div class="col-4">
+            <div class="stat-card">
+                <div class="stat-title"><i class="fas fa-triangle-exclamation text-warning me-1"></i> حد الطلب</div>
+                <div class="stat-value text-warning" id="minQtyVal">0</div>
                 <span class="stat-badge">قطعة/جركن</span>
             </div>
         </div>
-        <div class="col-6">
+        <div class="col-4">
             <div class="stat-card">
-                <div class="stat-title"><i class="fas fa-boxes-stacked text-success me-1"></i> إجمالي القطع الحالي</div>
-                <div class="stat-value" id="totalPcsVal">0</div>
+                <div class="stat-title"><i class="fas fa-boxes-stacked text-success me-1"></i> الرصيد الحالي</div>
+                <div class="stat-value text-success" id="totalPcsVal">0</div>
                 <div class="stat-badge" id="cartonsSplitVal">0 كرتونة</div>
             </div>
         </div>
@@ -320,13 +329,27 @@
 
             document.getElementById('headerProductName').innerText = productName;
             document.getElementById('minQtyVal').innerText = product.min || 0;
-            document.getElementById('totalPcsVal').innerText = product.totalPcs || product.qty || 0;
             
-            const total = Number(product.totalPcs || product.qty || 0);
+            // ----------------------------------------------------
+            // 1. معالجة وحساب رصيد أول المدة
+            // ----------------------------------------------------
+            const initialPcs = Number(product.initialQty !== undefined ? product.initialQty : (product.openingQty || 0));
+            document.getElementById('initialQtyVal').innerText = initialPcs;
+
+            const initCartons = Math.trunc(initialPcs / factor);
+            const initRemainingPcs = initialPcs % factor;
+            document.getElementById('initialCartonsSplitVal').innerText = `${initCartons} كرتونة و ${initRemainingPcs} جركن`;
+
+            // ----------------------------------------------------
+            // 2. معالجة وحساب الرصيد الحالي
+            // ----------------------------------------------------
+            const total = Number(product.totalPcs !== undefined ? product.totalPcs : (product.qty || 0));
+            document.getElementById('totalPcsVal').innerText = total;
+
             const cartons = Math.trunc(total / factor);
             const remainingPcs = total % factor;
-
             document.getElementById('cartonsSplitVal').innerText = `${cartons} كرتونة و ${remainingPcs} جركن`;
+
             document.getElementById('unitFactorText').innerText = `معدل التحويل: تحتوي الكرتونة على ${factor} جركن/قطعة`;
 
             document.getElementById('priceRetail').innerText = Number(product.sell || 0).toFixed(2);
@@ -347,7 +370,7 @@
 
             let movements = [];
 
-            // جلب مبيعات الصنف وتصحيح رابط الـ sales-invoice.html
+            // جلب مبيعات الصنف
             const salesSnap = await getDocs(collection(db, "invoices"));
             salesSnap.forEach(docSnap => {
                 const data = docSnap.data();
@@ -371,7 +394,7 @@
                 }
             });
 
-            // جلب مشتريات الصنف وتصحيح رابط الـ new-purchase-invoice.html
+            // جلب مشتريات الصنف
             const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
             purchasesSnap.forEach(docSnap => {
                 const data = docSnap.data();
@@ -396,7 +419,7 @@
                 }
             });
 
-            // جلب الحركات الأخرى وتصحيح الروابط
+            // جلب الحركات الأخرى
             const transSnap = await getDocs(query(collection(db, "transactions"), where("productId", "==", productId)));
             transSnap.forEach(docSnap => {
                 const data = docSnap.data();
