@@ -1172,7 +1172,6 @@
         `).join('');
 
         const discountHtml = discount > 0 ? `<div style="display:flex; justify-content:space-between; color:#ff0000;"><span>الخصم:</span><b>${discount.toFixed(2)}</b></div>` : '';
-        // السطر الخاص بصافي الفاتورة الحالية يظهر فقط إذا كان هناك خصم نقدي
         const netTotalHtml = discount > 0 ? `<div style="display:flex; justify-content:space-between; border-bottom:1px dashed #000; padding-bottom:3px; font-weight:700;"><span>صافي الفاتورة الحالية:</span><b>${totalInvoice.toFixed(2)}</b></div>` : '';
 
         const cashHtml = cashPaid > 0 ? `<div style="display:flex; justify-content:space-between; color:#000000; margin-top:2px;"><span>سداد نقدى (كاش):</span><b>${cashPaid.toFixed(2)}</b></div>` : '';
@@ -1615,25 +1614,39 @@
             icon: "danger",
             onConfirm: async () => {
                 try {
+                    // 1. جلب العمليات المرتبطة بالفاتورة أولاً قبل الترانزكشن
                     const txSnapshot = await db.collection("transactions").where("invoiceId", "==", id).get();
 
+                    // 2. تجميع معرفات المنتجات الموجودة بالفاتورة وقراءتها دفعة واحدة
+                    const items = inv ? (inv.items || []) : [];
+                    const stockIds = [...new Set(items.map(item => item.stockId).filter(Boolean))];
+
+                    // جلب المستندات الخاصة بالمنتجات مسبقاً للتأكد من وجودها
+                    const inventoryDocs = {};
+                    for (const stockId of stockIds) {
+                        const snap = await db.collection("inventory").doc(stockId).get();
+                        if (snap.exists) {
+                            inventoryDocs[stockId] = snap.data();
+                        }
+                    }
+
+                    // 3. تنفيذ الترانزكشن للتحديث مع القراءة السريعة مسبقاً
                     await db.runTransaction(async (transaction) => {
-                        const items = inv.items || [];
-
-                        const productTargets = items
-                            .filter(item => item.stockId)
-                            .map(item => ({ item, ref: db.collection("inventory").doc(item.stockId) }));
-
-                        const productSnaps = [];
-                        for (const target of productTargets) {
-                            const snap = await transaction.get(target.ref);
-                            productSnaps.push({ ...target, snap });
+                        const currentInventorySnaps = {};
+                        for (const stockId of stockIds) {
+                            if (inventoryDocs[stockId]) {
+                                const ref = db.collection("inventory").doc(stockId);
+                                currentInventorySnaps[stockId] = await transaction.get(ref);
+                            }
                         }
 
-                        for (const { item, ref, snap } of productSnaps) {
-                            if (!snap.exists) continue;
+                        // تعديل كميات الأصناف في قاعدة البيانات
+                        items.forEach(item => {
+                            if (!item.stockId || !currentInventorySnaps[item.stockId] || !currentInventorySnaps[item.stockId].exists) return;
 
-                            const prodData = snap.data();
+                            const ref = db.collection("inventory").doc(item.stockId);
+                            const prodData = currentInventorySnaps[item.stockId].data();
+                            
                             const qty = Number(item.qty || 0);
                             const rawUnit = (item.unit || "").trim().toLowerCase();
                             const itemName = (item.name || "").toLowerCase();
@@ -1641,7 +1654,7 @@
                             const isCarton = (rawUnit === 'box' || rawUnit === 'carton' || rawUnit === 'كرتونة' || rawUnit === 'كرتونه' || itemName.includes('شحم بريفيكس'));
                             const isReturn = item.isReturn === true;
 
-                            const pcsPerCarton = Number(prodData.pcsPerCarton) || Number(prodData.cartonSize) || 1;
+                            const pcsPerCarton = Number(prodData.pcsPerCarton || prodData.cartonSize || prodData.unitFactor) || 1;
                             let piecesToModify = qty;
                             if (isCarton && pcsPerCarton > 1) {
                                 piecesToModify = qty * pcsPerCarton;
@@ -1652,8 +1665,9 @@
                             const newTotalPcs = Math.max(0, currentTotalPcs + (piecesToModify * multiplier));
 
                             transaction.update(ref, { totalPcs: newTotalPcs });
-                        }
+                        });
 
+                        // نقل المعاملات المالية المرتبطة بالفاتورة للسلة
                         txSnapshot.forEach(txDoc => {
                             transaction.update(db.collection("transactions").doc(txDoc.id), {
                                 isDeleted: true,
@@ -1661,6 +1675,7 @@
                             });
                         });
 
+                        // نقل الفاتورة نفسها للسلة
                         transaction.update(db.collection("invoices").doc(id), {
                             isDeleted: true,
                             deletedAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -1671,7 +1686,7 @@
                     window.showCustomUi({ title: "تم النقل", message: "تم نقل الفاتورة إلى السلة بنجاح وتعديل كميات المخزن بدقة.", icon: "success" });
                 } catch (err) {
                     console.error("خطأ أثناء الحذف وإرجاع المخزون:", err);
-                    window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء نقل الفاتورة للمخزن وإعادة الأصناف.", icon: "danger" });
+                    window.showCustomUi({ title: "خطأ", message: "حدث خطأ أثناء نقل الفاتورة للمخزن وإعادة الأصناف: " + (err.message || ""), icon: "danger" });
                 }
             }
         });
