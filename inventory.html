@@ -542,7 +542,7 @@
     function formatQuantityDetailed(totalPcs, capacity, unit) {
         totalPcs = parseInt(totalPcs) || 0;
         capacity = parseInt(capacity) || 1;
-        unit = unit || 'قطعة';
+        unit = unit || 'جركن';
         
         if (totalPcs === 0) {
             return capacity > 1 ? `0 كرتونة و 0 ${unit}` : `0 ${unit}`;
@@ -559,7 +559,7 @@
             const loose = absPcs % capacity;
             
             if (cartons > 0 && loose > 0) { 
-                result = `${cartons}ك و ${loose}${unit}`; 
+                result = `${cartons} ك و ${loose} ${unit}`; 
             } else if (cartons > 0) { 
                 result = `${cartons} كرتونة`; 
             } else { 
@@ -573,7 +573,7 @@
     function updateStats() {
         let ok = 0, low = 0, zero = 0;
         allItems.forEach(item => {
-            const factor   = Number(item.unitFactor) || 1;
+            const factor   = Number(item.unitFactor || item.factor) || 1;
             const totalPcs = Number(item.totalPcs)   || 0;
             const minPcs   = (Number(item.min) || 0) * factor;
             
@@ -627,7 +627,7 @@
 
     function buildRow(item, num) {
         const totalPcs = Number(item.totalPcs) || 0;
-        const rawFactor  = item.unitFactor;
+        const rawFactor  = item.unitFactor || item.factor;
         const hasCartons = rawFactor !== undefined && rawFactor !== null && Number(rawFactor) > 1;
         const factor     = hasCartons ? Number(rawFactor) : 1;
         const minPcs = (Number(item.min) || 0) * (hasCartons ? factor : 1);
@@ -646,8 +646,8 @@
         if (totalPcs <= 0)          status = 'zero';
         else if (totalPcs <= minPcs) status = 'low';
 
-        const rawUnit = (item.unitName || '').trim();
-        const unitName = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
+        const rawUnit = (item.unitName || item.unit || '').trim();
+        const unitName = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'جركن';
 
         const boxesEmpty = boxes === 0;
         const jarsEmpty  = jars  === 0;
@@ -745,9 +745,9 @@
 
         try {
             const currentItemObj = allItems.find(i => i.id === itemId) || {};
-            const capacity = Number(currentItemObj.unitFactor) || 1;
-            const rawUnit = (currentItemObj.unitName || '').trim();
-            const unit = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
+            const capacity = Number(currentItemObj.unitFactor || currentItemObj.factor) || 1;
+            const rawUnit = (currentItemObj.unitName || currentItemObj.unit || '').trim();
+            const unit = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'جركن';
             
             // جلب إجمالي المخزون الحالي بالقطع
             const currentStockPcs = Number(currentItemObj.totalPcs !== undefined ? currentItemObj.totalPcs : (currentItemObj.qty * capacity || 0)) || 0;
@@ -761,7 +761,6 @@
                 let supp = obj.supplierName || obj.supplier || obj.supplier_name || obj.supplierTitle || obj.mowared || '';
                 let cli = obj.clientName || obj.customerName || obj.customer || obj.client_name || obj.client || obj.customer_name || '';
 
-                // فحص الحقول المفردة مثل name إذا لم يجد اسم صريح
                 if (!supp && !cli) {
                     if (obj.name && typeof obj.name === 'string' && !cleanText(obj.name).includes(targetName)) {
                         supp = obj.name;
@@ -785,19 +784,30 @@
                 }
 
                 if (match) {
+                    let rawVal = 0;
                     if (typeof obj.totalPieces === 'number' && obj.totalPieces > 0) {
                         extractedQty = obj.totalPieces;
                     } else {
                         for (let key in obj) {
                             const lowerKey = key.toLowerCase();
                             if (['totalpieces', 'qty', 'quantity', 'count', 'amount', 'totalpcs', 'pcs', 'number', 'returnqty'].includes(lowerKey)) {
-                                const parsed = parseInt(obj[key]);
-                                if (!isNaN(parsed) && parsed > 0) { extractedQty = parsed; break; }
+                                const parsed = parseFloat(obj[key]);
+                                if (!isNaN(parsed) && parsed > 0) { rawVal = parsed; break; }
                             }
                         }
+                        if (rawVal === 0 && typeof obj.qty === 'number') rawVal = obj.qty;
+                        if (rawVal === 0 && typeof obj.count === 'number') rawVal = obj.count;
+
+                        // التحقق من وحدة قياس الفاتورة (هل هي كرتونة أَم قطعة/جركن)
+                        const itemUnit = (obj.unit || obj.unitName || '').toLowerCase();
+                        const isBox = itemUnit.includes('box') || itemUnit.includes('كرت') || itemUnit === 'box';
+
+                        if (isBox) {
+                            extractedQty = rawVal * capacity; // تحويل الكرتونة للقطع فوراً
+                        } else {
+                            extractedQty = rawVal;
+                        }
                     }
-                    if (extractedQty === 0 && typeof obj.qty === 'number') extractedQty = obj.qty;
-                    if (extractedQty === 0 && typeof obj.count === 'number') extractedQty = obj.count;
                 }
                 return { match, qty: extractedQty, isReturn: obj.isReturn === true };
             };
@@ -996,7 +1006,6 @@
                     dateStr = d.toLocaleDateString('ar-EG', {year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'});
                 }
 
-                // اختيار اسم المورد أو العميل
                 let entityName = '';
                 if (isPurchase) {
                     entityName = tx.parentSupplierName || tx.supplierName || tx.supplier || tx.supplier_name || tx.supplierTitle || tx.mowared || 'مورد غير محدد';
@@ -1051,12 +1060,12 @@
                 ? `${Number(item.sell).toLocaleString()} ج.م` 
                 : 'غير محدد';
             
-            const rawFactor = item.unitFactor;
+            const rawFactor = item.unitFactor || item.factor;
             const hasCartons = rawFactor !== undefined && rawFactor !== null && Number(rawFactor) > 1;
             const factor = hasCartons ? Number(rawFactor) : 1;
 
-            const rawUnit = (item.unitName || '').trim();
-            const unitName = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'قطعة';
+            const rawUnit = (item.unitName || item.unit || '').trim();
+            const unitName = (rawUnit && normalizeAr(rawUnit) !== normalizeAr('كرتونة')) ? rawUnit : 'جركن';
 
             let stockText = '';
             if (hasCartons) {
