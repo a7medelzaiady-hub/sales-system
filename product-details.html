@@ -320,9 +320,7 @@
             document.getElementById('headerProductName').innerText = productName;
             document.getElementById('minQtyVal').innerText = product.min || 0;
 
-            // ----------------------------------------------------
-            // 1. حساب الرصيد الحالي للقطع والكراتين
-            // ----------------------------------------------------
+            // 1. حساب الرصيد الحالي للقطع
             const totalCurrent = Number(product.totalPcs !== undefined && product.totalPcs !== null ? product.totalPcs : (product.qty || 0));
             document.getElementById('totalPcsVal').innerText = totalCurrent;
 
@@ -351,8 +349,10 @@
             let movements = [];
             let totalSalesPcs = 0;
             let totalPurchasesPcs = 0;
+            let totalReturnsPcs = 0;
+            let totalLossesPcs = 0;
 
-            // جلب مبيعات الصنف وحساب إجمالي قطع المبيعات
+            // جلب مبيعات الصنف وحساب إجمالي القطع
             const salesSnap = await getDocs(collection(db, "invoices"));
             salesSnap.forEach(docSnap => {
                 const data = docSnap.data();
@@ -364,7 +364,7 @@
                     const pcsQty = matchedItem.unit === 'box' ? (itemQty * factor) : itemQty;
 
                     if (isReturn) {
-                        totalSalesPcs -= pcsQty;
+                        totalReturnsPcs += pcsQty;
                     } else {
                         totalSalesPcs += pcsQty;
                     }
@@ -384,7 +384,7 @@
                 }
             });
 
-            // جلب مشتريات الصنف وحساب إجمالي قطع المشتريات
+            // جلب مشتريات الصنف وحساب إجمالي القطع
             const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
             purchasesSnap.forEach(docSnap => {
                 const data = docSnap.data();
@@ -399,7 +399,7 @@
                     const pcsQty = isBox ? (qty * factor) : qty;
 
                     if (isReturn) {
-                        totalPurchasesPcs -= pcsQty;
+                        totalReturnsPcs += pcsQty;
                     } else {
                         totalPurchasesPcs += pcsQty;
                     }
@@ -450,20 +450,16 @@
                 }
             });
 
-            // ----------------------------------------------------
-            // 2. حساب وتحديد رصيد أول المدة
-            // ----------------------------------------------------
+            // 2. تطبيق المعادلة الذكية لجلب/حساب رصيد أول المدة
             let initialPcs = 0;
 
-            if (product.initialQty !== undefined && product.initialQty !== null) {
+            if (product.initQty !== undefined && product.initQty !== null) {
+                initialPcs = Number(product.initQty);
+            } else if (product.initialQty !== undefined && product.initialQty !== null) {
                 initialPcs = Number(product.initialQty);
-            } else if (product.openingQty !== undefined && product.openingQty !== null) {
-                initialPcs = Number(product.openingQty);
-            } else if (product.initialCartons !== undefined || product.initialPcs !== undefined) {
-                initialPcs = (Number(product.initialCartons || 0) * factor) + Number(product.initialPcs || 0);
             } else {
-                // المعادلة العكسية: رصيد أول المدة = الرصيد الحالي + المبيعات - المشتريات
-                initialPcs = totalCurrent + totalSalesPcs - totalPurchasesPcs;
+                // المعادلة: رصيد أول المدة = الرصيد الحالي + المبيعات + التالف - المشتريات - المرتجعات
+                initialPcs = totalCurrent + totalSalesPcs + totalLossesPcs - totalPurchasesPcs - totalReturnsPcs;
             }
 
             document.getElementById('initialQtyVal').innerText = initialPcs;
@@ -472,9 +468,7 @@
             const initRemainingPcs = initialPcs % factor;
             document.getElementById('initialCartonsSplitVal').innerText = `${initCartons} كرتونة و ${initRemainingPcs} جركن`;
 
-            // ----------------------------------------------------
             // 3. عرض جدول الحركات
-            // ----------------------------------------------------
             movements.sort((a, b) => b.date - a.date);
 
             if (movements.length === 0) {
