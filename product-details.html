@@ -29,7 +29,6 @@
             padding-bottom: 40px;
         }
 
-        /* الهيدر */
         .top-nav {
             background: linear-gradient(135deg, var(--primary-green), #0a5234);
             color: white;
@@ -50,7 +49,6 @@
             padding: 15px;
         }
 
-        /* الكروت العلوية */
         .stat-card {
             background: white;
             border-radius: 18px;
@@ -82,7 +80,6 @@
             color: var(--text-muted);
         }
 
-        /* كارت البيانات الأساسية والأسعار */
         .info-card {
             background: white;
             border-radius: 20px;
@@ -129,7 +126,6 @@
             color: var(--primary-green);
         }
 
-        /* جدول الحركات */
         .movements-table-card {
             background: white;
             border-radius: 20px;
@@ -198,7 +194,6 @@
 </div>
 
 <div class="container-fluid details-container">
-    <!-- تقسيم الصف العلوي ليشمل 3 كروت: رصيد أول المدة - حد الطلب - الإجمالي الحالي -->
     <div class="row g-2">
         <div class="col-4">
             <div class="stat-card">
@@ -290,7 +285,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, getDocs, query, where, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { getFirestore, doc, getDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -324,6 +319,8 @@
             }
 
             const product = productDoc.data();
+            console.log("بيانات المنتج المسجلة في القواعد:", product); // يطبع البيانات بالكامل في Console للتحقق
+
             const productName = product.name;
             const factor = Number(product.unitFactor) || 12;
 
@@ -331,9 +328,24 @@
             document.getElementById('minQtyVal').innerText = product.min || 0;
             
             // ----------------------------------------------------
-            // 1. معالجة وحساب رصيد أول المدة
+            // التعديل الرئيسي: فحص كافة المسميات الممكنة لرصيد أول المدة
             // ----------------------------------------------------
-            const initialPcs = Number(product.initialQty !== undefined ? product.initialQty : (product.openingQty || 0));
+            let initialPcs = 0;
+
+            if (product.initialPcs !== undefined || product.initialCartons !== undefined) {
+                const cartons = Number(product.initialCartons || 0);
+                const pcs = Number(product.initialPcs || 0);
+                initialPcs = (cartons * factor) + pcs;
+            } else if (product.initialQty !== undefined && product.initialQty !== null) {
+                initialPcs = Number(product.initialQty);
+            } else if (product.openingQty !== undefined && product.openingQty !== null) {
+                initialPcs = Number(product.openingQty);
+            } else if (product.openingStock !== undefined && product.openingStock !== null) {
+                initialPcs = Number(product.openingStock);
+            } else if (product.initQty !== undefined && product.initQty !== null) {
+                initialPcs = Number(product.initQty);
+            }
+
             document.getElementById('initialQtyVal').innerText = initialPcs;
 
             const initCartons = Math.trunc(initialPcs / factor);
@@ -341,9 +353,9 @@
             document.getElementById('initialCartonsSplitVal').innerText = `${initCartons} كرتونة و ${initRemainingPcs} جركن`;
 
             // ----------------------------------------------------
-            // 2. معالجة وحساب الرصيد الحالي
+            // حساب الرصيد الحالي
             // ----------------------------------------------------
-            const total = Number(product.totalPcs !== undefined ? product.totalPcs : (product.qty || 0));
+            const total = Number(product.totalPcs !== undefined && product.totalPcs !== null ? product.totalPcs : (product.qty || 0));
             document.getElementById('totalPcsVal').innerText = total;
 
             const cartons = Math.trunc(total / factor);
