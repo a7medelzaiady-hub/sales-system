@@ -510,7 +510,7 @@
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, getFirestore, collection, onSnapshot, doc, setDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, getFirestore, collection, onSnapshot, doc, setDoc, addDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -531,32 +531,52 @@
         db = getFirestore(app);
     }
 
-    const currentUserId = sessionStorage.getItem('userId') || 'user_' + Math.random().toString(36).substr(2, 9);
-    sessionStorage.setItem('userId', currentUserId);
+    // تجهيز معرف مستخدم ثابت للجلسة
+    let currentUserId = sessionStorage.getItem('userId');
+    if (!currentUserId) {
+        currentUserId = 'user_' + Math.random().toString(36).substr(2, 9);
+        sessionStorage.setItem('userId', currentUserId);
+    }
 
-    // 1. إدارة الجلسة بالاعتماد على كولكشن sessions
+    const userName = sessionStorage.getItem('username') || sessionStorage.getItem('user_name') || 'موظف';
+    const userRole = sessionStorage.getItem('role') || 'employee';
+
+    // 1. إدارة الجلسة والنشاط (إظهار الكَر والنشاط للأدمن)
+    let heartbeatInterval = null;
+
     async function initUserSession() {
         const sessionDocRef = doc(db, "sessions", currentUserId);
-        
+
+        // إنشاء أو تحديث مستند الجلسة النشطة
         await setDoc(sessionDocRef, {
             userId: currentUserId,
-            userName: sessionStorage.getItem('username') || 'موظف',
-            role: sessionStorage.getItem('role') || 'employee',
+            userName: userName,
+            role: userRole,
             loginTime: serverTimestamp(),
             lastActive: serverTimestamp(),
             status: 'active'
         }, { merge: true });
 
+        // إضافة سجل تاريخ الدخول
         try {
-            await addDoc(collection(db, "sessions"), {
+            await addDoc(collection(db, "session_logs"), {
                 userId: currentUserId,
-                userName: sessionStorage.getItem('username') || 'موظف',
+                userName: userName,
                 action: 'LOGIN',
                 timestamp: serverTimestamp()
             });
         } catch(e) { console.warn("Log write ignored", e); }
 
-        // المراقبة المباشرة للطرد من قِبل الأدمن
+        // نبض النشاط المستمر لتحديث lastActive بانتظام كي تظهر الجلسة نشطة (الكَر)
+        heartbeatInterval = setInterval(async () => {
+            try {
+                await updateDoc(sessionDocRef, {
+                    lastActive: serverTimestamp()
+                });
+            } catch(e) {}
+        }, 30000);
+
+        // الاستماع في حال طرد الأدمن للموظف
         onSnapshot(sessionDocRef, (snapshot) => {
             if (snapshot.exists()) {
                 const data = snapshot.data();
@@ -569,16 +589,17 @@
     }
 
     async function handleLogout() {
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
         try {
             const sessionDocRef = doc(db, "sessions", currentUserId);
-            await setDoc(sessionDocRef, {
+            await updateDoc(sessionDocRef, {
                 status: 'logged_out',
                 logoutTime: serverTimestamp()
-            }, { merge: true });
+            });
 
-            await addDoc(collection(db, "sessions"), {
+            await addDoc(collection(db, "session_logs"), {
                 userId: currentUserId,
-                userName: sessionStorage.getItem('username') || 'موظف',
+                userName: userName,
                 action: 'LOGOUT',
                 timestamp: serverTimestamp()
             });
@@ -597,7 +618,7 @@
 
     initUserSession();
 
-    // 2. مراقبة كولكشن orders
+    // 2. مراقبة كولكشن orders والتنبيهات
     let toastTimer = null;
     let lastPendingCount = 0;
 
@@ -706,13 +727,15 @@
     setStat('statStockVal', '—');
     setStat('statClientsVal', '—');
 
-    // 3. إدارة صلاحيات واجهة المستخدم
+    // 3. إدارة صلاحيات واجهة المستخدم (بما فيها النواقص لغير الأدمن)
     window.addEventListener('load', function () {
         const role = sessionStorage.getItem('role') || 'employee';
         const savedPermissions = sessionStorage.getItem('permissions');
+        
+        // أضيفت 'shortages' لافتراضياً لضمان إتاحة النواقص لغير الأدمن
         const userPermissions = savedPermissions
             ? JSON.parse(savedPermissions)
-            : ['sales', 'clients', 'vouchers', 'reports', 'quotation'];
+            : ['sales', 'clients', 'vouchers', 'reports', 'quotation', 'shortages'];
 
         const permMap = {
             cardSales:     'sales',
@@ -723,8 +746,10 @@
             cardVouchers:  'vouchers',
             cardBanknote:  'banknote',
             cardReports:   'reports',
-            cardQuotation: 'quotation'
+            cardQuotation: 'quotation',
+            cardShortages: 'shortages' // إضافة ربط كارت النواقص بالصلاحية
         };
+        
         const groupMap = {
             groupSalesOps:       ['cardSales', 'cardPurchases', 'cardClients', 'cardSuppliers'],
             groupInventoryDocs:  ['cardInventory', 'cardVouchers', 'cardBanknote', 'cardShortages'],
@@ -733,9 +758,6 @@
 
         const statsSection  = document.getElementById('statsSection');
         const navExpenses   = document.getElementById('navExpenses');
-        const cardShortages = document.getElementById('cardShortages');
-
-        if (cardShortages) cardShortages.style.display = '';
 
         function refreshGroupVisibility() {
             Object.entries(groupMap).forEach(([groupId, cardIds]) => {
@@ -766,7 +788,10 @@
             Object.keys(permMap).forEach(id => {
                 const el = document.getElementById(id);
                 if (!el) return;
-                el.style.display = userPermissions.includes(permMap[id]) ? '' : 'none';
+                // يظهر الكارت إذا كانت الصلاحية موجودة أو إذا كانت الصلاحيات تشتمل على 'inventory' لبطاقة النواقص
+                const permName = permMap[id];
+                const hasPerm = userPermissions.includes(permName) || (permName === 'shortages' && userPermissions.includes('inventory'));
+                el.style.display = hasPerm ? '' : 'none';
             });
 
             if (navExpenses) navExpenses.style.display = userPermissions.includes('expenses') ? '' : 'none';
