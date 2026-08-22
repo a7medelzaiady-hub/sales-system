@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
+    <!-- إعدادات التطبيق الهاتفي PWA -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -125,15 +126,18 @@
 </head>
 <body>
 
+<!-- ═══ BANNER OFFLINE ═══ -->
 <div id="offlineBanner" style="display:none; position:fixed; top:0; left:0; right:0; z-index:99999; background:#92400e; color:#fef3c7; padding:8px 16px; text-align:center; font-family:'Cairo',sans-serif; font-size:0.8rem; font-weight:700; align-items:center; justify-content:center; gap:8px;">
   <i class="fas fa-wifi" style="opacity:.7"></i>
   <span>أنت تعمل حالياً بدون إنترنت — سيتم التحقق من الكاش المحلي</span>
 </div>
 
+<!-- شاشة التحميل الاستهلالية -->
 <div id="loader">
     <div class="spinner-border" style="color: var(--accent-light); width: 2.5rem; height: 2.5rem;"></div>
 </div>
 
+<!-- كارت الدخول الزجاجي الموحد -->
 <div class="login-card" id="loginContent">
     <div class="logo-icon">
         <i class="fas fa-shield-halved"></i>
@@ -154,6 +158,7 @@
     <div id="errMsg" class="text-danger mt-3"></div>
 </div>
 
+<!-- نافذة التنبيهات المنبثقة -->
 <div id="customGlobalModal" class="custom-popup-overlay" style="display: none;">  
     <div class="custom-popup-box">  
         <div id="customModalIcon" style="width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px;"></div>  
@@ -164,8 +169,8 @@
 </div>  
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { initializeApp } from "./firebase-shim.js";
+    import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, getFirestore, doc, getDoc, setDoc } from "./firebase-shim.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -178,11 +183,31 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    let db;
+    try {
+        db = initializeFirestore(app, {
+            localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+        });
+    } catch (e) {
+        db = getFirestore(app);
+    }
 
     const loader = document.getElementById('loader');
     const loginContent = document.getElementById('loginContent');
     const CACHE_KEY_USERS = 'zaiady_users_credentials_cache';
+
+    // دالة مساعدة لحفظ بيانات الجلسة كاملة لحل مشكلة الطرد المباشر
+    function saveSessionData(username, role, userId = null) {
+        const generatedUserId = userId || ('usr_' + username.toLowerCase().replace(/\s+/g, '_'));
+        const token = 'token_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+
+        sessionStorage.setItem('isLoggedIn', 'true');
+        sessionStorage.setItem('username', username);
+        sessionStorage.setItem('user_name', username);
+        sessionStorage.setItem('role', role);
+        sessionStorage.setItem('userId', generatedUserId);
+        sessionStorage.setItem('authToken', token);
+    }
 
     window.showCustomUi = (options) => {  
         const modal = document.getElementById('customGlobalModal');  
@@ -255,7 +280,10 @@
         autoInitializeUser(); 
         
         const loggedUser = sessionStorage.getItem('isLoggedIn');
-        if (loggedUser === 'true') {
+        const authToken = sessionStorage.getItem('authToken');
+        
+        // التحقق المزدوج لتجنب التكرار والتحويل غير المكتمل
+        if (loggedUser === 'true' && authToken) {
             window.location.href = "index1.html";
         } else {
             setTimeout(() => {
@@ -290,15 +318,14 @@
 
                 if (cachedUser) {
                     if (String(cachedUser.pass).trim() === String(passVal).trim()) {
-                        sessionStorage.setItem('isLoggedIn', 'true');
-                        sessionStorage.setItem('username', userVal);
-                        sessionStorage.setItem('role', cachedUser.role || 'restricted'); 
+                        // حفظ التوكن وبيانات الجلسة للعمل بدون إنترنت
+                        saveSessionData(userVal, cachedUser.role || 'restricted');
                         window.location.href = "index1.html";
                     } else {
                         err.innerText = "❌ كلمة المرور غير صحيحة (فحص الكاش المحلي)";
                     }
                 } else {
-                    err.innerText = "❌ اسم المستخدم غير محفوظ في ذاكرة المتصفح";
+                    err.innerText = "❌ اسم المستخدم غير محفوظ في ذاكرة المتصفح للعمل بدون إنترنت";
                 }
             } catch (_) {
                 err.innerText = "❌ فشل فحص الكاش المحلي أثناء انقطاع الإنترنت";
@@ -317,12 +344,10 @@
                 const userData = userSnap.data();
                 if (String(userData.pass).trim() === String(passVal).trim()) {
                     
-                    // تحديث حالة الاتصال وتاريخ تسجيل الدخول بالوقت الحالي
                     const nowIso = new Date().toISOString();
                     await setDoc(userRef, { 
                         isOnline: true, 
-                        lastLogin: nowIso,
-                        lastActive: serverTimestamp()
+                        lastLogin: nowIso 
                     }, { merge: true });
 
                     try {
@@ -331,9 +356,8 @@
                         localStorage.setItem(CACHE_KEY_USERS, JSON.stringify(localUsers));
                     } catch(_) {}
 
-                    sessionStorage.setItem('isLoggedIn', 'true');
-                    sessionStorage.setItem('username', userVal);
-                    sessionStorage.setItem('role', userData.role || 'restricted'); 
+                    // حفظ كافة قيم الجلسة بما فيها authToken و userId
+                    saveSessionData(userVal, userData.role || 'restricted', userSnap.id);
                     window.location.href = "index1.html";
                 } else {
                     err.innerText = "❌ كلمة المرور المدخلة غير صحيحة";
@@ -346,7 +370,7 @@
             if (e.message && e.message.includes("permission-denied")) {
                 window.showCustomUi({ 
                     title: "صلاحيات مرفوضة", 
-                    message: "تم رفض الوصول من السيرفر المباشر.", 
+                    message: "تم رفض الوصول من السيرفر المباشر.\nيرجى مراجعة قواعد الحماية في الفايربيس.", 
                     icon: "danger" 
                 });
             } else {
@@ -357,6 +381,14 @@
             btn.innerHTML = '<i class="fas fa-sign-in-alt me-1"></i> دخول النظام';
         }
     }
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js")
+    .then(() => console.log("SW Registered Successfully"))
+    .catch((err) => console.log("SW Registration Failed", err));
+}
 </script>
 </body>
 </html>

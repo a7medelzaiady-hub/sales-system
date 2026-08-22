@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>إعدادات النظام - Anas Pro</title>
+    <!-- إعدادات التطبيق الهاتفي PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0b5e3d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -198,6 +204,21 @@
         </button>
     </div>
 
+    <div class="settings-card">
+        <div class="card-title text-success"><i class="fas fa-cloud-upload-alt"></i> النسخ الاحتياطي على فايربيز</div>
+        <p class="small text-muted">
+            البرنامج شغال بالكامل من غير نت. الخيارين دول اختياريين بس، لو حبيت تعمل نسخة
+            احتياطية أونلاين (يفيد لو غيّرت موبايل مثلاً) — محتاجين نت وقت الضغط بس.
+        </p>
+        <button class="btn btn-backup" id="btnCloudBackup">
+            <i class="fas fa-cloud-upload-alt me-2"></i> نسخ احتياطي على فايربيز
+        </button>
+        <button class="btn btn-backup mt-2" id="btnCloudRestore">
+            <i class="fas fa-cloud-download-alt me-2"></i> استرجاع من فايربيز
+        </button>
+        <p class="small text-muted mt-2 mb-0" id="cloudBackupStatus"></p>
+    </div>
+
     <div class="mt-4 px-1">
         <button class="btn-save" id="btnSaveSettings">حفظ الإعدادات بالكامل</button>
         <button class="btn btn-danger-custom" id="btnResetApp">
@@ -207,8 +228,8 @@
 </div>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { initializeApp } from "./firebase-shim.js";
+    import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, getFirestore, doc, getDoc, setDoc, collection, getDocs, deleteDoc } from "./firebase-shim.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -221,7 +242,14 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    let db;
+    try {
+        db = initializeFirestore(app, {
+            localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+        });
+    } catch (e) {
+        db = getFirestore(app);
+    }
 
     // =========================================================
     // كائن الإعدادات الموحد - إضافة اسم ملف العملاء الصريح بدقة
@@ -339,6 +367,66 @@
     });
 
     loadSettings();
+</script>
+<script type="module">
+    import {
+        backupToFirebase, restoreFromFirebase, getLastBackupTime, getLastRestoreTime
+    } from "./cloud-backup.js";
+
+    const statusEl = document.getElementById('cloudBackupStatus');
+    const backupBtn = document.getElementById('btnCloudBackup');
+    const restoreBtn = document.getElementById('btnCloudRestore');
+
+    function refreshCloudStatus() {
+        const lastBackup = getLastBackupTime();
+        const lastRestore = getLastRestoreTime();
+        const parts = [];
+        if (lastBackup) parts.push(`آخر نسخة احتياطية: ${new Date(lastBackup).toLocaleString('ar-EG')}`);
+        if (lastRestore) parts.push(`آخر استرجاع: ${new Date(lastRestore).toLocaleString('ar-EG')}`);
+        statusEl.textContent = parts.join(' | ');
+    }
+    refreshCloudStatus();
+
+    backupBtn.addEventListener('click', async () => {
+        backupBtn.disabled = true;
+        try {
+            statusEl.textContent = "جاري رفع البيانات على فايربيز...";
+            const { done, total } = await backupToFirebase((done, total) => {
+                statusEl.textContent = `جاري الرفع... (${done}/${total})`;
+            });
+            alert(`تم رفع النسخة الاحتياطية بنجاح ✅ (${done} عنصر)`);
+            refreshCloudStatus();
+        } catch (e) {
+            alert(e.message || "حدث خطأ أثناء النسخ الاحتياطي");
+        } finally {
+            backupBtn.disabled = false;
+        }
+    });
+
+    restoreBtn.addEventListener('click', async () => {
+        if (!confirm("هيتم استبدال كل البيانات المحلية الحالية بالبيانات المسترجعة من فايربيز. متأكد؟")) return;
+        restoreBtn.disabled = true;
+        try {
+            statusEl.textContent = "جاري الاسترجاع من فايربيز...";
+            await restoreFromFirebase((collectionName, idx, totalCols) => {
+                statusEl.textContent = `جاري تحميل: ${collectionName} (${idx}/${totalCols})`;
+            });
+            alert("تم الاسترجاع بنجاح ✅ هيتم إعادة تحميل الصفحة الآن.");
+            refreshCloudStatus();
+            location.reload();
+        } catch (e) {
+            alert(e.message || "حدث خطأ أثناء الاسترجاع");
+        } finally {
+            restoreBtn.disabled = false;
+        }
+    });
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js")
+    .then(() => console.log("SW Registered Successfully"))
+    .catch((err) => console.log("SW Registration Failed", err));
+}
 </script>
 </body>
 </html>

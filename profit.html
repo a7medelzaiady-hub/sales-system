@@ -4,11 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>تقرير الأرباح والمبيعات اليومية — الزيادي</title>
+    <!-- إعدادات التطبيق الهاتفي PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0b5e3d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght=400;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <!-- مكتبة SheetJS لتصدير ملفات إكسل -->
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- مكتبة JSZip لضغط الملفات في أرشيف ZIP واحد -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
 :root{
@@ -397,7 +405,7 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
   <div class="tb-btns">
     <button class="tb-btn save-btn-active" onclick="triggerManualSave()" title="حفظ فوري الآن (الحفظ التلقائي يعمل دائماً في الخلفية)"><i class="fas fa-save"></i></button>
     <button class="tb-btn" onclick="exportTodayToExcel()" title="تصدير مبيعات اليوم المحدد إلى إكسل"><i class="fas fa-file-excel"></i></button>
-    <button class="tb-btn" onclick="exportEachDayToSeparateFile()" title="تصدير كل الأيام (كل يوم في ملف إكسل مستقل)"><i class="fas fa-folder-minus"></i></button>
+    <button class="tb-btn" onclick="exportEachDayToZipFile()" title="تصدير جميع الأيام مضغوطة في ملف ZIP واحد"><i class="fas fa-file-archive"></i></button>
     <button class="tb-btn" onclick="scrollToArchive()" title="سجل الأرباح المرحلة"><i class="fas fa-archive"></i></button>
     <button class="tb-btn" onclick="window.print()" title="طباعة"><i class="fas fa-print"></i></button>
     <a href="index.html" class="tb-btn" title="الرئيسية"><i class="fas fa-home"></i></a>
@@ -481,7 +489,7 @@ table.inv tfoot td:first-child{text-align:right;padding-right:14px;}
     </button>
     <div style="display:flex; gap:6px;">
       <button class="btn-export-excel" onclick="exportTodayToExcel()"><i class="fas fa-file-excel"></i> تصدير اليوم</button>
-      <button class="btn-export-excel" style="background:#0369a1;" onclick="exportEachDayToSeparateFile()" title="تصدير كل يوم في ملف مستقل"><i class="fas fa-copy"></i> تصدير جميع الأيام (ملف لكل يوم)</button>
+      <button class="btn-export-excel" style="background:#0369a1;" onclick="exportEachDayToZipFile()" title="تصدير كل الأيام في ملف مضغوط ZIP"><i class="fas fa-file-archive"></i> تصدير الكل (ملف ZIP)</button>
     </div>
   </div>
 </div>
@@ -767,9 +775,9 @@ window.updateFooterColspans = updateFooterColspans;
 </script>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, onSnapshot, doc, setDoc }
-  from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { initializeApp } from "./firebase-shim.js";
+import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, getFirestore, collection, onSnapshot, doc, setDoc }
+  from "./firebase-shim.js";
 
 const app = initializeApp({
   apiKey:"AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -779,7 +787,14 @@ const app = initializeApp({
   messagingSenderId:"300306825071",
   appId:"1:300306825071:web:0426ddde56280fa090329a"
 });
-const db = getFirestore(app);
+let db;
+try {
+    db = initializeFirestore(app, {
+        localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+    });
+} catch (e) {
+    db = getFirestore(app);
+}
 
 const FIXED_EXPENSES = {
   "جاز": 250,
@@ -946,10 +961,15 @@ function exportTodayToExcel() {
 }
 window.exportTodayToExcel = exportTodayToExcel;
 
-// ** دالة تصدير كل يوم في ملف إكسل مستقل منفصل دفعة واحدة **
-function exportEachDayToSeparateFile() {
+// ** دالة تصدير كل الأيام في ملفات إكسل منفصلة مضغوطة داخل ملف ZIP **
+async function exportEachDayToZipFile() {
   if (!globalInvoices || globalInvoices.length === 0) {
     alert("لا توجد فواتير أو بيانات مسجلة للتصدير.");
+    return;
+  }
+
+  if (typeof JSZip === "undefined") {
+    alert("جاري تحميل مكتبة الضغط JSZip... يرجى إعادة المحاولة بعد لحظات.");
     return;
   }
 
@@ -972,11 +992,11 @@ function exportEachDayToSeparateFile() {
     return;
   }
 
-  if (!confirm(`سيتم تنزيل عدد (${sortedDates.length}) ملف إكسل منفصل لجميع الأيام المسجلة. هل تريد المتابعة؟`)) {
-    return;
-  }
+  setAutoSaveStatus("saving", `جاري تجهيز ${sortedDates.length} ملف إكسل وضغطهم...`);
 
-  sortedDates.forEach((dateStr, index) => {
+  const zip = new JSZip();
+
+  sortedDates.forEach(dateStr => {
     const invoicesOfDay = daysGrouped[dateStr];
     const D = {};
     let totalGrossSales = 0;
@@ -1073,15 +1093,33 @@ function exportEachDayToSeparateFile() {
       "ربح الصنف (ج)": Number(netProfit.toFixed(2))
     });
 
-    setTimeout(() => {
-      const workbook = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(dayRows);
-      XLSX.utils.book_append_sheet(workbook, ws, `مبيعات_${dateStr}`);
-      XLSX.writeFile(workbook, `تقرير_مبيعات_الزيادي_${dateStr}.xlsx`);
-    }, index * 150);
+    const workbook = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(dayRows);
+    XLSX.utils.book_append_sheet(workbook, ws, `مبيعات_${dateStr}`);
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+
+    zip.file(`تقرير_مبيعات_الزيادي_${dateStr}.xlsx`, excelBuffer);
   });
+
+  try {
+    const content = await zip.generateAsync({ type: "blob" });
+    const todayStr = new Date().toISOString().slice(0, 10);
+    
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(content);
+    a.download = `تقارير_مبيعات_جميع_الأيام_الزيادي_${todayStr}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+
+    setAutoSaveStatus("saved", "تم تحميل ملف ZIP بجميع تقارير الأيام بنجاح.");
+  } catch (err) {
+    console.error(err);
+    alert("حدث خطأ أثناء ضغط الملفات.");
+  }
 }
-window.exportEachDayToSeparateFile = exportEachDayToSeparateFile;
+window.exportEachDayToZipFile = exportEachDayToZipFile;
 
 // ** دالة تصدير أرشيف الأرباح التراكمية إلى Excel **
 function exportArchiveToExcel() {
@@ -1203,7 +1241,7 @@ async function autoSaveProfitToServer(summary) {
   setAutoSaveStatus("saving", "جاري حفظ أرباح اليوم تلقائياً...");
 
   try {
-    const docRef = doc(doc(db, "archived_profits", summary.date));
+    const docRef = doc(db, "archived_profits", summary.date);
     await setDoc(docRef, {
       date: summary.date,
       sales: summary.sales,
@@ -1430,6 +1468,13 @@ document.addEventListener("DOMContentLoaded", () => {
   initRealtimeListeners();
   setupArchiveRealtime();
 });
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js")
+    .then(() => console.log("SW Registered Successfully"))
+    .catch((err) => console.log("SW Registration Failed", err));
+}
 </script>
 </body>
 </html>

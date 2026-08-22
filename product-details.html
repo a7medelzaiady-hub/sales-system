@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تفاصيل الصنف - النظام الذكي</title>
+    <!-- إعدادات التطبيق الهاتفي PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0b5e3d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -18,7 +24,6 @@
             --border-color: #e2e8f0;
             --danger: #f43f5e;
             --warning: #ffb703;
-            --info: #0ea5e9;
         }
 
         body { 
@@ -29,6 +34,7 @@
             padding-bottom: 40px;
         }
 
+        /* الهيدر */
         .top-nav {
             background: linear-gradient(135deg, var(--primary-green), #0a5234);
             color: white;
@@ -45,39 +51,43 @@
         .top-nav i { cursor: pointer; font-size: 1.2rem; transition: 0.2s; }
         .top-nav i:active { transform: scale(0.9); }
 
-        .details-container { padding: 15px; }
+        .details-container {
+            padding: 15px;
+        }
 
+        /* الكروت العلوية */
         .stat-card {
             background: white;
             border-radius: 18px;
-            padding: 18px 12px;
+            padding: 20px;
             border: 1px solid var(--border-color);
             box-shadow: 0 2px 8px rgba(0,0,0,0.02);
             text-align: center;
             height: 100%;
         }
         .stat-title {
-            font-size: 0.8rem;
+            font-size: 0.82rem;
             color: var(--text-muted);
             font-weight: 700;
             margin-bottom: 6px;
         }
         .stat-value {
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             font-weight: 800;
             color: var(--text-dark);
         }
         .stat-badge {
             display: inline-block;
             margin-top: 5px;
-            font-size: 0.72rem;
+            font-size: 0.75rem;
             font-weight: 700;
-            padding: 3px 8px;
+            padding: 3px 10px;
             border-radius: 8px;
             background: #f1f5f9;
             color: var(--text-muted);
         }
 
+        /* كارت البيانات الأساسية والأسعار */
         .info-card {
             background: white;
             border-radius: 20px;
@@ -124,6 +134,7 @@
             color: var(--primary-green);
         }
 
+        /* جدول الحركات */
         .movements-table-card {
             background: white;
             border-radius: 20px;
@@ -139,7 +150,10 @@
             border: 1px solid var(--border-color);
             -webkit-overflow-scrolling: touch;
         }
-        .table { min-width: 600px; margin-bottom: 0 !important; }
+        .table {
+            min-width: 600px;
+            margin-bottom: 0 !important;
+        }
         .table th {
             background-color: #f8fafc !important;
             color: var(--text-muted);
@@ -189,25 +203,18 @@
 </div>
 
 <div class="container-fluid details-container">
-    <div class="row g-2">
-        <div class="col-4">
+    <div class="row g-3">
+        <div class="col-6">
             <div class="stat-card">
-                <div class="stat-title"><i class="fas fa-hourglass-start text-info me-1"></i> رصيد أول المدة</div>
-                <div class="stat-value text-info" id="initialQtyVal">0</div>
-                <div class="stat-badge" id="initialCartonsSplitVal">0 كرتونة</div>
-            </div>
-        </div>
-        <div class="col-4">
-            <div class="stat-card">
-                <div class="stat-title"><i class="fas fa-triangle-exclamation text-warning me-1"></i> حد الطلب</div>
-                <div class="stat-value text-warning" id="minQtyVal">0</div>
+                <div class="stat-title"><i class="fas fa-triangle-exclamation text-warning me-1"></i> حد الطلب (الأدنى)</div>
+                <div class="stat-value" id="minQtyVal">0</div>
                 <span class="stat-badge">قطعة/جركن</span>
             </div>
         </div>
-        <div class="col-4">
+        <div class="col-6">
             <div class="stat-card">
-                <div class="stat-title"><i class="fas fa-boxes-stacked text-success me-1"></i> الرصيد الحالي</div>
-                <div class="stat-value text-success" id="totalPcsVal">0</div>
+                <div class="stat-title"><i class="fas fa-boxes-stacked text-success me-1"></i> إجمالي القطع الحالي</div>
+                <div class="stat-value" id="totalPcsVal">0</div>
                 <div class="stat-badge" id="cartonsSplitVal">0 كرتونة</div>
             </div>
         </div>
@@ -279,8 +286,8 @@
 </div>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getFirestore, doc, getDoc, collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { initializeApp } from "./firebase-shim.js";
+    import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, getFirestore, doc, getDoc, collection, getDocs, query, where, orderBy } from "./firebase-shim.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -293,7 +300,14 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    let db;
+    try {
+        db = initializeFirestore(app, {
+            localCache: persistentLocalCache({ tabManager: persistentSingleTabManager() })
+        });
+    } catch (e) {
+        db = getFirestore(app);
+    }
 
     const urlParams = new URLSearchParams(window.location.search);
     const productId = urlParams.get('id');
@@ -315,19 +329,17 @@
 
             const product = productDoc.data();
             const productName = product.name;
-            const factor = Number(product.unitFactor) || 1;
+            const factor = Number(product.unitFactor) || 12;
 
             document.getElementById('headerProductName').innerText = productName;
             document.getElementById('minQtyVal').innerText = product.min || 0;
+            document.getElementById('totalPcsVal').innerText = product.totalPcs || product.qty || 0;
+            
+            const total = Number(product.totalPcs || product.qty || 0);
+            const cartons = Math.trunc(total / factor);
+            const remainingPcs = total % factor;
 
-            // 1. حساب الرصيد الحالي للقطع
-            const totalCurrent = Number(product.totalPcs !== undefined && product.totalPcs !== null ? product.totalPcs : (product.qty || 0));
-            document.getElementById('totalPcsVal').innerText = totalCurrent;
-
-            const cartons = Math.trunc(totalCurrent / factor);
-            const remainingPcs = totalCurrent % factor;
             document.getElementById('cartonsSplitVal').innerText = `${cartons} كرتونة و ${remainingPcs} جركن`;
-
             document.getElementById('unitFactorText').innerText = `معدل التحويل: تحتوي الكرتونة على ${factor} جركن/قطعة`;
 
             document.getElementById('priceRetail').innerText = Number(product.sell || 0).toFixed(2);
@@ -347,12 +359,8 @@
             });
 
             let movements = [];
-            let totalSalesPcs = 0;
-            let totalPurchasesPcs = 0;
-            let totalReturnsPcs = 0;
-            let totalLossesPcs = 0;
 
-            // جلب مبيعات الصنف وحساب إجمالي القطع
+            // جلب مبيعات الصنف وتصحيح رابط الـ sales-invoice.html
             const salesSnap = await getDocs(collection(db, "invoices"));
             salesSnap.forEach(docSnap => {
                 const data = docSnap.data();
@@ -360,15 +368,7 @@
                 if (matchedItem) {
                     const isReturn = matchedItem.isReturn === true;
                     const dateObj = data.timestamp?.toDate ? data.timestamp.toDate() : (data.time ? new Date(data.time) : new Date());
-                    const itemQty = Number(matchedItem.qty || 0);
-                    const pcsQty = matchedItem.unit === 'box' ? (itemQty * factor) : itemQty;
-
-                    if (isReturn) {
-                        totalReturnsPcs += pcsQty;
-                    } else {
-                        totalSalesPcs += pcsQty;
-                    }
-
+                    
                     movements.push({
                         date: dateObj,
                         dateStr: data.time || dateObj.toLocaleDateString('ar-EG'),
@@ -384,7 +384,7 @@
                 }
             });
 
-            // جلب مشتريات الصنف وحساب إجمالي القطع
+            // جلب مشتريات الصنف وتصحيح رابط الـ new-purchase-invoice.html
             const purchasesSnap = await getDocs(collection(db, "supplier_transactions"));
             purchasesSnap.forEach(docSnap => {
                 const data = docSnap.data();
@@ -393,16 +393,6 @@
                     const isReturn = Number(matchedItem.returnQty) > 0 || matchedItem.isReturn === true;
                     const qty = isReturn ? Number(matchedItem.returnQty || matchedItem.qty) : Number(matchedItem.qty);
                     const dateObj = data.timestamp?.toDate ? data.timestamp.toDate() : (data.date ? new Date(data.date) : new Date());
-                    
-                    const unitName = (matchedItem.unitName || '').toLowerCase();
-                    const isBox = unitName.includes('box') || unitName.includes('كرت');
-                    const pcsQty = isBox ? (qty * factor) : qty;
-
-                    if (isReturn) {
-                        totalReturnsPcs += pcsQty;
-                    } else {
-                        totalPurchasesPcs += pcsQty;
-                    }
 
                     movements.push({
                         date: dateObj,
@@ -419,7 +409,7 @@
                 }
             });
 
-            // جلب الحركات الأخرى
+            // جلب الحركات الأخرى وتصحيح الروابط
             const transSnap = await getDocs(query(collection(db, "transactions"), where("productId", "==", productId)));
             transSnap.forEach(docSnap => {
                 const data = docSnap.data();
@@ -427,13 +417,6 @@
                 if (!alreadyExists && data.invoiceId) {
                     const isSale = data.type === 'sale' || data.type === 'بيع';
                     const dateObj = data.timestamp?.toDate ? data.timestamp.toDate() : (data.date ? new Date(data.date) : new Date());
-                    const qtyPcs = Number(data.qty || data.quantity || 0);
-
-                    if (isSale) {
-                        totalSalesPcs += qtyPcs;
-                    } else {
-                        totalPurchasesPcs += qtyPcs;
-                    }
 
                     movements.push({
                         date: dateObj,
@@ -450,25 +433,6 @@
                 }
             });
 
-            // 2. تطبيق المعادلة الذكية لجلب/حساب رصيد أول المدة
-            let initialPcs = 0;
-
-            if (product.initQty !== undefined && product.initQty !== null) {
-                initialPcs = Number(product.initQty);
-            } else if (product.initialQty !== undefined && product.initialQty !== null) {
-                initialPcs = Number(product.initialQty);
-            } else {
-                // المعادلة: رصيد أول المدة = الرصيد الحالي + المبيعات + التالف - المشتريات - المرتجعات
-                initialPcs = totalCurrent + totalSalesPcs + totalLossesPcs - totalPurchasesPcs - totalReturnsPcs;
-            }
-
-            document.getElementById('initialQtyVal').innerText = initialPcs;
-
-            const initCartons = Math.trunc(initialPcs / factor);
-            const initRemainingPcs = initialPcs % factor;
-            document.getElementById('initialCartonsSplitVal').innerText = `${initCartons} كرتونة و ${initRemainingPcs} جركن`;
-
-            // 3. عرض جدول الحركات
             movements.sort((a, b) => b.date - a.date);
 
             if (movements.length === 0) {
@@ -526,6 +490,13 @@
     }
 
     loadProductDetails();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js")
+    .then(() => console.log("SW Registered Successfully"))
+    .catch((err) => console.log("SW Registration Failed", err));
+}
 </script>
 </body>
 </html>

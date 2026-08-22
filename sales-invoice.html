@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>فاتورة مبيعات - شركة الزيادي</title>
+    <!-- إعدادات التطبيق الهاتفي PWA -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0b5e3d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.rtl.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -368,7 +374,7 @@
 
     <div class="invoice-card">
         <div class="row g-2 mb-3">
-            <div class="col-7 position-relative">
+            <div class="col-6 position-relative">
                 <label class="sub-lbl" style="text-align:right;"><i class="fas fa-user me-1"></i> العميل</label>
                 <div class="d-flex gap-1">
                     <input type="text" id="customerSearch" class="form-control text-start" placeholder="ابحث عن عميل..." oninput="searchCustomer(this)" autocomplete="off">
@@ -388,7 +394,16 @@
                     </div>
                 </div>
             </div>
-            <div class="col-5">
+            
+            <div class="col-3">
+                <label class="sub-lbl" style="text-align:right;"><i class="fas fa-store me-1"></i> منفذ البيع</label>
+                <select id="invoiceSource" class="form-select" style="font-size: 0.75rem; padding: 8px 2px;">
+                    <option value="van_sales" selected>العربيه </option>
+                    <option value="main_store">المخزن </option>
+                </select>
+            </div>
+
+            <div class="col-3">
                 <label class="sub-lbl" style="text-align:right;"><i class="fas fa-calendar-alt me-1"></i> التاريخ والوقت</label>
                 <input type="text" id="invTime" class="form-control" style="font-size: 0.75rem;" oninput="handleInput()">
             </div>
@@ -628,8 +643,8 @@
 </div>
 
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where, orderBy, limit, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+    import { initializeApp } from "./firebase-shim.js";
+    import { initializeFirestore, persistentLocalCache, persistentSingleTabManager, collection, getDocs, addDoc, updateDoc, doc, getDoc, serverTimestamp, increment, query, where, orderBy, limit, deleteDoc, writeBatch } from "./firebase-shim.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -642,8 +657,6 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    // تفعيل التخزين الدائم (Offline Persistence) — يخزن البيانات على الجهاز
-    // ويسمح بالقراءة والكتابة حتى لو انقطع الإنترنت، مع مزامنة تلقائية عند رجوع الاتصال
     let db;
     try {
         db = initializeFirestore(app, {
@@ -724,6 +737,7 @@
         });
 
         return {
+            source: document.getElementById('invoiceSource').value || 'van_sales',
             customerId: document.getElementById('customerSelect').value,
             customerName: document.getElementById('customerSearch').value,
             invTime: document.getElementById('invTime').value,
@@ -751,6 +765,7 @@
     };
 
     function restoreDraftPayload(payload) {
+        if (payload.source) document.getElementById('invoiceSource').value = payload.source;
         document.getElementById('customerSearch').value = payload.customerName || '';
         document.getElementById('customerSelect').value = payload.customerId || '';
         document.getElementById('invTime').value = payload.invTime || '';
@@ -910,13 +925,6 @@
             return Math.max(minBuyPrice, minAllowedPrice);
         }
         return minBuyPrice !== null ? minBuyPrice : minAllowedPrice;
-    }
-
-    function getBuyPriceForUnit(product, selectedUnit) {
-        if (!product) return 0;
-        const buyBox = Number(product.buy !== undefined ? product.buy : product.cost) || 0;
-        const factor = Number(product.unitFactor) || 1;
-        return selectedUnit === 'box' ? buyBox : (buyBox / factor);
     }
 
     window.addEventListener('beforeunload', (e) => {
@@ -1255,7 +1263,6 @@
             return;
         }
 
-        // السعر بياخد من كارت الصنف في المخزون مباشرة (سعر البيع) بدون البحث في تاريخ الفواتير
         const storePrice = (selectedUnit === 'box') ? (Number(p.sell) || 0) : ((Number(p.sell) || 0) / factor);
         const finalPrice = storePrice;
 
@@ -1548,7 +1555,13 @@
                 });
             }
 
+            const currentUser = sessionStorage.getItem('username') || sessionStorage.getItem('user_name') || localStorage.getItem('username') || "مستخدم غير معروف";
+            const invoiceSource = document.getElementById('invoiceSource').value || 'van_sales';
+
             const baseInvoiceData = {
+                source: invoiceSource,
+                createdBy: currentUser,
+                createdByName: currentUser,
                 customerId, customerName,
                 itemsTotal: Number(itemsTotal) || 0,
                 discount: Number(discount) || 0,
@@ -1634,12 +1647,27 @@
                 }
             }
 
-            await batch.commit();
+            const wasOffline = !navigator.onLine;
+            const commitPromise = batch.commit();
 
             prepareThermalReceipt(baseInvoiceData, currentFetchedOldBalance);
             isChanged = false;
             clearDraftSilently();
+
+            if (wasOffline) {
+                window.showCustomAlert("تم حفظ الفاتورة على الجهاز، وسيتم رفعها تلقائيًا للسيرفر فور توفر الإنترنت.", false);
+            }
+
             document.getElementById('shareModal').style.display = 'flex';
+
+            commitPromise
+                .then(() => {
+                    console.log("تمت مزامنة الفاتورة مع السيرفر بنجاح");
+                })
+                .catch((err) => {
+                    console.error("فشلت مزامنة الفاتورة مع السيرفر:", err);
+                    window.showCustomAlert("تنبيه: حدث خطأ أثناء رفع الفاتورة للسيرفر بعد رجوع الاتصال.\nيرجى مراجعة الفاتورة من سجل الفواتير للتأكد.\n\n" + (err?.message || err?.toString() || ""));
+                });
 
         } catch (e) {
             console.error("Firebase Error: ", e);
@@ -1917,7 +1945,10 @@
                 }
 
                 document.getElementById("itemsContainer").innerHTML = "";
-                paramItems.forEach(item => window.addNewRow(item));
+                paramItems.forEach(item => {
+                    const fixedItem = { ...item, isEditedPrice: true, defaultPrice: item.price };
+                    window.addNewRow(fixedItem);
+                });
                 isChanged = true;
                 calc();
 
@@ -1929,6 +1960,10 @@
                     const data = invDoc.data();
                     
                     originalInvoiceDataForLogs = JSON.parse(JSON.stringify(data));
+
+                    if (data.source) {
+                        document.getElementById('invoiceSource').value = data.source;
+                    }
 
                     document.getElementById('customerSelect').value = data.customerId || "";
                     document.getElementById('customerSearch').value = data.customerName || 'عميل نقدي';
@@ -1969,6 +2004,13 @@
     }
 
     init();
+</script>
+<script>
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js")
+    .then(() => console.log("SW Registered Successfully"))
+    .catch((err) => console.log("SW Registration Failed", err));
+}
 </script>
 </body>
 </html>
