@@ -441,8 +441,8 @@
 </div>
 
 <script type="module">
-    import { initializeApp } from "./firebase-shim.js";
-    import { getFirestore, collection, getDocs, doc, getDoc, query, where, serverTimestamp, writeBatch, increment } from "./firebase-shim.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, getDoc, query, where, serverTimestamp, writeBatch, increment } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -464,6 +464,7 @@
     let orderId = urlParams.get('orderId');
     let isChanged = false;
     let currentFetchedOldBalance = 0;
+    let originalInvoiceTime = "";
     let oldInvoiceData = null;
 
     const CACHE_KEYS = { suppliers: "cache_suppliers", inventory: "cache_inventory", ts: "cache_purchase_ts" };
@@ -473,6 +474,16 @@
         const n = parseFloat(num);
         if (isNaN(n)) return "0";
         return Number.isInteger(n) ? n.toString() : n.toFixed(2).replace(/\.?0+$/, '');
+    }
+
+    function parsePurchaseDate(dateStr) {
+        if (!dateStr) return 0;
+        try {
+            const cleanStr = String(dateStr).replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
+            const parsed = Date.parse(cleanStr);
+            if (!isNaN(parsed)) return parsed;
+        } catch (e) { }
+        return 0;
     }
 
     window.showCustomAlert = (msg) => {
@@ -509,25 +520,40 @@
         return Number(sup.openingBalance) || 0;
     }
 
-    async function getRealSupplierBalance(supplierId, baseBalance = 0) {
+    async function getRealSupplierBalance(supplierId, baseBalance = 0, targetInvoiceTimeStr = null) {
         try {
             const [snapInvoices, snapTrans] = await Promise.all([
                 getDocs(query(collection(db, "supplier_transactions"), where("supplierId", "==", supplierId))),
                 getDocs(query(collection(db, "transactions"), where("supplierId", "==", supplierId)))
             ]);
 
-            let invoiceDebt = 0;
-            snapInvoices.forEach(docSnap => {
-                if (editId && docSnap.id === editId) return;
-                const data = docSnap.data();
-                const amt = Number(data.grossTotal) || Number(data.total) || 0;
-                const paid = Number(data.totalPaid || (Number(data.cashPaid || 0) + Number(data.walletPaid || 0)));
-                invoiceDebt += (amt - paid);
+            const targetTimeMs = targetInvoiceTimeStr ? parsePurchaseDate(targetInvoiceTimeStr) : null;
+
+            let invoicesList = snapInvoices.docs.map(d => {
+                const data = d.data();
+                const timeMs = data.timestamp ? (data.timestamp.seconds * 1000) : parsePurchaseDate(data.date);
+                return { id: String(d.id).trim(), timeMs, data };
             });
+
+            invoicesList.sort((a, b) => a.timeMs - b.timeMs);
+
+            let invoiceDebt = 0;
+            for (const item of invoicesList) {
+                if (editId && item.id === String(editId).trim()) continue;
+                if (targetTimeMs && targetTimeMs > 0 && item.timeMs >= targetTimeMs) continue;
+
+                const amt = Number(item.data.grossTotal) || Number(item.data.total) || 0;
+                const paid = Number(item.data.totalPaid || (Number(item.data.cashPaid || 0) + Number(item.data.walletPaid || 0)));
+                invoiceDebt += (amt - paid);
+            }
 
             let transEffect = 0;
             snapTrans.forEach(docSnap => {
                 const tr = docSnap.data();
+                if (targetTimeMs && targetTimeMs > 0) {
+                    const trTimeMs = tr.timestamp ? (tr.timestamp.seconds * 1000) : parsePurchaseDate(tr.date);
+                    if (trTimeMs >= targetTimeMs) return;
+                }
                 const amt = Number(tr.amount) || 0;
                 if (tr.type === 'قبض') transEffect -= amt;
                 else if (tr.type === 'صرف') transEffect += amt;
@@ -561,7 +587,8 @@
             balanceDiv.querySelector('#curBalanceVal').innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
 
             const startBalance = getSupplierBaseBalance(exactMatch);
-            const realDebt = await getRealSupplierBalance(exactMatch.id, startBalance);
+            const currentInvTime = document.getElementById('invTime').value || originalInvoiceTime;
+            const realDebt = await getRealSupplierBalance(exactMatch.id, startBalance, editId ? currentInvTime : null);
             currentFetchedOldBalance = realDebt;
             showBalance(realDebt);
             calc();
@@ -596,7 +623,8 @@
         balanceDiv.style.display = 'block';
         balanceSpan.innerHTML = '<i class="fas fa-spinner fa-spin"></i> جاري الحساب...';
 
-        const realDebt = await getRealSupplierBalance(id, baseBalance);
+        const currentInvTime = document.getElementById('invTime').value || originalInvoiceTime;
+        const realDebt = await getRealSupplierBalance(id, baseBalance, editId ? currentInvTime : null);
         currentFetchedOldBalance = realDebt;
         showBalance(realDebt);
 
@@ -616,7 +644,7 @@
         const filtered = inventory.filter(i => i.name.toLowerCase().includes(term)).slice(0, 15);
         resultadosDiv.innerHTML = filtered.map(p => `
             <div class="search-item" onclick="selectProduct('${input.closest('.product-row').id}', '${p.id}', '${p.name.replace(/'/g, "\\'")}')">
-                <b>${p.name}</b> <span style="font-size:0.7rem; color:#6c757d; display:block; margin-top:2px;">المخزن: ${p.totalPcs} قطعة</span>
+                <b>${p.name}</b> <span style="font-size:0.7rem; color:#6c757d; display:block; margin-top:2px;">المخزن: ${p.totalPcs !== undefined ? p.totalPcs : (p.qty || 0)} قطعة</span>
             </div>`).join('');
         resultadosDiv.style.display = filtered.length > 0 ? 'block' : 'none';
     };
@@ -632,8 +660,9 @@
         const p = inventory.find(i => i.id === pid);
 
         if (p) {
-            row.querySelector('.unit-info-area').innerHTML = `<i class="fas fa-warehouse me-1"></i> رصيد المخزن: ${p.totalPcs} ق`;
-            const factor = Number(p.unitFactor) || 1;
+            const currentTotalPcs = p.totalPcs !== undefined ? p.totalPcs : (p.qty || 0);
+            row.querySelector('.unit-info-area').innerHTML = `<i class="fas fa-warehouse me-1"></i> رصيد المخزن: ${currentTotalPcs} ق`;
+            const factor = Number(p.unitFactor || p.factor) || 1;
             const buyPrice = (selectedUnit === 'box') ? (Number(p.buy) || 0) : ((Number(p.buy) || 0) / factor);
             priceInput.value = formatNumClean(buyPrice);
         }
@@ -652,7 +681,7 @@
         const p = inventory.find(i => i.id === stockId);
         if (!p) return;
 
-        const factor = Number(p.unitFactor) || 1;
+        const factor = Number(p.unitFactor || p.factor) || 1;
         const buyPrice = (selectedUnit === 'box') ? (Number(p.buy) || 0) : ((Number(p.buy) || 0) / factor);
         priceInput.value = formatNumClean(buyPrice);
 
@@ -678,14 +707,14 @@
                     <div class="col-7 position-relative">
                         <span class="sub-lbl" style="text-align:right;">اسم الصنف</span>
                         <input type="text" class="form-control p-search text-start" placeholder="اكتب اسم الصنف..." oninput="searchProduct(this)" value="${oldData ? oldData.name : ''}" autocomplete="off">
-                        <input type="hidden" class="p-select" value="${oldData ? (oldData.stockId || '') : ''}">
+                        <input type="hidden" class="p-select" value="${oldData ? (oldData.stockId || oldData.id || '') : ''}">
                         <div class="search-results"></div>
                     </div>
                     <div class="col-5">
                         <span class="sub-lbl" style="text-align:right;">الوحدة</span>
                         <select class="form-select p-unit" onchange="updateRowPrice(this); handleInput();">
                             <option value="box" ${oldData?.unitName === 'كرتونة' || oldData?.unit === 'box' ? 'selected' : ''}>كرتونة</option>
-                            <option value="pcs" ${oldData?.unitName === 'قطعة' || oldData?.unit === 'pcs' ? 'selected' : ''}>جركن (قطعة)</option>
+                            <option value="pcs" ${oldData?.unitName === 'قطعة' || oldData?.unitName === 'جركن' || oldData?.unit === 'pcs' ? 'selected' : ''}>جركن (قطعة)</option>
                         </select>
                     </div>
                 </div>
@@ -715,11 +744,15 @@
             </div>`;
         document.getElementById('itemsContainer').insertAdjacentHTML('beforeend', html);
         
-        if (oldData && oldData.stockId) {
+        if (oldData && (oldData.stockId || oldData.id)) {
             setTimeout(() => {
                 const r = document.getElementById(id);
-                const p = inventory.find(i => i.id === oldData.stockId);
-                if (p) r.querySelector('.unit-info-area').innerHTML = `<i class="fas fa-warehouse me-1"></i> رصيد المخزن: ${p.totalPcs} ق`;
+                const targetStockId = oldData.stockId || oldData.id;
+                const p = inventory.find(i => i.id === targetStockId);
+                if (p) {
+                    const currentTotalPcs = p.totalPcs !== undefined ? p.totalPcs : (p.qty || 0);
+                    r.querySelector('.unit-info-area').innerHTML = `<i class="fas fa-warehouse me-1"></i> رصيد المخزن: ${currentTotalPcs} ق`;
+                }
             }, 50);
         }
         if (!oldData) isChanged = true;
@@ -855,21 +888,23 @@
                 if (!pid || qty <= 0) return;
                 
                 const p = inventory.find(i => i.id === pid);
-                const factor = p ? (Number(p.unitFactor) || 1) : 1;
+                const factor = p ? (Number(p.unitFactor || p.factor) || 1) : 1;
                 const qtyPcs = unit === 'box' ? (qty * factor) : qty;
                 const baseCartonPrice = unit === 'pcs' ? (price * factor) : price;
 
                 items.push({ 
                     stockId: pid, 
+                    id: pid,
                     name: name || "", 
                     unitName: unit === 'box' ? 'كرتونة' : 'قطعة', 
-                    qty: unit === 'box' ? qty : 0, 
-                    returnQty: unit === 'pcs' ? qty : 0, 
+                    unit: unit,
+                    qty: qty, 
+                    returnQty: isReturn ? qty : 0, 
                     buy: price, 
-                    isReturn,
+                    isReturn: isReturn,
                     unitFactor: factor,
                     totalPieces: qtyPcs,
-                    baseCartonPrice
+                    baseCartonPrice: baseCartonPrice
                 });
             });
 
@@ -903,26 +938,37 @@
 
             const batch = writeBatch(db);
 
-            // عكس الكميات السابقة في حالة التعديل
+            // عكس وإلغاء تأثير الفاتورة القديمة بالمخزن تماماً عند التعديل
             if (editId && oldInvoiceData && Array.isArray(oldInvoiceData.items)) {
                 for (const oldItem of oldInvoiceData.items) {
-                    const oldModifier = Number(oldItem.totalPieces) || 0;
-                    if (!oldModifier) continue;
-                    
-                    let matchedOldProduct = oldItem.stockId 
-                        ? inventory.find(p => p.id === oldItem.stockId)
+                    const targetStockId = oldItem.stockId || oldItem.id;
+                    let matchedOldProduct = targetStockId 
+                        ? inventory.find(p => p.id === targetStockId)
                         : inventory.find(p => p.name === oldItem.name);
 
                     if (matchedOldProduct) {
-                        const itemRef = doc(db, "inventory", matchedOldProduct.id);
-                        const isOldReturn = oldItem.isReturn === true;
-                        const finalOldMod = isOldReturn ? oldModifier : -oldModifier; 
-                        batch.update(itemRef, { totalPcs: increment(finalOldMod) });
+                        const factor = Math.max(1, Number(matchedOldProduct.unitFactor || matchedOldProduct.factor || oldItem.unitFactor) || 1);
+                        let oldModifier = Number(oldItem.totalPieces) || 0;
+                        if (!oldModifier) {
+                            const oldQty = Number(oldItem.qty || oldItem.returnQty || 0);
+                            const oldUnit = oldItem.unitName || oldItem.unit || "كرتونة";
+                            oldModifier = (oldUnit === "كرتونة" || oldUnit === "box") ? (oldQty * factor) : oldQty;
+                        }
+
+                        if (oldModifier > 0) {
+                            const itemRef = doc(db, "inventory", matchedOldProduct.id);
+                            const isOldReturn = oldItem.isReturn === true;
+                            const revertQty = isOldReturn ? oldModifier : -oldModifier; 
+                            batch.update(itemRef, { 
+                                totalPcs: increment(revertQty),
+                                qty: increment(revertQty)
+                            });
+                        }
                     }
                 }
             }
 
-            // تحديث الكميات الجديدة في المخزون
+            // إضافة وتطبيق الكميات الفعلية للفاتورة الحالية في المخزن
             for (const item of items) {
                 if (item.stockId) {
                     const storeDocRef = doc(db, "inventory", item.stockId);
@@ -930,6 +976,7 @@
                     
                     batch.update(storeDocRef, {
                         totalPcs: increment(stockIncrement),
+                        qty: increment(stockIncrement),
                         buy: item.baseCartonPrice,
                         lastUpdate: serverTimestamp()
                     });
@@ -969,7 +1016,7 @@
             await batch.commit();
 
             isChanged = false;
-            window.showCustomAlert("تم حفظ الفاتورة وترحيلها للسيستم بنجاح! 🚀");
+            window.showCustomAlert("تم حفظ الفاتورة وترحيلها وتحديث المخزن بنجاح! 🚀");
             setTimeout(() => { window.location.href = "purchase-invoices-list.html"; }, 1500);
 
         } catch (e) {
@@ -1000,7 +1047,11 @@
             getDocs(collection(db, "inventory"))
         ]);
         suppliers = sSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        inventory = iSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        inventory = iSnap.docs.map(d => {
+            const data = d.data();
+            const realPcs = (data.totalPcs !== undefined && data.totalPcs !== null) ? Number(data.totalPcs) : Number(data.qty || 0);
+            return { id: d.id, ...data, totalPcs: realPcs };
+        });
         persistCache();
     }
 
@@ -1039,7 +1090,8 @@
                 const sup = suppliers.find(s => s.id === currentSupId);
                 if (sup) {
                     const startBalance = getSupplierBaseBalance(sup);
-                    const realDebt = await getRealSupplierBalance(currentSupId, startBalance);
+                    const currentInvTime = document.getElementById('invTime').value || originalInvoiceTime;
+                    const realDebt = await getRealSupplierBalance(currentSupId, startBalance, editId ? currentInvTime : null);
                     currentFetchedOldBalance = realDebt;
                     showBalance(realDebt);
                 }
@@ -1068,7 +1120,10 @@
                     oldInvoiceData = invDoc.data();
                     document.getElementById('supplierSelect').value = oldInvoiceData.supplierId || "";
                     document.getElementById('supplierSearch').value = oldInvoiceData.supplierName || '';
-                    document.getElementById('invTime').value = oldInvoiceData.date || '';
+
+                    originalInvoiceTime = oldInvoiceData.date || '';
+                    document.getElementById('invTime').value = originalInvoiceTime;
+                    document.getElementById('invTime').readOnly = true;
 
                     document.getElementById('cashAmount').value = oldInvoiceData.cashPaid || 0;
                     document.getElementById('walletAmount').value = oldInvoiceData.walletPaid || 0;
@@ -1079,9 +1134,12 @@
                         document.getElementById('supplierBalanceInfo').style.display = 'block';
 
                         const startBalance = getSupplierBaseBalance(sup);
-                        const realB = await getRealSupplierBalance(oldInvoiceData.supplierId, startBalance);
+                        const realB = await getRealSupplierBalance(oldInvoiceData.supplierId, startBalance, originalInvoiceTime);
                         currentFetchedOldBalance = realB;
                         showBalance(realB);
+                    } else {
+                        currentFetchedOldBalance = 0;
+                        showBalance(0);
                     }
 
                     document.getElementById("itemsContainer").innerHTML = "";
@@ -1122,4 +1180,4 @@
     init();
 </script>
 </body>
-</html>  
+</html>
