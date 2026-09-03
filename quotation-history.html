@@ -371,15 +371,7 @@ table select:focus { border-color: var(--brand); }
 </div>
 
 <div class="page active" id="pg-items">
-  <div style="display:flex; justify-content:space-between; align-items:flex-center; flex-wrap:wrap; gap:10px; margin-bottom:18px;">
-    <div class="ph" style="margin-bottom:0;">
-      <h2>أصناف المخزن الحالية</h2>
-      <p>الأصناف المتاحة للتحميل (تشمل النواقص والسالب)</p>
-    </div>
-    <button class="btn btn-sm" onclick="window.fetchInventoryFresh()" style="background: var(--blue-lt); color: var(--blue); border: 1px solid #bde0fe; font-weight: 700; height:38px;">
-      🔄 تحديث المخزون
-    </button>
-  </div>
+  <div class="ph"><h2>أصناف المخزن الحالية</h2><p>الأصناف المتاحة للتحميل (تشمل النواقص والسالب)</p></div>
   <div class="card" id="itemsCard"><div class="spin"></div></div>
 </div>
 
@@ -537,7 +529,7 @@ table select:focus { border-color: var(--brand); }
 
 <script type="module">
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+import { getFirestore, collection, onSnapshot, getDocs } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAS0NNcZy0t-LN2wCB7p0941jR0bo-MNls",
@@ -558,11 +550,10 @@ let forceShowLoadList = false;
 let suggestFocusIdx = -1;
 let currentSummaryTab = 'active';
 
-/* كاش ذكي شامل لمنع إعادة الاستعلامات من السيرفر */
+/* كاش ذكي لمنع إعادة الاستعلامات من السيرفر */
 let memorySalesCache = null;
 let lastFetchedDate = null;
 let cachedCalculatedRows = [];
-let isInventoryLoadedOnce = false;
 
 const today = new Date();
 const offset = today.getTimezoneOffset();
@@ -776,39 +767,33 @@ window.scrollToFirstPending = function() {
   }
 };
 
-/* جلب أصناف المخزون مرة واحدة واستعمال الكاش المحلي للحد من استهلاك البيانات */
-window.fetchInventoryFresh = async function() {
-  const card = document.getElementById('itemsCard');
-  if (card) card.innerHTML = '<div class="spin"></div>';
+onSnapshot(collection(db, "inventory"), snap => {
+  firebaseItems = [];
+  snap.forEach(doc => {
+    const d = doc.data();
+    if (d.isDeleted) return;
+    const qty = Number(d.totalPcs) || 0;
+    if (qty === 0) return;
+    const cap = Number(d.unitFactor) || 1;
+    firebaseItems.push({ id: doc.id, name: d.name, capacity: cap, totalPcs: qty, unit: d.unit || '' });
+  });
+  renderItemsPage();
+  syncSessionVars();
+  firebaseItems.forEach(fi => {
+    if (cartItems[fi.id]) {
+      cartItems[fi.id].name     = fi.name;
+      cartItems[fi.id].capacity = fi.capacity;
+    }
+  });
+  saveSession();
 
-  try {
-    const snap = await getDocs(collection(db, "inventory"));
-    firebaseItems = [];
-    snap.forEach(doc => {
-      const d = doc.data();
-      if (d.isDeleted) return;
-      const qty = Number(d.totalPcs) || 0;
-      if (qty === 0) return;
-      const cap = Number(d.unitFactor) || 1;
-      firebaseItems.push({ id: doc.id, name: d.name, capacity: cap, totalPcs: qty, unit: d.unit || '' });
-    });
-
-    renderItemsPage();
-    syncSessionVars();
-    firebaseItems.forEach(fi => {
-      if (cartItems[fi.id]) {
-        cartItems[fi.id].name     = fi.name;
-        cartItems[fi.id].capacity = fi.capacity;
-      }
-    });
-    saveSession();
-    isInventoryLoadedOnce = true;
-    window.toast('✅ تم تحديث الأصناف بنجاح');
-  } catch(e) {
-    console.error(e);
-    window.toast('❌ تعذر جلب الأصناف من السيرفر');
+  if (document.getElementById('pg-load').classList.contains('active')) {
+    renderLoadFlow();
   }
-};
+  if(document.getElementById('pg-summary').classList.contains('active')) {
+    window.refreshSummaryData(false);
+  }
+});
 
 window.showPage = function(id, btn) {
   syncSessionVars();
@@ -816,18 +801,12 @@ window.showPage = function(id, btn) {
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if (btn) btn.classList.add('active');
-
-  if (!isInventoryLoadedOnce) {
-    window.fetchInventoryFresh();
-  }
-
   if (id === 'pg-load')    initLoadFlow();
   if (id === 'pg-summary') window.refreshSummaryData(false);
 };
 
 function renderItemsPage() {
   const card = document.getElementById('itemsCard');
-  if (!card) return;
   if (!firebaseItems.length) {
     card.innerHTML = '<div class="empty"><span class="em">📭</span>لا توجد أصناف بالمخزن</div>';
     return;
@@ -1624,9 +1603,6 @@ window.toast = function(msg) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
 };
-
-// تشغيل الأولي لجلب أصناف المخزن
-window.fetchInventoryFresh();
 </script>
 </body>
 </html>
