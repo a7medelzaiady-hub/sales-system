@@ -723,26 +723,34 @@
         });
     }
 
-    async function handleLogout() {
+    function handleLogout() {
+        // 1. إيقاف الـ Heartbeat ومسح الجلسة فوراً
         if (heartbeatInterval) clearInterval(heartbeatInterval);
+
+        const uid = currentUserId;
+        const uName = userName;
+
+        sessionStorage.clear();
+
+        // 2. التوجيه الفوري لصفحة تسجيل الدخول دون انتظار الشبكة
+        window.location.href = "index.html";
+
+        // 3. إرسال سجلات تسجيل الخروج إلى Firebase في الخلفية
         try {
-            const sessionDocRef = doc(db, "sessions", currentUserId);
-            await updateDoc(sessionDocRef, {
+            const sessionDocRef = doc(db, "sessions", uid);
+            updateDoc(sessionDocRef, {
                 status: 'logged_out',
                 logoutTime: serverTimestamp()
-            });
+            }).catch(err => console.warn("Session update err:", err));
 
-            await addDoc(collection(db, "session_logs"), {
-                userId: currentUserId,
-                userName: userName,
+            addDoc(collection(db, "session_logs"), {
+                userId: uid,
+                userName: uName,
                 action: 'LOGOUT',
                 timestamp: serverTimestamp()
-            });
+            }).catch(err => console.warn("Session log err:", err));
         } catch (err) {
-            console.error("Logout error:", err);
-        } finally {
-            sessionStorage.clear();
-            window.location.href = "index.html";
+            console.error("Logout background process error:", err);
         }
     }
 
