@@ -759,34 +759,44 @@
 
         try {
             await runTransaction(db, async (transaction) => {
+                // 1. جمع جميع عمليات القراءة أولاً (تجنباً لخطأ Firestore transactions require all reads to be executed before all writes)
+                const productSnaps = [];
                 if (Array.isArray(inv.items) && inv.items.length > 0) {
                     for (const item of inv.items) {
-                        if (!item.id) continue;
+                        const prodId = item.stockId || item.id;
+                        if (prodId) {
+                            const productRef = doc(db, "inventory", prodId);
+                            const pSnap = await transaction.get(productRef);
+                            productSnaps.push({ productRef, pSnap, item });
+                        }
+                    }
+                }
+
+                // 2. تنفيذ عمليات الكتابة والتحديث بعد اكتمال جميع القراءات
+                for (const entry of productSnaps) {
+                    if (entry.pSnap.exists()) {
+                        const productData = entry.pSnap.data();
+                        const item = entry.item;
+                        const factor = Math.max(1, Number(productData.unitFactor || productData.factor || productData.pcsPerCarton || item.unitFactor) || 1);
                         
-                        const productRef = doc(db, "products", item.id);
-                        const productSnap = await transaction.get(productRef);
-                        
-                        if (productSnap.exists()) {
-                            const productData = productSnap.data();
-                            const qtyToModify = item.qty || item.returnQty || 0;
-                            const isReturn = inv.isReturn || inv.type === "مرتجع شراء";
+                        let oldModifier = Number(item.totalPieces) || 0;
+                        if (!oldModifier) {
+                            const oldQty = Number(item.qty || item.returnQty || 0);
+                            const oldUnit = item.unitName || item.unit || "كرتونة";
+                            oldModifier = (oldUnit === "كرتونة" || oldUnit === "box") ? (oldQty * factor) : oldQty;
+                        }
+
+                        if (oldModifier > 0) {
+                            const isOldReturn = item.isReturn === true;
+                            const revertQty = isOldReturn ? oldModifier : -oldModifier; 
                             
-                            const modifier = isReturn ? qtyToModify : -qtyToModify;
-                            const unitName = item.unitName || "كرتونة";
-                            let currentQty = 0;
-                            let updateData = {};
+                            const currentTotalPcs = Number(productData.totalPcs || productData.qty || 0);
+                            const newTotalPcs = currentTotalPcs + revertQty;
 
-                            if (unitName === "جركن" || unitName === "قطعة") {
-                                currentQty = Number(productData.jerrycan || productData.pieces || 0);
-                                const newQty = Math.max(0, currentQty + modifier);
-                                updateData = { jerrycan: newQty };
-                            } else {
-                                currentQty = Number(productData.carton || 0);
-                                const newQty = Math.max(0, currentQty + modifier);
-                                updateData = { carton: newQty };
-                            }
-
-                            transaction.update(productRef, updateData);
+                            transaction.update(entry.productRef, { 
+                                totalPcs: newTotalPcs,
+                                qty: newTotalPcs
+                            });
                         }
                     }
                 }
